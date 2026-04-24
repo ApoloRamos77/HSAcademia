@@ -3,9 +3,9 @@ WORKDIR /app
 # Copiamos todos los binarios pre-compilados
 COPY . .
 
-# Por defecto configuramos para producción y en el puerto 80 (Easypanel default)
+# Por defecto configuramos para producción y en el puerto 8080
 ENV ASPNETCORE_ENVIRONMENT=Production
-ENV ASPNETCORE_URLS=http://+:80
-EXPOSE 80
+ENV ASPNETCORE_URLS=http://+:8080
+EXPOSE 8080
 
 ENTRYPOINT ["dotnet", "HSAcademia.API.dll"]
