@@ -69,11 +69,7 @@ builder.Services.AddControllers();
 builder.Services.AddCors(opts =>
 {
     opts.AddPolicy("AllowFrontend", policy =>
-        policy.WithOrigins(
-            "http://localhost:3000",
-            "http://localhost:5173",
-            "http://localhost:5174"
-        )
+        policy.SetIsOriginAllowed(origin => true) // Permitir cualquier origen en producción para Easypanel
         .AllowAnyHeader()
         .AllowAnyMethod()
         .AllowCredentials());
