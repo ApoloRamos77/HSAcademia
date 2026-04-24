@@ -27,6 +27,7 @@ public class AppDbContext : DbContext
     public DbSet<Attendance> Attendances => Set<Attendance>();
     public DbSet<Tournament> Tournaments => Set<Tournament>();
     public DbSet<Event> Events => Set<Event>();
+    public DbSet<Announcement> Announcements => Set<Announcement>();
 
     // =====================================================================
     // Model configuration
@@ -558,6 +559,35 @@ public class AppDbContext : DbContext
                   .HasForeignKey(e => e.TournamentId)
                   .OnDelete(DeleteBehavior.SetNull)
                   .IsRequired(false);
+        });
+
+        // ----------------------------------------------------------------
+        // Announcement
+        // ----------------------------------------------------------------
+        modelBuilder.Entity<Announcement>(entity =>
+        {
+            entity.ToTable("announcements");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.AcademyId).HasColumnName("academy_id").IsRequired();
+            entity.Property(e => e.Title).HasColumnName("title").HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Content).HasColumnName("content").HasMaxLength(3000).IsRequired();
+            entity.Property(e => e.IsPinned).HasColumnName("is_pinned").HasDefaultValue(false);
+            entity.Property(e => e.AuthorId).HasColumnName("author_id").IsRequired();
+            entity.Property(e => e.DatePosted).HasColumnName("date_posted").HasDefaultValueSql("NOW()");
+
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.IsDeleted).HasColumnName("is_deleted").HasDefaultValue(false);
+            entity.Property(e => e.DeletedAt).HasColumnName("deleted_at");
+
+            entity.HasIndex(e => e.AcademyId);
+            entity.HasQueryFilter(e => !e.IsDeleted);
+
+            entity.HasOne(e => e.Author)
+                  .WithMany()
+                  .HasForeignKey(e => e.AuthorId)
+                  .OnDelete(DeleteBehavior.Restrict);
         });
 
         // ----------------------------------------------------------------

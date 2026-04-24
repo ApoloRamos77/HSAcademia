@@ -127,21 +127,51 @@ public class CalendarController : ControllerBase
         return Created($"/api/calendar/tournaments/{created.Id}", created);
     }
 
+    // ─────────────────────────────────────────────────────────────
+    // Phase 3 — Mobile App endpoints
+    // ─────────────────────────────────────────────────────────────
+
     /// <summary>
-    /// DELETE /api/calendar/tournaments/{id}
+    /// GET /api/calendar/mobile/events?categoryId=...&amp;headquarterId=...
+    /// Returns upcoming events (current + next month) in mobile-friendly format.
+    /// Includes virtual birthday events. Used by the react-native-calendars screen.
     /// </summary>
-    [HttpDelete("tournaments/{id:guid}")]
-    public async Task<IActionResult> DeleteTournament(Guid id)
+    [HttpGet("mobile/events")]
+    public async Task<IActionResult> GetMobileEvents(
+        [FromQuery] Guid? categoryId = null,
+        [FromQuery] Guid? headquarterId = null)
     {
         try
         {
             var academyId = GetAcademyId();
-            await _calendarService.DeleteTournamentAsync(academyId, id);
-            return NoContent();
+            var events = await _calendarService.GetMobileEventsAsync(
+                academyId, categoryId, headquarterId);
+            return Ok(events);
         }
-        catch (KeyNotFoundException)
+        catch (UnauthorizedAccessException ex)
         {
-            return NotFound();
+            return Unauthorized(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// GET /api/calendar/mobile/next?categoryId=...
+    /// Returns the next upcoming event for the dashboard hero card.
+    /// Returns 204 No Content when there are no upcoming events.
+    /// </summary>
+    [HttpGet("mobile/next")]
+    public async Task<IActionResult> GetNextEvent([FromQuery] Guid? categoryId = null)
+    {
+        try
+        {
+            var academyId = GetAcademyId();
+            var next = await _calendarService.GetNextEventAsync(academyId, categoryId);
+            return next is null ? NoContent() : Ok(next);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
         }
     }
 }
+

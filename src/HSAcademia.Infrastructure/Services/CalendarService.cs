@@ -299,4 +299,134 @@ public class CalendarService : ICalendarService
 
         return birthdays;
     }
+
+    // =========================================================
+    // Phase 3 — Mobile App: GetMobileEventsAsync
+    // =========================================================
+
+    /// <summary>
+    /// Returns upcoming events for the mobile calendar (current month + next month),
+    /// mapped to MobileEventDto (YYYY-MM-DD dates, HH:mm times, type-key strings).
+    /// </summary>
+    public async Task<List<MobileEventDto>> GetMobileEventsAsync(
+        Guid academyId,
+        Guid? categoryId = null,
+        Guid? headquarterId = null)
+    {
+        var now  = DateTime.UtcNow;
+        var from = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        var to   = from.AddMonths(2); // cover current + next month
+
+        var query = _db.Events
+            .Include(e => e.Category)
+            .Include(e => e.Headquarter)
+            .Where(e =>
+                e.AcademyId == academyId &&
+                !e.IsDeleted &&
+                e.StartTime >= from &&
+                e.StartTime < to);
+
+        if (categoryId.HasValue)
+            query = query.Where(e => e.CategoryId == categoryId || e.CategoryId == null);
+
+        if (headquarterId.HasValue)
+            query = query.Where(e => e.HeadquarterId == headquarterId || e.HeadquarterId == null);
+
+        var dbEvents = await query.OrderBy(e => e.StartTime).ToListAsync();
+
+        var result = dbEvents.Select(e => MapToMobileDto(e)).ToList();
+
+        // Add virtual birthday events for both months
+        for (int mOffset = 0; mOffset < 2; mOffset++)
+        {
+            var target = from.AddMonths(mOffset);
+            var bdays  = await BuildBirthdayEventsAsync(academyId, target.Year, target.Month);
+            result.AddRange(bdays.Select(b => new MobileEventDto
+            {
+                Id       = b.Id.ToString(),
+                Title    = b.Title,
+                Date     = b.StartTime.ToString("yyyy-MM-dd"),
+                Type     = "Birthday",
+                AllDay   = true,
+                Category = b.CategoryName,
+            }));
+        }
+
+        return result.OrderBy(e => e.Date).ThenBy(e => e.StartTime).ToList();
+    }
+
+    // =========================================================
+    // Phase 3 — Mobile App: GetNextEventAsync
+    // =========================================================
+
+    /// <summary>
+    /// Returns the next upcoming event in human-readable format for the dashboard hero card.
+    /// </summary>
+    public async Task<NextEventDto?> GetNextEventAsync(Guid academyId, Guid? categoryId = null)
+    {
+        var now = DateTime.UtcNow;
+
+        var query = _db.Events
+            .Include(e => e.Headquarter)
+            .Include(e => e.Category)
+            .Where(e =>
+                e.AcademyId == academyId &&
+                !e.IsDeleted &&
+                e.StartTime >= now);
+
+        if (categoryId.HasValue)
+            query = query.Where(e => e.CategoryId == categoryId || e.CategoryId == null);
+
+        var next = await query.OrderBy(e => e.StartTime).FirstOrDefaultAsync();
+
+        if (next is null) return null;
+
+        // Build human-readable date string
+        var localTime = next.StartTime; // Keep as UTC; mobile will adjust if needed
+        var today     = now.Date;
+        var eventDay  = localTime.Date;
+
+        string dateStr;
+        if (eventDay == today)
+            dateStr = $"Hoy, {localTime:HH:mm} hrs";
+        else if (eventDay == today.AddDays(1))
+            dateStr = $"Mañana, {localTime:HH:mm} hrs";
+        else
+            dateStr = $"{localTime:dddd d 'de' MMMM}, {localTime:HH:mm} hrs";
+
+        return new NextEventDto
+        {
+            Title    = next.Title,
+            Date     = dateStr,
+            Location = next.Headquarter?.Name ?? "Sede Principal",
+            Type     = MapEventTypeKey(next.Type),
+        };
+    }
+
+    // =========================================================
+    // PRIVATE HELPERS (Phase 3)
+    // =========================================================
+
+    private static MobileEventDto MapToMobileDto(Event e) => new()
+    {
+        Id          = e.Id.ToString(),
+        Title       = e.Title,
+        Date        = e.StartTime.ToString("yyyy-MM-dd"),
+        StartTime   = e.StartTime.ToString("HH:mm"),
+        EndTime     = e.EndTime.ToString("HH:mm"),
+        Type        = MapEventTypeKey(e.Type),
+        Location    = e.Headquarter?.Name,
+        Category    = e.Category?.Name,
+        Description = e.Description,
+        AllDay      = false,
+    };
+
+    private static string MapEventTypeKey(EventType t) => t switch
+    {
+        EventType.Training        => "Training",
+        EventType.FriendlyMatch   => "Tournament",
+        EventType.TournamentMatch => "Tournament",
+        EventType.Birthday        => "Birthday",
+        _                         => "Other",
+    };
 }

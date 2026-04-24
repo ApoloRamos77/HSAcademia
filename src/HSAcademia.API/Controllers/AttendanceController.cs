@@ -23,6 +23,12 @@ public class AttendanceController : ControllerBase
         return Guid.TryParse(idStr, out var id) ? id : Guid.Empty;
     }
 
+    private Guid? GetStudentId()
+    {
+        var idStr = User.FindFirst("studentId")?.Value;
+        return Guid.TryParse(idStr, out var id) ? id : null;
+    }
+
     // ─────────────────────────────────────────────────────────────
     // Phase 1 — Date-based roll call
     // ─────────────────────────────────────────────────────────────
@@ -82,7 +88,6 @@ public class AttendanceController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
-            // Window not open yet
             return Conflict(new { message = ex.Message });
         }
         catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
@@ -139,4 +144,89 @@ public class AttendanceController : ControllerBase
         catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
         catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
     }
+
+    // ─────────────────────────────────────────────────────────────
+    // Phase 3 — Mobile App endpoints
+    // ─────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// POST /api/attendance/scan
+    /// Coach scans a student QR → registers attendance as Present for today.
+    /// Returns 409 if already marked today, 404 if student not found.
+    /// </summary>
+    [HttpPost("scan")]
+    public async Task<IActionResult> ScanQr([FromBody] QrScanDto dto)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+        var academyId = GetAcademyId();
+        if (academyId == Guid.Empty) return Unauthorized();
+        try
+        {
+            var result = await _attendanceService.ScanQrAsync(academyId, dto);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            // Already scanned today → 409 Conflict
+            return Conflict(new { message = ex.Message });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// GET /api/attendance/my-history?months=3
+    /// Returns the authenticated student's attendance grouped by month.
+    /// Resolves studentId from the JWT "studentId" claim.
+    /// </summary>
+    [HttpGet("my-history")]
+    public async Task<IActionResult> GetMyHistory([FromQuery] int months = 3)
+    {
+        var academyId = GetAcademyId();
+        if (academyId == Guid.Empty) return Unauthorized();
+
+        var studentId = GetStudentId();
+        if (studentId is null)
+            return BadRequest(new { message = "El token no contiene un studentId válido." });
+
+        try
+        {
+            var result = await _attendanceService.GetMyAttendanceHistoryAsync(
+                academyId, studentId.Value, months);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
+        catch (Exception ex)            { return BadRequest(new { message = ex.Message }); }
+    }
+
+    /// <summary>
+    /// GET /api/attendance/my-summary
+    /// Returns a compact present/absent/justified/total for the current month.
+    /// Used by the mobile dashboard widget.
+    /// </summary>
+    [HttpGet("my-summary")]
+    public async Task<IActionResult> GetMySummary()
+    {
+        var academyId = GetAcademyId();
+        if (academyId == Guid.Empty) return Unauthorized();
+
+        var studentId = GetStudentId();
+        if (studentId is null)
+            return BadRequest(new { message = "El token no contiene un studentId válido." });
+
+        try
+        {
+            var result = await _attendanceService.GetMyAttendanceSummaryAsync(
+                academyId, studentId.Value);
+            return Ok(result);
+        }
+        catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
+    }
 }
+

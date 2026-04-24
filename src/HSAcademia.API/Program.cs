@@ -27,6 +27,7 @@ builder.Services.AddScoped<HSAcademia.Infrastructure.Services.StoreService>();
 builder.Services.AddScoped<HSAcademia.Infrastructure.Services.FinancesService>();
 builder.Services.AddScoped<HSAcademia.Application.Interfaces.IAttendanceService, HSAcademia.Infrastructure.Services.AttendanceService>();
 builder.Services.AddScoped<HSAcademia.Application.Interfaces.ICalendarService, HSAcademia.Infrastructure.Services.CalendarService>();
+builder.Services.AddScoped<HSAcademia.Application.Interfaces.IAnnouncementService, HSAcademia.Infrastructure.Services.AnnouncementService>();
 
 // ─────────────────────────────────────────────────────────────
 // 3. Infrastructure Services

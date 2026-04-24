@@ -29,4 +29,26 @@ public interface IAttendanceService
     /// Flags IsAlert = true when percentage is below 70%.
     /// </summary>
     Task<AttendanceMetricsSummaryDto> GetMonthlyMetricsAsync(Guid academyId, Guid categoryId, int year, int month);
+
+    // ── Phase 3: Mobile App endpoints ──
+
+    /// <summary>
+    /// Processes a QR code scan from the coach's mobile app.
+    /// Registers the student as Present for the current day/session.
+    /// Throws InvalidOperationException (409) if already marked today.
+    /// Throws KeyNotFoundException (404) if student not found.
+    /// </summary>
+    Task<QrScanResultDto> ScanQrAsync(Guid academyId, QrScanDto dto);
+
+    /// <summary>
+    /// Returns the attendance history grouped by month for the authenticated student.
+    /// Returns the last 3 months by default.
+    /// </summary>
+    Task<List<MobileAttendanceMonthDto>> GetMyAttendanceHistoryAsync(Guid academyId, Guid studentId, int months = 3);
+
+    /// <summary>
+    /// Returns a compact summary (present/justified/absent/total) for the current month,
+    /// used by the dashboard widget.
+    /// </summary>
+    Task<MobileAttendanceSummaryDto> GetMyAttendanceSummaryAsync(Guid academyId, Guid studentId);
 }

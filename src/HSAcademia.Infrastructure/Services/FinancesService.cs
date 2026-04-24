@@ -117,6 +117,25 @@ public class FinancesService
             .OrderBy(p => p.DueDate)
             .ToListAsync();
 
+        return MapToDto(debts, today);
+    }
+
+    public async Task<List<PaymentRecordDto>> GetMyDebtsAsync(Guid academyId, Guid guardianUserId)
+    {
+        var today = DateTime.UtcNow;
+
+        var debts = await _context.PaymentRecords
+            .Include(p => p.Student)
+            .ThenInclude(s => s.Category)
+            .Where(p => p.AcademyId == academyId && p.Student.GuardianId == guardianUserId)
+            .OrderBy(p => p.DueDate)
+            .ToListAsync();
+
+        return MapToDto(debts, today);
+    }
+
+    private List<PaymentRecordDto> MapToDto(List<PaymentRecord> debts, DateTime today)
+    {
         return debts.Select(p => new PaymentRecordDto
         {
             Id = p.Id,
@@ -128,7 +147,7 @@ public class FinancesService
             DueDate = p.DueDate,
             IsPaid = p.IsPaid,
             Type = (int)p.Type,
-            DaysOverdue = today > p.DueDate ? (today - p.DueDate).Days : 0
+            DaysOverdue = today > p.DueDate && !p.IsPaid ? (today - p.DueDate).Days : 0
         }).ToList();
     }
 
@@ -160,4 +179,35 @@ public class FinancesService
             DaysOverdue = 0
         };
     }
+
+    // =========================================================
+    // Phase 4 — Mobile App: Process Multiple In-App Payments
+    // =========================================================
+    public async Task ProcessMobilePaymentAsync(Guid academyId, Guid guardianUserId, List<Guid> paymentIds)
+    {
+        if (paymentIds == null || !paymentIds.Any()) return;
+
+        var records = await _context.PaymentRecords
+            .Include(p => p.Student)
+            .Where(p => 
+                p.AcademyId == academyId && 
+                paymentIds.Contains(p.Id) && 
+                p.Student.GuardianId == guardianUserId && 
+                !p.IsPaid)
+            .ToListAsync();
+
+        if (records.Count != paymentIds.Count)
+            throw new Exception("Algunas deudas no fueron encontradas o ya están pagadas.");
+
+        var now = DateTime.UtcNow;
+        foreach (var record in records)
+        {
+            record.IsPaid = true;
+            record.PaidDate = now;
+            // Optionally: add transaction log or receipt generation logic here
+        }
+
+        await _context.SaveChangesAsync();
+    }
 }
+
