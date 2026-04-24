@@ -1,0 +1,6 @@
+@HSAcademia.API_HostAddress = http://localhost:5263
+
+GET {{HSAcademia.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
