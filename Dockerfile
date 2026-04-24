@@ -1,5 +1,5 @@
 # Etapa de construcción
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /app
 
 # Copiar archivos de solución y proyectos para restaurar paquetes
@@ -17,7 +17,7 @@ WORKDIR "/app/src/HSAcademia.API"
 RUN dotnet publish "HSAcademia.API.csproj" -c Release -o /app/publish /p:UseAppHost=false
 
 # Etapa de ejecución (Runtime)
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS runtime
 WORKDIR /app
 COPY --from=build /app/publish .
 
