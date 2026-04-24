@@ -142,4 +142,8 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
+// Health Check Endpoints para Easypanel / Traefik
+app.MapGet("/", () => "API is running!");
+app.MapGet("/health", () => "OK");
+
 app.Run();
