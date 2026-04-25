@@ -182,8 +182,10 @@ DocProject/Help/*.hhp
 DocProject/Help/Html2
 DocProject/Help/html
 
-# Click-Once directory
-publish/
+# Click-Once directory — NO ignorar publish/ para permitir deploys de Easypanel
+# publish/   <-- DESHABILITADO: publish/frontend y publish/backend son necesarios para Easypanel
+# Solo ignorar subcarpetas internas de ClickOnce si existen
+publish/app.publish/
 
 # Publish Web Output
 *.[Pp]ublish.xml
