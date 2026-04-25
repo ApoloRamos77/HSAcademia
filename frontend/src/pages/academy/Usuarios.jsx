@@ -64,7 +64,8 @@ export default function Usuarios() {
       // __admin__ is a UI-only sentinel: AcademyAdmin users don't need a custom academyRoleId
       const payload = {
         ...formData,
-        academyRoleId: formData.academyRoleId === '__admin__' ? '' : formData.academyRoleId
+        academyRoleId: (formData.academyRoleId === '__admin__' || formData.academyRoleId === '') ? null : formData.academyRoleId,
+        headquarterId: formData.headquarterId === '' ? null : formData.headquarterId
       };
       if (editingId) {
         await api.put(`/academy-config/users/${editingId}`, payload);
