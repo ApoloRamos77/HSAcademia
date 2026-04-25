@@ -1,7 +1,9 @@
 import axios from 'axios';
 
+const PRODUCTION_URL = 'https://softsport77-api.scuiaw.easypanel.host/api';
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api',
+  baseURL: import.meta.env.VITE_API_URL || PRODUCTION_URL,
   headers: { 'Content-Type': 'application/json' },
 });
 
