@@ -16,8 +16,12 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const user = await login(form.email, form.password);
-      toast.success(`Bienvenido, ${user.fullName}`);
-      navigate(user.role === 'SuperAdmin' ? '/super-admin/dashboard' : '/dashboard');
+      if (user.requirePasswordChange) {
+        navigate('/cambiar-password');
+      } else {
+        toast.success(`Bienvenido, ${user.fullName}`);
+        navigate(user.role === 'SuperAdmin' ? '/super-admin/dashboard' : '/dashboard');
+      }
     } catch (err) {
       setError(err.response?.data?.message || 'Error al iniciar sesión.');
     } finally {
@@ -37,11 +41,11 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label className="form-label">Correo electrónico</label>
+            <label className="form-label">Correo o Celular</label>
             <input
               className="form-control"
-              type="email"
-              placeholder="correo@ejemplo.com"
+              type="text"
+              placeholder="correo@ejemplo.com o 987654321"
               value={form.email}
               onChange={e => setForm({ ...form, email: e.target.value })}
               required

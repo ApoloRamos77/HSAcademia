@@ -20,11 +20,14 @@ import AsistenciaMetricas from './pages/academy/AsistenciaMetricas';
 import Calendario from './pages/academy/Calendario';
 import Tienda from './pages/academy/Tienda';
 import Finanzas from './pages/academy/Finanzas';
+import ChangePasswordPage from './pages/ChangePasswordPage';
+import SessionTimeout from './components/SessionTimeout';
 
 export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
+        <SessionTimeout timeout={60000} />
         <Toaster
           position="top-right"
           toastOptions={{
@@ -36,6 +39,7 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/registro" element={<RegisterPage />} />
+          <Route path="/cambiar-password" element={<ChangePasswordPage />} />
 
           {/* Super Admin */}
           <Route path="/super-admin/dashboard" element={

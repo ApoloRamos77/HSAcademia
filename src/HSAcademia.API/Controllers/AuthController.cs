@@ -59,4 +59,19 @@ public class AuthController : ControllerBase
 
         return Ok(academies);
     }
+
+    [Authorize]
+    [HttpPost("change-password")]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequestDto dto)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+
+        var userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (!Guid.TryParse(userIdStr, out var userId)) return Unauthorized();
+
+        var result = await _auth.ChangePasswordAsync(userId, dto);
+        if (!result.IsSuccess) return BadRequest(new { message = result.Error });
+
+        return Ok(new { message = "Contraseña actualizada exitosamente." });
+    }
 }
