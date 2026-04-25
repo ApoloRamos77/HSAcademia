@@ -1,6 +1,10 @@
 using HSAcademia.Application.DTOs.Auth;
+using HSAcademia.Infrastructure.Persistence;
 using HSAcademia.Infrastructure.Services;
+using HSAcademia.Domain.Enums;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace HSAcademia.API.Controllers;
 
@@ -9,8 +13,13 @@ namespace HSAcademia.API.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly AuthService _auth;
+    private readonly AppDbContext _db;
 
-    public AuthController(AuthService auth) => _auth = auth;
+    public AuthController(AuthService auth, AppDbContext db)
+    {
+        _auth = auth;
+        _db = db;
+    }
 
     /// <summary>Login para todos los roles (SuperAdmin, AcademyAdmin, Staff)</summary>
     [HttpPost("login")]
@@ -22,5 +31,32 @@ public class AuthController : ControllerBase
         if (!result.IsSuccess) return Unauthorized(new { message = result.Error });
 
         return Ok(result.Value);
+    }
+
+    /// <summary>Lista pública de academias activas para el selector del login móvil</summary>
+    [AllowAnonymous]
+    [HttpGet("academies")]
+    public async Task<IActionResult> GetPublicAcademies([FromQuery] string? search = null)
+    {
+        var query = _db.Academies.IgnoreQueryFilters()
+            .Where(a => a.Status == AcademyStatus.Active && !a.IsDeleted);
+
+        if (!string.IsNullOrWhiteSpace(search))
+            query = query.Where(a => a.Name.ToLower().Contains(search.ToLower()));
+
+        var academies = await query
+            .OrderBy(a => a.Name)
+            .Select(a => new
+            {
+                id = a.Id,
+                tenantId = a.AcademyId,
+                name = a.Name,
+                city = a.City,
+                sport = a.Sport
+            })
+            .Take(50)
+            .ToListAsync();
+
+        return Ok(academies);
     }
 }
