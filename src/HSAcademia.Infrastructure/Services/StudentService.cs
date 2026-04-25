@@ -40,6 +40,7 @@ public class StudentService
             HeadquarterName = s.Headquarter.Name,
             CategoryId = s.CategoryId,
             CategoryName = s.Category.Name,
+            Email = s.Email,
             GuardianId = s.GuardianId,
             GuardianName = s.Guardian.FirstName + " " + s.Guardian.LastName,
             GuardianPhone = s.Guardian.Phone ?? "",
@@ -106,8 +107,26 @@ public class StudentService
             PreferentialFee = dto.PreferentialFee,
             IsGuest = dto.IsGuest,
             IsScholarship = dto.IsScholarship,
-            ScholarshipPercentage = dto.ScholarshipPercentage
+            ScholarshipPercentage = dto.ScholarshipPercentage,
+            Email = dto.Email
         };
+
+        if (!string.IsNullOrEmpty(dto.Email))
+        {
+            var studentUser = new User
+            {
+                AcademyId = academyId,
+                FirstName = dto.FirstName,
+                LastName = dto.LastName,
+                Email = dto.Email,
+                Role = UserRole.Student,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
+                Status = UserStatus.Active
+            };
+            _context.Users.Add(studentUser);
+            await _context.SaveChangesAsync();
+            student.UserId = studentUser.Id;
+        }
 
         if (dto.MedicalRecord != null)
         {
@@ -176,6 +195,32 @@ public class StudentService
         student.IsGuest = dto.IsGuest;
         student.IsScholarship = dto.IsScholarship;
         student.ScholarshipPercentage = dto.ScholarshipPercentage;
+        
+        if (student.Email != dto.Email)
+        {
+            student.Email = dto.Email;
+            if (student.UserId.HasValue)
+            {
+                var stUser = await _context.Users.FindAsync(student.UserId.Value);
+                if (stUser != null) stUser.Email = dto.Email ?? "";
+            }
+            else if (!string.IsNullOrEmpty(dto.Email))
+            {
+                var newStUser = new User
+                {
+                    AcademyId = academyId,
+                    FirstName = dto.FirstName,
+                    LastName = dto.LastName,
+                    Email = dto.Email,
+                    Role = UserRole.Student,
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
+                    Status = UserStatus.Active
+                };
+                _context.Users.Add(newStUser);
+                await _context.SaveChangesAsync();
+                student.UserId = newStUser.Id;
+            }
+        }
 
         // Update Guardian if exists
         var guardian = await _context.Users.FirstOrDefaultAsync(u => u.Id == student.GuardianId);

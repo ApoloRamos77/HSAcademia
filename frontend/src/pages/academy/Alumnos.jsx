@@ -13,7 +13,7 @@ export default function Alumnos() {
   const [currentStep, setCurrentStep] = useState(1); // 1: Alumno, 2: Apoderado, 3: Ficha Médica
   
   const initialForm = {
-    firstName: '', lastName: '', dateOfBirth: '', headquarterId: '', categoryId: '',
+    firstName: '', lastName: '', email: '', dateOfBirth: '', headquarterId: '', categoryId: '',
     enrollmentDate: new Date().toISOString().split('T')[0], preferentialFee: '',
     isGuest: false, isScholarship: false, scholarshipPercentage: '',
     guardianFirstName: '', guardianLastName: '', guardianEmail: '', guardianPhone: '',
@@ -167,6 +167,7 @@ export default function Alumnos() {
                         setFormData({
                           firstName: alumno.firstName,
                           lastName: alumno.lastName,
+                          email: alumno.email || '',
                           dateOfBirth: alumno.dateOfBirth ? alumno.dateOfBirth.split('T')[0] : '',
                           headquarterId: alumno.headquarterId,
                           categoryId: alumno.categoryId,
@@ -233,12 +234,19 @@ export default function Alumnos() {
 
                     <div className="form-row">
                       <div className="form-group">
+                        <label className="form-label">Correo Electrónico (Opcional) *</label>
+                        <input type="email" className="form-control" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} placeholder="Para su acceso al app" />
+                      </div>
+                      <div className="form-group">
                         <label className="form-label">Fecha de Nacimiento *</label>
                         <input required type="date" className="form-control" value={formData.dateOfBirth} onChange={e => setFormData({...formData, dateOfBirth: e.target.value})} />
                         {currentAge !== null && (
                           <span className="text-xs text-primary-400 mt-1 inline-block">Edad calculada: {currentAge} años</span>
                         )}
                       </div>
+                    </div>
+
+                    <div className="form-row">
                       <div className="form-group">
                         <label className="form-label">Sede de Entrenamiento *</label>
                         <select required className="form-control" value={formData.headquarterId} onChange={e => setFormData({...formData, headquarterId: e.target.value})}>
@@ -246,13 +254,13 @@ export default function Alumnos() {
                           {sedes.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                         </select>
                       </div>
-                    </div>
-
-                    <div className="form-row">
                       <div className="form-group">
                         <label className="form-label">Fecha de Inicio *</label>
                         <input required type="date" className="form-control" value={formData.enrollmentDate} onChange={e => setFormData({...formData, enrollmentDate: e.target.value})} />
                       </div>
+                    </div>
+
+                    <div className="form-row">
                       <div className="form-group">
                         <label className="form-label">Costo Preferente (Opcional)</label>
                         <input type="number" step="0.01" className="form-control" placeholder="Ej. 150.00" value={formData.preferentialFee} onChange={e => setFormData({...formData, preferentialFee: e.target.value})} />
