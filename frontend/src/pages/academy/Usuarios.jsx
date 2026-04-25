@@ -49,7 +49,8 @@ export default function Usuarios() {
       password: '', // Leave empty unless changing
       phone: user.phone || '',
       systemRole: user.systemRole,
-      academyRoleId: user.academyRoleId || '',
+      // If AcademyAdmin with no custom role, pre-select the virtual admin option
+      academyRoleId: user.academyRoleId || (user.systemRole === 'AcademyAdmin' ? '__admin__' : ''),
       headquarterId: user.headquarterId || '',
       categoryIds: user.categoryIds || []
     });
@@ -60,11 +61,16 @@ export default function Usuarios() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      // __admin__ is a UI-only sentinel: AcademyAdmin users don't need a custom academyRoleId
+      const payload = {
+        ...formData,
+        academyRoleId: formData.academyRoleId === '__admin__' ? '' : formData.academyRoleId
+      };
       if (editingId) {
-        await api.put(`/academy-config/users/${editingId}`, formData);
+        await api.put(`/academy-config/users/${editingId}`, payload);
         toast.success('Usuario actualizado');
       } else {
-        await api.post('/academy-config/users', formData);
+        await api.post('/academy-config/users', payload);
         toast.success('Usuario registrado');
       }
       setShowModal(false);
@@ -185,7 +191,17 @@ export default function Usuarios() {
                   </div>
                   <div className="form-group">
                     <label className="form-label">Nivel de Acceso *</label>
-                    <select className="form-control" value={formData.systemRole} onChange={e => setFormData({...formData, systemRole: e.target.value})}>
+                    <select className="form-control" value={formData.systemRole} onChange={e => {
+                      const newRole = e.target.value;
+                      setFormData(prev => ({
+                        ...prev,
+                        systemRole: newRole,
+                        // Auto-select admin cargo when switching to AcademyAdmin
+                        academyRoleId: newRole === 'AcademyAdmin'
+                          ? (prev.academyRoleId && prev.academyRoleId !== '__admin__' ? prev.academyRoleId : '__admin__')
+                          : (prev.academyRoleId === '__admin__' ? '' : prev.academyRoleId)
+                      }));
+                    }}>
                       <option value="Staff">Personal Normal (Staff)</option>
                       <option value="AcademyAdmin">Administrador Total (AcademyAdmin)</option>
                     </select>
@@ -194,11 +210,28 @@ export default function Usuarios() {
 
                 <div className="form-row">
                   <div className="form-group">
-                    <label className="form-label">Cargo / Tipo de Personal *</label>
-                    <select required className="form-control" value={formData.academyRoleId} onChange={e => setFormData({...formData, academyRoleId: e.target.value})}>
+                    <label className="form-label">
+                      Cargo / Tipo de Personal
+                      {formData.systemRole !== 'AcademyAdmin' && ' *'}
+                    </label>
+                    <select
+                      required={formData.systemRole !== 'AcademyAdmin'}
+                      className="form-control"
+                      value={formData.academyRoleId}
+                      onChange={e => setFormData({...formData, academyRoleId: e.target.value})}
+                    >
                       <option value="">-- Seleccione un Cargo --</option>
+                      {/* Opción fija para administradores de academia */}
+                      {formData.systemRole === 'AcademyAdmin' && (
+                        <option value="__admin__">👑 Administrador de Academia</option>
+                      )}
                       {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                     </select>
+                    {formData.systemRole === 'AcademyAdmin' && (
+                      <p className="text-xs text-primary-400 mt-1" style={{ opacity: 0.8 }}>
+                        El administrador tiene acceso completo a la academia.
+                      </p>
+                    )}
                   </div>
                   <div className="form-group">
                     <label className="form-label">Sede Asignada</label>
