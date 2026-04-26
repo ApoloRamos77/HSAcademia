@@ -507,3 +507,168 @@ select.form-control { cursor: pointer; }
 .day-event-card:hover { transform: translateX(2px); }
 .cal-legend { display: flex; gap: 20px; flex-wrap: wrap; }
 .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; }
+
+/* ══════════════════════════════════════════
+   RESPONSIVE — Mobile & Tablet
+   Breakpoints: 768px (tablet) · 480px (móvil)
+   ══════════════════════════════════════════ */
+
+/* ── Elementos que se ocultan/muestran según breakpoint ── */
+.btn-hamburger  { display: none; }   /* oculto en desktop */
+.sidebar-close-btn { display: none; } /* oculto en desktop */
+
+/* ── Overlay del drawer ── */
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(3px);
+  z-index: 150;
+  animation: fadeIn 0.2s;
+}
+
+/* ══════════ TABLET / MOBILE ≤ 768px ══════════ */
+@media (max-width: 768px) {
+
+  /* ── Sidebar: pasa a drawer deslizable ── */
+  .sidebar {
+    transform: translateX(-100%);
+    z-index: 200;
+    width: 280px;
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .sidebar.sidebar-open {
+    transform: translateX(0);
+    box-shadow: 8px 0 40px rgba(0, 0, 0, 0.7);
+  }
+
+  /* Botón cerrar sidebar (X) */
+  .sidebar-close-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    width: 30px;
+    height: 30px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: color 0.2s, background 0.2s;
+    z-index: 10;
+  }
+  .sidebar-close-btn:hover { color: var(--text-primary); background: var(--bg-surface); }
+
+  /* ── Main content: ocupa todo el ancho ── */
+  .main-content { margin-left: 0; }
+
+  /* ── Topbar: mostrar hamburguesa ── */
+  .topbar { padding: 12px 16px; gap: 10px; }
+  .btn-hamburger {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 38px;
+    height: 38px;
+    background: rgba(66,176,230,0.08);
+    border: 1px solid var(--border-strong);
+    border-radius: 10px;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+  }
+  .btn-hamburger:hover {
+    background: rgba(66,176,230,0.15);
+    border-color: var(--primary-light);
+  }
+
+  /* ── Padding de páginas reducido ── */
+  .page-content { padding: 16px 14px; }
+
+  /* ── Tablas: scroll horizontal touch-friendly ── */
+  .table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: var(--radius);
+  }
+  table { min-width: 560px; }
+
+  /* ── Stats grid: 2 columnas ── */
+  .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+
+  /* ── Formularios: 1 columna ── */
+  .form-row, .form-row-2 { grid-template-columns: 1fr; gap: 0; }
+
+  /* ── Modales: bottom-sheet en móvil ── */
+  .modal-overlay { align-items: flex-end; padding: 0; }
+  .modal, .modal-box {
+    max-width: 100%;
+    width: 100%;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    max-height: 92vh;
+    animation: slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* ── Card header: stack en pantallas pequeñas ── */
+  .card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  /* ── Calendario: celdas más compactas ── */
+  .cal-cell     { min-height: 58px; padding: 4px 3px; }
+  .cal-chip     { font-size: 9px; padding: 1px 4px; }
+  .cal-day-num  { font-size: 11px; }
+  .cal-dow      { font-size: 9px; padding: 6px 2px; }
+
+  /* ── Popup de día del calendario ── */
+  .cal-day-popup {
+    right: 10px;
+    bottom: 10px;
+    width: calc(100vw - 20px);
+    max-height: 55vh;
+  }
+
+  /* ── Filtros del calendario ── */
+  .cal-filters  { flex-direction: column; align-items: stretch; gap: 8px; }
+  .cal-select   { width: 100%; }
+
+  /* ── Header del calendario ── */
+  .cal-header   { flex-direction: column; gap: 12px; }
+}
+
+/* ══════════ MÓVIL PEQUEÑO ≤ 480px ══════════ */
+@media (max-width: 480px) {
+
+  /* Stats: 1 columna */
+  .stats-grid { grid-template-columns: 1fr; }
+
+  /* Cards más compactas */
+  .card { padding: 16px 14px; }
+
+  /* Título del topbar más pequeño */
+  .page-title { font-size: 15px; }
+  .page-title::before { height: 16px; }
+
+  /* Botones más compactos */
+  .btn { font-size: 12px; padding: 8px 13px; }
+  .btn-sm { font-size: 11px; padding: 5px 10px; }
+
+  /* Login card */
+  .login-card { padding: 28px 20px; border-radius: 20px; }
+  .login-logo img { width: 72px; height: 72px; }
+  .login-logo h1 { font-size: 18px; }
+
+  /* Stat values más pequeños */
+  .stat-value { font-size: 24px; }
+
+  /* Modales: padding menor */
+  .modal, .modal-box { padding: 20px 16px; }
+  .modal-body { padding: 16px; }
+  .modal-header { padding: 16px; }
+}

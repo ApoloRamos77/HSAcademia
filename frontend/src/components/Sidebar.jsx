@@ -2,10 +2,10 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, Building2, Users, ClipboardList, LogOut,
-  ShieldCheck, ShoppingCart, DollarSign, CalendarCheck, CalendarDays, Crown
+  ShieldCheck, ShoppingCart, DollarSign, CalendarCheck, CalendarDays, Crown, X
 } from 'lucide-react';
 
-export default function Sidebar() {
+export default function Sidebar({ isOpen, onClose }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -13,8 +13,21 @@ export default function Sidebar() {
   const initials = user?.fullName?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
   const isSuperAdmin = user?.role === 'SuperAdmin';
 
+  // Helper: crea className para NavLink y cierra el drawer en móvil
+  const navCls = ({ isActive }) => `nav-item ${isActive ? 'active' : ''}`;
+
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar${isOpen ? ' sidebar-open' : ''}`}>
+
+      {/* ── Botón cerrar (solo visible en móvil) ── */}
+      <button
+        className="sidebar-close-btn"
+        onClick={onClose}
+        aria-label="Cerrar menú"
+      >
+        <X size={18} />
+      </button>
+
       {/* ── LOGO ── */}
       <div className="sidebar-logo">
         <img src="/logo.png" alt="ADHSOFT SPORT" />
@@ -31,16 +44,16 @@ export default function Sidebar() {
         {isSuperAdmin && (
           <div className="nav-section">
             <div className="nav-label">⚙️ Control Global</div>
-            <NavLink to="/super-admin/dashboard" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+            <NavLink to="/super-admin/dashboard" className={navCls} onClick={onClose}>
               <LayoutDashboard size={16} /> Dashboard
             </NavLink>
-            <NavLink to="/super-admin/solicitudes" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+            <NavLink to="/super-admin/solicitudes" className={navCls} onClick={onClose}>
               <ClipboardList size={16} /> Solicitudes
             </NavLink>
-            <NavLink to="/super-admin/academias" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+            <NavLink to="/super-admin/academias" className={navCls} onClick={onClose}>
               <Building2 size={16} /> Academias
             </NavLink>
-            <NavLink to="/super-admin/usuarios" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+            <NavLink to="/super-admin/usuarios" className={navCls} onClick={onClose}>
               <Users size={16} /> Usuarios
             </NavLink>
           </div>
@@ -51,46 +64,46 @@ export default function Sidebar() {
           <>
             <div className="nav-section">
               <div className="nav-label">🏠 Principal</div>
-              <NavLink to="/dashboard" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} end>
+              <NavLink to="/dashboard" className={navCls} onClick={onClose} end>
                 <LayoutDashboard size={16} /> Dashboard
               </NavLink>
             </div>
 
             <div className="nav-section">
               <div className="nav-label">👥 Gestión</div>
-              <NavLink to="/academy/alumnos" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+              <NavLink to="/academy/alumnos" className={navCls} onClick={onClose}>
                 <Users size={16} /> Alumnos
               </NavLink>
-              <NavLink to="/academy/asistencia" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+              <NavLink to="/academy/asistencia" className={navCls} onClick={onClose}>
                 <CalendarCheck size={16} /> Asistencia
               </NavLink>
-              <NavLink to="/academy/usuarios" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+              <NavLink to="/academy/usuarios" className={navCls} onClick={onClose}>
                 <ShieldCheck size={16} /> Personal
               </NavLink>
             </div>
 
             <div className="nav-section">
               <div className="nav-label">💰 Finanzas</div>
-              <NavLink to="/academy/finanzas" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+              <NavLink to="/academy/finanzas" className={navCls} onClick={onClose}>
                 <DollarSign size={16} /> Cobranzas
               </NavLink>
-              <NavLink to="/academy/tienda" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+              <NavLink to="/academy/tienda" className={navCls} onClick={onClose}>
                 <ShoppingCart size={16} /> Tienda
               </NavLink>
             </div>
 
             <div className="nav-section">
               <div className="nav-label">📋 Configuración</div>
-              <NavLink to="/academy/sedes" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+              <NavLink to="/academy/sedes" className={navCls} onClick={onClose}>
                 <Building2 size={16} /> Sedes
               </NavLink>
-              <NavLink to="/academy/categorias" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+              <NavLink to="/academy/categorias" className={navCls} onClick={onClose}>
                 <ClipboardList size={16} /> Categorías
               </NavLink>
-              <NavLink to="/academy/roles" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+              <NavLink to="/academy/roles" className={navCls} onClick={onClose}>
                 <ShieldCheck size={16} /> Roles
               </NavLink>
-              <NavLink to="/academy/calendario" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+              <NavLink to="/academy/calendario" className={navCls} onClick={onClose}>
                 <CalendarDays size={16} /> Calendario
               </NavLink>
             </div>
