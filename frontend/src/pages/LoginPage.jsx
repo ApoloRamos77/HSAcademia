@@ -121,9 +121,7 @@ export default function LoginPage() {
       <div style={styles.card}>
         {/* Logo / Brand */}
         <div style={styles.brand}>
-          <div style={styles.logoRing}>
-            <span style={styles.logoIcon}>⚽</span>
-          </div>
+          <img src="/logo.png" alt="ADHSOFT SPORT" style={styles.logoImg} />
           <h1 style={styles.brandName}>ADHSOFT SPORT</h1>
           <p style={styles.brandSub}>Plataforma de Gestión Deportiva</p>
         </div>
@@ -301,45 +299,47 @@ const styles = {
     background: 'rgba(106,182,87,0.06)', bottom: -80, left: -60,
   },
   card: {
-    background: 'rgba(255,255,255,0.97)', borderRadius: 28, padding: '40px 36px',
-    width: '100%', maxWidth: 440, boxShadow: '0 32px 80px rgba(0,0,0,0.35)',
+    background: 'rgba(19,35,64,0.97)', borderRadius: 28, padding: '40px 36px',
+    width: '100%', maxWidth: 440,
+    boxShadow: '0 32px 80px rgba(0,0,0,0.6), 0 0 30px rgba(66,176,230,0.15)',
     position: 'relative', backdropFilter: 'blur(12px)',
+    border: '1px solid rgba(66,176,230,0.25)',
   },
   brand: { textAlign: 'center', marginBottom: 28 },
-  logoRing: {
-    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-    width: 72, height: 72, borderRadius: '50%',
-    background: 'linear-gradient(135deg, #24588C, #42B0E6)',
-    boxShadow: '0 8px 24px rgba(36,88,140,0.4)', marginBottom: 14,
+  logoImg: {
+    width: 90, height: 90, borderRadius: '50%',
+    border: '3px solid rgba(66,176,230,0.7)',
+    boxShadow: '0 0 32px rgba(66,176,230,0.5)',
+    marginBottom: 14, objectFit: 'cover',
   },
-  logoIcon: { fontSize: 36 },
-  brandName: { fontSize: 22, fontWeight: 800, color: '#1E293B', margin: 0, letterSpacing: 1 },
-  brandSub: { fontSize: 13, color: '#64748B', margin: '4px 0 0', fontWeight: 500 },
+  brandName: { fontSize: 22, fontWeight: 800, color: '#FFFFFF', margin: 0, letterSpacing: 1 },
+  brandSub: { fontSize: 13, color: '#42B0E6', margin: '4px 0 0', fontWeight: 500 },
   stepRow: { display: 'flex', alignItems: 'center', marginBottom: 24 },
   stepDot: { width: 10, height: 10, borderRadius: '50%', transition: 'background 0.3s' },
   stepLine: { flex: 1, height: 2, transition: 'background 0.3s' },
   errorBox: {
-    background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 12,
-    padding: '12px 16px', marginBottom: 16, color: '#DC2626', fontSize: 13, fontWeight: 500,
+    background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.4)', borderRadius: 12,
+    padding: '12px 16px', marginBottom: 16, color: '#f87171', fontSize: 13, fontWeight: 500,
   },
   form: { display: 'flex', flexDirection: 'column', gap: 0 },
-  stepTitle: { fontSize: 15, fontWeight: 600, color: '#64748B', marginBottom: 20, textAlign: 'center' },
+  stepTitle: { fontSize: 15, fontWeight: 600, color: '#94A3B8', marginBottom: 20, textAlign: 'center' },
   backBtn: {
     background: 'none', border: 'none', color: '#64748B', cursor: 'pointer',
     fontSize: 13, fontWeight: 600, padding: '0 0 16px', textAlign: 'left',
   },
   inputGroup: { marginBottom: 18, position: 'relative' },
-  label: { display: 'block', fontSize: 13, fontWeight: 700, color: '#1E293B', marginBottom: 8 },
+  label: { display: 'block', fontSize: 13, fontWeight: 700, color: '#94A3B8', marginBottom: 8 },
   inputWrapper: {
-    display: 'flex', alignItems: 'center', border: '1.5px solid #E2E8F0',
-    borderRadius: 14, background: '#F8FAFC', paddingLeft: 12, paddingRight: 12,
-    height: 52, transition: 'border-color 0.2s',
+    display: 'flex', alignItems: 'center',
+    border: '1.5px solid rgba(66,176,230,0.3)',
+    borderRadius: 14, background: 'rgba(26,47,80,0.8)',
+    paddingLeft: 12, paddingRight: 12, height: 52, transition: 'border-color 0.2s',
   },
-  inputWrapperFocused: { borderColor: '#42B0E6', boxShadow: '0 0 0 3px rgba(66,176,230,0.12)' },
+  inputWrapperFocused: { borderColor: '#42B0E6', boxShadow: '0 0 0 3px rgba(66,176,230,0.15)' },
   inputIcon: { fontSize: 16, marginRight: 8 },
   input: {
-    flex: 1, border: 'none', background: 'transparent', fontSize: 14,
-    color: '#1E293B', outline: 'none',
+    flex: 1, border: 'none', background: 'transparent',
+    fontSize: 14, color: '#F1F5F9', outline: 'none',
   },
   eyeBtn: { background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 4 },
   // Academy dropdown
