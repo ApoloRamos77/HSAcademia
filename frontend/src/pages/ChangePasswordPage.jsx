@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
@@ -7,7 +7,9 @@ import toast from 'react-hot-toast';
 export default function ChangePasswordPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [form, setForm] = useState({ currentPassword: '123456', newPassword: '', confirmPassword: '' });
+  // Read the password stored at login (sessionStorage) to use as currentPassword
+  const storedPw = sessionStorage.getItem('_lp') || '12345';
+  const [form, setForm] = useState({ currentPassword: storedPw, newPassword: '', confirmPassword: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -31,6 +33,8 @@ export default function ChangePasswordPage() {
         newPassword: form.newPassword
       });
       toast.success('Contraseña actualizada correctamente.');
+      // Clear stored password
+      sessionStorage.removeItem('_lp');
       
       // Force update user in localStorage to not require password change again (or just navigate)
       const u = JSON.parse(localStorage.getItem('user'));
