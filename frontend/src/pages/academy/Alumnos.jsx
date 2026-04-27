@@ -36,6 +36,10 @@ export default function Alumnos() {
           setFormData(prev => ({ ...prev, medicalRecord: { ...prev.medicalRecord, bmi } }));
         }
       }
+    } else {
+      if (formData.medicalRecord.bmi !== '') {
+        setFormData(prev => ({ ...prev, medicalRecord: { ...prev.medicalRecord, bmi: '' } }));
+      }
     }
   }, [formData.medicalRecord.weightKg, formData.medicalRecord.heightCm]);
 
@@ -91,13 +95,13 @@ export default function Alumnos() {
     try {
       const payload = {
         ...formData,
-        preferentialFee: formData.preferentialFee ? parseFloat(formData.preferentialFee) : null,
-        scholarshipPercentage: formData.scholarshipPercentage ? parseFloat(formData.scholarshipPercentage) : null,
+        preferentialFee: formData.preferentialFee !== '' && formData.preferentialFee !== null ? parseFloat(formData.preferentialFee) : null,
+        scholarshipPercentage: formData.scholarshipPercentage !== '' && formData.scholarshipPercentage !== null ? parseFloat(formData.scholarshipPercentage) : null,
         medicalRecord: {
           ...formData.medicalRecord,
-          weightKg: formData.medicalRecord.weightKg ? parseFloat(formData.medicalRecord.weightKg) : null,
-          heightCm: formData.medicalRecord.heightCm ? parseFloat(formData.medicalRecord.heightCm) : null,
-          bmi: formData.medicalRecord.bmi ? parseFloat(formData.medicalRecord.bmi) : null,
+          weightKg: formData.medicalRecord.weightKg !== '' && formData.medicalRecord.weightKg !== null ? parseFloat(formData.medicalRecord.weightKg) : null,
+          heightCm: formData.medicalRecord.heightCm !== '' && formData.medicalRecord.heightCm !== null ? parseFloat(formData.medicalRecord.heightCm) : null,
+          bmi: formData.medicalRecord.bmi !== '' && formData.medicalRecord.bmi !== null ? parseFloat(formData.medicalRecord.bmi) : null,
         }
       };
 

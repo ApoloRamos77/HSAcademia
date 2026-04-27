@@ -103,7 +103,7 @@ public class StudentService
             CategoryId = dto.CategoryId,
             GuardianId = guardianId,
             IsActive = true,
-            EnrollmentDate = dto.EnrollmentDate ?? DateTime.UtcNow,
+            EnrollmentDate = dto.EnrollmentDate?.ToUniversalTime() ?? DateTime.UtcNow,
             PreferentialFee = dto.PreferentialFee,
             IsGuest = dto.IsGuest,
             IsScholarship = dto.IsScholarship,

@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useLocation, useNavigate } from 'react-router-dom';
 
-export default function SessionTimeout({ timeout = 60000 }) {
+export default function SessionTimeout({ timeout = 600000 }) {
   const { logout, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();

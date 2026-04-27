@@ -27,7 +27,7 @@ export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <SessionTimeout timeout={60000} />
+        <SessionTimeout timeout={600000} />
         <Toaster
           position="top-right"
           toastOptions={{
