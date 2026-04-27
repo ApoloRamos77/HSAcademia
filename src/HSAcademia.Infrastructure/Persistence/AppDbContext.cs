@@ -24,6 +24,7 @@ public class AppDbContext : DbContext
     public DbSet<ProductSale> ProductSales => Set<ProductSale>();
     public DbSet<AcademyFinancialConfig> AcademyFinancialConfigs => Set<AcademyFinancialConfig>();
     public DbSet<PaymentRecord> PaymentRecords => Set<PaymentRecord>();
+    public DbSet<PaymentInstallment> PaymentInstallments => Set<PaymentInstallment>();
     public DbSet<Attendance> Attendances => Set<Attendance>();
     public DbSet<Tournament> Tournaments => Set<Tournament>();
     public DbSet<Event> Events => Set<Event>();
@@ -430,6 +431,40 @@ public class AppDbContext : DbContext
                   .WithMany()
                   .HasForeignKey(e => e.ProductSaleId)
                   .OnDelete(DeleteBehavior.SetNull);
+
+            // Installments
+            entity.Property(e => e.AmountPaid).HasColumnName("amount_paid").HasColumnType("numeric(10,2)").HasDefaultValue(0m);
+            entity.Property(e => e.IsProrated).HasColumnName("is_prorated").HasDefaultValue(false);
+            entity.Property(e => e.ProratedStartDate).HasColumnName("prorated_start_date");
+            entity.Property(e => e.ProratedTotalDays).HasColumnName("prorated_total_days");
+            entity.Property(e => e.ProratedDaysCharged).HasColumnName("prorated_days_charged");
+            entity.Property(e => e.ExclusionType).HasColumnName("exclusion_type").HasConversion<int>().HasDefaultValue(ExclusionType.None);
+            entity.Property(e => e.ExclusionNote).HasColumnName("exclusion_note").HasMaxLength(500);
+
+            entity.HasMany(e => e.Installments)
+                  .WithOne(i => i.PaymentRecord)
+                  .HasForeignKey(i => i.PaymentRecordId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ----------------------------------------------------------------
+        // PaymentInstallment
+        // ----------------------------------------------------------------
+        modelBuilder.Entity<PaymentInstallment>(entity =>
+        {
+            entity.ToTable("payment_installments");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.PaymentRecordId).HasColumnName("payment_record_id").IsRequired();
+            entity.Property(e => e.AmountPaid).HasColumnName("amount_paid").HasColumnType("numeric(10,2)").IsRequired();
+            entity.Property(e => e.PaidAt).HasColumnName("paid_at").IsRequired();
+            entity.Property(e => e.Method).HasColumnName("method").HasConversion<int>().HasDefaultValue(PaymentMethod.Cash);
+            entity.Property(e => e.OperationNumber).HasColumnName("operation_number").HasMaxLength(100);
+            entity.Property(e => e.VoucherUrl).HasColumnName("voucher_url").HasMaxLength(500);
+            entity.Property(e => e.Notes).HasColumnName("notes").HasMaxLength(500);
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+
+            entity.HasIndex(e => e.PaymentRecordId);
         });
 
         // ----------------------------------------------------------------
