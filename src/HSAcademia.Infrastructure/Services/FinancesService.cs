@@ -231,6 +231,8 @@ public class FinancesService
 
     // ─────────────────────────────────────────────────────────────
     // Recalcular monto (prorrateo manual o importe libre)
+    // Usa el día de cobro de la configuración para recalcular DueDate.
+    // Si aún no se ha completado el pago, actualiza Amount y DueDate.
     // ─────────────────────────────────────────────────────────────
     public async Task<PaymentRecordDto> RecalculatePaymentAsync(Guid academyId, RecalculatePaymentDto dto)
     {
@@ -243,40 +245,90 @@ public class FinancesService
         if (record.IsPaid)
             throw new Exception("No se puede recalcular un pago ya completado.");
 
+        // ── Obtener configuración de la academia ──────────────────
+        var config = await GetConfigAsync(academyId);
+
+        // ── Recalcular DueDate con el día configurado ─────────────
+        var dueRef       = record.DueDate;  // mes/año de referencia
+        var daysInMonth  = DateTime.DaysInMonth(dueRef.Year, dueRef.Month);
+        var configuredDay = Math.Min(config.DefaultPaymentDay, daysInMonth);
+        record.DueDate   = new DateTime(dueRef.Year, dueRef.Month, configuredDay, 0, 0, 0, DateTimeKind.Utc);
+
         var fullAmount = record.Student.PreferentialFee ?? record.Student.Category?.MonthlyFee ?? 0m;
 
         if (dto.NewAmount.HasValue)
         {
-            record.Amount     = dto.NewAmount.Value;
-            record.IsProrated = false;
-            record.ProratedStartDate    = null;
-            record.ProratedTotalDays    = null;
-            record.ProratedDaysCharged  = null;
-        }
-        else if (dto.ProratedStartDate.HasValue)
-        {
-            var due         = record.DueDate;
-            var dim         = DateTime.DaysInMonth(due.Year, due.Month);
-            var startDay    = dto.ProratedStartDate.Value.Day;
-            var charged     = dim - startDay + 1;
-            record.Amount               = Math.Round(fullAmount * charged / dim, 2);
-            record.IsProrated           = true;
-            record.ProratedStartDate    = dto.ProratedStartDate.Value.ToUniversalTime();
-            record.ProratedTotalDays    = dim;
-            record.ProratedDaysCharged  = charged;
-        }
-        else
-        {
-            record.Amount     = fullAmount;
-            record.IsProrated = false;
+            // Monto fijo manual: sin prorrateo
+            record.Amount              = dto.NewAmount.Value;
+            record.IsProrated          = false;
             record.ProratedStartDate   = null;
             record.ProratedTotalDays   = null;
             record.ProratedDaysCharged = null;
         }
+        else if (dto.ProratedStartDate.HasValue)
+        {
+            // Prorrateo con fecha de inicio manual
+            var startDay = dto.ProratedStartDate.Value.Day;
+            var charged  = daysInMonth - startDay + 1;
+            record.Amount              = Math.Round(fullAmount * charged / daysInMonth, 2);
+            record.IsProrated          = true;
+            record.ProratedStartDate   = dto.ProratedStartDate.Value.ToUniversalTime();
+            record.ProratedTotalDays   = daysInMonth;
+            record.ProratedDaysCharged = charged;
+        }
+        else
+        {
+            // Sin monto manual ni fecha: recalcular desde categoría + prorrateo automático
+            // según EnrollmentDate o PaymentStartDate del alumno para el mes de referencia
+            var student = record.Student;
+            bool autoProrated = false;
 
+            // Verificar EnrollmentDate
+            var enrollUtc = student.EnrollmentDate.Kind == DateTimeKind.Utc
+                ? student.EnrollmentDate
+                : student.EnrollmentDate.ToUniversalTime();
+
+            if (enrollUtc.Year == dueRef.Year && enrollUtc.Month == dueRef.Month && enrollUtc.Day > 1)
+            {
+                var charged  = daysInMonth - enrollUtc.Day + 1;
+                record.Amount              = Math.Round(fullAmount * charged / daysInMonth, 2);
+                record.IsProrated          = true;
+                record.ProratedStartDate   = new DateTime(dueRef.Year, dueRef.Month, enrollUtc.Day, 0, 0, 0, DateTimeKind.Utc);
+                record.ProratedTotalDays   = daysInMonth;
+                record.ProratedDaysCharged = charged;
+                autoProrated = true;
+            }
+            else if (student.PaymentStartDate.HasValue)
+            {
+                var psUtc = student.PaymentStartDate.Value.ToUniversalTime();
+                if (psUtc.Year == dueRef.Year && psUtc.Month == dueRef.Month && psUtc.Day > 1)
+                {
+                    var charged  = daysInMonth - psUtc.Day + 1;
+                    record.Amount              = Math.Round(fullAmount * charged / daysInMonth, 2);
+                    record.IsProrated          = true;
+                    record.ProratedStartDate   = new DateTime(dueRef.Year, dueRef.Month, psUtc.Day, 0, 0, 0, DateTimeKind.Utc);
+                    record.ProratedTotalDays   = daysInMonth;
+                    record.ProratedDaysCharged = charged;
+                    autoProrated = true;
+                }
+            }
+
+            if (!autoProrated)
+            {
+                // Mes completo: importe de categoría sin prorrateo
+                record.Amount              = fullAmount;
+                record.IsProrated          = false;
+                record.ProratedStartDate   = null;
+                record.ProratedTotalDays   = null;
+                record.ProratedDaysCharged = null;
+            }
+        }
+
+        // ── Ajuste de AmountPaid si supera el nuevo Amount ────────
         if (record.AmountPaid > record.Amount)
             record.AmountPaid = record.Amount;
 
+        // ── Marcar como pagado si el monto abonado cubre el total ─
         if (record.AmountPaid >= record.Amount - 0.01m && record.Amount > 0)
         {
             record.IsPaid   = true;
