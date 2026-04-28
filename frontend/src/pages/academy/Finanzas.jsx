@@ -3,7 +3,7 @@ import api from '../../api/axios';
 import AppLayout from '../../components/AppLayout';
 import {
   DollarSign, Settings, Play, AlertTriangle, CheckCircle, Search,
-  Calendar, FileText, RefreshCw, Ban, CreditCard, ChevronDown, ChevronUp, X
+  Calendar, FileText, RefreshCw, Ban, CreditCard, ChevronDown, ChevronUp, X, CalendarPlus
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -139,6 +139,14 @@ export default function Finanzas() {
     } catch (err) { toast.error(err.response?.data?.message || 'Error al exonerar.'); }
   };
 
+  const handleGenerateNextMonth = async (d) => {
+    try {
+      await api.post(`/finances/debts/${d.studentId}/generate-next-month`);
+      toast.success(`Mensualidad del mes siguiente generada para ${d.studentName}.`);
+      fetchData();
+    } catch (err) { toast.error(err.response?.data?.message || 'Error al generar mes siguiente.'); }
+  };
+
   const filtered = debts.filter(d =>
     d.studentName?.toLowerCase().includes(search.toLowerCase()) ||
     d.categoryName?.toLowerCase().includes(search.toLowerCase())
@@ -231,7 +239,7 @@ export default function Finanzas() {
                             </div>
                             {d.isProrated && (
                               <div className="text-xs text-warning/80 mt-0.5">
-                                Desde día {d.proratedStartDate ? new Date(d.proratedStartDate).toLocaleDateString('es-PE', { timeZone: 'UTC', day: 'numeric' }) : '?'} — {d.proratedDaysCharged}/{d.proratedTotalDays} días
+                                Desde día {d.proratedStartDate ? new Date(d.proratedStartDate).toLocaleDateString('es-PE', { timeZone: 'UTC', day: 'numeric' }) : '?'} — {d.proratedDaysCharged}/{d.proratedTotalDays} sesiones
                               </div>
                             )}
                           </td>
@@ -255,6 +263,13 @@ export default function Finanzas() {
                                     <Ban size={13}/>
                                   </button>
                                 </>
+                              )}
+                              {d.isPaid && (
+                                <button onClick={()=>handleGenerateNextMonth(d)}
+                                  className="btn btn-sm btn-ghost text-primary flex items-center gap-1"
+                                  title="Generar mensualidad del mes siguiente">
+                                  <CalendarPlus size={13}/>
+                                </button>
                               )}
                               {d.installments?.length > 0 && (
                                 <button onClick={()=>setExpandedId(expandedId===d.id?null:d.id)} className="btn btn-sm btn-ghost text-primary-400" title="Ver pagos">

@@ -52,7 +52,6 @@ export default function Calendario() {
   const [selectedDay,     setSelectedDay]     = useState(null);
   const [dayEvents,       setDayEvents]       = useState([]);
 
-  // Create event modal
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({
     title: '', description: '', type: 1,
@@ -60,7 +59,16 @@ export default function Calendario() {
     headquarterId: '', categoryId: '', teacherId: '',
     tournamentId: '', opponentTeam: ''
   });
+  const [recurringEnabled, setRecurringEnabled] = useState(false);
+  const [recurringDays, setRecurringDays]       = useState([]); // 0=Dom..6=Sáb
+  const [recurringStart, setRecurringStart]     = useState(''); // HH:mm
+  const [recurringEnd, setRecurringEnd]         = useState(''); // HH:mm
   const [saving, setSaving] = useState(false);
+
+  const DAY_LABELS = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+  const toggleDay = (d) => setRecurringDays(prev =>
+    prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]
+  );
 
   // ── Fetch helpers ──
   const fetchEvents = useCallback(async () => {
@@ -123,37 +131,65 @@ export default function Calendario() {
     eventsPerDay[key].push(e);
   });
 
-  // ── Save event ──
+  // ── Save event (single or recurring) ──
   const handleSave = async () => {
-    if (!form.title || !form.startTime || !form.endTime) {
-      toast.error('Completa los campos obligatorios'); return;
-    }
-    if (new Date(form.endTime) <= new Date(form.startTime)) {
-      toast.error('La hora de fin debe ser posterior al inicio'); return;
-    }
     setSaving(true);
     try {
-      const body = {
-        title: form.title,
-        description: form.description || null,
-        type: Number(form.type),
-        startTime: new Date(form.startTime).toISOString(),
-        endTime:   new Date(form.endTime).toISOString(),
-        headquarterId:  form.headquarterId  || null,
-        categoryId:     form.categoryId     || null,
-        teacherId:      form.teacherId      || null,
-        tournamentId:   form.tournamentId   || null,
-        opponentTeam:   form.opponentTeam   || null,
-      };
-      await api.post('/calendar/events', body);
-      toast.success('Evento creado exitosamente');
+      // ── RECURRING mode (Training only) ──
+      if (form.type === 1 && recurringEnabled) {
+        if (!form.title || !recurringStart || !recurringEnd || recurringDays.length === 0) {
+          toast.error('Completa título, horario y selecciona al menos un día'); setSaving(false); return;
+        }
+        // Build all matching dates in current month
+        const daysInMonth = new Date(year, month, 0).getDate();
+        let created = 0;
+        for (let day = 1; day <= daysInMonth; day++) {
+          const d = new Date(Date.UTC(year, month - 1, day));
+          if (!recurringDays.includes(d.getUTCDay())) continue;
+          const dateStr = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+          const body = {
+            title: form.title,
+            description: form.description || null,
+            type: 1,
+            startTime: new Date(`${dateStr}T${recurringStart}:00`).toISOString(),
+            endTime:   new Date(`${dateStr}T${recurringEnd}:00`).toISOString(),
+            headquarterId: form.headquarterId || null,
+            categoryId:    form.categoryId    || null,
+          };
+          try { await api.post('/calendar/events', body); created++; }
+          catch { /* skip conflicts */ }
+        }
+        toast.success(`${created} entrenamientos creados para ${['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][month-1]}`);
+      } else {
+        // ── SINGLE event ──
+        if (!form.title || !form.startTime || !form.endTime) {
+          toast.error('Completa los campos obligatorios'); setSaving(false); return;
+        }
+        if (new Date(form.endTime) <= new Date(form.startTime)) {
+          toast.error('La hora de fin debe ser posterior al inicio'); setSaving(false); return;
+        }
+        const body = {
+          title: form.title,
+          description: form.description || null,
+          type: Number(form.type),
+          startTime: new Date(form.startTime).toISOString(),
+          endTime:   new Date(form.endTime).toISOString(),
+          headquarterId:  form.headquarterId  || null,
+          categoryId:     form.categoryId     || null,
+          teacherId:      form.teacherId      || null,
+          tournamentId:   form.tournamentId   || null,
+          opponentTeam:   form.opponentTeam   || null,
+        };
+        await api.post('/calendar/events', body);
+        toast.success('Evento creado exitosamente');
+      }
       setShowModal(false);
       setForm({ title:'', description:'', type:1, startTime:'', endTime:'',
                 headquarterId:'', categoryId:'', teacherId:'', tournamentId:'', opponentTeam:'' });
+      setRecurringEnabled(false); setRecurringDays([]); setRecurringStart(''); setRecurringEnd('');
       fetchEvents();
     } catch (err) {
-      const msg = err.response?.data?.message ?? 'Error al crear el evento';
-      toast.error(msg);
+      toast.error(err.response?.data?.message ?? 'Error al crear el evento');
     } finally {
       setSaving(false);
     }
@@ -338,7 +374,7 @@ export default function Calendario() {
       {/* ════════ Create Event Modal ════════ */}
       {showModal && (
         <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowModal(false)}>
-          <div className="modal-box" style={{ maxWidth:580 }}>
+          <div className="modal-box" style={{ maxWidth:600 }}>
             <div className="modal-header">
               <h3><Plus size={18}/> Nuevo Evento</h3>
               <button className="btn-icon" onClick={() => setShowModal(false)}><X size={18}/></button>
@@ -354,7 +390,7 @@ export default function Calendario() {
                 <div className="form-group">
                   <label>Tipo de Evento *</label>
                   <select className="form-control" value={form.type}
-                    onChange={e => setForm({...form, type: Number(e.target.value)})}>
+                    onChange={e => { setForm({...form, type: Number(e.target.value)}); setRecurringEnabled(false); }}>
                     {EVENT_TYPES.filter(t => t.value !== 4).map(t =>
                       <option key={t.value} value={t.value}>{t.label}</option>
                     )}
@@ -368,7 +404,6 @@ export default function Calendario() {
                       value={form.opponentTeam} onChange={e => setForm({...form, opponentTeam: e.target.value})} />
                   </div>
                 )}
-
                 {form.type === 3 && (
                   <div className="form-group">
                     <label>Torneo</label>
@@ -380,16 +415,61 @@ export default function Calendario() {
                   </div>
                 )}
 
-                <div className="form-group">
-                  <label>Inicio *</label>
-                  <input type="datetime-local" className="form-control"
-                    value={form.startTime} onChange={e => setForm({...form, startTime: e.target.value})} />
-                </div>
-                <div className="form-group">
-                  <label>Fin *</label>
-                  <input type="datetime-local" className="form-control"
-                    value={form.endTime} onChange={e => setForm({...form, endTime: e.target.value})} />
-                </div>
+                {/* ── Recurring option (Training only) ── */}
+                {form.type === 1 && (
+                  <div className="form-group" style={{ gridColumn:'1/-1' }}>
+                    <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer' }}>
+                      <input type="checkbox" checked={recurringEnabled}
+                        onChange={e => setRecurringEnabled(e.target.checked)} />
+                      <span>📅 Entrenamiento recurrente (todo el mes de {['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][month-1]})</span>
+                    </label>
+                    {recurringEnabled && (
+                      <div style={{ marginTop:10, padding:12, background:'var(--bg-dark)', borderRadius:8, border:'1px solid var(--border)' }}>
+                        <p style={{ fontSize:12, color:'var(--text-muted)', marginBottom:8 }}>Selecciona los días de entrenamiento:</p>
+                        <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:12 }}>
+                          {DAY_LABELS.map((label, idx) => (
+                            <button key={idx} type="button"
+                              onClick={() => toggleDay(idx)}
+                              style={{
+                                padding:'4px 10px', borderRadius:6, fontSize:12, cursor:'pointer',
+                                border: recurringDays.includes(idx) ? '2px solid var(--primary)' : '1px solid var(--border)',
+                                background: recurringDays.includes(idx) ? 'var(--primary)' : 'var(--bg-surface)',
+                                color: recurringDays.includes(idx) ? '#fff' : 'var(--text-muted)',
+                              }}>{label}</button>
+                          ))}
+                        </div>
+                        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                          <div className="form-group" style={{ margin:0 }}>
+                            <label style={{ fontSize:12 }}>Hora inicio *</label>
+                            <input type="time" className="form-control"
+                              value={recurringStart} onChange={e => setRecurringStart(e.target.value)} />
+                          </div>
+                          <div className="form-group" style={{ margin:0 }}>
+                            <label style={{ fontSize:12 }}>Hora fin *</label>
+                            <input type="time" className="form-control"
+                              value={recurringEnd} onChange={e => setRecurringEnd(e.target.value)} />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Single event date/time (hidden when recurring) */}
+                {!(form.type === 1 && recurringEnabled) && (
+                  <>
+                    <div className="form-group">
+                      <label>Inicio *</label>
+                      <input type="datetime-local" className="form-control"
+                        value={form.startTime} onChange={e => setForm({...form, startTime: e.target.value})} />
+                    </div>
+                    <div className="form-group">
+                      <label>Fin *</label>
+                      <input type="datetime-local" className="form-control"
+                        value={form.endTime} onChange={e => setForm({...form, endTime: e.target.value})} />
+                    </div>
+                  </>
+                )}
 
                 <div className="form-group">
                   <label>Sede</label>
@@ -410,7 +490,7 @@ export default function Calendario() {
 
                 <div className="form-group" style={{ gridColumn:'1/-1' }}>
                   <label>Descripción</label>
-                  <textarea className="form-control" rows={3} placeholder="Notas, instrucciones..."
+                  <textarea className="form-control" rows={2} placeholder="Notas, instrucciones..."
                     value={form.description} onChange={e => setForm({...form, description: e.target.value})} />
                 </div>
               </div>
@@ -418,7 +498,7 @@ export default function Calendario() {
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancelar</button>
               <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-                {saving ? 'Guardando...' : 'Crear Evento'}
+                {saving ? 'Guardando...' : (form.type === 1 && recurringEnabled ? '📅 Crear Entrenamientos' : 'Crear Evento')}
               </button>
             </div>
           </div>

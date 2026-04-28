@@ -56,6 +56,24 @@ public class FinancesController : ControllerBase
         return Ok(new { message = $"Se generaron {count} nuevas deudas.", generatedCount = count });
     }
 
+    // ── Generate next-month debt for a specific student ───────────
+    [HttpPost("debts/{studentId}/generate-next-month")]
+    [Authorize(Roles = "AcademyAdmin,Staff")]
+    public async Task<IActionResult> GenerateNextMonthDebt(Guid studentId)
+    {
+        var academyId = GetAcademyId();
+        if (academyId == Guid.Empty) return Unauthorized();
+        try
+        {
+            var result = await _financesService.GenerateNextMonthDebtAsync(academyId, studentId);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     // ── Query Debts ───────────────────────────────────────────────
     [HttpGet("debts/pending")]
     [Authorize(Roles = "AcademyAdmin,Staff")]

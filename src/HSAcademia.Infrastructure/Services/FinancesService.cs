@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using HSAcademia.Application.DTOs.Finances;
 using HSAcademia.Domain.Entities;
+using HSAcademia.Domain.Enums;
 using HSAcademia.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -64,14 +65,47 @@ public class FinancesService
     }
 
     // ─────────────────────────────────────────────────────────────
-    // Motor de Generación de Deudas (con prorrateo automático)
+    // Contar sesiones de entrenamiento en el calendario
+    // ─────────────────────────────────────────────────────────────
+    /// <summary>
+    /// Counts Training events for a category (or academy-wide if no category)
+    /// in a given year/month. Used for session-based proration.
+    /// Returns (totalSessions, sessionsFromDate).
+    /// </summary>
+    private async Task<(int total, int fromDate)> GetSessionCountsAsync(
+        Guid academyId, Guid? categoryId, int year, int month, DateTime? fromDate)
+    {
+        var from = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Utc);
+        var to   = from.AddMonths(1);
+
+        var query = _context.Events
+            .Where(e => e.AcademyId == academyId
+                     && !e.IsDeleted
+                     && e.Type == EventType.Training
+                     && e.StartTime >= from
+                     && e.StartTime < to);
+
+        // Match category or events without category (academy-wide trainings)
+        if (categoryId.HasValue)
+            query = query.Where(e => e.CategoryId == categoryId || e.CategoryId == null);
+
+        var sessions = await query.Select(e => e.StartTime).ToListAsync();
+        int total    = sessions.Count;
+        int after    = fromDate.HasValue
+            ? sessions.Count(s => s.Date >= fromDate.Value.Date)
+            : total;
+
+        return (total, after);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Motor de Generación de Deudas (prorrateo por sesiones)
     // ─────────────────────────────────────────────────────────────
     public async Task<int> GenerateMonthlyDebtsAsync(Guid academyId)
     {
         var config = await GetConfigAsync(academyId);
         var today  = DateTime.UtcNow;
 
-        var periodStart = new DateTime(today.Year, today.Month, 1, 0, 0, 0, DateTimeKind.Utc);
         var daysInMonth = DateTime.DaysInMonth(today.Year, today.Month);
         var dueDayNum   = Math.Min(config.DefaultPaymentDay, daysInMonth);
         var dueDate     = new DateTime(today.Year, today.Month, dueDayNum, 0, 0, 0, DateTimeKind.Utc);
@@ -101,35 +135,52 @@ public class FinancesService
             var fullAmount = student.PreferentialFee ?? student.Category?.MonthlyFee ?? 0m;
             if (fullAmount <= 0) continue;
 
-            // ── Proration logic ──────────────────────────────────
-            bool isProrated      = false;
-            decimal chargedAmount = fullAmount;
-            DateTime? proratedStart = null;
-            int? totalDays = null, daysCharged = null;
-
-            // Check enrollment date proration (started mid-month)
+            // ── Determine start date for proration ───────────────
+            DateTime? startForProration = null;
             var enrollUtc = student.EnrollmentDate.Kind == DateTimeKind.Utc
                 ? student.EnrollmentDate
                 : student.EnrollmentDate.ToUniversalTime();
 
             if (enrollUtc.Year == today.Year && enrollUtc.Month == today.Month && enrollUtc.Day > 1)
-            {
-                daysCharged   = daysInMonth - enrollUtc.Day + 1;
-                totalDays     = daysInMonth;
-                chargedAmount = Math.Round(fullAmount * daysCharged.Value / totalDays.Value, 2);
-                isProrated    = true;
-                proratedStart = new DateTime(today.Year, today.Month, enrollUtc.Day, 0, 0, 0, DateTimeKind.Utc);
-            }
+                startForProration = enrollUtc;
             else if (student.PaymentStartDate.HasValue)
             {
                 var ps = student.PaymentStartDate.Value.ToUniversalTime();
                 if (ps.Year == today.Year && ps.Month == today.Month && ps.Day > 1)
+                    startForProration = ps;
+            }
+
+            // ── Session-based proration ──────────────────────────
+            bool isProrated       = false;
+            decimal chargedAmount = fullAmount;
+            DateTime? proratedStart = null;
+            int? totalSessions = null, sessionsCharged = null;
+
+            if (startForProration.HasValue)
+            {
+                var (total, fromDate) = await GetSessionCountsAsync(
+                    academyId, student.CategoryId, today.Year, today.Month, startForProration);
+
+                if (total > 0)
                 {
-                    daysCharged   = daysInMonth - ps.Day + 1;
-                    totalDays     = daysInMonth;
-                    chargedAmount = Math.Round(fullAmount * daysCharged.Value / totalDays.Value, 2);
-                    isProrated    = true;
-                    proratedStart = new DateTime(today.Year, today.Month, ps.Day, 0, 0, 0, DateTimeKind.Utc);
+                    // Session-based proration
+                    chargedAmount  = Math.Round(fullAmount * fromDate / total, 2);
+                    isProrated     = true;
+                    proratedStart  = new DateTime(today.Year, today.Month,
+                        startForProration.Value.Day, 0, 0, 0, DateTimeKind.Utc);
+                    totalSessions    = total;
+                    sessionsCharged  = fromDate;
+                }
+                else
+                {
+                    // No sessions in calendar → fall back to day-based proration
+                    int startDay   = startForProration.Value.Day;
+                    int charged    = daysInMonth - startDay + 1;
+                    chargedAmount  = Math.Round(fullAmount * charged / daysInMonth, 2);
+                    isProrated     = true;
+                    proratedStart  = new DateTime(today.Year, today.Month, startDay, 0, 0, 0, DateTimeKind.Utc);
+                    totalSessions    = daysInMonth;  // store days as fallback
+                    sessionsCharged  = charged;
                 }
             }
 
@@ -145,8 +196,8 @@ public class FinancesService
                 Type                = PaymentType.MonthlyFee,
                 IsProrated          = isProrated,
                 ProratedStartDate   = proratedStart,
-                ProratedTotalDays   = totalDays,
-                ProratedDaysCharged = daysCharged
+                ProratedTotalDays   = totalSessions,
+                ProratedDaysCharged = sessionsCharged
             });
             generatedCount++;
         }
@@ -155,6 +206,67 @@ public class FinancesService
             await _context.SaveChangesAsync();
 
         return generatedCount;
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Generar deuda del mes siguiente para un alumno específico
+    // ─────────────────────────────────────────────────────────────
+    public async Task<PaymentRecordDto> GenerateNextMonthDebtAsync(Guid academyId, Guid studentId)
+    {
+        var config  = await GetConfigAsync(academyId);
+        var student = await _context.Students
+            .Include(s => s.Category)
+            .FirstOrDefaultAsync(s => s.Id == studentId && s.AcademyId == academyId)
+            ?? throw new Exception("Alumno no encontrado.");
+
+        // Next month relative to today
+        var today     = DateTime.UtcNow;
+        var nextMonth = today.AddMonths(1);
+        int year      = nextMonth.Year;
+        int month     = nextMonth.Month;
+
+        string description = $"Mensualidad {new DateTime(year, month, 1):MMMM yyyy}";
+
+        var existing = await _context.PaymentRecords.FirstOrDefaultAsync(p =>
+            p.AcademyId == academyId &&
+            p.StudentId == studentId &&
+            p.Type == PaymentType.MonthlyFee &&
+            p.Description == description);
+
+        if (existing != null)
+            throw new Exception($"Ya existe un cobro para {description}.");
+
+        var fullAmount = student.PreferentialFee ?? student.Category?.MonthlyFee ?? 0m;
+        if (fullAmount <= 0) throw new Exception("El alumno no tiene tarifa configurada.");
+
+        var daysInMonth  = DateTime.DaysInMonth(year, month);
+        var dueDayNum    = Math.Min(config.DefaultPaymentDay, daysInMonth);
+        var dueDate      = new DateTime(year, month, dueDayNum, 0, 0, 0, DateTimeKind.Utc);
+
+        // Next month is always full month (no proration needed)
+        var record = new PaymentRecord
+        {
+            AcademyId           = academyId,
+            StudentId           = studentId,
+            Description         = description,
+            Amount              = fullAmount,
+            AmountPaid          = 0m,
+            DueDate             = dueDate,
+            IsPaid              = false,
+            Type                = PaymentType.MonthlyFee,
+            IsProrated          = false
+        };
+
+        _context.PaymentRecords.Add(record);
+        await _context.SaveChangesAsync();
+
+        // Reload with navigations
+        var loaded = await _context.PaymentRecords
+            .Include(p => p.Student).ThenInclude(s => s.Category)
+            .Include(p => p.Installments)
+            .FirstAsync(p => p.Id == record.Id);
+
+        return MapToDto(loaded, today);
     }
 
     // ─────────────────────────────────────────────────────────────
