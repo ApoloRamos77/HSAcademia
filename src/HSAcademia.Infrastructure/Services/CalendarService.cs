@@ -148,6 +148,55 @@ public class CalendarService : ICalendarService
     }
 
     // =========================================================
+    // UPDATE EVENT
+    // =========================================================
+    public async Task<EventDto> UpdateEventAsync(Guid academyId, Guid eventId, UpdateEventDto dto)
+    {
+        var ev = await _db.Events.FirstOrDefaultAsync(e => e.AcademyId == academyId && e.Id == eventId && !e.IsDeleted)
+                 ?? throw new KeyNotFoundException("Evento no encontrado.");
+
+        if (dto.EndTime <= dto.StartTime)
+            throw new InvalidOperationException("La hora de fin debe ser posterior a la hora de inicio.");
+
+        ev.Title         = dto.Title;
+        ev.Description   = dto.Description;
+        ev.Type          = dto.Type;
+        ev.StartTime     = dto.StartTime.ToUniversalTime();
+        ev.EndTime       = dto.EndTime.ToUniversalTime();
+        ev.HeadquarterId = dto.HeadquarterId;
+        ev.CategoryId    = dto.CategoryId;
+        ev.TeacherId     = dto.TeacherId;
+        ev.TournamentId  = dto.TournamentId;
+        ev.OpponentTeam  = dto.OpponentTeam;
+        ev.UpdatedAt     = DateTime.UtcNow;
+
+        await _db.SaveChangesAsync();
+
+        return await GetEventByIdAsync(academyId, eventId)
+               ?? throw new Exception("Error al recuperar el evento actualizado.");
+    }
+
+    // =========================================================
+    // BULK SHIFT DAYS (timezone correction)
+    // =========================================================
+    public async Task<int> BulkShiftDaysAsync(Guid academyId, int days)
+    {
+        var events = await _db.Events
+            .Where(e => e.AcademyId == academyId && !e.IsDeleted)
+            .ToListAsync();
+
+        foreach (var ev in events)
+        {
+            ev.StartTime = ev.StartTime.AddDays(days);
+            ev.EndTime   = ev.EndTime.AddDays(days);
+            ev.UpdatedAt = DateTime.UtcNow;
+        }
+
+        await _db.SaveChangesAsync();
+        return events.Count;
+    }
+
+    // =========================================================
     // TOURNAMENTS
     // =========================================================
     public async Task<List<TournamentDto>> GetTournamentsAsync(Guid academyId)

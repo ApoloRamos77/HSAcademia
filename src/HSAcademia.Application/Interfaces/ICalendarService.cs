@@ -23,7 +23,15 @@ public interface ICalendarService
     /// </summary>
     Task<EventDto> CreateEventAsync(Guid academyId, CreateEventDto dto);
 
+    Task<EventDto> UpdateEventAsync(Guid academyId, Guid eventId, UpdateEventDto dto);
+
     Task DeleteEventAsync(Guid academyId, Guid eventId);
+
+    /// <summary>
+    /// Shifts StartTime and EndTime of all non-deleted events for the academy by the given number of days.
+    /// Used to correct bulk timezone offsets. Positive = add days, negative = subtract days.
+    /// </summary>
+    Task<int> BulkShiftDaysAsync(Guid academyId, int days);
 
     // --- Tournament ---
     Task<List<TournamentDto>> GetTournamentsAsync(Guid academyId);

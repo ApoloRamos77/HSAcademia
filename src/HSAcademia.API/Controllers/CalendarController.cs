@@ -100,6 +100,38 @@ public class CalendarController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// PUT /api/calendar/events/{id}
+    /// </summary>
+    [HttpPut("events/{id:guid}")]
+    public async Task<IActionResult> UpdateEvent(Guid id, [FromBody] UpdateEventDto dto)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+        try
+        {
+            var academyId = GetAcademyId();
+            var updated = await _calendarService.UpdateEventAsync(academyId, id, dto);
+            return Ok(updated);
+        }
+        catch (KeyNotFoundException) { return NotFound(); }
+        catch (InvalidOperationException ex) { return Conflict(new { message = ex.Message }); }
+    }
+
+    /// <summary>
+    /// POST /api/calendar/events/bulk-shift?days=-1
+    /// Shifts StartTime/EndTime of ALL academy events by N days (can be negative).
+    /// Used to correct timezone offsets in bulk.
+    /// </summary>
+    [HttpPost("events/bulk-shift")]
+    [Authorize(Roles = "AcademyAdmin")]
+    public async Task<IActionResult> BulkShiftDays([FromQuery] int days)
+    {
+        if (days == 0) return BadRequest(new { message = "days must be non-zero." });
+        var academyId = GetAcademyId();
+        var count = await _calendarService.BulkShiftDaysAsync(academyId, days);
+        return Ok(new { message = $"{count} eventos desplazados {days} día(s).", count });
+    }
+
     // ─────────────────────────────────────────────────────────────
     // TOURNAMENTS
     // ─────────────────────────────────────────────────────────────

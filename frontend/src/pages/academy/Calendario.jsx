@@ -66,6 +66,8 @@ export default function Calendario() {
   const [recurringMonth, setRecurringMonth]     = useState(today.getMonth() + 1);
   const [recurringYear,  setRecurringYear]       = useState(today.getFullYear());
   const [saving, setSaving] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingId, setEditingId] = useState(null);
 
   const MONTH_NAMES_FULL = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
                             'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -135,7 +137,7 @@ export default function Calendario() {
   const eventsPerDay = {};
   events.forEach(e => {
     const d = new Date(e.startTime);
-    const key = d.getUTCDate();
+    const key = d.getDate(); // Use local time date to avoid day shifting
     if (!eventsPerDay[key]) eventsPerDay[key] = [];
     eventsPerDay[key].push(e);
   });
@@ -189,10 +191,18 @@ export default function Calendario() {
           tournamentId:   form.tournamentId   || null,
           opponentTeam:   form.opponentTeam   || null,
         };
-        await api.post('/calendar/events', body);
-        toast.success('Evento creado exitosamente');
+
+        if (isEditing) {
+          await api.put(`/calendar/events/${editingId}`, body);
+          toast.success('Evento actualizado exitosamente');
+        } else {
+          await api.post('/calendar/events', body);
+          toast.success('Evento creado exitosamente');
+        }
       }
       setShowModal(false);
+      setIsEditing(false);
+      setEditingId(null);
       setForm({ title:'', description:'', type:1, startTime:'', endTime:'',
                 headquarterId:'', categoryId:'', teacherId:'', tournamentId:'', opponentTeam:'' });
       setRecurringEnabled(false); setRecurringDays([]); setRecurringStart(''); setRecurringEnd('');
@@ -205,6 +215,27 @@ export default function Calendario() {
     }
   };
 
+  // ── Edit event ──
+  const openEdit = (e) => {
+    setForm({
+      title: e.title,
+      description: e.description || '',
+      type: e.type,
+      // Format to datetime-local (YYYY-MM-DDThh:mm)
+      startTime: new Date(new Date(e.startTime).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16),
+      endTime: new Date(new Date(e.endTime).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16),
+      headquarterId: e.headquarterId || '',
+      categoryId: e.categoryId || '',
+      teacherId: e.teacherId || '',
+      tournamentId: e.tournamentId || '',
+      opponentTeam: e.opponentTeam || ''
+    });
+    setIsEditing(true);
+    setEditingId(e.id);
+    setRecurringEnabled(false);
+    setShowModal(true);
+  };
+
   // ── Delete event ──
   const handleDelete = async (id) => {
     if (!window.confirm('¿Eliminar este evento?')) return;
@@ -214,6 +245,15 @@ export default function Calendario() {
       setSelectedDay(null);
       fetchEvents();
     } catch { toast.error('Error al eliminar'); }
+  };
+
+  const handleBulkShift = async (days) => {
+    if (!window.confirm(`¿Estás seguro de desplazar todos los eventos ${days > 0 ? '+' : ''}${days} días?`)) return;
+    try {
+      await api.post(`/calendar/events/bulk-shift?days=${days}`);
+      toast.success('Eventos actualizados masivamente');
+      fetchEvents();
+    } catch { toast.error('Error al actualizar masivamente'); }
   };
 
   const calendarDays = buildCalendarDays(year, month);
@@ -233,9 +273,22 @@ export default function Calendario() {
               Visualiza y gestiona todos los eventos de tu academia
             </p>
           </div>
-          <button className="btn btn-primary" onClick={() => setShowModal(true)}>
-            <Plus size={16} /> Nuevo Evento
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn btn-secondary" onClick={() => handleBulkShift(-1)} title="Restar 1 día a todos los eventos">
+              -1 Día
+            </button>
+            <button className="btn btn-secondary" onClick={() => handleBulkShift(1)} title="Sumar 1 día a todos los eventos">
+              +1 Día
+            </button>
+            <button className="btn btn-primary" onClick={() => {
+              setIsEditing(false); setEditingId(null);
+              setForm({ title:'', description:'', type:1, startTime:'', endTime:'',
+                headquarterId:'', categoryId:'', teacherId:'', tournamentId:'', opponentTeam:'' });
+              setShowModal(true);
+            }}>
+              <Plus size={16} /> Nuevo Evento
+            </button>
+          </div>
         </div>
 
         {/* ── Filters ── */}
@@ -321,7 +374,7 @@ export default function Calendario() {
               const Icon = cfg.icon;
               const st = new Date(e.startTime);
               const et = new Date(e.endTime);
-              const fmt = (d) => d.toLocaleTimeString('es', { hour:'2-digit', minute:'2-digit', timeZone:'UTC' });
+              const fmt = (d) => d.toLocaleTimeString('es', { hour:'2-digit', minute:'2-digit' });
               return (
                 <div key={e.id} className="day-event-card" style={{ borderLeft:`4px solid ${cfg.color}` }}>
                   <div style={{ display:'flex', justifyContent:'space-between' }}>
@@ -330,12 +383,20 @@ export default function Calendario() {
                       <strong style={{ fontSize:14 }}>{e.title}</strong>
                     </div>
                     {!e.isVirtual && (
-                      <button
-                        className="btn-icon"
-                        style={{ color:'#ef4444' }}
-                        onClick={() => handleDelete(e.id)}
-                        title="Eliminar"
-                      ><X size={14}/></button>
+                      <div style={{ display:'flex', gap: 4 }}>
+                        <button
+                          className="btn-icon"
+                          style={{ color:'var(--primary)' }}
+                          onClick={() => { setSelectedDay(null); openEdit(e); }}
+                          title="Editar"
+                        ><RefreshCw size={14}/></button>
+                        <button
+                          className="btn-icon"
+                          style={{ color:'#ef4444' }}
+                          onClick={() => handleDelete(e.id)}
+                          title="Eliminar"
+                        ><X size={14}/></button>
+                      </div>
                     )}
                   </div>
                   <div style={{ display:'flex', flexDirection:'column', gap:4, marginTop:6 }}>
@@ -386,7 +447,7 @@ export default function Calendario() {
         <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowModal(false)}>
           <div className="modal-box" style={{ maxWidth:600 }}>
             <div className="modal-header">
-              <h3><Plus size={18}/> Nuevo Evento</h3>
+              <h3>{isEditing ? <RefreshCw size={18}/> : <Plus size={18}/>} {isEditing ? 'Editar Evento' : 'Nuevo Evento'}</h3>
               <button className="btn-icon" onClick={() => setShowModal(false)}><X size={18}/></button>
             </div>
             <div className="modal-body">
@@ -425,8 +486,8 @@ export default function Calendario() {
                   </div>
                 )}
 
-                {/* ── Recurring option (Training only) ── */}
-                {form.type === 1 && (
+                {/* ── Recurring option (Training only) - Hidden when editing ── */}
+                {form.type === 1 && !isEditing && (
                   <div className="form-group" style={{ gridColumn:'1/-1' }}>
                     <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer' }}>
                       <input type="checkbox" checked={recurringEnabled}
@@ -484,8 +545,8 @@ export default function Calendario() {
                   </div>
                 )}
 
-                {/* Single event date/time (hidden when recurring) */}
-                {!(form.type === 1 && recurringEnabled) && (
+                {/* Single event date/time (hidden when creating recurring) */}
+                {(!recurringEnabled || isEditing) && (
                   <>
                     <div className="form-group">
                       <label>Inicio *</label>
@@ -527,7 +588,7 @@ export default function Calendario() {
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancelar</button>
               <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-                {saving ? 'Guardando...' : (form.type === 1 && recurringEnabled ? '📅 Crear Entrenamientos' : 'Crear Evento')}
+                {saving ? 'Guardando...' : (isEditing ? 'Actualizar Evento' : (form.type === 1 && recurringEnabled ? '📅 Crear Entrenamientos' : 'Crear Evento'))}
               </button>
             </div>
           </div>
