@@ -3,7 +3,7 @@ import api from '../../api/axios';
 import AppLayout from '../../components/AppLayout';
 import {
   DollarSign, Settings, Play, AlertTriangle, CheckCircle, Search,
-  Calendar, FileText, RefreshCw, Ban, CreditCard, ChevronDown, ChevronUp, X, CalendarPlus
+  Calendar, FileText, RefreshCw, Ban, CreditCard, ChevronDown, ChevronUp, X, CalendarPlus, Download
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { generateReceiptPDF } from '../../utils/pdfGenerator';
@@ -158,6 +158,16 @@ export default function Finanzas() {
     } catch (err) { toast.error(err.response?.data?.message || 'Error al generar mes siguiente.'); }
   };
 
+  const regenerateDebtReceipt = (d) => {
+    generateReceiptPDF({
+      customerName: d.studentName,
+      description: d.description,
+      quantity: 1,
+      total: parseFloat(d.amountPaid || d.amount),
+      notes: "Copia de Recibo - Mensualidad/Cobro"
+    });
+  };
+
   const filtered = debts.filter(d =>
     d.studentName?.toLowerCase().includes(search.toLowerCase()) ||
     d.categoryName?.toLowerCase().includes(search.toLowerCase())
@@ -276,11 +286,18 @@ export default function Finanzas() {
                                 </>
                               )}
                               {d.isPaid && (
-                                <button onClick={()=>handleGenerateNextMonth(d)}
-                                  className="btn btn-sm btn-ghost text-primary flex items-center gap-1"
-                                  title="Generar mensualidad del mes siguiente">
-                                  <CalendarPlus size={13}/>
-                                </button>
+                                <>
+                                  <button onClick={()=>regenerateDebtReceipt(d)}
+                                    className="btn btn-sm btn-ghost text-success flex items-center gap-1"
+                                    title="Volver a descargar recibo">
+                                    <Download size={13}/>
+                                  </button>
+                                  <button onClick={()=>handleGenerateNextMonth(d)}
+                                    className="btn btn-sm btn-ghost text-primary flex items-center gap-1"
+                                    title="Generar mensualidad del mes siguiente">
+                                    <CalendarPlus size={13}/>
+                                  </button>
+                                </>
                               )}
                               {d.installments?.length > 0 && (
                                 <button onClick={()=>setExpandedId(expandedId===d.id?null:d.id)} className="btn btn-sm btn-ghost text-primary-400" title="Ver pagos">

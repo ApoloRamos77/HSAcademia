@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import AppLayout from '../../components/AppLayout';
-import { Package, ShoppingCart, PlusCircle, DollarSign, Tag, TrendingUp, AlertCircle, ShoppingBag } from 'lucide-react';
+import { Package, ShoppingCart, PlusCircle, DollarSign, Tag, TrendingUp, AlertCircle, ShoppingBag, BarChart3, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { generateReceiptPDF } from '../../utils/pdfGenerator';
 
 export default function Tienda() {
-  const [activeTab, setActiveTab] = useState('inventory'); // 'inventory' | 'sales'
+  const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' | 'inventory' | 'sales'
   
   const [products, setProducts] = useState([]);
   const [sales, setSales] = useState([]);
@@ -96,6 +96,35 @@ export default function Tienda() {
   const selectedProductForSale = products.find(p => p.id === saleForm.productId);
   const totalSaleEstimation = selectedProductForSale ? (selectedProductForSale.price * parseInt(saleForm.quantity || 0)).toFixed(2) : '0.00';
 
+  const regenerateSaleReceipt = (s) => {
+    generateReceiptPDF({
+      customerName: s.studentName || "Público General",
+      description: `Venta de: ${s.productName}`,
+      quantity: s.quantity,
+      total: parseFloat(s.totalPrice),
+      notes: "Copia de Recibo - Venta de Tienda"
+    });
+  };
+
+  // Dashboard Metrics
+  const totalRevenue = sales.reduce((acc, curr) => acc + curr.totalPrice, 0);
+  const totalItemsSold = sales.reduce((acc, curr) => acc + curr.quantity, 0);
+  
+  // Best selling product
+  const productSalesMap = {};
+  sales.forEach(s => {
+    if (!productSalesMap[s.productName]) productSalesMap[s.productName] = 0;
+    productSalesMap[s.productName] += s.quantity;
+  });
+  let bestSellingProduct = "N/A";
+  let maxSold = 0;
+  Object.keys(productSalesMap).forEach(key => {
+    if (productSalesMap[key] > maxSold) {
+      maxSold = productSalesMap[key];
+      bestSellingProduct = key;
+    }
+  });
+
   if (loading) return <AppLayout title="Tienda"><div className="text-center p-8"><span className="spinner" style={{borderColor: 'var(--primary)', borderTopColor: 'transparent'}}></span></div></AppLayout>;
 
   return (
@@ -104,6 +133,12 @@ export default function Tienda() {
         
         {/* Tabs Menu */}
         <div className="flex gap-4 mb-6 border-b border-border/50 pb-2">
+          <button 
+            className={`flex items-center gap-2 pb-2 px-1 border-b-2 transition-colors ${activeTab === 'dashboard' ? 'border-primary text-primary font-bold' : 'border-transparent text-text-muted hover:text-text-main'}`}
+            onClick={() => setActiveTab('dashboard')}
+          >
+            <BarChart3 size={18} /> Dashboard
+          </button>
           <button 
             className={`flex items-center gap-2 pb-2 px-1 border-b-2 transition-colors ${activeTab === 'inventory' ? 'border-primary text-primary font-bold' : 'border-transparent text-text-muted hover:text-text-main'}`}
             onClick={() => setActiveTab('inventory')}
@@ -117,6 +152,54 @@ export default function Tienda() {
             <ShoppingCart size={18} /> Historial de Ventas
           </button>
         </div>
+
+        {/* DASHBOARD TAB */}
+        {activeTab === 'dashboard' && (
+          <div className="fade-in">
+            <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><BarChart3 className="text-primary-400" /> Resumen de Ventas</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <div className="card p-4 flex items-center gap-4 bg-primary/10 border-primary/30">
+                <div className="p-3 bg-primary/20 rounded-full text-primary"><DollarSign size={22}/></div>
+                <div><h4 className="text-primary font-bold">Ingresos Totales</h4><p className="text-sm text-text-secondary">S/ {totalRevenue.toFixed(2)}</p></div>
+              </div>
+              <div className="card p-4 flex items-center gap-4 bg-success/10 border-success/30">
+                <div className="p-3 bg-success/20 rounded-full text-success"><ShoppingCart size={22}/></div>
+                <div><h4 className="text-success font-bold">Artículos Vendidos</h4><p className="text-sm text-text-secondary">{totalItemsSold} unidades</p></div>
+              </div>
+              <div className="card p-4 flex items-center gap-4 bg-warning/10 border-warning/30">
+                <div className="p-3 bg-warning/20 rounded-full text-warning"><TrendingUp size={22}/></div>
+                <div><h4 className="text-warning font-bold">Más Vendido</h4><p className="text-sm text-text-secondary">{bestSellingProduct}</p></div>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="card p-5">
+                <h4 className="font-bold mb-4 text-text-muted uppercase text-xs tracking-wider">Top Productos</h4>
+                {Object.keys(productSalesMap).length === 0 ? (
+                  <p className="text-sm text-text-muted">No hay datos suficientes.</p>
+                ) : (
+                  <ul className="space-y-3">
+                    {Object.entries(productSalesMap).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([name, qty], idx) => (
+                      <li key={idx} className="flex justify-between items-center text-sm border-b border-border/50 pb-2">
+                        <span className="font-medium">{name}</span>
+                        <span className="badge badge-success">{qty} vendidos</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              
+              <div className="card p-5 bg-gradient-to-br from-bg-dark to-bg-surface border-primary/20">
+                <div className="flex flex-col items-center justify-center h-full text-center">
+                  <BarChart3 size={40} className="text-primary/40 mb-3" />
+                  <h4 className="font-bold text-lg mb-1">Centro de Ventas</h4>
+                  <p className="text-sm text-text-muted mb-4">Gestiona el inventario y lleva el control de todos los ingresos extra de la academia.</p>
+                  <button onClick={() => setActiveTab('sales')} className="btn btn-primary btn-sm">Ver Transacciones</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* INVENTORY TAB */}
         {activeTab === 'inventory' && (
@@ -193,16 +276,22 @@ export default function Tienda() {
                     <th>Comprador (Alumno)</th>
                     <th>Cantidad</th>
                     <th>Total</th>
+                    <th className="text-right">Recibo</th>
                   </tr>
                 </thead>
                 <tbody>
                   {sales.map(s => (
                     <tr key={s.id}>
                       <td>{new Date(s.saleDate).toLocaleDateString()} {new Date(s.saleDate).toLocaleTimeString()}</td>
-                      <td><div className="font-medium text-primary-100">{s.productName}</div><div className="text-xs text-text-muted">P.U: ${s.unitPrice.toFixed(2)}</div></td>
+                      <td><div className="font-medium text-primary-100">{s.productName}</div><div className="text-xs text-text-muted">P.U: S/ {s.unitPrice.toFixed(2)}</div></td>
                       <td>{s.studentName}</td>
                       <td>{s.quantity}</td>
-                      <td className="font-bold text-success">${s.totalPrice.toFixed(2)}</td>
+                      <td className="font-bold text-success">S/ {s.totalPrice.toFixed(2)}</td>
+                      <td className="text-right">
+                        <button onClick={() => regenerateSaleReceipt(s)} className="btn btn-ghost btn-sm text-primary flex items-center gap-1 justify-end ml-auto" title="Volver a descargar recibo">
+                          <Download size={14} /> PDF
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
