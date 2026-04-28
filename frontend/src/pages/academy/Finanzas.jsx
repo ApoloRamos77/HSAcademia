@@ -231,11 +231,11 @@ export default function Finanzas() {
                             </div>
                             {d.isProrated && (
                               <div className="text-xs text-warning/80 mt-0.5">
-                                Desde día {d.proratedStartDate ? new Date(d.proratedStartDate).getDate() : '?'} — {d.proratedDaysCharged}/{d.proratedTotalDays} días
+                                Desde día {d.proratedStartDate ? new Date(d.proratedStartDate).toLocaleDateString('es-PE', { timeZone: 'UTC', day: 'numeric' }) : '?'} — {d.proratedDaysCharged}/{d.proratedTotalDays} días
                               </div>
                             )}
                           </td>
-                          <td className="text-sm">{new Date(d.dueDate).toLocaleDateString('es-PE')}</td>
+                          <td className="text-sm">{new Date(d.dueDate).toLocaleDateString('es-PE', { timeZone: 'UTC' })}</td>
                           <td className="font-bold">S/ {d.amount.toFixed(2)}</td>
                           <td className="text-success font-medium">S/ {d.amountPaid.toFixed(2)}</td>
                           <td className={`font-bold ${d.amountPending > 0 ? 'text-danger' : 'text-success'}`}>
