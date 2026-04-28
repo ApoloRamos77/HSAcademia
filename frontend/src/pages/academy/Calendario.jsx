@@ -137,7 +137,7 @@ export default function Calendario() {
   const eventsPerDay = {};
   events.forEach(e => {
     const d = new Date(e.startTime);
-    const key = d.getDate(); // Use local time date to avoid day shifting
+    const key = d.getUTCDate(); // Strict UTC grouping
     if (!eventsPerDay[key]) eventsPerDay[key] = [];
     eventsPerDay[key].push(e);
   });
@@ -162,8 +162,8 @@ export default function Calendario() {
             title: form.title,
             description: form.description || null,
             type: 1,
-            startTime: new Date(`${dateStr}T${recurringStart}:00`).toISOString(),
-            endTime:   new Date(`${dateStr}T${recurringEnd}:00`).toISOString(),
+            startTime: `${dateStr}T${recurringStart}:00.000Z`,
+            endTime:   `${dateStr}T${recurringEnd}:00.000Z`,
             headquarterId: form.headquarterId || null,
             categoryId:    form.categoryId    || null,
           };
@@ -183,8 +183,8 @@ export default function Calendario() {
           title: form.title,
           description: form.description || null,
           type: Number(form.type),
-          startTime: new Date(form.startTime).toISOString(),
-          endTime:   new Date(form.endTime).toISOString(),
+          startTime: form.startTime + ':00.000Z',
+          endTime:   form.endTime + ':00.000Z',
           headquarterId:  form.headquarterId  || null,
           categoryId:     form.categoryId     || null,
           teacherId:      form.teacherId      || null,
@@ -221,9 +221,9 @@ export default function Calendario() {
       title: e.title,
       description: e.description || '',
       type: e.type,
-      // Format to datetime-local (YYYY-MM-DDThh:mm)
-      startTime: new Date(new Date(e.startTime).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16),
-      endTime: new Date(new Date(e.endTime).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16),
+      // Slice directly the UTC time (YYYY-MM-DDThh:mm) so no browser shift is applied
+      startTime: e.startTime.slice(0, 16),
+      endTime: e.endTime.slice(0, 16),
       headquarterId: e.headquarterId || '',
       categoryId: e.categoryId || '',
       teacherId: e.teacherId || '',
@@ -374,7 +374,7 @@ export default function Calendario() {
               const Icon = cfg.icon;
               const st = new Date(e.startTime);
               const et = new Date(e.endTime);
-              const fmt = (d) => d.toLocaleTimeString('es', { hour:'2-digit', minute:'2-digit' });
+              const fmt = (d) => d.toLocaleTimeString('es', { hour:'2-digit', minute:'2-digit', timeZone:'UTC' });
               return (
                 <div key={e.id} className="day-event-card" style={{ borderLeft:`4px solid ${cfg.color}` }}>
                   <div style={{ display:'flex', justifyContent:'space-between' }}>
