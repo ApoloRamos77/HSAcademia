@@ -3,7 +3,7 @@ import api from '../../api/axios';
 import AppLayout from '../../components/AppLayout';
 import {
   CalendarDays, ChevronLeft, ChevronRight, Plus, X, Filter,
-  Cake, Trophy, Swords, Dumbbell, Clock, MapPin, Users
+  Cake, Trophy, Swords, Dumbbell, Clock, MapPin, Users, RefreshCw
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 

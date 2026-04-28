@@ -3,6 +3,7 @@ import api from '../../api/axios';
 import AppLayout from '../../components/AppLayout';
 import { Package, ShoppingCart, PlusCircle, DollarSign, Tag, TrendingUp, AlertCircle, ShoppingBag } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { generateReceiptPDF } from '../../utils/pdfGenerator';
 
 export default function Tienda() {
   const [activeTab, setActiveTab] = useState('inventory'); // 'inventory' | 'sales'
@@ -73,6 +74,19 @@ export default function Tienda() {
       await api.post('/store/sales', payload);
       toast.success('Venta registrada con éxito');
       setShowSaleModal(false);
+      
+      const product = products.find(p => p.id === saleForm.productId);
+      const student = students.find(s => s.id === saleForm.studentId);
+      const total = product ? (product.price * parseInt(saleForm.quantity, 10)).toFixed(2) : 0;
+      
+      generateReceiptPDF({
+        customerName: student ? `${student.firstName} ${student.lastName}` : "Público General",
+        description: `Venta de: ${product ? product.name : 'Producto'}`,
+        quantity: parseInt(saleForm.quantity, 10),
+        total: parseFloat(total),
+        notes: "Venta de Tienda"
+      });
+      
       fetchData(); // Reloads products (to show new stock) and sales list
     } catch (err) {
       toast.error(err.response?.data?.message || 'Error al registrar venta. Verifique el stock.');

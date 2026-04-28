@@ -6,6 +6,7 @@ import {
   Calendar, FileText, RefreshCw, Ban, CreditCard, ChevronDown, ChevronUp, X, CalendarPlus
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { generateReceiptPDF } from '../../utils/pdfGenerator';
 
 const PAYMENT_METHODS = [
   { value: 'Cash', label: '💵 Efectivo' },
@@ -106,6 +107,16 @@ export default function Finanzas() {
       });
       toast.success('Pago registrado.');
       setModal(null);
+      
+      // Generate PDF
+      generateReceiptPDF({
+        customerName: selected.studentName,
+        description: selected.description,
+        quantity: 1,
+        total: parseFloat(payForm.amountPaid),
+        notes: payForm.notes || "Ninguna"
+      });
+      
       fetchData();
     } catch (err) { toast.error(err.response?.data?.message || 'Error al registrar pago.'); }
   };
