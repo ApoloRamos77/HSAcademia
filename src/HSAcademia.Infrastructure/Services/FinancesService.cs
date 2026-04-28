@@ -45,6 +45,20 @@ public class FinancesService
         {
             config.DefaultPaymentDay = dto.DefaultPaymentDay;
         }
+
+        // Update pending debts for the current month
+        var today = DateTime.UtcNow;
+        var pendingDebts = await _context.PaymentRecords
+            .Where(p => p.AcademyId == academyId && !p.IsPaid && !p.IsDeleted && p.DueDate.Month == today.Month && p.DueDate.Year == today.Year)
+            .ToListAsync();
+
+        foreach (var debt in pendingDebts)
+        {
+            var daysInMonth = DateTime.DaysInMonth(debt.DueDate.Year, debt.DueDate.Month);
+            var newDay = Math.Min(dto.DefaultPaymentDay, daysInMonth);
+            debt.DueDate = new DateTime(debt.DueDate.Year, debt.DueDate.Month, newDay, 0, 0, 0, DateTimeKind.Utc);
+        }
+
         await _context.SaveChangesAsync();
         return new FinancialConfigDto { DefaultPaymentDay = config.DefaultPaymentDay };
     }
