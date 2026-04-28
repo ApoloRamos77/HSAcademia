@@ -63,12 +63,19 @@ export default function Calendario() {
   const [recurringDays, setRecurringDays]       = useState([]); // 0=Dom..6=Sáb
   const [recurringStart, setRecurringStart]     = useState(''); // HH:mm
   const [recurringEnd, setRecurringEnd]         = useState(''); // HH:mm
+  const [recurringMonth, setRecurringMonth]     = useState(today.getMonth() + 1);
+  const [recurringYear,  setRecurringYear]       = useState(today.getFullYear());
   const [saving, setSaving] = useState(false);
 
+  const MONTH_NAMES_FULL = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
+                            'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   const DAY_LABELS = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
   const toggleDay = (d) => setRecurringDays(prev =>
     prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]
   );
+
+  // Build year options: current year and next year
+  const yearOptions = [today.getFullYear(), today.getFullYear() + 1];
 
   // ── Fetch helpers ──
   const fetchEvents = useCallback(async () => {
@@ -142,13 +149,13 @@ export default function Calendario() {
         if (!form.title || !recurringStart || !recurringEnd || recurringDays.length === 0) {
           toast.error('Completa título, horario y selecciona al menos un día'); setSaving(false); return;
         }
-        // Build all matching dates in current month
-        const daysInMonth = new Date(year, month, 0).getDate();
+        // Build all matching dates in the selected month
+        const daysInMonth = new Date(recurringYear, recurringMonth, 0).getDate();
         let created = 0;
         for (let day = 1; day <= daysInMonth; day++) {
-          const d = new Date(Date.UTC(year, month - 1, day));
+          const d = new Date(Date.UTC(recurringYear, recurringMonth - 1, day));
           if (!recurringDays.includes(d.getUTCDay())) continue;
-          const dateStr = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+          const dateStr = `${recurringYear}-${String(recurringMonth).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
           const body = {
             title: form.title,
             description: form.description || null,
@@ -161,7 +168,7 @@ export default function Calendario() {
           try { await api.post('/calendar/events', body); created++; }
           catch { /* skip conflicts */ }
         }
-        toast.success(`${created} entrenamientos creados para ${['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][month-1]}`);
+        toast.success(`${created} entrenamientos creados para ${MONTH_NAMES_FULL[recurringMonth-1]} ${recurringYear}`);
       } else {
         // ── SINGLE event ──
         if (!form.title || !form.startTime || !form.endTime) {
@@ -189,6 +196,7 @@ export default function Calendario() {
       setForm({ title:'', description:'', type:1, startTime:'', endTime:'',
                 headquarterId:'', categoryId:'', teacherId:'', tournamentId:'', opponentTeam:'' });
       setRecurringEnabled(false); setRecurringDays([]); setRecurringStart(''); setRecurringEnd('');
+      setRecurringMonth(today.getMonth() + 1); setRecurringYear(today.getFullYear());
       fetchEvents();
     } catch (err) {
       toast.error(err.response?.data?.message ?? 'Error al crear el evento');
@@ -423,10 +431,29 @@ export default function Calendario() {
                     <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer' }}>
                       <input type="checkbox" checked={recurringEnabled}
                         onChange={e => setRecurringEnabled(e.target.checked)} />
-                      <span>📅 Entrenamiento recurrente (todo el mes de {['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][month-1]})</span>
+                      <span>📅 Entrenamiento recurrente por mes</span>
                     </label>
                     {recurringEnabled && (
                       <div style={{ marginTop:10, padding:12, background:'var(--bg-dark)', borderRadius:8, border:'1px solid var(--border)' }}>
+                        {/* Month / Year selector */}
+                        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:12 }}>
+                          <div className="form-group" style={{ margin:0 }}>
+                            <label style={{ fontSize:12 }}>Mes *</label>
+                            <select className="form-control" value={recurringMonth}
+                              onChange={e => setRecurringMonth(Number(e.target.value))}>
+                              {MONTH_NAMES_FULL.map((name, i) => (
+                                <option key={i+1} value={i+1}>{name}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="form-group" style={{ margin:0 }}>
+                            <label style={{ fontSize:12 }}>Año *</label>
+                            <select className="form-control" value={recurringYear}
+                              onChange={e => setRecurringYear(Number(e.target.value))}>
+                              {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
+                            </select>
+                          </div>
+                        </div>
                         <p style={{ fontSize:12, color:'var(--text-muted)', marginBottom:8 }}>Selecciona los días de entrenamiento:</p>
                         <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:12 }}>
                           {DAY_LABELS.map((label, idx) => (
