@@ -90,14 +90,16 @@ export default function Calendario() {
   const fetchSupport = async () => {
     try {
       const [catRes, hqRes, tRes] = await Promise.all([
-        api.get('/categories'),
-        api.get('/headquarters'),
+        api.get('/academy-config/categories'),
+        api.get('/academy-config/headquarters'),
         api.get('/calendar/tournaments'),
       ]);
       setCategories(catRes.data);
       setHeadquarters(hqRes.data);
       setTournaments(tRes.data);
-    } catch { /* silent */ }
+    } catch (err) {
+      console.error('Error cargando sedes/categorias:', err);
+    }
   };
 
   useEffect(() => { fetchEvents(); }, [fetchEvents]);
