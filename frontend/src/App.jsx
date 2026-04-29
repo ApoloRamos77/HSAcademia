@@ -22,6 +22,7 @@ import AsistenciaMetricas from './pages/academy/AsistenciaMetricas';
 import Calendario from './pages/academy/Calendario';
 import Tienda from './pages/academy/Tienda';
 import Finanzas from './pages/academy/Finanzas';
+import StudentDashboard from './pages/student/Dashboard';
 import ChangePasswordPage from './pages/ChangePasswordPage';
 import SessionTimeout from './components/SessionTimeout';
 
@@ -121,6 +122,13 @@ export default function App() {
           <Route path="/academy/finanzas" element={
             <ProtectedRoute roles={['AcademyAdmin', 'Staff']}>
               <Finanzas />
+            </ProtectedRoute>
+          } />
+
+          {/* Student & Guardian */}
+          <Route path="/student/dashboard" element={
+            <ProtectedRoute roles={['Student', 'Guardian']}>
+              <StudentDashboard />
             </ProtectedRoute>
           } />
 

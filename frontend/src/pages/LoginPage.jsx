@@ -100,7 +100,13 @@ export default function LoginPage() {
         navigate('/cambiar-password');
       } else {
         toast.success(`¡Bienvenido, ${user.fullName}!`);
-        navigate(user.role === 'SuperAdmin' ? '/super-admin/dashboard' : '/dashboard');
+        if (user.role === 'SuperAdmin') {
+          navigate('/super-admin/dashboard');
+        } else if (user.role === 'Student' || user.role === 'Guardian') {
+          navigate('/student/dashboard');
+        } else {
+          navigate('/dashboard');
+        }
       }
     } catch (err) {
       setError(err.response?.data?.message || 'Error al iniciar sesión. Verifica tus credenciales.');

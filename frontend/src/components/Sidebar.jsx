@@ -115,6 +115,16 @@ export default function Sidebar({ isOpen, onClose }) {
             </div>
           </>
         )}
+
+        {/* Student / Guardian */}
+        {(user?.role === 'Student' || user?.role === 'Guardian') && (
+          <div className="nav-section">
+            <div className="nav-label">🎓 Portal</div>
+            <NavLink to="/student/dashboard" className={navCls} onClick={onClose} end>
+              <LayoutDashboard size={16} /> Inicio
+            </NavLink>
+          </div>
+        )}
       </nav>
 
       {/* ── FOOTER ── */}
@@ -128,7 +138,12 @@ export default function Sidebar({ isOpen, onClose }) {
             {isSuperAdmin ? (
               <span className="superadmin-pill"><Crown size={10} /> SuperAdmin</span>
             ) : (
-              <div className="user-role">Admin Academia</div>
+              <div className="user-role">
+                {user?.role === 'AcademyAdmin' ? 'Admin Academia' : 
+                 user?.role === 'Staff' ? 'Personal' : 
+                 user?.role === 'Student' ? 'Alumno' : 
+                 user?.role === 'Guardian' ? 'Apoderado' : 'Usuario'}
+              </div>
             )}
           </div>
           <button onClick={handleLogout} className="btn btn-ghost btn-sm" title="Cerrar sesión" style={{ padding: '6px' }}>
