@@ -19,8 +19,17 @@ public class FinancesPremiumController : ControllerBase
         _service = service;
     }
 
-    private Guid GetAcademyId() => Guid.Parse(User.FindFirst("AcademyId")!.Value);
-    private Guid GetUserId() => Guid.Parse(User.FindFirst("Id")!.Value);
+    private Guid GetAcademyId()
+    {
+        var idStr = User.FindFirst("academyId")?.Value ?? User.FindFirst("AcademyId")?.Value;
+        return string.IsNullOrEmpty(idStr) ? Guid.Empty : Guid.Parse(idStr);
+    }
+
+    private Guid GetUserId()
+    {
+        var idStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        return string.IsNullOrEmpty(idStr) ? Guid.Empty : Guid.Parse(idStr);
+    }
 
     [HttpGet("expenses")]
     public async Task<IActionResult> GetExpenses([FromQuery] int month, [FromQuery] int year)

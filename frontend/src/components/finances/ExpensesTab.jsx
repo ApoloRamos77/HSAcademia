@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../../api/axios';
-import { TrendingDown, Plus, FileText, Filter, Calendar, Tag, DollarSign, Trash2 } from 'lucide-react';
+import { TrendingDown, Plus, FileText, Filter, Calendar, Tag, DollarSign, Trash2, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const EXPENSE_TYPES = {
@@ -168,57 +168,57 @@ export default function ExpensesTab() {
 
       {/* Modal Crear */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-card border border-border/50 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform animate-scale-in">
-            <div className="p-6 border-b border-border/50 flex justify-between items-center bg-background/50">
-              <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                <DollarSign className="text-primary" /> Nuevo Egreso
+        <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 480 }}>
+            <div className="flex justify-between items-center mb-5 border-b border-border pb-3">
+              <h3 className="modal-title m-0 flex items-center gap-2">
+                <DollarSign size={18} className="text-primary" /> Nuevo Egreso
               </h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-text-muted hover:text-white transition-colors">
-                &times;
+              <button onClick={() => setIsModalOpen(false)} className="btn btn-ghost btn-sm">
+                <X size={16} />
               </button>
             </div>
             
-            <form onSubmit={handleCreate} className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-text-muted mb-1">Descripción</label>
+            <form onSubmit={handleCreate}>
+              <div className="form-group">
+                <label className="form-label">Descripción</label>
                 <input 
                   type="text" required
                   value={formData.description}
                   onChange={e => setFormData({...formData, description: e.target.value})}
-                  className="w-full bg-background border border-border/50 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-primary transition-colors"
+                  className="form-control"
                   placeholder="Ej. Compra de balones"
                 />
               </div>
               
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-text-muted mb-1">Monto ($)</label>
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Monto ($)</label>
                   <input 
                     type="number" step="0.01" required min="0.01"
                     value={formData.amount}
                     onChange={e => setFormData({...formData, amount: e.target.value})}
-                    className="w-full bg-background border border-border/50 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-primary transition-colors"
+                    className="form-control"
                     placeholder="0.00"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-text-muted mb-1">Fecha</label>
+                <div className="form-group">
+                  <label className="form-label">Fecha</label>
                   <input 
                     type="date" required
                     value={formData.date}
                     onChange={e => setFormData({...formData, date: e.target.value})}
-                    className="w-full bg-background border border-border/50 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-primary transition-colors"
+                    className="form-control"
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-text-muted mb-1">Categoría</label>
+              <div className="form-group">
+                <label className="form-label">Categoría</label>
                 <select 
                   value={formData.type}
                   onChange={e => setFormData({...formData, type: e.target.value})}
-                  className="w-full bg-background border border-border/50 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-primary transition-colors"
+                  className="form-control"
                 >
                   {Object.entries(EXPENSE_TYPES).map(([val, {label}]) => (
                     <option key={val} value={val}>{label}</option>
@@ -226,23 +226,23 @@ export default function ExpensesTab() {
                 </select>
               </div>
               
-              <div>
-                <label className="block text-sm font-medium text-text-muted mb-1">Voucher URL (Opcional)</label>
+              <div className="form-group">
+                <label className="form-label">Voucher URL (Opcional)</label>
                 <input 
                   type="url"
                   value={formData.voucherUrl}
                   onChange={e => setFormData({...formData, voucherUrl: e.target.value})}
-                  className="w-full bg-background border border-border/50 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-primary transition-colors"
+                  className="form-control"
                   placeholder="https://..."
                 />
               </div>
 
-              <div className="pt-4 flex gap-3">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 px-4 py-2.5 rounded-xl border border-border/50 text-text-main hover:bg-white/5 transition-colors font-medium">
+              <div className="modal-footer mt-4 flex justify-end gap-2">
+                <button type="button" onClick={() => setIsModalOpen(false)} className="btn btn-ghost text-danger">
                   Cancelar
                 </button>
-                <button type="submit" className="flex-1 px-4 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-white font-medium transition-transform transform hover:-translate-y-0.5 shadow-lg shadow-primary/20">
-                  Guardar Gasto
+                <button type="submit" className="btn btn-primary flex items-center gap-2">
+                  <DollarSign size={15} /> Guardar Gasto
                 </button>
               </div>
             </form>
