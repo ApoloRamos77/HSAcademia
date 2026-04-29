@@ -139,4 +139,17 @@ public class AcademyConfigurationController : ControllerBase
         try { return Ok(await _service.UpdateUserAsync(academyId, id, dto)); }
         catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
     }
+
+    [HttpPost("users/{id}/reset-password")]
+    public async Task<IActionResult> ResetPassword(Guid id)
+    {
+        var academyId = GetAcademyId();
+        if (academyId == Guid.Empty) return Unauthorized();
+        try 
+        { 
+            await _service.ResetUserPasswordAsync(academyId, id, "123456"); 
+            return Ok(new { message = "Contraseña reseteada correctamente." });
+        }
+        catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
+    }
 }

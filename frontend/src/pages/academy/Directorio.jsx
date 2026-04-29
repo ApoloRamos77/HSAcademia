@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import AppLayout from '../../components/AppLayout';
-import { Search, Filter, Shield, User, GraduationCap, Users } from 'lucide-react';
+import { Search, Filter, Shield, User, GraduationCap, Users, KeyRound } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function Directorio() {
@@ -23,6 +23,16 @@ export default function Directorio() {
       toast.error('Error al cargar directorio');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (userId, userName) => {
+    if (!window.confirm(`¿Estás seguro de resetear la contraseña de ${userName} a "123456"?`)) return;
+    try {
+      await api.post(`/academy-config/users/${userId}/reset-password`);
+      toast.success(`Contraseña de ${userName} reseteada a 123456`);
+    } catch (err) {
+      toast.error('Error al resetear la contraseña');
     }
   };
 
@@ -102,12 +112,13 @@ export default function Directorio() {
                   <th>Rol</th>
                   <th>Contacto</th>
                   <th>Estado</th>
+                  <th className="text-center">Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
                   <tr>
-                    <td colSpan="4" className="text-center p-8 text-text-muted">No se encontraron usuarios que coincidan con la búsqueda.</td>
+                    <td colSpan="5" className="text-center p-8 text-text-muted">No se encontraron usuarios que coincidan con la búsqueda.</td>
                   </tr>
                 ) : (
                   filtered.map(u => {
@@ -134,6 +145,15 @@ export default function Directorio() {
                           <span className={`badge ${u.status === 'Active' ? 'badge-success' : 'badge-danger'}`}>
                             {u.status}
                           </span>
+                        </td>
+                        <td className="text-center">
+                          <button
+                            onClick={() => handleResetPassword(u.id, `${u.firstName} ${u.lastName}`)}
+                            className="btn btn-ghost btn-sm text-warning mx-auto flex items-center gap-1"
+                            title="Resetear a 123456"
+                          >
+                            <KeyRound size={14} /> Resetear Clave
+                          </button>
                         </td>
                       </tr>
                     );

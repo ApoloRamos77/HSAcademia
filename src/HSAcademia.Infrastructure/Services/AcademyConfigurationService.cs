@@ -257,4 +257,15 @@ public class AcademyConfigurationService
         await _context.SaveChangesAsync();
         return new AcademyUserDto { Id = user.Id, FirstName = user.FirstName, LastName = user.LastName, Email = user.Email };
     }
+
+    public async Task<bool> ResetUserPasswordAsync(Guid academyId, Guid id, string newPassword = "123456")
+    {
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == id && u.AcademyId == academyId);
+        if (user == null) throw new Exception("Usuario no encontrado.");
+        
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
+        
+        await _context.SaveChangesAsync();
+        return true;
+    }
 }

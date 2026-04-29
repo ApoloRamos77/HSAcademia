@@ -6,9 +6,9 @@ import toast from 'react-hot-toast';
 
 export default function ChangePasswordPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   // Read the password stored at login (sessionStorage) to use as currentPassword
-  const storedPw = sessionStorage.getItem('_lp') || '12345';
+  const storedPw = sessionStorage.getItem('_lp') || '123456';
   const [form, setForm] = useState({ currentPassword: storedPw, newPassword: '', confirmPassword: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -32,16 +32,13 @@ export default function ChangePasswordPage() {
         currentPassword: form.currentPassword,
         newPassword: form.newPassword
       });
-      toast.success('Contraseña actualizada correctamente.');
+      toast.success('Contraseña actualizada. Por favor inicia sesión nuevamente.');
       // Clear stored password
       sessionStorage.removeItem('_lp');
       
-      // Force update user in localStorage to not require password change again (or just navigate)
-      const u = JSON.parse(localStorage.getItem('user'));
-      u.requirePasswordChange = false;
-      localStorage.setItem('user', JSON.stringify(u));
-
-      navigate(user?.role === 'SuperAdmin' ? '/super-admin/dashboard' : '/dashboard');
+      // Logout to force user to login with their new password
+      logout();
+      navigate('/login');
     } catch (err) {
       setError(err.response?.data?.message || 'Error al actualizar contraseña.');
     } finally {
