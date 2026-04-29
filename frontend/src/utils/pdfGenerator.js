@@ -1,5 +1,5 @@
 import { jsPDF } from "jspdf";
-import "jspdf-autotable";
+import autoTable from "jspdf-autotable";
 
 export const generateReceiptPDF = (data) => {
   const doc = new jsPDF();
@@ -73,7 +73,7 @@ export const generateReceiptPDF = (data) => {
     [data.quantity || 1, data.description || "Descripción no disponible", `S/ ${parseFloat(data.total).toFixed(2)}`]
   ];
   
-  doc.autoTable({
+  autoTable(doc, {
     startY: 85,
     head: [["CANT.", "DESCRIPCIÓN", "TOTAL"]],
     body: tableData,

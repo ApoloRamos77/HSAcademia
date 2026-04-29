@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const PRODUCTION_URL = 'https://softsport77-api.scuiaw.easypanel.host/api';
+const PRODUCTION_URL = 'https://adhsoftsport-api.scuiax.easypanel.host/api';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || PRODUCTION_URL,
