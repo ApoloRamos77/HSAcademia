@@ -338,4 +338,194 @@ public class FinancesPremiumService : IFinancesPremiumService
             ExpensesByCategory = expenses
         };
     }
+
+    // ══════════════════════════════════════════
+    // TREND DATA (Last N months)
+    // ══════════════════════════════════════════
+    public async Task<List<MonthlyTrendDto>> GetTrendDataAsync(Guid academyId, int months = 6)
+    {
+        var result = new List<MonthlyTrendDto>();
+        var now = DateTime.UtcNow;
+
+        var shortMonths = new[] { "Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic" };
+
+        for (int i = months - 1; i >= 0; i--)
+        {
+            var refDate = new DateTime(now.Year, now.Month, 1).AddMonths(-i);
+            var m = refDate.Month;
+            var y = refDate.Year;
+            var start = new DateTime(y, m, 1, 0, 0, 0, DateTimeKind.Utc);
+            var end = start.AddMonths(1);
+
+            var income = await _context.PaymentRecords
+                .Where(pr => pr.AcademyId == academyId && pr.IsPaid && pr.DueDate >= start && pr.DueDate < end)
+                .SumAsync(pr => (decimal?)pr.AmountPaid) ?? 0m;
+
+            var exp = await _context.Expenses
+                .Where(e => e.AcademyId == academyId && e.Date >= start && e.Date < end)
+                .SumAsync(e => (decimal?)e.Amount) ?? 0m;
+
+            var staff = await _context.StaffPayments
+                .Where(sp => sp.AcademyId == academyId && sp.PeriodMonth == m && sp.PeriodYear == y
+                    && sp.Status == StaffPaymentStatus.Paid && !sp.IsDeleted)
+                .SumAsync(sp => (decimal?)sp.TotalPaid) ?? 0m;
+
+            result.Add(new MonthlyTrendDto
+            {
+                Label = $"{shortMonths[m - 1]} {y}",
+                Income = income,
+                Expenses = exp,
+                StaffPayments = staff,
+                NetBalance = income - exp - staff
+            });
+        }
+
+        return result;
+    }
+
+    // ══════════════════════════════════════════
+    // FINANCIAL GOALS
+    // ══════════════════════════════════════════
+    public async Task<FinancialGoalDto?> GetGoalAsync(Guid academyId, int month, int year)
+    {
+        var goal = await _context.FinancialGoals
+            .FirstOrDefaultAsync(g => g.AcademyId == academyId && g.Month == month && g.Year == year);
+
+        if (goal == null) return null;
+
+        var summary = await GetFinanceSummaryAsync(academyId, month, year);
+
+        var incomeProgress = goal.TargetIncome > 0 ? (summary.TotalIncome / goal.TargetIncome) * 100 : 0;
+        var profitProgress = goal.TargetProfit > 0 ? (summary.NetBalance / goal.TargetProfit) * 100 : 0;
+        
+        // Prevent negative progress or missing values if we exceed the goal
+        var missingIncome = goal.TargetIncome - summary.TotalIncome;
+        if (missingIncome < 0) missingIncome = 0;
+
+        return new FinancialGoalDto
+        {
+            Id = goal.Id,
+            Month = goal.Month,
+            Year = goal.Year,
+            TargetIncome = goal.TargetIncome,
+            TargetProfit = goal.TargetProfit,
+            Status = goal.Status.ToString(),
+            CurrentIncome = summary.TotalIncome,
+            CurrentProfit = summary.NetBalance,
+            IncomeProgress = Math.Min(100, Math.Round(incomeProgress, 1)),
+            ProfitProgress = Math.Min(100, Math.Round(profitProgress, 1)),
+            MissingIncome = missingIncome
+        };
+    }
+
+    public async Task<FinancialGoalDto> UpsertGoalAsync(Guid academyId, CreateFinancialGoalDto dto)
+    {
+        var goal = await _context.FinancialGoals
+            .FirstOrDefaultAsync(g => g.AcademyId == academyId && g.Month == dto.Month && g.Year == dto.Year);
+
+        if (goal == null)
+        {
+            goal = new FinancialGoal
+            {
+                AcademyId = academyId,
+                Month = dto.Month,
+                Year = dto.Year,
+                TargetIncome = dto.TargetIncome,
+                TargetProfit = dto.TargetProfit,
+                Status = FinancialGoalStatus.InProgress,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            _context.FinancialGoals.Add(goal);
+        }
+        else
+        {
+            goal.TargetIncome = dto.TargetIncome;
+            goal.TargetProfit = dto.TargetProfit;
+            goal.UpdatedAt = DateTime.UtcNow;
+        }
+
+        await _context.SaveChangesAsync();
+
+        return await GetGoalAsync(academyId, dto.Month, dto.Year) ?? throw new Exception("Error al recuperar la meta.");
+    }
+
+    // ══════════════════════════════════════════
+    // MONTHLY CLOSINGS
+    // ══════════════════════════════════════════
+    public async Task<MonthlyClosingDto?> GetMonthlyClosingAsync(Guid academyId, int month, int year)
+    {
+        var closing = await _context.MonthlyClosings
+            .Include(c => c.ClosedBy)
+            .FirstOrDefaultAsync(c => c.AcademyId == academyId && c.Month == month && c.Year == year);
+
+        if (closing == null) return null;
+
+        return new MonthlyClosingDto
+        {
+            Id = closing.Id,
+            Month = closing.Month,
+            Year = closing.Year,
+            TotalIncome = closing.TotalIncome,
+            TotalExpenses = closing.TotalExpenses,
+            NetProfit = closing.NetProfit,
+            PettyCashBalance = closing.PettyCashBalance,
+            Status = closing.Status.ToString(),
+            ClosedAt = closing.ClosedAt,
+            ClosedByName = closing.ClosedBy != null ? $"{closing.ClosedBy.FirstName} {closing.ClosedBy.LastName}" : null,
+            Notes = closing.Notes
+        };
+    }
+
+    public async Task<MonthlyClosingDto> CloseMonthAsync(Guid academyId, Guid closedBy, CloseMonthDto dto)
+    {
+        var existing = await _context.MonthlyClosings
+            .FirstOrDefaultAsync(c => c.AcademyId == academyId && c.Month == dto.Month && c.Year == dto.Year);
+
+        if (existing != null && existing.Status == MonthlyClosingStatus.Closed)
+            throw new Exception("El mes ya se encuentra cerrado.");
+
+        var summary = await GetFinanceSummaryAsync(academyId, dto.Month, dto.Year);
+
+        var pettyCashBalance = await _context.PettyCashes
+            .Where(p => p.AcademyId == academyId && p.Month == dto.Month && p.Year == dto.Year)
+            .SumAsync(p => p.CurrentBalance);
+
+        if (existing == null)
+        {
+            existing = new MonthlyClosing
+            {
+                AcademyId = academyId,
+                Month = dto.Month,
+                Year = dto.Year,
+                TotalIncome = summary.TotalIncome,
+                TotalExpenses = summary.TotalExpenses + summary.TotalStaffPayments,
+                NetProfit = summary.NetBalance,
+                PettyCashBalance = pettyCashBalance,
+                Status = MonthlyClosingStatus.Closed,
+                ClosedAt = DateTime.UtcNow,
+                ClosedById = closedBy,
+                Notes = dto.Notes,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            _context.MonthlyClosings.Add(existing);
+        }
+        else
+        {
+            existing.TotalIncome = summary.TotalIncome;
+            existing.TotalExpenses = summary.TotalExpenses + summary.TotalStaffPayments;
+            existing.NetProfit = summary.NetBalance;
+            existing.PettyCashBalance = pettyCashBalance;
+            existing.Status = MonthlyClosingStatus.Closed;
+            existing.ClosedAt = DateTime.UtcNow;
+            existing.ClosedById = closedBy;
+            existing.Notes = dto.Notes;
+            existing.UpdatedAt = DateTime.UtcNow;
+        }
+
+        await _context.SaveChangesAsync();
+
+        return await GetMonthlyClosingAsync(academyId, dto.Month, dto.Year) ?? throw new Exception("Error al recuperar el cierre.");
+    }
 }

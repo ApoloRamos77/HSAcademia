@@ -24,4 +24,13 @@ public interface IFinancesPremiumService
 
     // ── Dashboard ─────────────────────────────────────────────────────────────
     Task<FinanceSummaryDto> GetFinanceSummaryAsync(Guid academyId, int month, int year);
+    Task<List<MonthlyTrendDto>> GetTrendDataAsync(Guid academyId, int months);
+
+    // ── Financial Goals ──────────────────────────────────────────────────────
+    Task<FinancialGoalDto?> GetGoalAsync(Guid academyId, int month, int year);
+    Task<FinancialGoalDto> UpsertGoalAsync(Guid academyId, CreateFinancialGoalDto dto);
+
+    // ── Monthly Closings ─────────────────────────────────────────────────────
+    Task<MonthlyClosingDto?> GetMonthlyClosingAsync(Guid academyId, int month, int year);
+    Task<MonthlyClosingDto> CloseMonthAsync(Guid academyId, Guid closedBy, CloseMonthDto dto);
 }

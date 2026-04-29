@@ -130,4 +130,48 @@ public class FinancesPremiumController : ControllerBase
         var result = await _service.GetFinanceSummaryAsync(GetAcademyId(), month, year);
         return Ok(result);
     }
+
+    [HttpGet("trends")]
+    public async Task<IActionResult> GetTrends([FromQuery] int months = 6)
+    {
+        var result = await _service.GetTrendDataAsync(GetAcademyId(), months);
+        return Ok(result);
+    }
+
+    // ── Financial Goals ───────────────────────────────────────────────────────
+
+    [HttpGet("goals")]
+    public async Task<IActionResult> GetGoal([FromQuery] int month, [FromQuery] int year)
+    {
+        if (month == 0) month = DateTime.UtcNow.Month;
+        if (year == 0) year = DateTime.UtcNow.Year;
+        var result = await _service.GetGoalAsync(GetAcademyId(), month, year);
+        // Retornamos 200 con o sin data, el frontend decide si mostrar "Crear Meta" si es null
+        return Ok(result);
+    }
+
+    [HttpPost("goals")]
+    public async Task<IActionResult> UpsertGoal([FromBody] CreateFinancialGoalDto dto)
+    {
+        var result = await _service.UpsertGoalAsync(GetAcademyId(), dto);
+        return Ok(result);
+    }
+
+    // ── Monthly Closings ──────────────────────────────────────────────────────
+
+    [HttpGet("closings")]
+    public async Task<IActionResult> GetMonthlyClosing([FromQuery] int month, [FromQuery] int year)
+    {
+        if (month == 0) month = DateTime.UtcNow.Month;
+        if (year == 0) year = DateTime.UtcNow.Year;
+        var result = await _service.GetMonthlyClosingAsync(GetAcademyId(), month, year);
+        return Ok(result);
+    }
+
+    [HttpPost("closings")]
+    public async Task<IActionResult> CloseMonth([FromBody] CloseMonthDto dto)
+    {
+        var result = await _service.CloseMonthAsync(GetAcademyId(), GetUserId(), dto);
+        return Ok(result);
+    }
 }
