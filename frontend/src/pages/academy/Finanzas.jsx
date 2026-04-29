@@ -3,10 +3,11 @@ import api from '../../api/axios';
 import AppLayout from '../../components/AppLayout';
 import {
   DollarSign, Settings, Play, AlertTriangle, CheckCircle, Search,
-  Calendar, FileText, RefreshCw, Ban, CreditCard, ChevronDown, ChevronUp, X, CalendarPlus, Download
+  Calendar, FileText, RefreshCw, Ban, CreditCard, ChevronDown, ChevronUp, X, CalendarPlus, Download, TrendingDown
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { generateReceiptPDF } from '../../utils/pdfGenerator';
+import ExpensesTab from '../../components/finances/ExpensesTab';
 
 const PAYMENT_METHODS = [
   { value: 'Cash', label: '💵 Efectivo' },
@@ -184,9 +185,12 @@ export default function Finanzas() {
       <div className="fade-in">
 
         {/* Tabs */}
-        <div className="flex gap-4 mb-6 border-b border-border/50 pb-2">
+        <div className="flex gap-4 mb-6 border-b border-border/50 pb-2 overflow-x-auto whitespace-nowrap">
           <button className={`flex items-center gap-2 pb-2 px-1 border-b-2 transition-colors ${activeTab==='debts'?'border-primary text-primary font-bold':'border-transparent text-text-muted hover:text-text-main'}`} onClick={()=>setActiveTab('debts')}>
             <DollarSign size={18}/> Morosidad y Cobranzas
+          </button>
+          <button className={`flex items-center gap-2 pb-2 px-1 border-b-2 transition-colors ${activeTab==='expenses'?'border-primary text-primary font-bold':'border-transparent text-text-muted hover:text-text-main'}`} onClick={()=>setActiveTab('expenses')}>
+            <TrendingDown size={18}/> Dashboard y Egresos
           </button>
           <button className={`flex items-center gap-2 pb-2 px-1 border-b-2 transition-colors ${activeTab==='config'?'border-primary text-primary font-bold':'border-transparent text-text-muted hover:text-text-main'}`} onClick={()=>setActiveTab('config')}>
             <Settings size={18}/> Configuración de Pagos
@@ -370,6 +374,11 @@ export default function Finanzas() {
               </button>
             </div>
           </div>
+        )}
+
+        {/* EXPENSES TAB */}
+        {activeTab === 'expenses' && (
+          <ExpensesTab />
         )}
       </div>
 

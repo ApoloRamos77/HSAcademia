@@ -29,6 +29,12 @@ public class AppDbContext : DbContext
     public DbSet<Tournament> Tournaments => Set<Tournament>();
     public DbSet<Event> Events => Set<Event>();
     public DbSet<Announcement> Announcements => Set<Announcement>();
+    public DbSet<Expense> Expenses => Set<Expense>();
+    public DbSet<PettyCash> PettyCashes => Set<PettyCash>();
+    public DbSet<PettyCashTransaction> PettyCashTransactions => Set<PettyCashTransaction>();
+    public DbSet<StaffPayment> StaffPayments => Set<StaffPayment>();
+    public DbSet<FinancialGoal> FinancialGoals => Set<FinancialGoal>();
+    public DbSet<MonthlyClosing> MonthlyClosings => Set<MonthlyClosing>();
 
     // =====================================================================
     // Model configuration
@@ -623,6 +629,161 @@ public class AppDbContext : DbContext
                   .WithMany()
                   .HasForeignKey(e => e.AuthorId)
                   .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // ----------------------------------------------------------------
+        // Expenses
+        // ----------------------------------------------------------------
+        modelBuilder.Entity<Expense>(entity =>
+        {
+            entity.ToTable("expenses");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.AcademyId).HasColumnName("academy_id").IsRequired();
+            entity.Property(e => e.Type).HasColumnName("type").HasConversion<int>().IsRequired();
+            entity.Property(e => e.Amount).HasColumnName("amount").HasColumnType("numeric(10,2)").IsRequired();
+            entity.Property(e => e.Date).HasColumnName("date").HasColumnType("date").IsRequired();
+            entity.Property(e => e.Description).HasColumnName("description").HasMaxLength(500).IsRequired();
+            entity.Property(e => e.VoucherUrl).HasColumnName("voucher_url").HasMaxLength(500);
+            entity.Property(e => e.RegisteredById).HasColumnName("registered_by");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.IsDeleted).HasColumnName("is_deleted").HasDefaultValue(false);
+            entity.Property(e => e.DeletedAt).HasColumnName("deleted_at");
+
+            entity.HasIndex(e => e.AcademyId);
+            entity.HasIndex(e => e.Date);
+            entity.HasQueryFilter(e => !e.IsDeleted);
+
+            entity.HasOne(e => e.Academy).WithMany().HasForeignKey(e => e.AcademyId).HasPrincipalKey(a => a.AcademyId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(e => e.RegisteredBy).WithMany().HasForeignKey(e => e.RegisteredById).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // ----------------------------------------------------------------
+        // PettyCash
+        // ----------------------------------------------------------------
+        modelBuilder.Entity<PettyCash>(entity =>
+        {
+            entity.ToTable("petty_cash");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.AcademyId).HasColumnName("academy_id").IsRequired();
+            entity.Property(e => e.HeadquarterId).HasColumnName("headquarter_id");
+            entity.Property(e => e.Month).HasColumnName("month").IsRequired();
+            entity.Property(e => e.Year).HasColumnName("year").IsRequired();
+            entity.Property(e => e.AssignedAmount).HasColumnName("assigned_amount").HasColumnType("numeric(10,2)").HasDefaultValue(0m);
+            entity.Property(e => e.CurrentBalance).HasColumnName("current_balance").HasColumnType("numeric(10,2)").HasDefaultValue(0m);
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
+
+            entity.HasIndex(e => new { e.AcademyId, e.HeadquarterId, e.Month, e.Year }).IsUnique();
+
+            entity.HasOne(e => e.Academy).WithMany().HasForeignKey(e => e.AcademyId).HasPrincipalKey(a => a.AcademyId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(e => e.Headquarter).WithMany().HasForeignKey(e => e.HeadquarterId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // ----------------------------------------------------------------
+        // PettyCashTransaction
+        // ----------------------------------------------------------------
+        modelBuilder.Entity<PettyCashTransaction>(entity =>
+        {
+            entity.ToTable("petty_cash_transactions");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.PettyCashId).HasColumnName("petty_cash_id").IsRequired();
+            entity.Property(e => e.Type).HasColumnName("type").HasConversion<int>().IsRequired();
+            entity.Property(e => e.Amount).HasColumnName("amount").HasColumnType("numeric(10,2)").IsRequired();
+            entity.Property(e => e.Concept).HasColumnName("concept").HasMaxLength(255).IsRequired();
+            entity.Property(e => e.Date).HasColumnName("date").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.RegisteredById).HasColumnName("registered_by");
+
+            entity.HasIndex(e => e.PettyCashId);
+
+            entity.HasOne(e => e.PettyCash).WithMany(p => p.Transactions).HasForeignKey(e => e.PettyCashId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.RegisteredBy).WithMany().HasForeignKey(e => e.RegisteredById).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // ----------------------------------------------------------------
+        // StaffPayment
+        // ----------------------------------------------------------------
+        modelBuilder.Entity<StaffPayment>(entity =>
+        {
+            entity.ToTable("staff_payments");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.AcademyId).HasColumnName("academy_id").IsRequired();
+            entity.Property(e => e.StaffId).HasColumnName("staff_id").IsRequired();
+            entity.Property(e => e.PeriodMonth).HasColumnName("period_month").IsRequired();
+            entity.Property(e => e.PeriodYear).HasColumnName("period_year").IsRequired();
+            entity.Property(e => e.BaseAmount).HasColumnName("base_amount").HasColumnType("numeric(10,2)").HasDefaultValue(0m);
+            entity.Property(e => e.Bonuses).HasColumnName("bonuses").HasColumnType("numeric(10,2)").HasDefaultValue(0m);
+            entity.Property(e => e.Deductions).HasColumnName("deductions").HasColumnType("numeric(10,2)").HasDefaultValue(0m);
+            entity.Property(e => e.TotalPaid).HasColumnName("total_paid").HasColumnType("numeric(10,2)").HasDefaultValue(0m);
+            entity.Property(e => e.Status).HasColumnName("status").HasConversion<int>().HasDefaultValue(StaffPaymentStatus.Pending);
+            entity.Property(e => e.PaidAt).HasColumnName("paid_at");
+            entity.Property(e => e.Notes).HasColumnName("notes").HasMaxLength(500);
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.IsDeleted).HasColumnName("is_deleted").HasDefaultValue(false);
+            entity.Property(e => e.DeletedAt).HasColumnName("deleted_at");
+
+            entity.HasIndex(e => new { e.AcademyId, e.StaffId, e.PeriodMonth, e.PeriodYear }).IsUnique();
+            entity.HasQueryFilter(e => !e.IsDeleted);
+
+            entity.HasOne(e => e.Academy).WithMany().HasForeignKey(e => e.AcademyId).HasPrincipalKey(a => a.AcademyId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(e => e.Staff).WithMany().HasForeignKey(e => e.StaffId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // ----------------------------------------------------------------
+        // FinancialGoal
+        // ----------------------------------------------------------------
+        modelBuilder.Entity<FinancialGoal>(entity =>
+        {
+            entity.ToTable("financial_goals");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.AcademyId).HasColumnName("academy_id").IsRequired();
+            entity.Property(e => e.HeadquarterId).HasColumnName("headquarter_id");
+            entity.Property(e => e.Month).HasColumnName("month").IsRequired();
+            entity.Property(e => e.Year).HasColumnName("year").IsRequired();
+            entity.Property(e => e.TargetIncome).HasColumnName("target_income").HasColumnType("numeric(10,2)").HasDefaultValue(0m);
+            entity.Property(e => e.TargetProfit).HasColumnName("target_profit").HasColumnType("numeric(10,2)").HasDefaultValue(0m);
+            entity.Property(e => e.Status).HasColumnName("status").HasConversion<int>().HasDefaultValue(FinancialGoalStatus.InProgress);
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
+
+            entity.HasIndex(e => new { e.AcademyId, e.HeadquarterId, e.Month, e.Year }).IsUnique();
+
+            entity.HasOne(e => e.Academy).WithMany().HasForeignKey(e => e.AcademyId).HasPrincipalKey(a => a.AcademyId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(e => e.Headquarter).WithMany().HasForeignKey(e => e.HeadquarterId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // ----------------------------------------------------------------
+        // MonthlyClosing
+        // ----------------------------------------------------------------
+        modelBuilder.Entity<MonthlyClosing>(entity =>
+        {
+            entity.ToTable("monthly_closings");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.AcademyId).HasColumnName("academy_id").IsRequired();
+            entity.Property(e => e.Month).HasColumnName("month").IsRequired();
+            entity.Property(e => e.Year).HasColumnName("year").IsRequired();
+            entity.Property(e => e.TotalIncome).HasColumnName("total_income").HasColumnType("numeric(10,2)").HasDefaultValue(0m);
+            entity.Property(e => e.TotalExpenses).HasColumnName("total_expenses").HasColumnType("numeric(10,2)").HasDefaultValue(0m);
+            entity.Property(e => e.NetProfit).HasColumnName("net_profit").HasColumnType("numeric(10,2)").HasDefaultValue(0m);
+            entity.Property(e => e.PettyCashBalance).HasColumnName("petty_cash_balance").HasColumnType("numeric(10,2)").HasDefaultValue(0m);
+            entity.Property(e => e.Status).HasColumnName("status").HasConversion<int>().HasDefaultValue(MonthlyClosingStatus.Open);
+            entity.Property(e => e.ClosedAt).HasColumnName("closed_at");
+            entity.Property(e => e.ClosedById).HasColumnName("closed_by");
+            entity.Property(e => e.Notes).HasColumnName("notes").HasMaxLength(1000);
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
+
+            entity.HasIndex(e => new { e.AcademyId, e.Month, e.Year }).IsUnique();
+
+            entity.HasOne(e => e.Academy).WithMany().HasForeignKey(e => e.AcademyId).HasPrincipalKey(a => a.AcademyId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(e => e.ClosedBy).WithMany().HasForeignKey(e => e.ClosedById).OnDelete(DeleteBehavior.SetNull);
         });
 
         // ----------------------------------------------------------------
