@@ -15,6 +15,8 @@ import Categorias from './pages/academy/Categorias';
 import Roles from './pages/academy/Roles';
 import Usuarios from './pages/academy/Usuarios';
 import Alumnos from './pages/academy/Alumnos';
+import Padres from './pages/academy/Padres';
+import Directorio from './pages/academy/Directorio';
 import Asistencia from './pages/academy/Asistencia';
 import AsistenciaMetricas from './pages/academy/AsistenciaMetricas';
 import Calendario from './pages/academy/Calendario';
@@ -84,6 +86,16 @@ export default function App() {
           <Route path="/academy/alumnos" element={
             <ProtectedRoute roles={['AcademyAdmin', 'Staff']}>
               <Alumnos />
+            </ProtectedRoute>
+          } />
+          <Route path="/academy/apoderados" element={
+            <ProtectedRoute roles={['AcademyAdmin', 'Staff']}>
+              <Padres />
+            </ProtectedRoute>
+          } />
+          <Route path="/academy/directorio" element={
+            <ProtectedRoute roles={['AcademyAdmin', 'Staff']}>
+              <Directorio />
             </ProtectedRoute>
           } />
           <Route path="/academy/asistencia" element={

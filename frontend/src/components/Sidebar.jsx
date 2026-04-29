@@ -74,11 +74,17 @@ export default function Sidebar({ isOpen, onClose }) {
               <NavLink to="/academy/alumnos" className={navCls} onClick={onClose}>
                 <Users size={16} /> Alumnos
               </NavLink>
+              <NavLink to="/academy/apoderados" className={navCls} onClick={onClose}>
+                <Users size={16} /> Apoderados
+              </NavLink>
               <NavLink to="/academy/asistencia" className={navCls} onClick={onClose}>
                 <CalendarCheck size={16} /> Asistencia
               </NavLink>
               <NavLink to="/academy/usuarios" className={navCls} onClick={onClose}>
                 <ShieldCheck size={16} /> Personal
+              </NavLink>
+              <NavLink to="/academy/directorio" className={navCls} onClick={onClose}>
+                <ClipboardList size={16} /> Directorio
               </NavLink>
             </div>
 

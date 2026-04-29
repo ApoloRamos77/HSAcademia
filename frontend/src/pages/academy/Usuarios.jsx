@@ -30,7 +30,9 @@ export default function Usuarios() {
         api.get('/academy-config/headquarters'),
         api.get('/academy-config/categories')
       ]);
-      setUsuarios(uRes.data);
+      // Solo mostramos Personal y Administradores en esta vista
+      const staffOnly = uRes.data.filter(u => u.systemRole === 'Staff' || u.systemRole === 'AcademyAdmin');
+      setUsuarios(staffOnly);
       setRoles(rRes.data);
       setSedes(sRes.data);
       setCategorias(cRes.data);

@@ -3,11 +3,15 @@ import api from '../../api/axios';
 import AppLayout from '../../components/AppLayout';
 import {
   DollarSign, Settings, Play, AlertTriangle, CheckCircle, Search,
-  Calendar, FileText, RefreshCw, Ban, CreditCard, ChevronDown, ChevronUp, X, CalendarPlus, Download, TrendingDown
+  Calendar, FileText, RefreshCw, Ban, CreditCard, ChevronDown, ChevronUp, X, CalendarPlus, Download,
+  TrendingDown, BarChart3, Archive, Users
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { generateReceiptPDF } from '../../utils/pdfGenerator';
 import ExpensesTab from '../../components/finances/ExpensesTab';
+import PettyCashTab from '../../components/finances/PettyCashTab';
+import StaffPaymentsTab from '../../components/finances/StaffPaymentsTab';
+import FinanceDashboardTab from '../../components/finances/FinanceDashboardTab';
 
 const PAYMENT_METHODS = [
   { value: 'Cash', label: '💵 Efectivo' },
@@ -186,14 +190,23 @@ export default function Finanzas() {
 
         {/* Tabs */}
         <div className="flex gap-4 mb-6 border-b border-border/50 pb-2 overflow-x-auto whitespace-nowrap">
-          <button className={`flex items-center gap-2 pb-2 px-1 border-b-2 transition-colors ${activeTab==='debts'?'border-primary text-primary font-bold':'border-transparent text-text-muted hover:text-text-main'}`} onClick={()=>setActiveTab('debts')}>
-            <DollarSign size={18}/> Morosidad y Cobranzas
+          <button className={`flex items-center gap-2 pb-2 px-1 border-b-2 transition-colors shrink-0 ${activeTab==='dashboard'?'border-primary text-primary font-bold':'border-transparent text-text-muted hover:text-text-main'}`} onClick={()=>setActiveTab('dashboard')}>
+            <BarChart3 size={18}/> Resumen P&amp;L
           </button>
-          <button className={`flex items-center gap-2 pb-2 px-1 border-b-2 transition-colors ${activeTab==='expenses'?'border-primary text-primary font-bold':'border-transparent text-text-muted hover:text-text-main'}`} onClick={()=>setActiveTab('expenses')}>
-            <TrendingDown size={18}/> Dashboard y Egresos
+          <button className={`flex items-center gap-2 pb-2 px-1 border-b-2 transition-colors shrink-0 ${activeTab==='debts'?'border-primary text-primary font-bold':'border-transparent text-text-muted hover:text-text-main'}`} onClick={()=>setActiveTab('debts')}>
+            <DollarSign size={18}/> Cobranzas
           </button>
-          <button className={`flex items-center gap-2 pb-2 px-1 border-b-2 transition-colors ${activeTab==='config'?'border-primary text-primary font-bold':'border-transparent text-text-muted hover:text-text-main'}`} onClick={()=>setActiveTab('config')}>
-            <Settings size={18}/> Configuración de Pagos
+          <button className={`flex items-center gap-2 pb-2 px-1 border-b-2 transition-colors shrink-0 ${activeTab==='expenses'?'border-primary text-primary font-bold':'border-transparent text-text-muted hover:text-text-main'}`} onClick={()=>setActiveTab('expenses')}>
+            <TrendingDown size={18}/> Egresos
+          </button>
+          <button className={`flex items-center gap-2 pb-2 px-1 border-b-2 transition-colors shrink-0 ${activeTab==='petty'?'border-primary text-primary font-bold':'border-transparent text-text-muted hover:text-text-main'}`} onClick={()=>setActiveTab('petty')}>
+            <Archive size={18}/> Caja Chica
+          </button>
+          <button className={`flex items-center gap-2 pb-2 px-1 border-b-2 transition-colors shrink-0 ${activeTab==='staff'?'border-primary text-primary font-bold':'border-transparent text-text-muted hover:text-text-main'}`} onClick={()=>setActiveTab('staff')}>
+            <Users size={18}/> Nómina
+          </button>
+          <button className={`flex items-center gap-2 pb-2 px-1 border-b-2 transition-colors shrink-0 ${activeTab==='config'?'border-primary text-primary font-bold':'border-transparent text-text-muted hover:text-text-main'}`} onClick={()=>setActiveTab('config')}>
+            <Settings size={18}/> Configuración
           </button>
         </div>
 
@@ -379,6 +392,21 @@ export default function Finanzas() {
         {/* EXPENSES TAB */}
         {activeTab === 'expenses' && (
           <ExpensesTab />
+        )}
+
+        {/* PETTY CASH TAB */}
+        {activeTab === 'petty' && (
+          <PettyCashTab />
+        )}
+
+        {/* STAFF PAYMENTS TAB */}
+        {activeTab === 'staff' && (
+          <StaffPaymentsTab />
+        )}
+
+        {/* DASHBOARD / P&L TAB */}
+        {activeTab === 'dashboard' && (
+          <FinanceDashboardTab />
         )}
       </div>
 
