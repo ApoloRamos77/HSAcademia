@@ -76,11 +76,31 @@ public class AcademyConfigurationService
     // ==========================================
     // Categories (Categorías)
     // ==========================================
-    public async Task<List<CategoryDto>> GetCategoriesAsync(Guid academyId)
+    public async Task<List<CategoryDto>> GetCategoriesAsync(Guid academyId, Guid? userId = null, string userRole = "")
     {
-        return await _context.Categories
+        var query = _context.Categories
             .Include(c => c.Headquarter)
-            .Where(c => c.AcademyId == academyId)
+            .Where(c => c.AcademyId == academyId);
+
+        if (userRole == "Staff" && userId.HasValue)
+        {
+            var userWithCategories = await _context.Users
+                .Include(u => u.AssignedCategories)
+                .FirstOrDefaultAsync(u => u.Id == userId.Value);
+
+            if (userWithCategories != null && userWithCategories.AssignedCategories.Any())
+            {
+                var assignedCategoryIds = userWithCategories.AssignedCategories.Select(c => c.Id).ToList();
+                query = query.Where(c => assignedCategoryIds.Contains(c.Id));
+            }
+            else
+            {
+                // Si es staff pero no tiene categorias asignadas, no ve ninguna categoria.
+                return new List<CategoryDto>();
+            }
+        }
+
+        return await query
             .Select(c => new CategoryDto
             {
                 Id = c.Id,

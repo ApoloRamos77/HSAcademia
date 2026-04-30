@@ -3,8 +3,10 @@ import api from '../../api/axios';
 import AppLayout from '../../components/AppLayout';
 import { PlusCircle, Search, Users, Activity, FileText, Calendar, MapPin, UserPlus } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useAuth } from '../../context/AuthContext';
 
 export default function Alumnos() {
+  const { user } = useAuth();
   const [alumnos, setAlumnos] = useState([]);
   const [sedes, setSedes] = useState([]);
   const [categorias, setCategorias] = useState([]);
@@ -136,9 +138,11 @@ export default function Alumnos() {
               </h3>
               <p className="text-muted mt-1">Registra alumnos, apoderados y su ficha médica/nutricional.</p>
             </div>
-            <button onClick={() => { setFormData(initialForm); setEditingId(null); setCurrentStep(1); setShowModal(true); }} className="btn btn-primary">
-              <PlusCircle size={16} /> Registrar Alumno
-            </button>
+            {user?.role !== 'Staff' && (
+              <button onClick={() => { setFormData(initialForm); setEditingId(null); setCurrentStep(1); setShowModal(true); }} className="btn btn-primary">
+                <PlusCircle size={16} /> Registrar Alumno
+              </button>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -199,7 +203,7 @@ export default function Alumnos() {
                         setCurrentStep(1);
                         setShowModal(true);
                       } catch(e) { toast.error("Error al cargar datos"); }
-                  }} title="Editar Alumno">Editar</button>
+                  }} title={user?.role === 'Staff' ? "Ver Alumno" : "Editar Alumno"}>{user?.role === 'Staff' ? "Ver" : "Editar"}</button>
                 </div>
               </div>
             ))}
@@ -211,7 +215,7 @@ export default function Alumnos() {
           <div className="modal-overlay" onClick={() => setShowModal(false)}>
             <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '700px' }}>
               <div className="flex justify-between items-center mb-6 border-b border-border pb-4">
-                <h3 className="modal-title m-0">{editingId ? 'Editar Alumno' : 'Registrar Nuevo Alumno'}</h3>
+                <h3 className="modal-title m-0">{user?.role === 'Staff' ? 'Detalles del Alumno' : (editingId ? 'Editar Alumno' : 'Registrar Nuevo Alumno')}</h3>
                 <div className="flex items-center gap-2 text-sm">
                   <span className={`px-2 py-1 rounded ${currentStep === 1 ? 'bg-primary text-bg-dark font-bold' : 'bg-bg-surface text-text-muted'}`}>1. Alumno</span>
                   <span className={`px-2 py-1 rounded ${currentStep === 2 ? 'bg-primary text-bg-dark font-bold' : 'bg-bg-surface text-text-muted'}`}>2. Apoderado</span>
@@ -220,7 +224,7 @@ export default function Alumnos() {
               </div>
               
               <form onSubmit={handleSubmit}>
-                
+                <fieldset disabled={user?.role === 'Staff'} style={{ border: 'none', padding: 0, margin: 0 }}>
                 {/* STEP 1: ALUMNO */}
                 {currentStep === 1 && (
                   <div className="fade-in">
@@ -394,6 +398,7 @@ export default function Alumnos() {
                     </div>
                   </div>
                 )}
+                </fieldset>
                 
                 <div className="modal-footer mt-6 flex justify-between">
                   {currentStep > 1 ? (
@@ -402,9 +407,13 @@ export default function Alumnos() {
                     <button type="button" onClick={() => setShowModal(false)} className="btn btn-ghost text-danger">Cancelar</button>
                   )}
                   
-                  <button type="submit" className="btn btn-primary">
-                    {currentStep < 3 ? 'Siguiente Paso' : 'Finalizar y Guardar'}
-                  </button>
+                  {currentStep < 3 ? (
+                    <button type="submit" className="btn btn-primary">Siguiente Paso</button>
+                  ) : (
+                    user?.role !== 'Staff' && (
+                      <button type="submit" className="btn btn-primary">Finalizar y Guardar</button>
+                    )
+                  )}
                 </div>
               </form>
             </div>

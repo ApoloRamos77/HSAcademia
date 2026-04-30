@@ -14,7 +14,9 @@ public interface ICalendarService
         int month,
         Guid? headquarterId = null,
         Guid? categoryId = null,
-        int? eventType = null);
+        int? eventType = null,
+        Guid? userId = null,
+        string userRole = "");
 
     Task<EventDto?> GetEventByIdAsync(Guid academyId, Guid eventId);
 
@@ -48,13 +50,19 @@ public interface ICalendarService
     Task<List<MobileEventDto>> GetMobileEventsAsync(
         Guid academyId,
         Guid? categoryId = null,
-        Guid? headquarterId = null);
+        Guid? headquarterId = null,
+        Guid? userId = null,
+        string userRole = "");
 
     /// <summary>
     /// Returns the next upcoming event for the academy (or the student's category)
     /// as a human-readable hero card entry for the dashboard.
     /// Returns null if no upcoming event exists.
     /// </summary>
-    Task<NextEventDto?> GetNextEventAsync(Guid academyId, Guid? categoryId = null);
+    Task<NextEventDto?> GetNextEventAsync(
+        Guid academyId,
+        Guid? categoryId = null,
+        Guid? userId = null,
+        string userRole = "");
 }
 

@@ -46,8 +46,13 @@ public class CalendarController : ControllerBase
             return BadRequest("Año o mes inválidos.");
 
         var academyId = GetAcademyId();
+        
+        var userIdStr = User.FindFirst("userId")?.Value;
+        var userId = Guid.TryParse(userIdStr, out var uId) ? uId : (Guid?)null;
+        var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "";
+
         var events = await _calendarService.GetEventsForMonthAsync(
-            academyId, year, month, headquarterId, categoryId, eventType);
+            academyId, year, month, headquarterId, categoryId, eventType, userId, userRole);
         return Ok(events);
     }
 
@@ -176,8 +181,12 @@ public class CalendarController : ControllerBase
         try
         {
             var academyId = GetAcademyId();
+            var userIdStr = User.FindFirst("userId")?.Value;
+            var userId = Guid.TryParse(userIdStr, out var uId) ? uId : (Guid?)null;
+            var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "";
+
             var events = await _calendarService.GetMobileEventsAsync(
-                academyId, categoryId, headquarterId);
+                academyId, categoryId, headquarterId, userId, userRole);
             return Ok(events);
         }
         catch (UnauthorizedAccessException ex)
@@ -197,7 +206,11 @@ public class CalendarController : ControllerBase
         try
         {
             var academyId = GetAcademyId();
-            var next = await _calendarService.GetNextEventAsync(academyId, categoryId);
+            var userIdStr = User.FindFirst("userId")?.Value;
+            var userId = Guid.TryParse(userIdStr, out var uId) ? uId : (Guid?)null;
+            var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "";
+
+            var next = await _calendarService.GetNextEventAsync(academyId, categoryId, userId, userRole);
             return next is null ? NoContent() : Ok(next);
         }
         catch (UnauthorizedAccessException ex)

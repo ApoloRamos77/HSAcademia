@@ -469,4 +469,111 @@ public class AttendanceService : IAttendanceService
                 $"15 minutos antes del inicio del evento ({ev.StartTime:HH:mm} UTC).");
         }
     }
+
+    // =========================================================
+    // Staff Mobile: asistencia de sus alumnos
+    // =========================================================
+
+    /// <summary>
+    /// Returns all active students from the Staff's assigned categories,
+    /// with their attendance status for the specified date.
+    /// </summary>
+    public async Task<List<StudentAttendanceDto>> GetMyStudentsAttendanceAsync(
+        Guid academyId, Guid staffUserId, DateTime date)
+    {
+        var userWithCategories = await _context.Users
+            .Include(u => u.AssignedCategories)
+            .FirstOrDefaultAsync(u => u.Id == staffUserId && u.AcademyId == academyId);
+
+        if (userWithCategories == null || !userWithCategories.AssignedCategories.Any())
+            return new List<StudentAttendanceDto>();
+
+        var assignedCategoryIds = userWithCategories.AssignedCategories.Select(c => c.Id).ToList();
+
+        var students = await _context.Students
+            .Where(s => s.AcademyId == academyId
+                     && assignedCategoryIds.Contains(s.CategoryId)
+                     && s.IsActive)
+            .OrderBy(s => s.LastName).ThenBy(s => s.FirstName)
+            .ToListAsync();
+
+        var studentIds = students.Select(s => s.Id).ToList();
+
+        var attendances = await _context.Attendances
+            .Where(a => a.AcademyId == academyId
+                     && a.Date.Date == date.Date
+                     && studentIds.Contains(a.StudentId))
+            .ToListAsync();
+
+        return students.Select(s =>
+        {
+            var att = attendances.FirstOrDefault(a => a.StudentId == s.Id);
+            return new StudentAttendanceDto
+            {
+                StudentId    = s.Id,
+                FirstName    = s.FirstName,
+                LastName     = s.LastName,
+                AvatarUrl    = null,
+                AttendanceId = att?.Id,
+                Status       = att?.Status,
+                Notes        = att?.Notes
+            };
+        }).ToList();
+    }
+
+    /// <summary>
+    /// Saves attendance records for the Staff's students.
+    /// Only allows marking students that belong to their assigned categories.
+    /// </summary>
+    public async Task SaveMyStudentsAttendanceAsync(
+        Guid academyId, Guid staffUserId, MarkAttendanceDto dto)
+    {
+        var userWithCategories = await _context.Users
+            .Include(u => u.AssignedCategories)
+            .FirstOrDefaultAsync(u => u.Id == staffUserId && u.AcademyId == academyId);
+
+        if (userWithCategories == null || !userWithCategories.AssignedCategories.Any())
+            throw new Exception("El entrenador no tiene categorías asignadas.");
+
+        var assignedCategoryIds = userWithCategories.AssignedCategories.Select(c => c.Id).ToList();
+
+        // Solo los alumnos de sus categorías son válidos
+        var studentIds = dto.Records.Select(r => r.StudentId).ToList();
+        var validStudentIds = await _context.Students
+            .Where(s => s.AcademyId == academyId
+                     && assignedCategoryIds.Contains(s.CategoryId)
+                     && studentIds.Contains(s.Id))
+            .Select(s => s.Id)
+            .ToListAsync();
+
+        var existing = await _context.Attendances
+            .Where(a => a.AcademyId == academyId
+                     && a.Date.Date == dto.Date.Date
+                     && validStudentIds.Contains(a.StudentId))
+            .ToDictionaryAsync(a => a.StudentId);
+
+        foreach (var record in dto.Records)
+        {
+            if (!validStudentIds.Contains(record.StudentId)) continue;
+
+            if (existing.TryGetValue(record.StudentId, out var existAtt))
+            {
+                existAtt.Status = record.Status;
+                existAtt.Notes  = record.Notes;
+                _context.Attendances.Update(existAtt);
+            }
+            else
+            {
+                _context.Attendances.Add(new Attendance
+                {
+                    AcademyId = academyId,
+                    StudentId = record.StudentId,
+                    Date      = dto.Date.Date,
+                    Status    = record.Status,
+                    Notes     = record.Notes
+                });
+            }
+        }
+        await _context.SaveChangesAsync();
+    }
 }

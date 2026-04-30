@@ -51,4 +51,17 @@ public interface IAttendanceService
     /// used by the dashboard widget.
     /// </summary>
     Task<MobileAttendanceSummaryDto> GetMyAttendanceSummaryAsync(Guid academyId, Guid studentId);
+
+    // ── Staff Mobile: attendance management ──
+
+    /// <summary>
+    /// Returns students belonging to the Staff's assigned categories with their
+    /// attendance status for the given date.
+    /// </summary>
+    Task<List<StudentAttendanceDto>> GetMyStudentsAttendanceAsync(Guid academyId, Guid staffUserId, DateTime date);
+
+    /// <summary>
+    /// Saves attendance records for the Staff's students (validates category ownership).
+    /// </summary>
+    Task SaveMyStudentsAttendanceAsync(Guid academyId, Guid staffUserId, MarkAttendanceDto dto);
 }

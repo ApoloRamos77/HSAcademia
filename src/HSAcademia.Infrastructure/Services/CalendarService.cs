@@ -21,7 +21,8 @@ public class CalendarService : ICalendarService
     // =========================================================
     public async Task<List<EventDto>> GetEventsForMonthAsync(
         Guid academyId, int year, int month,
-        Guid? headquarterId = null, Guid? categoryId = null, int? eventType = null)
+        Guid? headquarterId = null, Guid? categoryId = null, int? eventType = null,
+        Guid? userId = null, string userRole = "")
     {
         var from = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Utc);
         var to   = from.AddMonths(1);
@@ -43,6 +44,24 @@ public class CalendarService : ICalendarService
         if (eventType.HasValue)
             query = query.Where(e => (int)e.Type == eventType.Value);
 
+        if (userRole == "Staff" && userId.HasValue)
+        {
+            var userWithCategories = await _db.Users
+                .Include(u => u.AssignedCategories)
+                .FirstOrDefaultAsync(u => u.Id == userId.Value);
+
+            if (userWithCategories != null && userWithCategories.AssignedCategories.Any())
+            {
+                var assignedCategoryIds = userWithCategories.AssignedCategories.Select(c => c.Id).ToList();
+                query = query.Where(e => e.CategoryId.HasValue && assignedCategoryIds.Contains(e.CategoryId.Value));
+            }
+            else
+            {
+                // Si es staff pero no tiene categorias asignadas, no ve ningun evento
+                return new List<EventDto>();
+            }
+        }
+
         var dbEvents = await query.OrderBy(e => e.StartTime).ToListAsync();
         var result = dbEvents.Select(MapToDto).ToList();
 
@@ -50,7 +69,14 @@ public class CalendarService : ICalendarService
         bool includeBirthdays = !eventType.HasValue || eventType.Value == (int)EventType.Birthday;
         if (includeBirthdays)
         {
-            var birthdays = await BuildBirthdayEventsAsync(academyId, year, month);
+            List<Guid>? assignedCategoryIds = null;
+            if (userRole == "Staff" && userId.HasValue)
+            {
+                var userWithCategories = await _db.Users.Include(u => u.AssignedCategories).FirstOrDefaultAsync(u => u.Id == userId.Value);
+                if (userWithCategories != null) assignedCategoryIds = userWithCategories.AssignedCategories.Select(c => c.Id).ToList();
+            }
+
+            var birthdays = await BuildBirthdayEventsAsync(academyId, year, month, assignedCategoryIds);
             result.AddRange(birthdays);
         }
 
@@ -285,14 +311,21 @@ public class CalendarService : ICalendarService
     /// Generates in-memory birthday EventDtos for students and staff whose
     /// birthday falls in the requested month (projected to the current year).
     /// </summary>
-    private async Task<List<EventDto>> BuildBirthdayEventsAsync(Guid academyId, int year, int month)
+    private async Task<List<EventDto>> BuildBirthdayEventsAsync(Guid academyId, int year, int month, List<Guid>? assignedCategoryIds = null)
     {
         var birthdays = new List<EventDto>();
 
         // Students
-        var students = await _db.Students
+        var studentsQuery = _db.Students
             .Where(s => s.AcademyId == academyId
-                     && s.DateOfBirth.Month == month)
+                     && s.DateOfBirth.Month == month);
+
+        if (assignedCategoryIds != null)
+        {
+            studentsQuery = studentsQuery.Where(s => assignedCategoryIds.Contains(s.CategoryId));
+        }
+
+        var students = await studentsQuery
             .Select(s => new
             {
                 s.Id,
@@ -360,7 +393,9 @@ public class CalendarService : ICalendarService
     public async Task<List<MobileEventDto>> GetMobileEventsAsync(
         Guid academyId,
         Guid? categoryId = null,
-        Guid? headquarterId = null)
+        Guid? headquarterId = null,
+        Guid? userId = null,
+        string userRole = "")
     {
         var now  = DateTime.UtcNow;
         var from = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
@@ -375,21 +410,54 @@ public class CalendarService : ICalendarService
                 e.StartTime >= from &&
                 e.StartTime < to);
 
-        if (categoryId.HasValue)
-            query = query.Where(e => e.CategoryId == categoryId || e.CategoryId == null);
+        List<Guid>? birthdayCategoryFilter = null;
 
-        if (headquarterId.HasValue)
-            query = query.Where(e => e.HeadquarterId == headquarterId || e.HeadquarterId == null);
+        if (userRole == "Student" && categoryId.HasValue)
+        {
+            // Student: solo ve eventos de su categoría (o sin categoría asignada)
+            query = query.Where(e => e.CategoryId == categoryId || e.CategoryId == null);
+            birthdayCategoryFilter = new List<Guid> { categoryId.Value };
+        }
+        else if (userRole == "Staff" && userId.HasValue)
+        {
+            // Staff: ve solo eventos de las categorías que tiene asignadas,
+            // o donde él es el entrenador (TeacherId)
+            var userWithCategories = await _db.Users
+                .Include(u => u.AssignedCategories)
+                .FirstOrDefaultAsync(u => u.Id == userId.Value);
+
+            if (userWithCategories != null && userWithCategories.AssignedCategories.Any())
+            {
+                var assignedCategoryIds = userWithCategories.AssignedCategories.Select(c => c.Id).ToList();
+                query = query.Where(e =>
+                    (e.CategoryId.HasValue && assignedCategoryIds.Contains(e.CategoryId.Value)) ||
+                    e.TeacherId == userId.Value);
+                birthdayCategoryFilter = assignedCategoryIds;
+            }
+            else
+            {
+                // Staff sin categorías: solo ve eventos donde es el entrenador
+                query = query.Where(e => e.TeacherId == userId.Value);
+                birthdayCategoryFilter = new List<Guid>(); // sin cumpleaños
+            }
+        }
+        else
+        {
+            // AcademyAdmin/SuperAdmin: sin restricciones adicionales
+            if (categoryId.HasValue)
+                query = query.Where(e => e.CategoryId == categoryId || e.CategoryId == null);
+            if (headquarterId.HasValue)
+                query = query.Where(e => e.HeadquarterId == headquarterId || e.HeadquarterId == null);
+        }
 
         var dbEvents = await query.OrderBy(e => e.StartTime).ToListAsync();
-
         var result = dbEvents.Select(e => MapToMobileDto(e)).ToList();
 
         // Add virtual birthday events for both months
         for (int mOffset = 0; mOffset < 2; mOffset++)
         {
             var target = from.AddMonths(mOffset);
-            var bdays  = await BuildBirthdayEventsAsync(academyId, target.Year, target.Month);
+            var bdays  = await BuildBirthdayEventsAsync(academyId, target.Year, target.Month, birthdayCategoryFilter);
             result.AddRange(bdays.Select(b => new MobileEventDto
             {
                 Id       = b.Id.ToString(),
@@ -411,7 +479,11 @@ public class CalendarService : ICalendarService
     /// <summary>
     /// Returns the next upcoming event in human-readable format for the dashboard hero card.
     /// </summary>
-    public async Task<NextEventDto?> GetNextEventAsync(Guid academyId, Guid? categoryId = null)
+    public async Task<NextEventDto?> GetNextEventAsync(
+        Guid academyId,
+        Guid? categoryId = null,
+        Guid? userId = null,
+        string userRole = "")
     {
         var now = DateTime.UtcNow;
 
@@ -423,8 +495,32 @@ public class CalendarService : ICalendarService
                 !e.IsDeleted &&
                 e.StartTime >= now);
 
-        if (categoryId.HasValue)
+        if (userRole == "Student" && categoryId.HasValue)
+        {
             query = query.Where(e => e.CategoryId == categoryId || e.CategoryId == null);
+        }
+        else if (userRole == "Staff" && userId.HasValue)
+        {
+            var userWithCategories = await _db.Users
+                .Include(u => u.AssignedCategories)
+                .FirstOrDefaultAsync(u => u.Id == userId.Value);
+
+            if (userWithCategories != null && userWithCategories.AssignedCategories.Any())
+            {
+                var assignedCategoryIds = userWithCategories.AssignedCategories.Select(c => c.Id).ToList();
+                query = query.Where(e =>
+                    (e.CategoryId.HasValue && assignedCategoryIds.Contains(e.CategoryId.Value)) ||
+                    e.TeacherId == userId.Value);
+            }
+            else
+            {
+                query = query.Where(e => e.TeacherId == userId.Value);
+            }
+        }
+        else if (categoryId.HasValue)
+        {
+            query = query.Where(e => e.CategoryId == categoryId || e.CategoryId == null);
+        }
 
         var next = await query.OrderBy(e => e.StartTime).FirstOrDefaultAsync();
 

@@ -30,7 +30,12 @@ public class StudentController : ControllerBase
     {
         var academyId = GetAcademyId();
         if (academyId == Guid.Empty) return Unauthorized();
-        return Ok(await _studentService.GetStudentsAsync(academyId));
+
+        var userIdStr = User.FindFirst("userId")?.Value;
+        var userId = Guid.TryParse(userIdStr, out var uId) ? uId : (Guid?)null;
+        var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "";
+
+        return Ok(await _studentService.GetStudentsAsync(academyId, userId, userRole));
     }
 
     [HttpPost]

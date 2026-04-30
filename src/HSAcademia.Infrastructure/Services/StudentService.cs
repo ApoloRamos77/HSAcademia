@@ -19,15 +19,34 @@ public class StudentService
         _context = context;
     }
 
-    public async Task<List<StudentDto>> GetStudentsAsync(Guid academyId)
+    public async Task<List<StudentDto>> GetStudentsAsync(Guid academyId, Guid? userId = null, string userRole = "")
     {
         var today = DateTime.UtcNow;
-        var students = await _context.Students
+        var query = _context.Students
             .Include(s => s.Headquarter)
             .Include(s => s.Category)
             .Include(s => s.Guardian)
-            .Where(s => s.AcademyId == academyId)
-            .ToListAsync();
+            .Where(s => s.AcademyId == academyId);
+
+        if (userRole == "Staff" && userId.HasValue)
+        {
+            var userWithCategories = await _context.Users
+                .Include(u => u.AssignedCategories)
+                .FirstOrDefaultAsync(u => u.Id == userId.Value);
+
+            if (userWithCategories != null && userWithCategories.AssignedCategories.Any())
+            {
+                var assignedCategoryIds = userWithCategories.AssignedCategories.Select(c => c.Id).ToList();
+                query = query.Where(s => assignedCategoryIds.Contains(s.CategoryId));
+            }
+            else
+            {
+                // Si es staff pero no tiene categorias asignadas, no ve ningun alumno.
+                return new List<StudentDto>();
+            }
+        }
+
+        var students = await query.ToListAsync();
 
         return students.Select(s => new StudentDto
         {
