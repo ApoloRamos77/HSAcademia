@@ -21,10 +21,8 @@ export default function Landing() {
       <nav className={`landing-nav ${scrolled ? 'nav-scrolled' : ''}`}>
         <div className="nav-container">
           <div className="nav-brand">
-            <div className="brand-logo">
-              <span>HS</span>
-            </div>
-            <span className="brand-text">HELPER SOFT SPORT</span>
+            <img src="/logo.png" alt="ADHSOFT SPORT" className="brand-logo-img" />
+            <span className="brand-text">ADHSOFT SPORT</span>
           </div>
           
           <div className="nav-links">
@@ -53,7 +51,7 @@ export default function Landing() {
         <div className="hero-overlay"></div>
         <div className="hero-content">
           <span className="hero-badge">Bienvenido a la Élite</span>
-          <h1 className="hero-title">ACADEMIA DEPORTIVA<br/>HELPER SOFT SPORT</h1>
+          <h1 className="hero-title">ACADEMIA DEPORTIVA<br/>ADHSOFT SPORT</h1>
           <p className="hero-subtitle">
             Formando campeones con valores y pasión por el deporte. Únete a nuestra gran familia y desarrolla tu máximo potencial en la cancha.
           </p>
@@ -134,7 +132,7 @@ export default function Landing() {
         <div className="products-empty">
           <ShoppingBag size={48} className="empty-icon" />
           <h3>Próximamente Tienda Virtual</h3>
-          <p>Estamos preparando el catálogo de indumentaria deportiva oficial de Helper Soft Sport.</p>
+          <p>Estamos preparando el catálogo de indumentaria deportiva oficial de ADHSOFT SPORT.</p>
         </div>
       </section>
 

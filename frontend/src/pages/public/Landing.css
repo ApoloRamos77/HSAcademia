@@ -40,17 +40,12 @@
   gap: 12px;
 }
 
-.brand-logo {
-  width: 40px;
-  height: 40px;
-  background: linear-gradient(135deg, #76b82a, #5a9120);
+.brand-logo-img {
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-weight: 800;
-  font-size: 1.2rem;
+  border: 2px solid #76b82a;
+  object-fit: cover;
   box-shadow: 0 4px 10px rgba(118, 184, 42, 0.3);
 }
 
