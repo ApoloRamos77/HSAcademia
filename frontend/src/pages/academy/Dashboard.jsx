@@ -3,8 +3,10 @@ import { Building2, Users, ClipboardList, ShieldCheck } from 'lucide-react';
 import AppLayout from '../../components/AppLayout';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
+import { useAuth } from '../../context/AuthContext';
 
 export default function Dashboard() {
+  const { user } = useAuth();
   const [stats, setStats] = useState({
     headquarters: 0,
     categories: 0,
@@ -17,21 +19,34 @@ export default function Dashboard() {
     const fetchDashboardData = async () => {
       try {
         setLoading(true);
-        const [hqRes, catRes, roleRes, userRes] = await Promise.all([
+        // Traer headquarters y categories (disponible para Admin y Staff)
+        const [hqRes, catRes] = await Promise.all([
           api.get('/academy-config/headquarters'),
-          api.get('/academy-config/categories'),
-          api.get('/academy-config/roles'),
-          api.get('/academy-config/users')
+          api.get('/academy-config/categories')
         ]);
 
-        const staffCount = userRes.data.filter(
-          u => u.systemRole === 'Staff' || u.systemRole === 'AcademyAdmin'
-        ).length;
+        let rolesCount = 0;
+        let staffCount = 0;
+
+        // Si es AcademyAdmin, intentar traer roles y usuarios (si hay endpoint protegido)
+        if (user?.role === 'AcademyAdmin') {
+          try {
+            const roleRes = await api.get('/academy-config/roles');
+            rolesCount = roleRes.data.length;
+          } catch(e) { }
+
+          try {
+            const userRes = await api.get('/academy-config/users');
+            staffCount = userRes.data.filter(
+              u => u.systemRole === 'Staff' || u.systemRole === 'AcademyAdmin'
+            ).length;
+          } catch(e) { }
+        }
 
         setStats({
           headquarters: hqRes.data.filter(h => h.isActive).length || hqRes.data.length,
           categories: catRes.data.length,
-          roles: roleRes.data.length,
+          roles: rolesCount,
           staff: staffCount
         });
       } catch (error) {
@@ -42,7 +57,7 @@ export default function Dashboard() {
     };
 
     fetchDashboardData();
-  }, []);
+  }, [user]);
 
   return (
     <AppLayout title="Dashboard Academia">
@@ -70,19 +85,23 @@ export default function Dashboard() {
               <div className="stat-icon text-accent"><ClipboardList size={32} /></div>
             </div>
 
-            <div className="stat-card">
-              <div className="stat-label">Cargos</div>
-              <div className="stat-value text-success text-3xl font-bold">{stats.roles}</div>
-              <div className="text-sm text-text-muted mt-1">Roles Internos</div>
-              <div className="stat-icon text-success"><ShieldCheck size={32} /></div>
-            </div>
+            {user?.role === 'AcademyAdmin' && (
+              <>
+                <div className="stat-card">
+                  <div className="stat-label">Cargos</div>
+                  <div className="stat-value text-success text-3xl font-bold">{stats.roles}</div>
+                  <div className="text-sm text-text-muted mt-1">Roles Internos</div>
+                  <div className="stat-icon text-success"><ShieldCheck size={32} /></div>
+                </div>
 
-            <div className="stat-card">
-              <div className="stat-label">Personal</div>
-              <div className="stat-value text-warning text-3xl font-bold">{stats.staff}</div>
-              <div className="text-sm text-text-muted mt-1">Staff Registrado</div>
-              <div className="stat-icon text-warning"><Users size={32} /></div>
-            </div>
+                <div className="stat-card">
+                  <div className="stat-label">Personal</div>
+                  <div className="stat-value text-warning text-3xl font-bold">{stats.staff}</div>
+                  <div className="text-sm text-text-muted mt-1">Staff Registrado</div>
+                  <div className="stat-icon text-warning"><Users size={32} /></div>
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>

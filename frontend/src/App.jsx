@@ -65,22 +65,22 @@ export default function App() {
             </ProtectedRoute>
           } />
           <Route path="/academy/sedes" element={
-            <ProtectedRoute roles={['AcademyAdmin', 'Staff']}>
+            <ProtectedRoute roles={['AcademyAdmin']}>
               <Sedes />
             </ProtectedRoute>
           } />
           <Route path="/academy/categorias" element={
-            <ProtectedRoute roles={['AcademyAdmin', 'Staff']}>
+            <ProtectedRoute roles={['AcademyAdmin']}>
               <Categorias />
             </ProtectedRoute>
           } />
           <Route path="/academy/roles" element={
-            <ProtectedRoute roles={['AcademyAdmin', 'Staff']}>
+            <ProtectedRoute roles={['AcademyAdmin']}>
               <Roles />
             </ProtectedRoute>
           } />
           <Route path="/academy/usuarios" element={
-            <ProtectedRoute roles={['AcademyAdmin', 'Staff']}>
+            <ProtectedRoute roles={['AcademyAdmin']}>
               <Usuarios />
             </ProtectedRoute>
           } />
@@ -90,12 +90,12 @@ export default function App() {
             </ProtectedRoute>
           } />
           <Route path="/academy/apoderados" element={
-            <ProtectedRoute roles={['AcademyAdmin', 'Staff']}>
+            <ProtectedRoute roles={['AcademyAdmin']}>
               <Padres />
             </ProtectedRoute>
           } />
           <Route path="/academy/directorio" element={
-            <ProtectedRoute roles={['AcademyAdmin', 'Staff']}>
+            <ProtectedRoute roles={['AcademyAdmin']}>
               <Directorio />
             </ProtectedRoute>
           } />
@@ -105,7 +105,7 @@ export default function App() {
             </ProtectedRoute>
           } />
           <Route path="/academy/asistencia-metricas" element={
-            <ProtectedRoute roles={['AcademyAdmin', 'Staff']}>
+            <ProtectedRoute roles={['AcademyAdmin']}>
               <AsistenciaMetricas />
             </ProtectedRoute>
           } />
@@ -115,12 +115,12 @@ export default function App() {
             </ProtectedRoute>
           } />
           <Route path="/academy/tienda" element={
-            <ProtectedRoute roles={['AcademyAdmin', 'Staff']}>
+            <ProtectedRoute roles={['AcademyAdmin']}>
               <Tienda />
             </ProtectedRoute>
           } />
           <Route path="/academy/finanzas" element={
-            <ProtectedRoute roles={['AcademyAdmin', 'Staff']}>
+            <ProtectedRoute roles={['AcademyAdmin']}>
               <Finanzas />
             </ProtectedRoute>
           } />

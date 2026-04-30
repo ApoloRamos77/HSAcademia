@@ -9,7 +9,7 @@ namespace HSAcademia.API.Controllers;
 
 [ApiController]
 [Route("api/academy-config")]
-[Authorize(Roles = "AcademyAdmin")]
+[Authorize(Roles = "AcademyAdmin,Staff")]
 public class AcademyConfigurationController : ControllerBase
 {
     private readonly AcademyConfigurationService _service;
@@ -35,6 +35,7 @@ public class AcademyConfigurationController : ControllerBase
     }
 
     [HttpPost("headquarters")]
+    [Authorize(Roles = "AcademyAdmin")]
     public async Task<IActionResult> CreateHeadquarter([FromBody] CreateHeadquarterDto dto)
     {
         var academyId = GetAcademyId();
@@ -43,6 +44,7 @@ public class AcademyConfigurationController : ControllerBase
     }
 
     [HttpPut("headquarters/{id}")]
+    [Authorize(Roles = "AcademyAdmin")]
     public async Task<IActionResult> UpdateHeadquarter(Guid id, [FromBody] CreateHeadquarterDto dto)
     {
         var academyId = GetAcademyId();
@@ -52,6 +54,7 @@ public class AcademyConfigurationController : ControllerBase
     }
 
     [HttpDelete("headquarters/{id}")]
+    [Authorize(Roles = "AcademyAdmin")]
     public async Task<IActionResult> DeleteHeadquarter(Guid id)
     {
         var academyId = GetAcademyId();
@@ -70,6 +73,7 @@ public class AcademyConfigurationController : ControllerBase
     }
 
     [HttpPost("categories")]
+    [Authorize(Roles = "AcademyAdmin")]
     public async Task<IActionResult> CreateCategory([FromBody] CreateCategoryDto dto)
     {
         var academyId = GetAcademyId();
@@ -79,6 +83,7 @@ public class AcademyConfigurationController : ControllerBase
     }
 
     [HttpPut("categories/{id}")]
+    [Authorize(Roles = "AcademyAdmin")]
     public async Task<IActionResult> UpdateCategory(Guid id, [FromBody] CreateCategoryDto dto)
     {
         var academyId = GetAcademyId();
@@ -89,6 +94,7 @@ public class AcademyConfigurationController : ControllerBase
 
     // Role endpoints
     [HttpGet("roles")]
+    [Authorize(Roles = "AcademyAdmin")]
     public async Task<IActionResult> GetRoles()
     {
         var academyId = GetAcademyId();
@@ -97,6 +103,7 @@ public class AcademyConfigurationController : ControllerBase
     }
 
     [HttpPost("roles")]
+    [Authorize(Roles = "AcademyAdmin")]
     public async Task<IActionResult> CreateRole([FromBody] CreateAcademyRoleDto dto)
     {
         var academyId = GetAcademyId();
@@ -105,6 +112,7 @@ public class AcademyConfigurationController : ControllerBase
     }
 
     [HttpPut("roles/{id}")]
+    [Authorize(Roles = "AcademyAdmin")]
     public async Task<IActionResult> UpdateRole(Guid id, [FromBody] CreateAcademyRoleDto dto)
     {
         var academyId = GetAcademyId();
@@ -115,6 +123,7 @@ public class AcademyConfigurationController : ControllerBase
 
     // User endpoints
     [HttpGet("users")]
+    [Authorize(Roles = "AcademyAdmin")]
     public async Task<IActionResult> GetUsers()
     {
         var academyId = GetAcademyId();
@@ -123,6 +132,7 @@ public class AcademyConfigurationController : ControllerBase
     }
 
     [HttpPost("users")]
+    [Authorize(Roles = "AcademyAdmin")]
     public async Task<IActionResult> CreateUser([FromBody] CreateAcademyUserDto dto)
     {
         var academyId = GetAcademyId();
@@ -132,6 +142,7 @@ public class AcademyConfigurationController : ControllerBase
     }
 
     [HttpPut("users/{id}")]
+    [Authorize(Roles = "AcademyAdmin")]
     public async Task<IActionResult> UpdateUser(Guid id, [FromBody] CreateAcademyUserDto dto)
     {
         var academyId = GetAcademyId();
@@ -141,6 +152,7 @@ public class AcademyConfigurationController : ControllerBase
     }
 
     [HttpPost("users/{id}/reset-password")]
+    [Authorize(Roles = "AcademyAdmin")]
     public async Task<IActionResult> ResetPassword(Guid id)
     {
         var academyId = GetAcademyId();

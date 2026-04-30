@@ -59,8 +59,8 @@ export default function Sidebar({ isOpen, onClose }) {
           </div>
         )}
 
-        {/* AcademyAdmin / Staff */}
-        {(user?.role === 'AcademyAdmin' || user?.role === 'Staff') && (
+        {/* AcademyAdmin */}
+        {user?.role === 'AcademyAdmin' && (
           <>
             <div className="nav-section">
               <div className="nav-label">🏠 Principal</div>
@@ -108,6 +108,31 @@ export default function Sidebar({ isOpen, onClose }) {
               </NavLink>
               <NavLink to="/academy/roles" className={navCls} onClick={onClose}>
                 <ShieldCheck size={16} /> Roles
+              </NavLink>
+              <NavLink to="/academy/calendario" className={navCls} onClick={onClose}>
+                <CalendarDays size={16} /> Calendario
+              </NavLink>
+            </div>
+          </>
+        )}
+
+        {/* Staff / Entrenador */}
+        {user?.role === 'Staff' && (
+          <>
+            <div className="nav-section">
+              <div className="nav-label">🏠 Principal</div>
+              <NavLink to="/dashboard" className={navCls} onClick={onClose} end>
+                <LayoutDashboard size={16} /> Dashboard
+              </NavLink>
+            </div>
+
+            <div className="nav-section">
+              <div className="nav-label">👥 Gestión</div>
+              <NavLink to="/academy/alumnos" className={navCls} onClick={onClose}>
+                <Users size={16} /> Alumnos
+              </NavLink>
+              <NavLink to="/academy/asistencia" className={navCls} onClick={onClose}>
+                <CalendarCheck size={16} /> Asistencia
               </NavLink>
               <NavLink to="/academy/calendario" className={navCls} onClick={onClose}>
                 <CalendarDays size={16} /> Calendario
