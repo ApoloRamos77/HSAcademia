@@ -14,7 +14,7 @@ export default function Usuarios() {
   const [editingId, setEditingId] = useState(null);
   
   const initialForm = {
-    firstName: '', lastName: '', email: '', password: '', phone: '', systemRole: 'Staff', academyRoleId: '', headquarterId: '', categoryIds: [],
+    firstName: '', lastName: '', email: '', password: '', phone: '', systemRole: 'Staff', academyRoleId: '', headquarterIds: [], categoryIds: [],
     paymentType: 0, paymentRate: ''
   };
   const [formData, setFormData] = useState(initialForm);
@@ -54,7 +54,17 @@ export default function Usuarios() {
       systemRole: user.systemRole,
       // If AcademyAdmin with no custom role, pre-select the virtual admin option
       academyRoleId: user.academyRoleId || (user.systemRole === 'AcademyAdmin' ? '__admin__' : ''),
-      headquarterId: user.headquarterId || '',
+      headquarterIds: (() => {
+        const hSet = new Set();
+        if (user.headquarterId) hSet.add(user.headquarterId);
+        if (user.categoryIds) {
+          user.categoryIds.forEach(catId => {
+            const cat = categorias.find(c => c.id === catId);
+            if (cat && cat.headquarterId) hSet.add(cat.headquarterId);
+          });
+        }
+        return Array.from(hSet);
+      })(),
       categoryIds: user.categoryIds || [],
       paymentType: user.paymentType ?? 0,
       paymentRate: user.paymentRate?.toString() || ''
@@ -70,7 +80,7 @@ export default function Usuarios() {
       const payload = {
         ...formData,
         academyRoleId: (formData.academyRoleId === '__admin__' || formData.academyRoleId === '') ? null : formData.academyRoleId,
-        headquarterId: formData.headquarterId === '' ? null : formData.headquarterId,
+        headquarterId: formData.headquarterIds.length === 1 ? formData.headquarterIds[0] : null,
         paymentType: parseInt(formData.paymentType),
         paymentRate: parseFloat(formData.paymentRate) || 0
       };
@@ -98,6 +108,29 @@ export default function Usuarios() {
         : [...prev.categoryIds, catId]
     }));
   };
+
+  const toggleHeadquarter = (hqId) => {
+    setFormData(prev => {
+      const newHqIds = prev.headquarterIds.includes(hqId)
+        ? prev.headquarterIds.filter(id => id !== hqId)
+        : [...prev.headquarterIds, hqId];
+      
+      // Remove categories that do not belong to the newly selected headquarters
+      // If newHqIds is empty, we allow all categories
+      let newCatIds = prev.categoryIds;
+      if (newHqIds.length > 0) {
+        newCatIds = prev.categoryIds.filter(catId => {
+          const cat = categorias.find(c => c.id === catId);
+          return cat && newHqIds.includes(cat.headquarterId);
+        });
+      }
+      return { ...prev, headquarterIds: newHqIds, categoryIds: newCatIds };
+    });
+  };
+
+  const categoriasFiltradas = formData.headquarterIds.length === 0
+    ? categorias
+    : categorias.filter(c => formData.headquarterIds.includes(c.headquarterId));
 
   if (loading) return <AppLayout title="Staff"><div className="text-center p-8"><span className="spinner" style={{borderColor: 'var(--primary)', borderTopColor: 'transparent'}}></span></div></AppLayout>;
 
@@ -246,11 +279,20 @@ export default function Usuarios() {
                     )}
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Sede Asignada</label>
-                    <select className="form-control" value={formData.headquarterId} onChange={e => setFormData({...formData, headquarterId: e.target.value})}>
-                      <option value="">-- Opcional (o Todas) --</option>
-                      {sedes.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                    </select>
+                    <label className="form-label mb-2">Sedes Asignadas (Opcional o Todas)</label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-bg-dark p-3 rounded-lg border border-border/50 max-h-32 overflow-y-auto">
+                      {sedes.map(s => (
+                        <label key={s.id} className="flex items-center gap-2 cursor-pointer hover:bg-bg-surface p-1.5 rounded transition-colors text-sm">
+                          <input 
+                            type="checkbox" 
+                            className="rounded border-border bg-bg-surface text-primary focus:ring-primary/20 h-4 w-4"
+                            checked={formData.headquarterIds.includes(s.id)}
+                            onChange={() => toggleHeadquarter(s.id)}
+                          />
+                          <span className="truncate flex-1">{s.name}</span>
+                        </label>
+                      ))}
+                    </div>
                   </div>
                 </div>
 
@@ -285,11 +327,11 @@ export default function Usuarios() {
                     <CheckSquare size={16} className="text-primary-400" />
                     Asignación a Categorías (Opcional)
                   </label>
-                  {categorias.length === 0 ? (
-                    <p className="text-sm text-text-muted italic">No hay categorías creadas aún.</p>
+                  {categoriasFiltradas.length === 0 ? (
+                    <p className="text-sm text-text-muted italic">No hay categorías para las sedes seleccionadas.</p>
                   ) : (
                     <div className="grid grid-cols-2 gap-2 bg-bg-dark p-3 rounded-lg border border-border/50 max-h-40 overflow-y-auto">
-                      {categorias.map(cat => (
+                      {categoriasFiltradas.map(cat => (
                         <label key={cat.id} className="flex items-center gap-2 cursor-pointer hover:bg-bg-surface p-1.5 rounded transition-colors text-sm">
                           <input 
                             type="checkbox" 
