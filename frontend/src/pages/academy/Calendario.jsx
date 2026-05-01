@@ -41,6 +41,7 @@ export default function Calendario() {
   const [categories,   setCategories]   = useState([]);
   const [headquarters, setHeadquarters] = useState([]);
   const [tournaments,  setTournaments]  = useState([]);
+  const [staff,        setStaff]        = useState([]);
   const [loading,      setLoading]      = useState(false);
 
   // Filters
@@ -98,16 +99,19 @@ export default function Calendario() {
 
   const fetchSupport = async () => {
     try {
-      const [catRes, hqRes, tRes] = await Promise.all([
+      const [catRes, hqRes, tRes, uRes] = await Promise.all([
         api.get('/academy-config/categories'),
         api.get('/academy-config/headquarters'),
         api.get('/calendar/tournaments'),
+        api.get('/academy-config/users'),
       ]);
       setCategories(catRes.data);
       setHeadquarters(hqRes.data);
       setTournaments(tRes.data);
+      const staffUsers = uRes.data.filter(u => u.systemRole === 'Staff' && u.status === 'Activo');
+      setStaff(staffUsers);
     } catch (err) {
-      console.error('Error cargando sedes/categorias:', err);
+      console.error('Error cargando soportes del calendario:', err);
     }
   };
 
@@ -166,6 +170,7 @@ export default function Calendario() {
             endTime:   `${dateStr}T${recurringEnd}:00.000Z`,
             headquarterId: form.headquarterId || null,
             categoryId:    form.categoryId    || null,
+            teacherId:     form.teacherId     || null,
           };
           try { await api.post('/calendar/events', body); created++; }
           catch { /* skip conflicts */ }
@@ -413,6 +418,11 @@ export default function Calendario() {
                         <Users size={12}/> {e.categoryName}
                       </span>
                     )}
+                    {e.teacherName && (
+                      <span style={{ fontSize:12, color:'var(--text-muted)', display:'flex', gap:6, alignItems:'center' }}>
+                        <span style={{fontWeight: 'bold'}}>Profesor:</span> {e.teacherName}
+                      </span>
+                    )}
                     {e.opponentTeam && (
                       <span style={{ fontSize:12, color: cfg.color }}>vs {e.opponentTeam}</span>
                     )}
@@ -569,12 +579,31 @@ export default function Calendario() {
                     {headquarters.map(h => <option key={h.id} value={h.id}>{h.name}</option>)}
                   </select>
                 </div>
+
+                <div className="form-group">
+                  <label>Profesor Responsable</label>
+                  <select className="form-control" value={form.teacherId}
+                    onChange={e => setForm({...form, teacherId: e.target.value})}>
+                    <option value="">Ninguno / Sin profesor</option>
+                    {staff.map(s => <option key={s.id} value={s.id}>{s.firstName} {s.lastName}</option>)}
+                  </select>
+                </div>
+
                 <div className="form-group">
                   <label>Categoría</label>
                   <select className="form-control" value={form.categoryId}
                     onChange={e => setForm({...form, categoryId: e.target.value})}>
                     <option value="">Sin categoría</option>
-                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    {categories.filter(c => {
+                      if (form.headquarterId && c.headquarterId !== form.headquarterId) return false;
+                      if (form.teacherId) {
+                        const teacher = staff.find(s => s.id === form.teacherId);
+                        if (teacher && teacher.categoryIds && teacher.categoryIds.length > 0) {
+                          return teacher.categoryIds.includes(c.id);
+                        }
+                      }
+                      return true;
+                    }).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
                 </div>
 
