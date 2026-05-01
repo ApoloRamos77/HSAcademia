@@ -220,6 +220,70 @@ public class FinancesPremiumService : IFinancesPremiumService
             .ToListAsync();
     }
 
+    public async Task<List<StaffPaymentDto>> GetMyStaffPaymentsAsync(Guid academyId, Guid staffId, int month, int year)
+    {
+        var query = _context.StaffPayments
+            .Include(sp => sp.Staff)
+            .Where(sp => sp.AcademyId == academyId && sp.StaffId == staffId && !sp.IsDeleted);
+
+        if (month > 0) query = query.Where(sp => sp.PeriodMonth == month && sp.PeriodYear == year);
+
+        return await query
+            .OrderByDescending(sp => sp.PeriodYear).ThenByDescending(sp => sp.PeriodMonth)
+            .Select(sp => new StaffPaymentDto
+            {
+                Id = sp.Id,
+                StaffId = sp.StaffId,
+                StaffName = sp.Staff.FirstName + " " + sp.Staff.LastName,
+                PeriodMonth = sp.PeriodMonth,
+                PeriodYear = sp.PeriodYear,
+                BaseAmount = sp.BaseAmount,
+                Bonuses = sp.Bonuses,
+                Deductions = sp.Deductions,
+                TotalPaid = sp.TotalPaid,
+                Status = sp.Status,
+                PaidAt = sp.PaidAt,
+                Notes = sp.Notes
+            })
+            .ToListAsync();
+    }
+
+    public async Task<StaffPaymentCalculationDto> CalculateStaffPaymentAsync(Guid academyId, Guid staffId, int month, int year)
+    {
+        var staff = await _context.Users.FirstOrDefaultAsync(u => u.Id == staffId && u.AcademyId == academyId);
+        if (staff == null) throw new Exception("Personal no encontrado.");
+
+        if (staff.PaymentType == StaffPaymentType.Monthly)
+        {
+            return new StaffPaymentCalculationDto
+            {
+                StaffId = staffId,
+                BaseAmount = staff.PaymentRate,
+                SessionsCount = null
+            };
+        }
+        
+        // PerSession calculation
+        var startDate = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Utc);
+        var endDate = startDate.AddMonths(1);
+
+        // Count distinct events in the month where the teacher was assigned and took attendance
+        var sessionsCount = await _context.Events
+            .Where(e => e.AcademyId == academyId 
+                && e.TeacherId == staffId 
+                && e.StartTime >= startDate 
+                && e.StartTime < endDate
+                && _context.Attendances.Any(a => a.EventId == e.Id))
+            .CountAsync();
+
+        return new StaffPaymentCalculationDto
+        {
+            StaffId = staffId,
+            BaseAmount = sessionsCount * staff.PaymentRate,
+            SessionsCount = sessionsCount
+        };
+    }
+
     public async Task<StaffPaymentDto> CreateStaffPaymentAsync(Guid academyId, CreateStaffPaymentDto dto)
     {
         var payment = new StaffPayment

@@ -13,6 +13,7 @@ public class StaffPayment
     public decimal BaseAmount { get; set; }
     public decimal Bonuses { get; set; }
     public decimal Deductions { get; set; }
+    public int? SessionsCount { get; set; }
     public decimal TotalPaid { get; set; }
     public StaffPaymentStatus Status { get; set; }
     public DateTime? PaidAt { get; set; }

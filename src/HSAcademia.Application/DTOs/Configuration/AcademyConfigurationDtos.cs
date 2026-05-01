@@ -66,6 +66,8 @@ public class AcademyUserDto
     public string Status { get; set; } = string.Empty;
     public List<Guid> CategoryIds { get; set; } = new List<Guid>();
     public List<string> CategoryNames { get; set; } = new List<string>();
+    public int PaymentType { get; set; }
+    public decimal PaymentRate { get; set; }
 }
 
 public class CreateAcademyUserDto
@@ -79,4 +81,6 @@ public class CreateAcademyUserDto
     public Guid? AcademyRoleId { get; set; }
     public Guid? HeadquarterId { get; set; }
     public List<Guid>? CategoryIds { get; set; }
+    public int PaymentType { get; set; } = 0; // 0: Monthly, 1: PerSession
+    public decimal PaymentRate { get; set; } = 0m;
 }

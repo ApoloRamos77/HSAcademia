@@ -39,4 +39,8 @@ public class User
     public Headquarter? Headquarter { get; set; }
 
     public ICollection<Category> AssignedCategories { get; set; } = new List<Category>();
+
+    // Payment configuration
+    public StaffPaymentType PaymentType { get; set; } = StaffPaymentType.Monthly;
+    public decimal PaymentRate { get; set; } = 0m;
 }

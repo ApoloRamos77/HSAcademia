@@ -52,6 +52,18 @@ public class AuthService
         var token = _jwt.GenerateToken(user);
         var requirePasswordChange = BCrypt.Net.BCrypt.Verify("123456", user.PasswordHash) || BCrypt.Net.BCrypt.Verify("12345", user.PasswordHash);
 
+        // For Students/Guardians, load their categoryId
+        Guid? categoryId = null;
+        if (user.Role == UserRole.Student || user.Role == UserRole.Guardian)
+        {
+            var student = await _db.Students
+                .Where(s => s.AcademyId == user.AcademyId &&
+                    (s.UserId == user.Id || s.GuardianId == user.Id))
+                .Select(s => (Guid?)s.CategoryId)
+                .FirstOrDefaultAsync();
+            categoryId = student;
+        }
+
         return Result<LoginResponseDto>.Success(new LoginResponseDto
         {
             Token = token,
@@ -61,7 +73,8 @@ public class AuthService
             Role = user.Role.ToString(),
             AcademyId = user.AcademyId,
             AcademyName = user.Academy?.Name,
-            RequirePasswordChange = requirePasswordChange
+            RequirePasswordChange = requirePasswordChange,
+            CategoryId = categoryId
         });
     }
 

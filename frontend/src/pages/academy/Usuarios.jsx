@@ -14,7 +14,8 @@ export default function Usuarios() {
   const [editingId, setEditingId] = useState(null);
   
   const initialForm = {
-    firstName: '', lastName: '', email: '', password: '', phone: '', systemRole: 'Staff', academyRoleId: '', headquarterId: '', categoryIds: []
+    firstName: '', lastName: '', email: '', password: '', phone: '', systemRole: 'Staff', academyRoleId: '', headquarterId: '', categoryIds: [],
+    paymentType: 0, paymentRate: ''
   };
   const [formData, setFormData] = useState(initialForm);
 
@@ -54,7 +55,9 @@ export default function Usuarios() {
       // If AcademyAdmin with no custom role, pre-select the virtual admin option
       academyRoleId: user.academyRoleId || (user.systemRole === 'AcademyAdmin' ? '__admin__' : ''),
       headquarterId: user.headquarterId || '',
-      categoryIds: user.categoryIds || []
+      categoryIds: user.categoryIds || [],
+      paymentType: user.paymentType ?? 0,
+      paymentRate: user.paymentRate?.toString() || ''
     });
     setEditingId(user.id);
     setShowModal(true);
@@ -67,7 +70,9 @@ export default function Usuarios() {
       const payload = {
         ...formData,
         academyRoleId: (formData.academyRoleId === '__admin__' || formData.academyRoleId === '') ? null : formData.academyRoleId,
-        headquarterId: formData.headquarterId === '' ? null : formData.headquarterId
+        headquarterId: formData.headquarterId === '' ? null : formData.headquarterId,
+        paymentType: parseInt(formData.paymentType),
+        paymentRate: parseFloat(formData.paymentRate) || 0
       };
       if (editingId) {
         await api.put(`/academy-config/users/${editingId}`, payload);
@@ -140,6 +145,10 @@ export default function Usuarios() {
                       <div className="flex items-center gap-2"><Phone size={14} className="text-primary-400"/> {user.phone || '-'}</div>
                       <div className="flex items-center gap-2"><Shield size={14} className="text-warning"/> {user.academyRoleName || 'Sin Cargo'}</div>
                       <div className="flex items-center gap-2"><MapPin size={14} className="text-success"/> {user.headquarterName || 'Todas las Sedes'}</div>
+                    </div>
+                    <div className="mt-2 pt-2 border-t border-border/50 text-xs flex gap-3 text-text-muted">
+                      <span className="font-semibold">{user.paymentType === 1 ? '⏱ Por Sesión' : '📅 Mensual'}</span>
+                      <span>Tarifa: S/ {(user.paymentRate || 0).toFixed(2)}</span>
                     </div>
                     
                     {user.categoryNames?.length > 0 && (
@@ -242,6 +251,32 @@ export default function Usuarios() {
                       <option value="">-- Opcional (o Todas) --</option>
                       {sedes.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                     </select>
+                  </div>
+                </div>
+
+                {/* Payment Configuration */}
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">Tipo de Pago</label>
+                    <select className="form-control" value={formData.paymentType} onChange={e => setFormData({...formData, paymentType: parseInt(e.target.value)})}>
+                      <option value={0}>📅 Mensual (Sueldo Fijo)</option>
+                      <option value={1}>⏱ Por Sesión / Hora</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">
+                      {formData.paymentType === 1 ? 'Tarifa por Sesión (S/)' : 'Sueldo Mensual (S/)'}
+                    </label>
+                    <input
+                      type="number" step="0.01" min="0"
+                      className="form-control"
+                      placeholder="0.00"
+                      value={formData.paymentRate}
+                      onChange={e => setFormData({...formData, paymentRate: e.target.value})}
+                    />
+                    {formData.paymentType === 1 && (
+                      <p className="text-xs text-primary-400 mt-1">El monto se calculará automáticamente según las sesiones dictadas.</p>
+                    )}
                   </div>
                 </div>
 

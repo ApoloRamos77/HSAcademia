@@ -55,6 +55,26 @@ export default function StaffPaymentsTab() {
     } catch (err) { toast.error(err.response?.data?.message || 'Error al registrar pago'); }
   };
 
+  useEffect(() => {
+    if (form.staffId && modal) {
+      calculatePayment();
+    }
+  }, [form.staffId, form.periodMonth, form.periodYear]);
+
+  const calculatePayment = async () => {
+    try {
+      const res = await api.get(`/finances-premium/staff-payments/calculate?staffId=${form.staffId}&month=${form.periodMonth}&year=${form.periodYear}`);
+      setForm(prev => ({ 
+        ...prev, 
+        baseAmount: res.data.baseAmount.toString(),
+        notes: res.data.sessionsCount !== null ? `Calculado en base a ${res.data.sessionsCount} sesiones.` : prev.notes
+      }));
+    } catch (err) {
+      console.error(err);
+      toast.error('Error al calcular el pago del personal');
+    }
+  };
+
   const handleMarkPaid = async (id) => {
     try {
       await api.patch(`/finances-premium/staff-payments/${id}/mark-paid`);

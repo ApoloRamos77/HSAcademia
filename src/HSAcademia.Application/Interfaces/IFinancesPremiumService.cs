@@ -19,8 +19,10 @@ public interface IFinancesPremiumService
 
     // ── Staff Payments ────────────────────────────────────────────────────────
     Task<List<StaffPaymentDto>> GetStaffPaymentsAsync(Guid academyId, int month, int year);
+    Task<List<StaffPaymentDto>> GetMyStaffPaymentsAsync(Guid academyId, Guid staffId, int month, int year);
     Task<StaffPaymentDto> CreateStaffPaymentAsync(Guid academyId, CreateStaffPaymentDto dto);
     Task<StaffPaymentDto> MarkStaffPaymentPaidAsync(Guid paymentId, Guid academyId);
+    Task<StaffPaymentCalculationDto> CalculateStaffPaymentAsync(Guid academyId, Guid staffId, int month, int year);
 
     // ── Dashboard ─────────────────────────────────────────────────────────────
     Task<FinanceSummaryDto> GetFinanceSummaryAsync(Guid academyId, int month, int year);

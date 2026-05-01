@@ -99,6 +99,32 @@ public class FinancesPremiumController : ControllerBase
         return Ok(result);
     }
 
+    [HttpGet("my-payments")]
+    public async Task<IActionResult> GetMyPayments([FromQuery] int month, [FromQuery] int year)
+    {
+        if (month == 0) month = DateTime.UtcNow.Month;
+        if (year == 0) year = DateTime.UtcNow.Year;
+        var userId = GetUserId();
+        var result = await _service.GetMyStaffPaymentsAsync(GetAcademyId(), userId, month, year);
+        return Ok(result);
+    }
+
+    [HttpGet("staff-payments/calculate")]
+    public async Task<IActionResult> CalculateStaffPayment([FromQuery] Guid staffId, [FromQuery] int month, [FromQuery] int year)
+    {
+        if (month == 0) month = DateTime.UtcNow.Month;
+        if (year == 0) year = DateTime.UtcNow.Year;
+        try
+        {
+            var result = await _service.CalculateStaffPaymentAsync(GetAcademyId(), staffId, month, year);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpPost("staff-payments")]
     public async Task<IActionResult> CreateStaffPayment([FromBody] CreateStaffPaymentDto dto)
     {

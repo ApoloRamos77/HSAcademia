@@ -61,6 +61,13 @@ public class StaffPaymentDto
     public string? Notes { get; set; }
 }
 
+public class StaffPaymentCalculationDto
+{
+    public Guid StaffId { get; set; }
+    public decimal BaseAmount { get; set; }
+    public int? SessionsCount { get; set; }
+}
+
 public class CreateStaffPaymentDto
 {
     public Guid StaffId { get; set; }

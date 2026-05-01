@@ -115,6 +115,9 @@ public class AppDbContext : DbContext
             entity.Property(e => e.IsDeleted).HasColumnName("is_deleted").HasDefaultValue(false);
             entity.Property(e => e.DeletedAt).HasColumnName("deleted_at");
 
+            entity.Property(e => e.PaymentType).HasColumnName("payment_type").HasConversion<int>().HasDefaultValue(StaffPaymentType.Monthly);
+            entity.Property(e => e.PaymentRate).HasColumnName("payment_rate").HasColumnType("numeric(10,2)").HasDefaultValue(0m);
+
             entity.HasIndex(e => e.Email).IsUnique();
             entity.HasIndex(e => e.AcademyId);
             entity.HasIndex(e => e.Role);
@@ -718,6 +721,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.BaseAmount).HasColumnName("base_amount").HasColumnType("numeric(10,2)").HasDefaultValue(0m);
             entity.Property(e => e.Bonuses).HasColumnName("bonuses").HasColumnType("numeric(10,2)").HasDefaultValue(0m);
             entity.Property(e => e.Deductions).HasColumnName("deductions").HasColumnType("numeric(10,2)").HasDefaultValue(0m);
+            entity.Property(e => e.SessionsCount).HasColumnName("sessions_count");
             entity.Property(e => e.TotalPaid).HasColumnName("total_paid").HasColumnType("numeric(10,2)").HasDefaultValue(0m);
             entity.Property(e => e.Status).HasColumnName("status").HasConversion<int>().HasDefaultValue(StaffPaymentStatus.Pending);
             entity.Property(e => e.PaidAt).HasColumnName("paid_at");

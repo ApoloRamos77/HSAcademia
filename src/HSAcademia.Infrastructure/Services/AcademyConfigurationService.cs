@@ -200,7 +200,9 @@ public class AcademyConfigurationService
                 HeadquarterName = u.Headquarter != null ? u.Headquarter.Name : null,
                 Status = u.Status.ToString(),
                 CategoryIds = u.AssignedCategories.Select(c => c.Id).ToList(),
-                CategoryNames = u.AssignedCategories.Select(c => c.Name).ToList()
+                CategoryNames = u.AssignedCategories.Select(c => c.Name).ToList(),
+                PaymentType = (int)u.PaymentType,
+                PaymentRate = u.PaymentRate
             })
             .ToListAsync();
     }
@@ -223,7 +225,9 @@ public class AcademyConfigurationService
             Role = sysRole,
             AcademyRoleId = dto.AcademyRoleId,
             HeadquarterId = dto.HeadquarterId,
-            Status = UserStatus.Active
+            Status = UserStatus.Active,
+            PaymentType = (StaffPaymentType)dto.PaymentType,
+            PaymentRate = dto.PaymentRate
         };
 
         if (dto.CategoryIds != null && dto.CategoryIds.Any())
@@ -260,6 +264,8 @@ public class AcademyConfigurationService
         user.Role = sysRole;
         user.AcademyRoleId = dto.AcademyRoleId;
         user.HeadquarterId = dto.HeadquarterId;
+        user.PaymentType = (StaffPaymentType)dto.PaymentType;
+        user.PaymentRate = dto.PaymentRate;
 
         if (dto.CategoryIds != null)
         {
