@@ -70,7 +70,7 @@ public class AcademyConfigurationController : ControllerBase
         var academyId = GetAcademyId();
         if (academyId == Guid.Empty) return Unauthorized();
 
-        var userIdStr = User.FindFirst("userId")?.Value;
+        var userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         var userId = Guid.TryParse(userIdStr, out var uId) ? uId : (Guid?)null;
         var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "";
 

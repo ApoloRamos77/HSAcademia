@@ -398,8 +398,8 @@ public class CalendarService : ICalendarService
         string userRole = "")
     {
         var now  = DateTime.UtcNow;
-        var from = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
-        var to   = from.AddMonths(2); // cover current + next month
+        var from = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc).AddMonths(-6);
+        var to   = from.AddMonths(12); // cover -6 to +6 months
 
         var query = _db.Events
             .Include(e => e.Category)
@@ -453,8 +453,8 @@ public class CalendarService : ICalendarService
         var dbEvents = await query.OrderBy(e => e.StartTime).ToListAsync();
         var result = dbEvents.Select(e => MapToMobileDto(e)).ToList();
 
-        // Add virtual birthday events for both months
-        for (int mOffset = 0; mOffset < 2; mOffset++)
+        // Add virtual birthday events for the full 12 month range
+        for (int mOffset = 0; mOffset < 12; mOffset++)
         {
             var target = from.AddMonths(mOffset);
             var bdays  = await BuildBirthdayEventsAsync(academyId, target.Year, target.Month, birthdayCategoryFilter);

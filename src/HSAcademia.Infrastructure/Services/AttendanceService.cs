@@ -353,8 +353,13 @@ public class AttendanceService : IAttendanceService
             .FirstOrDefaultAsync(s => s.AcademyId == academyId && s.Id == studentId)
             ?? throw new KeyNotFoundException("Alumno no encontrado.");
 
-        var from = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1)
+        var startDate = student.PaymentStartDate ?? student.EnrollmentDate;
+        var startMonth = new DateTime(startDate.Year, startDate.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        var from = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1, 0, 0, 0, DateTimeKind.Utc)
                        .AddMonths(-(months - 1));
+        if (from < startMonth) from = startMonth;
+
         var to   = DateTime.UtcNow.Date.AddDays(1); // inclusive today
 
         var records = await _context.Attendances
@@ -393,12 +398,15 @@ public class AttendanceService : IAttendanceService
                 };
             }).ToList();
 
-        // Ensure at least `months` entries even when no records exist (empty months)
+        // Ensure at least entries up to their start date (max `months` entries)
         for (int i = 0; i < months; i++)
         {
             var target = DateTime.UtcNow.AddMonths(-i);
-            var label  = new DateTime(target.Year, target.Month, 1)
-                             .ToString("MMMM yyyy", new System.Globalization.CultureInfo("es-CL"));
+            var targetMonth = new DateTime(target.Year, target.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+            
+            if (targetMonth < startMonth) break;
+
+            var label  = targetMonth.ToString("MMMM yyyy", new System.Globalization.CultureInfo("es-CL"));
             if (!grouped.Any(m => m.Month.Equals(label, StringComparison.OrdinalIgnoreCase)))
             {
                 grouped.Add(new MobileAttendanceMonthDto

@@ -302,7 +302,9 @@ public class FinancesService
         var debts = await _context.PaymentRecords
             .Include(p => p.Student).ThenInclude(s => s.Category)
             .Include(p => p.Installments)
-            .Where(p => p.AcademyId == academyId && p.Student.GuardianId == guardianUserId && !p.IsDeleted)
+            .Where(p => p.AcademyId == academyId && 
+                       (p.Student.GuardianId == guardianUserId || p.Student.UserId == guardianUserId) && 
+                       !p.IsDeleted)
             .OrderBy(p => p.DueDate)
             .ToListAsync();
         return debts.Select(p => MapToDto(p, today)).ToList();
