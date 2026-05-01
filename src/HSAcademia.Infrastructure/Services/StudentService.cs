@@ -158,7 +158,8 @@ public class StudentService
                 WeightKg = dto.MedicalRecord.WeightKg,
                 HeightCm = dto.MedicalRecord.HeightCm,
                 BMI = dto.MedicalRecord.BMI,
-                NutritionPlan = dto.MedicalRecord.NutritionPlan
+                NutritionPlan = dto.MedicalRecord.NutritionPlan,
+                NextNutritionConsultation = dto.MedicalRecord.NextNutritionConsultation
             };
         }
 
@@ -190,7 +191,55 @@ public class StudentService
             WeightKg = record.WeightKg,
             HeightCm = record.HeightCm,
             BMI = record.BMI,
-            NutritionPlan = record.NutritionPlan
+            NutritionPlan = record.NutritionPlan,
+            NextNutritionConsultation = record.NextNutritionConsultation
+        };
+    }
+
+    /// <summary>Returns the mobile profile for the logged-in student or guardian's student.</summary>
+    public async Task<MobileStudentProfileDto?> GetMyProfileAsync(Guid academyId, Guid userId)
+    {
+        var student = await _context.Students
+            .Include(s => s.Headquarter)
+            .Include(s => s.Category)
+            .Include(s => s.Guardian)
+            .Include(s => s.MedicalRecord)
+            .FirstOrDefaultAsync(s =>
+                s.AcademyId == academyId &&
+                !s.IsDeleted &&
+                (s.UserId == userId || s.GuardianId == userId));
+
+        if (student == null) return null;
+
+        var today = DateTime.UtcNow;
+        int age = today.Year - student.DateOfBirth.Year;
+        if (student.DateOfBirth.Date > today.AddYears(-age)) age--;
+
+        return new MobileStudentProfileDto
+        {
+            Id              = student.Id,
+            FullName        = $"{student.FirstName} {student.LastName}",
+            FirstName       = student.FirstName,
+            LastName        = student.LastName,
+            Email           = student.Email,
+            DateOfBirth     = student.DateOfBirth,
+            Age             = age,
+            EnrollmentDate  = student.EnrollmentDate,
+            CategoryName    = student.Category?.Name ?? "-",
+            HeadquarterName = student.Headquarter?.Name ?? "-",
+            GuardianName    = $"{student.Guardian?.FirstName} {student.Guardian?.LastName}".Trim(),
+            GuardianPhone   = student.Guardian?.Phone ?? "-",
+            // Nutrition
+            WeightKg                  = student.MedicalRecord?.WeightKg,
+            HeightCm                  = student.MedicalRecord?.HeightCm,
+            BMI                       = student.MedicalRecord?.BMI,
+            NutritionPlan             = student.MedicalRecord?.NutritionPlan,
+            NextNutritionConsultation = student.MedicalRecord?.NextNutritionConsultation,
+            // Medical
+            Allergies              = student.MedicalRecord?.Allergies,
+            MedicalConditions      = student.MedicalRecord?.MedicalConditions,
+            EmergencyContactName   = student.MedicalRecord?.EmergencyContactName,
+            EmergencyContactPhone  = student.MedicalRecord?.EmergencyContactPhone,
         };
     }
     public async Task<StudentDto> UpdateStudentAsync(Guid academyId, Guid id, CreateStudentDto dto)
@@ -265,6 +314,7 @@ public class StudentService
             student.MedicalRecord.HeightCm = dto.MedicalRecord.HeightCm;
             student.MedicalRecord.BMI = dto.MedicalRecord.BMI;
             student.MedicalRecord.NutritionPlan = dto.MedicalRecord.NutritionPlan;
+            student.MedicalRecord.NextNutritionConsultation = dto.MedicalRecord.NextNutritionConsultation;
         }
 
         await _context.SaveChangesAsync();

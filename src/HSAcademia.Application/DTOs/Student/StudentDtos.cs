@@ -68,4 +68,40 @@ public class MedicalRecordDto
     public decimal? HeightCm { get; set; }
     public decimal? BMI { get; set; }
     public string? NutritionPlan { get; set; }
+    public DateTime? NextNutritionConsultation { get; set; }
+}
+
+/// <summary>Mobile-facing combined student profile + nutrition card.</summary>
+public class MobileStudentProfileDto
+{
+    // Personal
+    public Guid Id { get; set; }
+    public string FullName { get; set; } = string.Empty;
+    public string FirstName { get; set; } = string.Empty;
+    public string LastName { get; set; } = string.Empty;
+    public string? Email { get; set; }
+    public DateTime DateOfBirth { get; set; }
+    public int Age { get; set; }
+    public DateTime EnrollmentDate { get; set; }
+
+    // Academy
+    public string CategoryName { get; set; } = string.Empty;
+    public string HeadquarterName { get; set; } = string.Empty;
+
+    // Guardian
+    public string GuardianName { get; set; } = string.Empty;
+    public string GuardianPhone { get; set; } = string.Empty;
+
+    // Nutrition / Medical
+    public decimal? WeightKg { get; set; }
+    public decimal? HeightCm { get; set; }
+    public decimal? BMI { get; set; }
+    public string? NutritionPlan { get; set; }
+    public DateTime? NextNutritionConsultation { get; set; }
+
+    // Medical
+    public string? Allergies { get; set; }
+    public string? MedicalConditions { get; set; }
+    public string? EmergencyContactName { get; set; }
+    public string? EmergencyContactPhone { get; set; }
 }

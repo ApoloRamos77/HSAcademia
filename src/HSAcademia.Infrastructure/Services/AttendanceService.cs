@@ -362,29 +362,54 @@ public class AttendanceService : IAttendanceService
 
         var to   = DateTime.UtcNow.Date.AddDays(1); // inclusive today
 
-        var records = await _context.Attendances
+        var events = await _context.Events
+            .Where(e => e.AcademyId == academyId &&
+                        e.CategoryId == student.CategoryId &&
+                        e.StartTime >= from && e.StartTime < to &&
+                        !e.IsDeleted)
+            .ToListAsync();
+
+        var attendances = await _context.Attendances
             .Where(a => a.AcademyId == academyId &&
                         a.StudentId == studentId &&
                         a.Date >= from && a.Date < to)
-            .OrderByDescending(a => a.Date)
             .ToListAsync();
+
+        var allDates = events.Select(e => e.StartTime.Date)
+            .Union(attendances.Select(a => a.Date.Date))
+            .Where(d => d <= DateTime.UtcNow.Date)
+            .Distinct()
+            .OrderByDescending(d => d)
+            .ToList();
 
         var categoryName = student.Category?.Name;
 
+        var mergedRecords = allDates.Select(date =>
+        {
+            var ev = events.FirstOrDefault(e => e.StartTime.Date == date);
+            var att = attendances.FirstOrDefault(a => a.Date.Date == date);
+
+            return new 
+            {
+                DateObj = date,
+                Record = new MobileAttendanceRecordDto
+                {
+                    AttendanceId = att?.Id ?? Guid.Empty,
+                    Date         = date.ToString("yyyy-MM-dd"),
+                    Status       = att != null ? MapStatus(att.Status) : "Ausente",
+                    Category     = categoryName,
+                    Notes        = att?.Notes ?? ev?.Title,
+                }
+            };
+        }).ToList();
+
         // Group by Month (Year + Month combination)
-        var grouped = records
-            .GroupBy(a => new { a.Date.Year, a.Date.Month })
+        var grouped = mergedRecords
+            .GroupBy(a => new { a.DateObj.Year, a.DateObj.Month })
             .OrderByDescending(g => g.Key.Year).ThenByDescending(g => g.Key.Month)
             .Select(g =>
             {
-                var monthRecords = g.Select(a => new MobileAttendanceRecordDto
-                {
-                    AttendanceId = a.Id,
-                    Date         = a.Date.ToString("yyyy-MM-dd"),
-                    Status       = MapStatus(a.Status),
-                    Category     = categoryName,
-                    Notes        = a.Notes,
-                }).ToList();
+                var monthRecords = g.Select(x => x.Record).ToList();
 
                 return new MobileAttendanceMonthDto
                 {

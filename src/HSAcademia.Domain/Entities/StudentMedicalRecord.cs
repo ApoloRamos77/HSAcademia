@@ -20,4 +20,5 @@ public class StudentMedicalRecord
     public decimal? HeightCm { get; set; }
     public decimal? BMI { get; set; } // IMC
     public string? NutritionPlan { get; set; }
+    public DateTime? NextNutritionConsultation { get; set; }
 }
