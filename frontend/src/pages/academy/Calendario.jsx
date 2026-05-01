@@ -108,7 +108,7 @@ export default function Calendario() {
       setCategories(catRes.data);
       setHeadquarters(hqRes.data);
       setTournaments(tRes.data);
-      const staffUsers = uRes.data.filter(u => u.systemRole === 'Staff' && u.status === 'Activo');
+      const staffUsers = uRes.data.filter(u => u.systemRole === 'Staff' && u.status === 'Active');
       setStaff(staffUsers);
     } catch (err) {
       console.error('Error cargando soportes del calendario:', err);
