@@ -609,4 +609,15 @@ public class AttendanceService : IAttendanceService
         }
         await _context.SaveChangesAsync();
     }
+
+    /// <inheritdoc/>
+    public async Task<Guid?> ResolveStudentIdAsync(Guid academyId, Guid userId)
+    {
+        var id = await _context.Students
+            .Where(s => s.AcademyId == academyId && !s.IsDeleted &&
+                        (s.UserId == userId || s.GuardianId == userId))
+            .Select(s => (Guid?)s.Id)
+            .FirstOrDefaultAsync();
+        return id;
+    }
 }

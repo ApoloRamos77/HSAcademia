@@ -49,7 +49,7 @@ public class AuthService
         user.LastLoginAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
 
-        var token = _jwt.GenerateToken(user);
+        var token = await _jwt.GenerateTokenAsync(user);
         var requirePasswordChange = BCrypt.Net.BCrypt.Verify("123456", user.PasswordHash) || BCrypt.Net.BCrypt.Verify("12345", user.PasswordHash);
 
         // For Students/Guardians, load their categoryId

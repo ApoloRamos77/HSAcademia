@@ -1,4 +1,4 @@
-﻿using HSAcademia.Application.DTOs.Attendance;
+using HSAcademia.Application.DTOs.Attendance;
 using HSAcademia.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -186,14 +186,27 @@ public class AttendanceController : ControllerBase
     /// Resolves studentId from the JWT "studentId" claim.
     /// </summary>
     [HttpGet("my-history")]
-    public async Task<IActionResult> GetMyHistory([FromQuery] int months = 3)
+    public async Task<IActionResult> GetMyHistory([FromQuery] int months = 60)
     {
+        months = Math.Clamp(months, 1, 60);
         var academyId = GetAcademyId();
         if (academyId == Guid.Empty) return Unauthorized();
 
+        // Primary: studentId embedded in token
         var studentId = GetStudentId();
+
+        // Fallback: look up via userId (NameIdentifier) for sessions without the new claim
         if (studentId is null)
-            return BadRequest(new { message = "El token no contiene un studentId vÃ¡lido." });
+        {
+            var userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (!Guid.TryParse(userIdStr, out var userId))
+                return BadRequest(new { message = "Token inválido." });
+
+            var found = await _attendanceService.ResolveStudentIdAsync(academyId, userId);
+            if (found is null)
+                return NotFound(new { message = "No se encontró un alumno vinculado a tu usuario." });
+            studentId = found;
+        }
 
         try
         {

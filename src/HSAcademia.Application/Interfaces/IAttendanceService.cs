@@ -64,4 +64,7 @@ public interface IAttendanceService
     /// Saves attendance records for the Staff's students (validates category ownership).
     /// </summary>
     Task SaveMyStudentsAttendanceAsync(Guid academyId, Guid staffUserId, MarkAttendanceDto dto);
+
+    /// <summary>Looks up the Student.Id linked to a given userId (Student.UserId or Student.GuardianId).</summary>
+    Task<Guid?> ResolveStudentIdAsync(Guid academyId, Guid userId);
 }
