@@ -50,7 +50,8 @@ public class MobileAttendanceRecordDto
 /// </summary>
 public class MobileAttendanceMonthDto
 {
-    public string Month { get; set; } = string.Empty;      // e.g. "Abril 2026"
+    public string Month { get; set; } = string.Empty;      // e.g. "mayo 2026"
+    public string YearMonth { get; set; } = string.Empty;  // e.g. "2026-05" — use for filtering
     public int Present { get; set; }
     public int Justified { get; set; }
     public int Absent { get; set; }
@@ -76,6 +77,7 @@ public class StaffTrainingSessionDto
     public string Title { get; set; } = string.Empty;
     public string Date { get; set; } = string.Empty;        // YYYY-MM-DD
     public string StartTime { get; set; } = string.Empty;   // HH:mm
+    public Guid CategoryId { get; set; }
     public string CategoryName { get; set; } = string.Empty;
     public string HeadquarterName { get; set; } = string.Empty;
     public bool AttendanceClosed { get; set; }

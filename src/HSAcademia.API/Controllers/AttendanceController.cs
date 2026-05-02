@@ -246,18 +246,21 @@ public class AttendanceController : ControllerBase
     // ─────────────────────────────────────────────────────────────
 
     [HttpGet("mobile/my-students")]
-    [Authorize(Roles = "Staff")]
-    public async Task<IActionResult> GetMyStudentsAttendance([FromQuery] DateTime? date = null)
+    [Authorize(Roles = "Staff,AcademyAdmin")]
+    public async Task<IActionResult> GetMyStudentsAttendance(
+        [FromQuery] DateTime? date = null,
+        [FromQuery] Guid? categoryId = null)
     {
         var academyId = GetAcademyId();
         if (academyId == Guid.Empty) return Unauthorized();
-        var userIdStr = User.FindFirst("userId")?.Value;
+        var userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         if (!Guid.TryParse(userIdStr, out var userId))
             return Unauthorized(new { message = "Token inválido." });
         var targetDate = date?.Date ?? DateTime.UtcNow.Date;
         try
         {
-            var result = await _attendanceService.GetMyStudentsAttendanceAsync(academyId, userId, targetDate);
+            var result = await _attendanceService.GetMyStudentsAttendanceAsync(
+                academyId, userId, targetDate, categoryId);
             return Ok(result);
         }
         catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
