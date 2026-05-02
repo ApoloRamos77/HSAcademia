@@ -346,76 +346,123 @@ public class AttendanceService : IAttendanceService
     /// mobile timeline. Months are returned newest-first.
     /// </summary>
     public async Task<List<MobileAttendanceMonthDto>> GetMyAttendanceHistoryAsync(
-        Guid academyId, Guid studentId, int months = 3)
+        Guid academyId, Guid studentId, int months = 60)
     {
+        months = Math.Clamp(months, 1, 60);
+
         var student = await _context.Students
             .Include(s => s.Category)
             .FirstOrDefaultAsync(s => s.AcademyId == academyId && s.Id == studentId)
             ?? throw new KeyNotFoundException("Alumno no encontrado.");
 
-        var startDate = student.PaymentStartDate ?? student.EnrollmentDate;
-        var startMonth = new DateTime(startDate.Year, startDate.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        if (student.CategoryId == Guid.Empty)
+            return new List<MobileAttendanceMonthDto>();
 
-        var from = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1, 0, 0, 0, DateTimeKind.Utc)
-                       .AddMonths(-(months - 1));
-        if (from < startMonth) from = startMonth;
+        // Earliest possible date = enrollment date
+        var enrollDate = student.PaymentStartDate ?? student.EnrollmentDate;
+        var enrollMonth = new DateTime(enrollDate.Year, enrollDate.Month, 1, 0, 0, 0, DateTimeKind.Utc);
 
+        // Window: from enrollment OR (now - months), whichever is later
+        var windowFrom = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1, 0, 0, 0, DateTimeKind.Utc)
+                             .AddMonths(-(months - 1));
+        var from = windowFrom < enrollMonth ? enrollMonth : windowFrom;
         var to   = DateTime.UtcNow.Date.AddDays(1); // inclusive today
 
+        // ── 1. All events for this student's category in the range ──
         var events = await _context.Events
             .Where(e => e.AcademyId == academyId &&
                         e.CategoryId == student.CategoryId &&
                         e.StartTime >= from && e.StartTime < to &&
                         !e.IsDeleted)
+            .OrderByDescending(e => e.StartTime)
             .ToListAsync();
 
+        if (!events.Any())
+        {
+            // No events → still return empty-record months since enrollment
+            return BuildEmptyMonths(from, DateTime.UtcNow, student.Category?.Name);
+        }
+
+        // ── 2. Attendance records for this student in the range ──
         var attendances = await _context.Attendances
             .Where(a => a.AcademyId == academyId &&
                         a.StudentId == studentId &&
                         a.Date >= from && a.Date < to)
             .ToListAsync();
 
-        var allDates = events.Select(e => e.StartTime.Date)
-            .Union(attendances.Select(a => a.Date.Date))
-            .Where(d => d <= DateTime.UtcNow.Date)
+        // ── 3. For each event, check if attendance was taken at all ──
+        //    (any student in that category for that date)
+        var eventIds = events.Select(e => e.Id).ToList();
+        var eventDates = events.Select(e => e.StartTime.Date).Distinct().ToList();
+
+        // Count records per event (or per date if no EventId)
+        var takenEventIds = await _context.Attendances
+            .Where(a => a.AcademyId == academyId &&
+                        eventIds.Contains(a.EventId ?? Guid.Empty))
+            .Select(a => a.EventId)
             .Distinct()
-            .OrderByDescending(d => d)
-            .ToList();
+            .ToListAsync();
+
+        // Also check by date+category for records saved without EventId
+        var takenDates = await _context.Attendances
+            .Include(a => a.Student)
+            .Where(a => a.AcademyId == academyId &&
+                        a.Student!.CategoryId == student.CategoryId &&
+                        eventDates.Contains(a.Date.Date))
+            .Select(a => a.Date.Date)
+            .Distinct()
+            .ToListAsync();
 
         var categoryName = student.Category?.Name;
 
-        var mergedRecords = allDates.Select(date =>
+        // ── 4. Build one record per event ──
+        var records = events.Select(ev =>
         {
-            var ev = events.FirstOrDefault(e => e.StartTime.Date == date);
-            var att = attendances.FirstOrDefault(a => a.Date.Date == date);
+            var evDate = ev.StartTime.Date;
 
-            return new 
+            // Find student's own attendance record — prefer EventId match, fall back to date match
+            var att = attendances.FirstOrDefault(a => a.EventId == ev.Id)
+                   ?? attendances.FirstOrDefault(a => a.Date.Date == evDate);
+
+            // Was attendance taken for this session by anyone?
+            bool taken = ev.AttendanceClosed ||
+                         (takenEventIds.Contains(ev.Id)) ||
+                         takenDates.Contains(evDate);
+
+            string status;
+            if (att != null)
+                status = MapStatus(att.Status);
+            else if (!taken)
+                status = "Pendiente";   // coach hasn't marked anyone yet
+            else
+                status = "Ausente";     // coach marked others but not this student
+
+            return new
             {
-                DateObj = date,
-                Record = new MobileAttendanceRecordDto
+                DateObj = evDate,
+                Record  = new MobileAttendanceRecordDto
                 {
                     AttendanceId = att?.Id ?? Guid.Empty,
-                    Date         = date.ToString("yyyy-MM-dd"),
-                    Status       = att != null ? MapStatus(att.Status) : "Ausente",
+                    Date         = evDate.ToString("yyyy-MM-dd"),
+                    Status       = status,
                     Category     = categoryName,
-                    Notes        = att?.Notes ?? ev?.Title,
+                    Notes        = att?.Notes ?? ev.Title,
                 }
             };
         }).ToList();
 
-        // Group by Month (Year + Month combination)
-        var grouped = mergedRecords
-            .GroupBy(a => new { a.DateObj.Year, a.DateObj.Month })
+        // ── 5. Group by month ──
+        var grouped = records
+            .GroupBy(r => new { r.DateObj.Year, r.DateObj.Month })
             .OrderByDescending(g => g.Key.Year).ThenByDescending(g => g.Key.Month)
             .Select(g =>
             {
                 var monthRecords = g.Select(x => x.Record).ToList();
-
                 return new MobileAttendanceMonthDto
                 {
                     Month     = new DateTime(g.Key.Year, g.Key.Month, 1)
                                     .ToString("MMMM yyyy", new System.Globalization.CultureInfo("es-CL")),
-                    Present   = monthRecords.Count(r => r.Status == "Presente"),
+                    Present   = monthRecords.Count(r => r.Status == "Presente" || r.Status == "Tardanza"),
                     Justified = monthRecords.Count(r => r.Status == "Justificado"),
                     Absent    = monthRecords.Count(r => r.Status == "Ausente"),
                     Total     = monthRecords.Count,
@@ -423,20 +470,20 @@ public class AttendanceService : IAttendanceService
                 };
             }).ToList();
 
-        // Ensure at least entries up to their start date (max `months` entries)
+        // ── 6. Pad with empty months that had no events ──
         for (int i = 0; i < months; i++)
         {
             var target = DateTime.UtcNow.AddMonths(-i);
             var targetMonth = new DateTime(target.Year, target.Month, 1, 0, 0, 0, DateTimeKind.Utc);
-            
-            if (targetMonth < startMonth) break;
+            if (targetMonth < enrollMonth) break;
 
-            var label  = targetMonth.ToString("MMMM yyyy", new System.Globalization.CultureInfo("es-CL"));
+            var label = targetMonth.ToString("MMMM yyyy", new System.Globalization.CultureInfo("es-CL"));
             if (!grouped.Any(m => m.Month.Equals(label, StringComparison.OrdinalIgnoreCase)))
             {
                 grouped.Add(new MobileAttendanceMonthDto
                 {
                     Month = label, Present = 0, Justified = 0, Absent = 0, Total = 0,
+                    Records = new List<MobileAttendanceRecordDto>(),
                 });
             }
         }
@@ -447,6 +494,24 @@ public class AttendanceService : IAttendanceService
                     new System.Globalization.CultureInfo("es-CL")))
             .ToList();
     }
+
+    private static List<MobileAttendanceMonthDto> BuildEmptyMonths(
+        DateTime from, DateTime to, string? categoryName)
+    {
+        var result = new List<MobileAttendanceMonthDto>();
+        var cur = new DateTime(to.Year, to.Month, 1);
+        while (cur >= new DateTime(from.Year, from.Month, 1))
+        {
+            result.Add(new MobileAttendanceMonthDto
+            {
+                Month = cur.ToString("MMMM yyyy", new System.Globalization.CultureInfo("es-CL")),
+                Records = new List<MobileAttendanceRecordDto>(),
+            });
+            cur = cur.AddMonths(-1);
+        }
+        return result;
+    }
+
 
     /// <summary>
     /// Compact summary for the current calendar month (dashboard widget).
