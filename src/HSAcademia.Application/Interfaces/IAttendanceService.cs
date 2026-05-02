@@ -67,4 +67,13 @@ public interface IAttendanceService
 
     /// <summary>Looks up the Student.Id linked to a given userId (Student.UserId or Student.GuardianId).</summary>
     Task<Guid?> ResolveStudentIdAsync(Guid academyId, Guid userId);
+
+    /// <summary>Closes attendance for an event (Coach or Admin). Prevents further marking.</summary>
+    Task CloseAttendanceAsync(Guid academyId, Guid eventId, Guid closedByUserId);
+
+    /// <summary>Reopens a closed attendance session (Admin only).</summary>
+    Task ReopenAttendanceAsync(Guid academyId, Guid eventId);
+
+    /// <summary>Returns the training session history for a staff member's assigned categories.</summary>
+    Task<List<StaffTrainingSessionDto>> GetStaffTrainingHistoryAsync(Guid academyId, Guid staffUserId, int months);
 }

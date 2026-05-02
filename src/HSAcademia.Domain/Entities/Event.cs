@@ -26,6 +26,11 @@ public class Event
 
     public bool IsActive { get; set; } = true;
 
+    // Attendance closure — Coach/Admin can close; only Admin can reopen
+    public bool AttendanceClosed { get; set; } = false;
+    public DateTime? AttendanceClosedAt { get; set; }
+    public Guid? AttendanceClosedBy { get; set; }
+
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public bool IsDeleted { get; set; }

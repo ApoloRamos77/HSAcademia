@@ -68,3 +68,29 @@ public class MobileAttendanceSummaryDto
     public int Absent { get; set; }
     public int Total { get; set; }
 }
+
+/// <summary>Single training session shown in coach history.</summary>
+public class StaffTrainingSessionDto
+{
+    public Guid EventId { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public string Date { get; set; } = string.Empty;        // YYYY-MM-DD
+    public string StartTime { get; set; } = string.Empty;   // HH:mm
+    public string CategoryName { get; set; } = string.Empty;
+    public string HeadquarterName { get; set; } = string.Empty;
+    public bool AttendanceClosed { get; set; }
+    public DateTime? AttendanceClosedAt { get; set; }
+    // Attendance counters (0 if not yet taken)
+    public int PresentCount { get; set; }
+    public int AbsentCount { get; set; }
+    public int JustifiedCount { get; set; }
+    public int TotalStudents { get; set; }
+    public bool AttendanceTaken { get; set; }  // true if any record exists
+}
+
+/// <summary>Monthly group of staff training sessions.</summary>
+public class StaffTrainingHistoryMonthDto
+{
+    public string Month { get; set; } = string.Empty;
+    public List<StaffTrainingSessionDto> Sessions { get; set; } = new();
+}

@@ -620,4 +620,121 @@ public class AttendanceService : IAttendanceService
             .FirstOrDefaultAsync();
         return id;
     }
+
+    /// <inheritdoc/>
+    public async Task CloseAttendanceAsync(Guid academyId, Guid eventId, Guid closedByUserId)
+    {
+        var ev = await _context.Events
+            .FirstOrDefaultAsync(e => e.AcademyId == academyId && e.Id == eventId && !e.IsDeleted)
+            ?? throw new KeyNotFoundException("Entrenamiento no encontrado.");
+
+        if (ev.AttendanceClosed)
+            throw new InvalidOperationException("La asistencia de este entrenamiento ya fue cerrada.");
+
+        ev.AttendanceClosed   = true;
+        ev.AttendanceClosedAt = DateTime.UtcNow;
+        ev.AttendanceClosedBy = closedByUserId;
+        ev.UpdatedAt          = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+    }
+
+    /// <inheritdoc/>
+    public async Task ReopenAttendanceAsync(Guid academyId, Guid eventId)
+    {
+        var ev = await _context.Events
+            .FirstOrDefaultAsync(e => e.AcademyId == academyId && e.Id == eventId && !e.IsDeleted)
+            ?? throw new KeyNotFoundException("Entrenamiento no encontrado.");
+
+        if (!ev.AttendanceClosed)
+            throw new InvalidOperationException("La asistencia de este entrenamiento no está cerrada.");
+
+        ev.AttendanceClosed   = false;
+        ev.AttendanceClosedAt = null;
+        ev.AttendanceClosedBy = null;
+        ev.UpdatedAt          = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+    }
+
+    /// <inheritdoc/>
+    public async Task<List<StaffTrainingSessionDto>> GetStaffTrainingHistoryAsync(
+        Guid academyId, Guid staffUserId, int months)
+    {
+        months = Math.Clamp(months, 1, 24);
+
+        // Resolve staff's assigned category IDs
+        var user = await _context.Users
+            .Include(u => u.AssignedCategories)
+                .ThenInclude(c => c.Headquarter)
+            .FirstOrDefaultAsync(u => u.Id == staffUserId && u.AcademyId == academyId);
+
+        if (user == null || !user.AssignedCategories.Any())
+            return new List<StaffTrainingSessionDto>();
+
+        var categoryIds = user.AssignedCategories.Select(c => c.Id).ToList();
+
+        var from = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1, 0, 0, 0, DateTimeKind.Utc)
+                       .AddMonths(-(months - 1));
+        var to   = DateTime.UtcNow.Date.AddDays(1);
+
+        // All training events for these categories in range
+        var events = await _context.Events
+            .Include(e => e.Category)
+            .Include(e => e.Headquarter)
+            .Where(e => e.AcademyId == academyId &&
+                        e.CategoryId.HasValue &&
+                        categoryIds.Contains(e.CategoryId!.Value) &&
+                        e.StartTime >= from && e.StartTime < to &&
+                        !e.IsDeleted)
+            .OrderByDescending(e => e.StartTime)
+            .ToListAsync();
+
+        if (!events.Any()) return new List<StaffTrainingSessionDto>();
+
+        var eventIds = events.Select(e => e.Id).ToList();
+
+        // Load student counts per category
+        var studentCounts = await _context.Students
+            .Where(s => s.AcademyId == academyId && categoryIds.Contains(s.CategoryId) && s.IsActive && !s.IsDeleted)
+            .GroupBy(s => s.CategoryId)
+            .Select(g => new { CategoryId = g.Key, Count = g.Count() })
+            .ToListAsync();
+
+        // Load attendance summaries per event
+        var attendances = await _context.Attendances
+            .Where(a => a.AcademyId == academyId && eventIds.Contains(a.EventId ?? Guid.Empty))
+            .GroupBy(a => a.EventId)
+            .Select(g => new
+            {
+                EventId = g.Key,
+                Present   = g.Count(a => a.Status == Domain.Enums.AttendanceStatus.Present || a.Status == Domain.Enums.AttendanceStatus.Late),
+                Absent    = g.Count(a => a.Status == Domain.Enums.AttendanceStatus.Absent),
+                Justified = g.Count(a => a.Status == Domain.Enums.AttendanceStatus.Excused),
+                Total     = g.Count()
+            })
+            .ToListAsync();
+
+        var culture = new System.Globalization.CultureInfo("es-CL");
+
+        return events.Select(ev =>
+        {
+            var att  = attendances.FirstOrDefault(a => a.EventId == ev.Id);
+            var sCnt = studentCounts.FirstOrDefault(s => s.CategoryId == ev.CategoryId!.Value);
+            return new StaffTrainingSessionDto
+            {
+                EventId           = ev.Id,
+                Title             = ev.Title,
+                Date              = ev.StartTime.ToString("yyyy-MM-dd"),
+                StartTime         = ev.StartTime.ToString("HH:mm"),
+                CategoryName      = ev.Category?.Name ?? "-",
+                HeadquarterName   = ev.Headquarter?.Name ?? "-",
+                AttendanceClosed  = ev.AttendanceClosed,
+                AttendanceClosedAt= ev.AttendanceClosedAt,
+                PresentCount      = att?.Present   ?? 0,
+                AbsentCount       = att?.Absent    ?? 0,
+                JustifiedCount    = att?.Justified ?? 0,
+                TotalStudents     = sCnt?.Count    ?? 0,
+                AttendanceTaken   = att != null && att.Total > 0,
+            };
+        }).ToList();
+    }
 }

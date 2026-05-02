@@ -280,4 +280,57 @@ public class AttendanceController : ControllerBase
         }
         catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
     }
+
+    // ── Attendance Closure ──────────────────────────────────────
+
+    [HttpPost("events/{eventId}/close")]
+    [Authorize(Roles = "Staff,AcademyAdmin")]
+    public async Task<IActionResult> CloseAttendance(Guid eventId)
+    {
+        var academyId = GetAcademyId();
+        if (academyId == Guid.Empty) return Unauthorized();
+        var userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (!Guid.TryParse(userIdStr, out var userId)) return Unauthorized();
+        try
+        {
+            await _attendanceService.CloseAttendanceAsync(academyId, eventId, userId);
+            return Ok(new { message = "Asistencia cerrada correctamente." });
+        }
+        catch (KeyNotFoundException ex)     { return NotFound(new { message = ex.Message }); }
+        catch (InvalidOperationException ex) { return Conflict(new { message = ex.Message }); }
+        catch (Exception ex)                { return BadRequest(new { message = ex.Message }); }
+    }
+
+    [HttpPost("events/{eventId}/reopen")]
+    [Authorize(Roles = "AcademyAdmin")]
+    public async Task<IActionResult> ReopenAttendance(Guid eventId)
+    {
+        var academyId = GetAcademyId();
+        if (academyId == Guid.Empty) return Unauthorized();
+        try
+        {
+            await _attendanceService.ReopenAttendanceAsync(academyId, eventId);
+            return Ok(new { message = "Asistencia reabierta correctamente." });
+        }
+        catch (KeyNotFoundException ex)     { return NotFound(new { message = ex.Message }); }
+        catch (InvalidOperationException ex) { return Conflict(new { message = ex.Message }); }
+        catch (Exception ex)                { return BadRequest(new { message = ex.Message }); }
+    }
+
+    [HttpGet("mobile/my-training-history")]
+    [Authorize(Roles = "Staff,AcademyAdmin")]
+    public async Task<IActionResult> GetStaffTrainingHistory([FromQuery] int months = 6)
+    {
+        var academyId = GetAcademyId();
+        if (academyId == Guid.Empty) return Unauthorized();
+        var userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (!Guid.TryParse(userIdStr, out var userId)) return Unauthorized();
+        try
+        {
+            var result = await _attendanceService.GetStaffTrainingHistoryAsync(academyId, userId, months);
+            return Ok(result);
+        }
+        catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
+    }
 }
+
