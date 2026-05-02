@@ -8,6 +8,8 @@ public class MarkAttendanceDto
     [Required]
     public DateTime Date { get; set; }
 
+    public Guid? EventId { get; set; }
+
     [Required]
     public List<StudentAttendanceRecordDto> Records { get; set; } = new();
 }

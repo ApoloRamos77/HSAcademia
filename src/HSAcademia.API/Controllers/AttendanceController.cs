@@ -273,7 +273,7 @@ public class AttendanceController : ControllerBase
         if (!ModelState.IsValid) return BadRequest(ModelState);
         var academyId = GetAcademyId();
         if (academyId == Guid.Empty) return Unauthorized();
-        var userIdStr = User.FindFirst("userId")?.Value;
+        var userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         if (!Guid.TryParse(userIdStr, out var userId))
             return Unauthorized(new { message = "Token inválido." });
         try

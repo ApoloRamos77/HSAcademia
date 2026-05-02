@@ -672,6 +672,7 @@ public class AttendanceService : IAttendanceService
             {
                 existAtt.Status = record.Status;
                 existAtt.Notes  = record.Notes;
+                if (dto.EventId.HasValue) existAtt.EventId = dto.EventId;
                 _context.Attendances.Update(existAtt);
             }
             else
@@ -681,6 +682,7 @@ public class AttendanceService : IAttendanceService
                     AcademyId = academyId,
                     StudentId = record.StudentId,
                     Date      = dto.Date.Date,
+                    EventId   = dto.EventId,
                     Status    = record.Status,
                     Notes     = record.Notes
                 });
