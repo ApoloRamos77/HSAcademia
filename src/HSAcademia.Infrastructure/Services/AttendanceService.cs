@@ -755,7 +755,8 @@ public class AttendanceService : IAttendanceService
 
         var from = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1, 0, 0, 0, DateTimeKind.Utc)
                        .AddMonths(-(months - 1));
-        var to   = DateTime.UtcNow.Date.AddDays(1);
+        var to = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1, 0, 0, 0, DateTimeKind.Utc)
+                     .AddMonths(1);
 
         // All training events for these categories in range
         var events = await _context.Events
