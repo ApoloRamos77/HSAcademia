@@ -312,7 +312,7 @@ export default function Calendario() {
           <select value={filterCat} onChange={e => setFilterCat(e.target.value)} className="cal-select">
             <option value="">Todas las categorías</option>
             {categories.map(c => <option key={c.id} value={c.id}>
-              {c.name} {c.startDateOfBirth ? `(${c.startDateOfBirth.split('T')[0]} a ${c.endDateOfBirth?.split('T')[0]})` : ''}
+              {c.name}
             </option>)}
           </select>
         </div>
@@ -613,7 +613,7 @@ export default function Calendario() {
                           if (e.target.checked) setForm({...form, categoryIds: [...form.categoryIds, c.id]});
                           else setForm({...form, categoryIds: form.categoryIds.filter(id => id !== c.id)});
                         }} />
-                        {c.name} {c.startDateOfBirth ? `(${c.startDateOfBirth.split('T')[0]} a ${c.endDateOfBirth?.split('T')[0]})` : ''}
+                        {c.name}
                       </label>
                     ))}
                     {categories.filter(c => {
