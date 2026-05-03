@@ -10,6 +10,7 @@ export default function Categorias() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [filterSede, setFilterSede] = useState('');
   const [formData, setFormData] = useState({ headquarterId: '', name: '', startDateOfBirth: '', endDateOfBirth: '' });
 
   useEffect(() => {
@@ -70,6 +71,10 @@ export default function Categorias() {
 
   const getSedeName = (id) => sedes.find(s => s.id === id)?.name || 'Desconocida';
 
+  const filteredCategorias = filterSede 
+    ? categorias.filter(c => c.headquarterId === filterSede) 
+    : categorias;
+
   if (loading) return <AppLayout title="Categorías"><div className="text-center p-8"><span className="spinner" style={{borderColor: 'var(--primary)', borderTopColor: 'transparent'}}></span></div></AppLayout>;
 
   return (
@@ -88,8 +93,18 @@ export default function Categorias() {
             </button>
           </div>
 
+          <div className="flex gap-4 mb-6">
+            <div className="flex-1 max-w-xs">
+              <label className="text-xs text-text-muted block mb-1">Filtrar por Sede</label>
+              <select className="form-control" value={filterSede} onChange={e => setFilterSede(e.target.value)}>
+                <option value="">Todas las sedes</option>
+                {sedes.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {categorias.map(cat => (
+            {filteredCategorias.map(cat => (
               <div key={cat.id} className="card p-5" style={{ background: 'var(--bg-surface)' }}>
                 <div className="flex justify-between items-start mb-4">
                   <div>
@@ -120,7 +135,7 @@ export default function Categorias() {
               </div>
             ))}
           </div>
-          {categorias.length === 0 && <div className="empty-state"><ClipboardList size={40}/><p>No hay categorías registradas</p></div>}
+          {filteredCategorias.length === 0 && <div className="empty-state"><ClipboardList size={40}/><p>No hay categorías registradas en esta vista</p></div>}
         </div>
 
         {showModal && (

@@ -309,7 +309,9 @@ export default function Calendario() {
           </select>
           <select value={filterCat} onChange={e => setFilterCat(e.target.value)} className="cal-select">
             <option value="">Todas las categorías</option>
-            {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            {categories.map(c => <option key={c.id} value={c.id}>
+              {c.name} {c.startDateOfBirth ? `(${c.startDateOfBirth.split('T')[0]} a ${c.endDateOfBirth?.split('T')[0]})` : ''}
+            </option>)}
           </select>
         </div>
 
@@ -602,8 +604,9 @@ export default function Calendario() {
                           return teacher.categoryIds.includes(c.id);
                         }
                       }
-                      return true;
-                    }).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    }).map(c => <option key={c.id} value={c.id}>
+                      {c.name} {c.startDateOfBirth ? `(${c.startDateOfBirth.split('T')[0]} a ${c.endDateOfBirth?.split('T')[0]})` : ''}
+                    </option>)}
                   </select>
                 </div>
 
