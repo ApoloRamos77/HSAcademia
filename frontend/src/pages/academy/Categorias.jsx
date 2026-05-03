@@ -143,11 +143,11 @@ export default function Categorias() {
                 <div className="form-row">
                   <div className="form-group">
                     <label className="form-label">Desde (Fecha de Nacimiento) *</label>
-                    <input required type="date" className="form-control" value={formData.startDateOfBirth} onChange={e => setFormData({...formData, startDateOfBirth: e.target.value})} />
+                    <input required type="date" min="1900-01-01" max="2100-12-31" className="form-control" value={formData.startDateOfBirth} onChange={e => setFormData({...formData, startDateOfBirth: e.target.value})} />
                   </div>
                   <div className="form-group">
                     <label className="form-label">Hasta (Fecha de Nacimiento) *</label>
-                    <input required type="date" className="form-control" value={formData.endDateOfBirth} onChange={e => setFormData({...formData, endDateOfBirth: e.target.value})} />
+                    <input required type="date" min="1900-01-01" max="2100-12-31" className="form-control" value={formData.endDateOfBirth} onChange={e => setFormData({...formData, endDateOfBirth: e.target.value})} />
                   </div>
                 </div>
                 

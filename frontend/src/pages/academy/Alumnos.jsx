@@ -253,7 +253,7 @@ export default function Alumnos() {
                       </div>
                       <div className="form-group">
                         <label className="form-label">Fecha de Nacimiento *</label>
-                        <input required type="date" className="form-control" value={formData.dateOfBirth} onChange={e => setFormData({...formData, dateOfBirth: e.target.value})} />
+                        <input required type="date" min="1900-01-01" max="2100-12-31" className="form-control" value={formData.dateOfBirth} onChange={e => setFormData({...formData, dateOfBirth: e.target.value})} />
                         {currentAge !== null && (
                           <span className="text-xs text-primary-400 mt-1 inline-block">Edad calculada: {currentAge} años</span>
                         )}
@@ -270,7 +270,7 @@ export default function Alumnos() {
                       </div>
                       <div className="form-group">
                         <label className="form-label">Fecha de Inicio *</label>
-                        <input required type="date" className="form-control" value={formData.enrollmentDate} onChange={e => setFormData({...formData, enrollmentDate: e.target.value})} />
+                        <input required type="date" min="1900-01-01" max="2100-12-31" className="form-control" value={formData.enrollmentDate} onChange={e => setFormData({...formData, enrollmentDate: e.target.value})} />
                       </div>
                     </div>
 
