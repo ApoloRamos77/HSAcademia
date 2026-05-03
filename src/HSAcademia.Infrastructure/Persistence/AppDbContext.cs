@@ -560,6 +560,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.EndTime).HasColumnName("end_time").IsRequired();
             entity.Property(e => e.HeadquarterId).HasColumnName("headquarter_id");
             entity.Property(e => e.CategoryId).HasColumnName("category_id");
+            entity.Property(e => e.CategoryIds).HasColumnName("category_ids").HasColumnType("jsonb").HasDefaultValueSql("'[]'::jsonb");
             entity.Property(e => e.TeacherId).HasColumnName("teacher_id");
             entity.Property(e => e.TournamentId).HasColumnName("tournament_id");
             entity.Property(e => e.OpponentTeam).HasColumnName("opponent_team").HasMaxLength(200);

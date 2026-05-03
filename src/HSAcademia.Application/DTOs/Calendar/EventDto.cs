@@ -16,6 +16,8 @@ public class EventDto
     public string? HeadquarterName { get; set; }
     public Guid? CategoryId { get; set; }
     public string? CategoryName { get; set; }
+    public List<Guid> CategoryIds { get; set; } = new List<Guid>();
+    public List<string> CategoryNames { get; set; } = new List<string>();
     public Guid? TeacherId { get; set; }
     public string? TeacherName { get; set; }
     public Guid? TournamentId { get; set; }

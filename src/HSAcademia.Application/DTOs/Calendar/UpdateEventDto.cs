@@ -22,6 +22,7 @@ public class UpdateEventDto
 
     public Guid? HeadquarterId { get; set; }
     public Guid? CategoryId { get; set; }
+    public List<Guid> CategoryIds { get; set; } = new List<Guid>();
     public Guid? TeacherId { get; set; }
     public Guid? TournamentId { get; set; }
 

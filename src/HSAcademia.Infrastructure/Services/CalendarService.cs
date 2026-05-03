@@ -145,6 +145,7 @@ public class CalendarService : ICalendarService
             EndTime       = dto.EndTime.ToUniversalTime(),
             HeadquarterId = dto.HeadquarterId,
             CategoryId    = dto.CategoryId,
+            CategoryIds   = dto.CategoryIds ?? new List<Guid>(),
             TeacherId     = dto.TeacherId,
             TournamentId  = dto.TournamentId,
             OpponentTeam  = dto.OpponentTeam,
@@ -191,6 +192,7 @@ public class CalendarService : ICalendarService
         ev.EndTime       = dto.EndTime.ToUniversalTime();
         ev.HeadquarterId = dto.HeadquarterId;
         ev.CategoryId    = dto.CategoryId;
+        ev.CategoryIds   = dto.CategoryIds ?? new List<Guid>();
         ev.TeacherId     = dto.TeacherId;
         ev.TournamentId  = dto.TournamentId;
         ev.OpponentTeam  = dto.OpponentTeam;
@@ -290,6 +292,7 @@ public class CalendarService : ICalendarService
         HeadquarterName = e.Headquarter?.Name,
         CategoryId     = e.CategoryId,
         CategoryName   = e.Category?.Name,
+        CategoryIds    = e.CategoryIds,
         TeacherId      = e.TeacherId,
         TeacherName    = e.Teacher is null ? null : $"{e.Teacher.FirstName} {e.Teacher.LastName}",
         TournamentId   = e.TournamentId,

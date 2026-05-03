@@ -16,6 +16,7 @@ public class Event
 
     public Guid? HeadquarterId { get; set; }
     public Guid? CategoryId { get; set; }
+    public List<Guid> CategoryIds { get; set; } = new List<Guid>();
     public Guid? TeacherId { get; set; } // Referencia a un User (Role=Staff)
     
     // Si es tipo TournamentMatch

@@ -109,11 +109,16 @@ public class AttendanceService : IAttendanceService
 
         EnforceWindowRule(ev);
 
-        if (!ev.CategoryId.HasValue)
+        if (!ev.CategoryId.HasValue && (ev.CategoryIds == null || !ev.CategoryIds.Any()))
             throw new InvalidOperationException("Este evento no tiene una categorÃ­a asignada.");
 
+        var categoryIds = new List<Guid>();
+        if (ev.CategoryId.HasValue) categoryIds.Add(ev.CategoryId.Value);
+        if (ev.CategoryIds != null) categoryIds.AddRange(ev.CategoryIds);
+        categoryIds = categoryIds.Distinct().ToList();
+
         var students = await _context.Students
-            .Where(s => s.AcademyId == academyId && s.CategoryId == ev.CategoryId && s.IsActive)
+            .Where(s => s.AcademyId == academyId && categoryIds.Contains(s.CategoryId) && s.IsActive)
             .OrderBy(s => s.LastName).ThenBy(s => s.FirstName)
             .ToListAsync();
 
@@ -149,14 +154,19 @@ public class AttendanceService : IAttendanceService
 
         EnforceWindowRule(ev);
 
-        if (!ev.CategoryId.HasValue)
+        if (!ev.CategoryId.HasValue && (ev.CategoryIds == null || !ev.CategoryIds.Any()))
             throw new InvalidOperationException("Este evento no tiene categorÃ­a asignada.");
+
+        var categoryIds = new List<Guid>();
+        if (ev.CategoryId.HasValue) categoryIds.Add(ev.CategoryId.Value);
+        if (ev.CategoryIds != null) categoryIds.AddRange(ev.CategoryIds);
+        categoryIds = categoryIds.Distinct().ToList();
 
         var studentIds = dto.Records.Select(r => r.StudentId).ToList();
 
         var validStudentIds = await _context.Students
             .Where(s => s.AcademyId == academyId
-                     && s.CategoryId == ev.CategoryId
+                     && categoryIds.Contains(s.CategoryId)
                      && studentIds.Contains(s.Id))
             .Select(s => s.Id)
             .ToListAsync();

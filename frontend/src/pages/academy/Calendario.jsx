@@ -57,7 +57,7 @@ export default function Calendario() {
   const [form, setForm] = useState({
     title: '', description: '', type: 1,
     startTime: '', endTime: '',
-    headquarterId: '', categoryId: '', teacherId: '',
+    headquarterId: '', categoryIds: [], teacherId: '',
     tournamentId: '', opponentTeam: ''
   });
   const [recurringEnabled, setRecurringEnabled] = useState(false);
@@ -169,7 +169,8 @@ export default function Calendario() {
             startTime: `${dateStr}T${recurringStart}:00.000Z`,
             endTime:   `${dateStr}T${recurringEnd}:00.000Z`,
             headquarterId: form.headquarterId || null,
-            categoryId:    form.categoryId    || null,
+            categoryIds:   form.categoryIds.length > 0 ? form.categoryIds : [],
+            categoryId:    form.categoryIds.length > 0 ? form.categoryIds[0] : null,
             teacherId:     form.teacherId     || null,
           };
           try { await api.post('/calendar/events', body); created++; }
@@ -191,7 +192,8 @@ export default function Calendario() {
           startTime: form.startTime + ':00.000Z',
           endTime:   form.endTime + ':00.000Z',
           headquarterId:  form.headquarterId  || null,
-          categoryId:     form.categoryId     || null,
+          categoryIds:    form.categoryIds.length > 0 ? form.categoryIds : [],
+          categoryId:     form.categoryIds.length > 0 ? form.categoryIds[0] : null,
           teacherId:      form.teacherId      || null,
           tournamentId:   form.tournamentId   || null,
           opponentTeam:   form.opponentTeam   || null,
@@ -209,7 +211,7 @@ export default function Calendario() {
       setIsEditing(false);
       setEditingId(null);
       setForm({ title:'', description:'', type:1, startTime:'', endTime:'',
-                headquarterId:'', categoryId:'', teacherId:'', tournamentId:'', opponentTeam:'' });
+                headquarterId:'', categoryIds:[], teacherId:'', tournamentId:'', opponentTeam:'' });
       setRecurringEnabled(false); setRecurringDays([]); setRecurringStart(''); setRecurringEnd('');
       setRecurringMonth(today.getMonth() + 1); setRecurringYear(today.getFullYear());
       fetchEvents();
@@ -230,7 +232,7 @@ export default function Calendario() {
       startTime: e.startTime.slice(0, 16),
       endTime: e.endTime.slice(0, 16),
       headquarterId: e.headquarterId || '',
-      categoryId: e.categoryId || '',
+      categoryIds: e.categoryIds || (e.categoryId ? [e.categoryId] : []),
       teacherId: e.teacherId || '',
       tournamentId: e.tournamentId || '',
       opponentTeam: e.opponentTeam || ''
@@ -288,7 +290,7 @@ export default function Calendario() {
             <button className="btn btn-primary" onClick={() => {
               setIsEditing(false); setEditingId(null);
               setForm({ title:'', description:'', type:1, startTime:'', endTime:'',
-                headquarterId:'', categoryId:'', teacherId:'', tournamentId:'', opponentTeam:'' });
+                headquarterId:'', categoryIds:[], teacherId:'', tournamentId:'', opponentTeam:'' });
               setShowModal(true);
             }}>
               <Plus size={16} /> Nuevo Evento
@@ -415,9 +417,11 @@ export default function Calendario() {
                         <MapPin size={12}/> {e.headquarterName}
                       </span>
                     )}
-                    {e.categoryName && (
+                    {(e.categoryName || (e.categoryIds && e.categoryIds.length > 0)) && (
                       <span style={{ fontSize:12, color:'var(--text-muted)', display:'flex', gap:6, alignItems:'center' }}>
-                        <Users size={12}/> {e.categoryName}
+                        <Users size={12}/> 
+                        {e.categoryName || 'Múltiples categorías'}
+                        {e.categoryIds && e.categoryIds.length > 1 ? ` (+${e.categoryIds.length - 1} más)` : ''}
                       </span>
                     )}
                     {e.teacherName && (
@@ -592,10 +596,8 @@ export default function Calendario() {
                 </div>
 
                 <div className="form-group">
-                  <label>Categoría</label>
-                  <select className="form-control" value={form.categoryId}
-                    onChange={e => setForm({...form, categoryId: e.target.value})}>
-                    <option value="">Sin categoría</option>
+                  <label>Categorías</label>
+                  <div style={{ maxHeight: 150, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 6, padding: 8 }}>
                     {categories.filter(c => {
                       if (form.headquarterId && c.headquarterId !== form.headquarterId) return false;
                       if (form.teacherId) {
@@ -604,10 +606,25 @@ export default function Calendario() {
                           return teacher.categoryIds.includes(c.id);
                         }
                       }
-                    }).map(c => <option key={c.id} value={c.id}>
-                      {c.name} {c.startDateOfBirth ? `(${c.startDateOfBirth.split('T')[0]} a ${c.endDateOfBirth?.split('T')[0]})` : ''}
-                    </option>)}
-                  </select>
+                      return true;
+                    }).map(c => (
+                      <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 0', cursor: 'pointer' }}>
+                        <input type="checkbox" checked={form.categoryIds.includes(c.id)} onChange={(e) => {
+                          if (e.target.checked) setForm({...form, categoryIds: [...form.categoryIds, c.id]});
+                          else setForm({...form, categoryIds: form.categoryIds.filter(id => id !== c.id)});
+                        }} />
+                        {c.name} {c.startDateOfBirth ? `(${c.startDateOfBirth.split('T')[0]} a ${c.endDateOfBirth?.split('T')[0]})` : ''}
+                      </label>
+                    ))}
+                    {categories.filter(c => {
+                      if (form.headquarterId && c.headquarterId !== form.headquarterId) return false;
+                      if (form.teacherId) {
+                        const teacher = staff.find(s => s.id === form.teacherId);
+                        if (teacher && teacher.categoryIds && teacher.categoryIds.length > 0) return teacher.categoryIds.includes(c.id);
+                      }
+                      return true;
+                    }).length === 0 && <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>No hay categorías disponibles</span>}
+                  </div>
                 </div>
 
                 <div className="form-group" style={{ gridColumn:'1/-1' }}>
