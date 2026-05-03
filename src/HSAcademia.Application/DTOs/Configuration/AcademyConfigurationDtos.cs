@@ -24,8 +24,8 @@ public class CategoryDto
     public Guid HeadquarterId { get; set; }
     public string HeadquarterName { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
-    public int MinAge { get; set; }
-    public int MaxAge { get; set; }
+    public DateTime StartDateOfBirth { get; set; }
+    public DateTime EndDateOfBirth { get; set; }
     public bool IsActive { get; set; }
 }
 
@@ -33,8 +33,8 @@ public class CreateCategoryDto
 {
     public Guid HeadquarterId { get; set; }
     public string Name { get; set; } = string.Empty;
-    public int MinAge { get; set; }
-    public int MaxAge { get; set; }
+    public DateTime StartDateOfBirth { get; set; }
+    public DateTime EndDateOfBirth { get; set; }
 }
 
 public class AcademyRoleDto

@@ -10,7 +10,7 @@ export default function Categorias() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [formData, setFormData] = useState({ headquarterId: '', name: '', minAge: '', maxAge: '' });
+  const [formData, setFormData] = useState({ headquarterId: '', name: '', startDateOfBirth: '', endDateOfBirth: '' });
 
   useEffect(() => {
     fetchData();
@@ -38,8 +38,8 @@ export default function Categorias() {
     setFormData({ 
       headquarterId: categoria.headquarterId, 
       name: categoria.name, 
-      minAge: categoria.minAge, 
-      maxAge: categoria.maxAge 
+      startDateOfBirth: categoria.startDateOfBirth ? categoria.startDateOfBirth.split('T')[0] : '', 
+      endDateOfBirth: categoria.endDateOfBirth ? categoria.endDateOfBirth.split('T')[0] : '' 
     });
     setEditingId(categoria.id);
     setShowModal(true);
@@ -47,8 +47,8 @@ export default function Categorias() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (parseInt(formData.minAge) > parseInt(formData.maxAge)) {
-      return toast.error('La edad mínima no puede ser mayor a la máxima.');
+    if (new Date(formData.startDateOfBirth) > new Date(formData.endDateOfBirth)) {
+      return toast.error('La fecha de inicio no puede ser mayor a la fecha de fin.');
     }
     
     try {
@@ -61,7 +61,7 @@ export default function Categorias() {
       }
       setShowModal(false);
       setEditingId(null);
-      setFormData({ headquarterId: sedes.length > 0 ? sedes[0].id : '', name: '', minAge: '', maxAge: '' });
+      setFormData({ headquarterId: sedes.length > 0 ? sedes[0].id : '', name: '', startDateOfBirth: '', endDateOfBirth: '' });
       fetchData();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Error al guardar categoría.');
@@ -83,7 +83,7 @@ export default function Categorias() {
               </h3>
               <p className="text-muted mt-1">Configura los grupos de entrenamiento por edades.</p>
             </div>
-            <button onClick={() => { setEditingId(null); setFormData({ headquarterId: sedes.length > 0 ? sedes[0].id : '', name: '', minAge: '', maxAge: '' }); setShowModal(true); }} className="btn btn-primary">
+            <button onClick={() => { setEditingId(null); setFormData({ headquarterId: sedes.length > 0 ? sedes[0].id : '', name: '', startDateOfBirth: '', endDateOfBirth: '' }); setShowModal(true); }} className="btn btn-primary">
               <PlusCircle size={16} /> Nueva Categoría
             </button>
           </div>
@@ -105,12 +105,12 @@ export default function Categorias() {
                 
                 <div className="flex justify-center items-center py-4 bg-bg-dark rounded-lg mb-4 border border-border">
                   <div className="text-center px-4 border-r border-border">
-                    <span className="block text-xs text-text-muted mb-1">Mínima</span>
-                    <span className="text-xl font-bold">{cat.minAge} <span className="text-sm font-normal text-text-secondary">años</span></span>
+                    <span className="block text-xs text-text-muted mb-1">F. Nacimiento Inicial</span>
+                    <span className="text-sm font-bold">{cat.startDateOfBirth ? cat.startDateOfBirth.split('T')[0] : 'N/A'}</span>
                   </div>
                   <div className="text-center px-4">
-                    <span className="block text-xs text-text-muted mb-1">Máxima</span>
-                    <span className="text-xl font-bold">{cat.maxAge} <span className="text-sm font-normal text-text-secondary">años</span></span>
+                    <span className="block text-xs text-text-muted mb-1">F. Nacimiento Final</span>
+                    <span className="text-sm font-bold">{cat.endDateOfBirth ? cat.endDateOfBirth.split('T')[0] : 'N/A'}</span>
                   </div>
                 </div>
 
@@ -142,12 +142,12 @@ export default function Categorias() {
                 </div>
                 <div className="form-row">
                   <div className="form-group">
-                    <label className="form-label">Edad Mínima *</label>
-                    <input required type="number" min="1" max="99" className="form-control" value={formData.minAge} onChange={e => setFormData({...formData, minAge: e.target.value})} />
+                    <label className="form-label">Desde (Fecha de Nacimiento) *</label>
+                    <input required type="date" className="form-control" value={formData.startDateOfBirth} onChange={e => setFormData({...formData, startDateOfBirth: e.target.value})} />
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Edad Máxima *</label>
-                    <input required type="number" min="1" max="99" className="form-control" value={formData.maxAge} onChange={e => setFormData({...formData, maxAge: e.target.value})} />
+                    <label className="form-label">Hasta (Fecha de Nacimiento) *</label>
+                    <input required type="date" className="form-control" value={formData.endDateOfBirth} onChange={e => setFormData({...formData, endDateOfBirth: e.target.value})} />
                   </div>
                 </div>
                 

@@ -9,8 +9,8 @@ public class Category
     public Guid HeadquarterId { get; set; } // Which headquarter it belongs to
 
     public string Name { get; set; } = string.Empty; // e.g. "Sub-12"
-    public int MinAge { get; set; }
-    public int MaxAge { get; set; }
+    public DateTime StartDateOfBirth { get; set; }
+    public DateTime EndDateOfBirth { get; set; }
     public decimal MonthlyFee { get; set; } = 0m;
     public bool IsActive { get; set; } = true;
 

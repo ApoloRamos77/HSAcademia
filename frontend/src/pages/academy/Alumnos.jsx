@@ -83,8 +83,14 @@ export default function Alumnos() {
   // Filter categories based on headquarter and age
   const availableCategories = categorias.filter(c => {
     const matchHq = formData.headquarterId ? c.headquarterId === formData.headquarterId : true;
-    const matchAge = currentAge !== null ? (currentAge >= c.minAge && currentAge <= c.maxAge) : true;
-    return matchHq && matchAge;
+    let matchDate = true;
+    if (formData.dateOfBirth && c.startDateOfBirth && c.endDateOfBirth) {
+      const dob = new Date(formData.dateOfBirth);
+      const start = new Date(c.startDateOfBirth);
+      const end = new Date(c.endDateOfBirth);
+      matchDate = dob >= start && dob <= end;
+    }
+    return matchHq && matchDate;
   });
 
   const handleSubmit = async (e) => {
@@ -303,7 +309,7 @@ export default function Alumnos() {
                       ) : (
                         <select required className="form-control border-warning/50 focus:border-warning focus:ring-warning/20" value={formData.categoryId} onChange={e => setFormData({...formData, categoryId: e.target.value})}>
                           <option value="">-- Asigne la Categoría --</option>
-                          {availableCategories.map(c => <option key={c.id} value={c.id}>{c.name} (Edades: {c.minAge}-{c.maxAge})</option>)}
+                          {availableCategories.map(c => <option key={c.id} value={c.id}>{c.name} ({c.startDateOfBirth?.split('T')[0]} a {c.endDateOfBirth?.split('T')[0]})</option>)}
                         </select>
                       )}
                     </div>

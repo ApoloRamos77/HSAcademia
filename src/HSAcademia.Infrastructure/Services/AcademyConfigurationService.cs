@@ -107,8 +107,8 @@ public class AcademyConfigurationService
                 HeadquarterId = c.HeadquarterId,
                 HeadquarterName = c.Headquarter!.Name,
                 Name = c.Name,
-                MinAge = c.MinAge,
-                MaxAge = c.MaxAge,
+                StartDateOfBirth = c.StartDateOfBirth,
+                EndDateOfBirth = c.EndDateOfBirth,
                 IsActive = c.IsActive
             })
             .ToListAsync();
@@ -124,12 +124,12 @@ public class AcademyConfigurationService
             AcademyId = academyId,
             HeadquarterId = dto.HeadquarterId,
             Name = dto.Name,
-            MinAge = dto.MinAge,
-            MaxAge = dto.MaxAge
+            StartDateOfBirth = dto.StartDateOfBirth.ToUniversalTime(),
+            EndDateOfBirth = dto.EndDateOfBirth.ToUniversalTime()
         };
         _context.Categories.Add(category);
         await _context.SaveChangesAsync();
-        return new CategoryDto { Id = category.Id, HeadquarterId = category.HeadquarterId, HeadquarterName = hq.Name, Name = category.Name, MinAge = category.MinAge, MaxAge = category.MaxAge, IsActive = category.IsActive };
+        return new CategoryDto { Id = category.Id, HeadquarterId = category.HeadquarterId, HeadquarterName = hq.Name, Name = category.Name, StartDateOfBirth = category.StartDateOfBirth, EndDateOfBirth = category.EndDateOfBirth, IsActive = category.IsActive };
     }
 
     public async Task<CategoryDto> UpdateCategoryAsync(Guid academyId, Guid id, CreateCategoryDto dto)
@@ -141,10 +141,10 @@ public class AcademyConfigurationService
 
         category.HeadquarterId = dto.HeadquarterId;
         category.Name = dto.Name;
-        category.MinAge = dto.MinAge;
-        category.MaxAge = dto.MaxAge;
+        category.StartDateOfBirth = dto.StartDateOfBirth.ToUniversalTime();
+        category.EndDateOfBirth = dto.EndDateOfBirth.ToUniversalTime();
         await _context.SaveChangesAsync();
-        return new CategoryDto { Id = category.Id, HeadquarterId = category.HeadquarterId, HeadquarterName = hq.Name, Name = category.Name, MinAge = category.MinAge, MaxAge = category.MaxAge, IsActive = category.IsActive };
+        return new CategoryDto { Id = category.Id, HeadquarterId = category.HeadquarterId, HeadquarterName = hq.Name, Name = category.Name, StartDateOfBirth = category.StartDateOfBirth, EndDateOfBirth = category.EndDateOfBirth, IsActive = category.IsActive };
     }
 
     // ==========================================
