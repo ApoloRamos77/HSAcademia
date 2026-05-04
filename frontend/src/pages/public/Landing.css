@@ -137,6 +137,7 @@
   text-shadow: 0 10px 30px rgba(0,0,0,0.5);
   background: linear-gradient(to right, #ffffff, #e2e8f0);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 

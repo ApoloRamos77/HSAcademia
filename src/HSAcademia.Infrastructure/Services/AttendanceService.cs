@@ -589,7 +589,7 @@ public class AttendanceService : IAttendanceService
     /// with their attendance status for the specified date.
     /// </summary>
     public async Task<List<StudentAttendanceDto>> GetMyStudentsAttendanceAsync(
-        Guid academyId, Guid staffUserId, DateTime date, Guid? categoryId = null)
+        Guid academyId, Guid staffUserId, DateTime date, Guid? categoryId = null, Guid? eventId = null)
     {
         var userWithCategories = await _context.Users
             .Include(u => u.AssignedCategories)
@@ -600,36 +600,68 @@ public class AttendanceService : IAttendanceService
 
         var assignedCategoryIds = userWithCategories.AssignedCategories.Select(c => c.Id).ToList();
 
-        if (categoryId.HasValue)
+        // If an eventId is provided, resolve category IDs from the event
+        // and intersect with the Staff's assigned categories
+        List<Guid> targetCategoryIds;
+        DateTime targetDate = date;
+
+        if (eventId.HasValue)
+        {
+            var ev = await _context.Events
+                .FirstOrDefaultAsync(e => e.AcademyId == academyId && e.Id == eventId.Value && !e.IsDeleted);
+
+            if (ev == null) return new List<StudentAttendanceDto>();
+
+            // Gather all category IDs from the event (single + multi)
+            var eventCategoryIds = new List<Guid>();
+            if (ev.CategoryId.HasValue) eventCategoryIds.Add(ev.CategoryId.Value);
+            if (ev.CategoryIds != null) eventCategoryIds.AddRange(ev.CategoryIds);
+            eventCategoryIds = eventCategoryIds.Distinct().ToList();
+
+            // Intersect with Staff's assigned categories
+            targetCategoryIds = eventCategoryIds.Intersect(assignedCategoryIds).ToList();
+            targetDate = ev.StartTime.Date;
+        }
+        else if (categoryId.HasValue)
         {
             if (assignedCategoryIds.Contains(categoryId.Value))
-            {
-                assignedCategoryIds = new List<Guid> { categoryId.Value };
-            }
+                targetCategoryIds = new List<Guid> { categoryId.Value };
             else
-            {
-                return new List<StudentAttendanceDto>(); // No access to this category
-            }
+                return new List<StudentAttendanceDto>(); // No access
         }
+        else
+        {
+            targetCategoryIds = assignedCategoryIds;
+        }
+
+        if (!targetCategoryIds.Any()) return new List<StudentAttendanceDto>();
 
         var students = await _context.Students
             .Where(s => s.AcademyId == academyId
-                     && assignedCategoryIds.Contains(s.CategoryId)
+                     && targetCategoryIds.Contains(s.CategoryId)
                      && s.IsActive)
             .OrderBy(s => s.LastName).ThenBy(s => s.FirstName)
             .ToListAsync();
 
         var studentIds = students.Select(s => s.Id).ToList();
 
+        // Load attendance: prefer EventId match, fall back to date match
         var attendances = await _context.Attendances
             .Where(a => a.AcademyId == academyId
-                     && a.Date >= date.Date && a.Date < date.Date.AddDays(1)
-                     && studentIds.Contains(a.StudentId))
+                     && studentIds.Contains(a.StudentId)
+                     && (eventId.HasValue
+                            ? (a.EventId == eventId || (a.Date >= targetDate && a.Date < targetDate.AddDays(1)))
+                            : (a.Date >= targetDate && a.Date < targetDate.AddDays(1))))
             .ToListAsync();
 
         return students.Select(s =>
         {
-            var att = attendances.FirstOrDefault(a => a.StudentId == s.Id);
+            // Prefer event-linked record, fall back to date-only record
+            var att = eventId.HasValue
+                ? (attendances.FirstOrDefault(a => a.StudentId == s.Id && a.EventId == eventId)
+                   ?? attendances.FirstOrDefault(a => a.StudentId == s.Id))
+                : attendances.FirstOrDefault(a => a.StudentId == s.Id);
+
             return new StudentAttendanceDto
             {
                 StudentId    = s.Id,

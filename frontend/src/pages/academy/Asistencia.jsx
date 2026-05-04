@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import AppLayout from '../../components/AppLayout';
+import { useAuth } from '../../context/AuthContext';
 import {
-  CalendarCheck, Users, Save, UserCheck, UserX,
-  Clock, FileMinus, CalendarDays, AlertTriangle, BarChart2
+  CalendarCheck, Save, UserCheck, UserX,
+  Clock, FileMinus, CalendarDays, AlertTriangle, BarChart2,
+  Filter, ChevronDown, ChevronUp, Search
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
@@ -17,17 +19,23 @@ const STATUS_BUTTONS = [
 
 export default function Asistencia() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'AcademyAdmin';
+
   const [mode, setMode] = useState('date'); // 'date' | 'event'
 
-  // Date-mode
+  // Filters/meta
   const [categorias,       setCategorias]       = useState([]);
+  const [sedes,            setSedes]            = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('');
+  const [selectedSede,     setSelectedSede]     = useState('');
   const [date,             setDate]             = useState(new Date().toISOString().split('T')[0]);
+  const [eventSearch,      setEventSearch]      = useState('');
 
   // Event-mode
-  const [events,         setEvents]         = useState([]);
-  const [selectedEvent,  setSelectedEvent]  = useState('');
-  const [windowBlocked,  setWindowBlocked]  = useState(null); // null | string message
+  const [events,        setEvents]        = useState([]);
+  const [selectedEvent, setSelectedEvent] = useState('');
+  const [windowBlocked, setWindowBlocked] = useState(null);
 
   // Shared
   const [students,        setStudents]        = useState([]);
@@ -35,34 +43,31 @@ export default function Asistencia() {
   const [loadingStudents, setLoadingStudents] = useState(false);
   const [saving,          setSaving]          = useState(false);
 
-  // Load categories and upcoming events on mount
+  // ── Load metadata ──────────────────────────────────────────────
   useEffect(() => {
     Promise.all([
       api.get('/academy-config/categories'),
-      loadUpcomingEvents()
-    ]).then(([catRes]) => {
+      api.get('/academy-config/headquarters'),
+      loadUpcomingEvents(),
+    ]).then(([catRes, sedeRes]) => {
       setCategorias(catRes.data);
-    }).catch(() => {
-      toast.error('Error al cargar datos');
-    }).finally(() => setLoading(false));
+      setSedes(sedeRes.data);
+    }).catch(() => toast.error('Error al cargar datos'))
+      .finally(() => setLoading(false));
   }, []);
 
   const loadUpcomingEvents = async () => {
     try {
       const today = new Date();
-      const params = new URLSearchParams({
-        year: today.getFullYear(),
-        month: today.getMonth() + 1,
-      });
-      // Only Training and FriendlyMatch events (have attendance)
+      const params = new URLSearchParams({ year: today.getFullYear(), month: today.getMonth() + 1 });
       const { data } = await api.get(`/calendar/events?${params}`);
-      const attendableTypes = [1, 2, 3]; // Training, FriendlyMatch, TournamentMatch
+      const attendableTypes = [1, 2, 3];
       const filtered = data.filter(e => attendableTypes.includes(e.type) && !e.isVirtual);
       setEvents(filtered);
     } catch { /* silent */ }
   };
 
-  // Load by date
+  // ── Date-mode fetch ───────────────────────────────────────────
   useEffect(() => {
     if (mode !== 'date') return;
     fetchByDate();
@@ -70,28 +75,23 @@ export default function Asistencia() {
 
   const fetchByDate = async () => {
     if (!selectedCategory || !date) { setStudents([]); return; }
-    setLoadingStudents(true);
-    setWindowBlocked(null);
+    setLoadingStudents(true); setWindowBlocked(null);
     try {
       const { data } = await api.get(`/attendance/category/${selectedCategory}?date=${date}`);
       setStudents(data);
-    } catch {
-      toast.error('Error al cargar asistencia');
-    } finally {
-      setLoadingStudents(false);
-    }
+    } catch { toast.error('Error al cargar asistencia'); }
+    finally { setLoadingStudents(false); }
   };
 
-  // Load by event
+  // ── Event-mode fetch ──────────────────────────────────────────
   useEffect(() => {
-    if (mode !== 'event') return;
+    if (mode !== 'event' || !selectedEvent) return;
     fetchByEvent();
   }, [selectedEvent, mode]);
 
   const fetchByEvent = async () => {
     if (!selectedEvent) { setStudents([]); setWindowBlocked(null); return; }
-    setLoadingStudents(true);
-    setWindowBlocked(null);
+    setLoadingStudents(true); setWindowBlocked(null);
     try {
       const { data } = await api.get(`/attendance/event/${selectedEvent}`);
       setStudents(data);
@@ -99,12 +99,8 @@ export default function Asistencia() {
       if (err.response?.status === 409) {
         setWindowBlocked(err.response.data?.message ?? 'Lista aún no disponible.');
         setStudents([]);
-      } else {
-        toast.error('Error al cargar asistencia del evento');
-      }
-    } finally {
-      setLoadingStudents(false);
-    }
+      } else { toast.error('Error al cargar asistencia del evento'); }
+    } finally { setLoadingStudents(false); }
   };
 
   const handleStatusChange = (studentId, status) =>
@@ -130,15 +126,21 @@ export default function Asistencia() {
       toast.success('Asistencia guardada correctamente');
       mode === 'event' ? fetchByEvent() : fetchByDate();
     } catch (err) {
-      if (err.response?.status === 409) {
+      if (err.response?.status === 409)
         toast.error(err.response.data?.message ?? 'La ventana de asistencia no está abierta aún.');
-      } else {
+      else
         toast.error(err.response?.data?.message || 'Error al guardar la asistencia');
-      }
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
   };
+
+  // ── Filter events ─────────────────────────────────────────────
+  const filteredEvents = events.filter(e => {
+    const matchSede   = !selectedSede     || e.headquarterId === selectedSede;
+    const matchCat    = !selectedCategory || e.categoryId === selectedCategory
+                          || (e.categoryIds && e.categoryIds.includes(selectedCategory));
+    const matchSearch = !eventSearch || e.title.toLowerCase().includes(eventSearch.toLowerCase());
+    return matchSede && matchCat && matchSearch;
+  });
 
   if (loading) return (
     <AppLayout>
@@ -173,16 +175,12 @@ export default function Asistencia() {
 
         {/* Mode tabs */}
         <div className="tabs" style={{ maxWidth:400 }}>
-          <button
-            className={`tab-pill ${mode === 'date' ? 'active' : ''}`}
-            onClick={() => { setMode('date'); setStudents([]); setWindowBlocked(null); }}
-          >
+          <button className={`tab-pill ${mode === 'date' ? 'active' : ''}`}
+            onClick={() => { setMode('date'); setStudents([]); setWindowBlocked(null); }}>
             📅 Por Fecha
           </button>
-          <button
-            className={`tab-pill ${mode === 'event' ? 'active' : ''}`}
-            onClick={() => { setMode('event'); setStudents([]); setWindowBlocked(null); }}
-          >
+          <button className={`tab-pill ${mode === 'event' ? 'active' : ''}`}
+            onClick={() => { setMode('event'); setStudents([]); setWindowBlocked(null); }}>
             🗓️ Por Evento
           </button>
         </div>
@@ -207,39 +205,131 @@ export default function Asistencia() {
             </div>
           ) : (
             <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
-              <div className="form-group" style={{ marginBottom:0 }}>
-                <label>Evento del Mes</label>
-                <select className="form-control" value={selectedEvent}
-                  onChange={e => setSelectedEvent(e.target.value)}>
-                  <option value="">-- Seleccione un evento --</option>
-                  {events.map(e => {
-                    const d = new Date(e.startTime);
-                    const fmt = d.toLocaleDateString('es', { weekday:'short', day:'2-digit', month:'short', timeZone:'UTC' });
-                    const hr  = d.toLocaleTimeString('es', { hour:'2-digit', minute:'2-digit', timeZone:'UTC' });
+
+              {/* Admin: filters for events */}
+              {isAdmin && (
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12, padding:12, background:'var(--bg-dark)', borderRadius:8, border:'1px solid var(--border)' }}>
+                  <div className="form-group" style={{ marginBottom:0 }}>
+                    <label style={{ fontSize:12 }}><Filter size={12}/> Sede</label>
+                    <select className="form-control" value={selectedSede}
+                      onChange={e => setSelectedSede(e.target.value)}>
+                      <option value="">Todas las Sedes</option>
+                      {sedes.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="form-group" style={{ marginBottom:0 }}>
+                    <label style={{ fontSize:12 }}><Filter size={12}/> Categoría</label>
+                    <select className="form-control" value={selectedCategory}
+                      onChange={e => setSelectedCategory(e.target.value)}>
+                      <option value="">Todas las Categorías</option>
+                      {categorias.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="form-group" style={{ marginBottom:0 }}>
+                    <label style={{ fontSize:12 }}><Search size={12}/> Buscar Evento</label>
+                    <input className="form-control" placeholder="Nombre del evento..."
+                      value={eventSearch} onChange={e => setEventSearch(e.target.value)}/>
+                  </div>
+                </div>
+              )}
+
+              {/* Admin: expandable event list */}
+              {isAdmin ? (
+                <div style={{ display:'flex', flexDirection:'column', gap:8, maxHeight:400, overflowY:'auto' }}>
+                  {filteredEvents.length === 0 ? (
+                    <p style={{ fontSize:13, color:'var(--text-muted)', textAlign:'center', padding:16 }}>
+                      No hay eventos que coincidan con los filtros.
+                    </p>
+                  ) : filteredEvents.map(ev => {
+                    const d = new Date(ev.startTime);
+                    const fmt = d.toLocaleDateString('es-PE', { weekday:'short', day:'2-digit', month:'short', timeZone:'UTC' });
+                    const hr  = d.toLocaleTimeString('es-PE', { hour:'2-digit', minute:'2-digit', timeZone:'UTC' });
+                    const isSelected = selectedEvent === ev.id;
                     return (
-                      <option key={e.id} value={e.id}>
-                        {fmt} {hr} — {e.title} {e.categoryName ? `(${e.categoryName})` : ''}
-                      </option>
+                      <div key={ev.id} style={{
+                        border:`1px solid ${isSelected ? 'var(--primary)' : 'var(--border)'}`,
+                        borderRadius:10, overflow:'hidden',
+                        background: isSelected ? 'rgba(var(--primary-rgb),0.05)' : 'var(--bg-surface)',
+                        transition:'all 0.15s'
+                      }}>
+                        <div
+                          style={{ padding:'10px 14px', display:'flex', justifyContent:'space-between', alignItems:'center', cursor:'pointer' }}
+                          onClick={() => {
+                            const next = isSelected ? '' : ev.id;
+                            setSelectedEvent(next);
+                            setStudents([]);
+                            setWindowBlocked(null);
+                          }}>
+                          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                            <div style={{ width:6, height:6, borderRadius:3, background: isSelected ? 'var(--primary)' : 'var(--border)' }}/>
+                            <div>
+                              <span style={{ fontWeight:600, fontSize:14, color:'var(--text-main)' }}>{ev.title}</span>
+                              <span style={{ fontSize:12, color:'var(--text-muted)', marginLeft:8 }}>{fmt} {hr}</span>
+                              {ev.headquarterName && (
+                                <span style={{ fontSize:11, background:'var(--bg-dark)', color:'var(--text-muted)', padding:'1px 6px', borderRadius:4, marginLeft:6 }}>
+                                  {ev.headquarterName}
+                                </span>
+                              )}
+                              {ev.categoryName && (
+                                <span style={{ fontSize:11, background:'rgba(99,102,241,0.15)', color:'var(--primary)', padding:'1px 6px', borderRadius:4, marginLeft:4 }}>
+                                  {ev.categoryName}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          {isSelected
+                            ? <ChevronUp size={16} style={{ color:'var(--primary)', flexShrink:0 }}/>
+                            : <ChevronDown size={16} style={{ color:'var(--text-muted)', flexShrink:0 }}/>}
+                        </div>
+
+                        {/* Expanded: load button */}
+                        {isSelected && (
+                          <div style={{ borderTop:'1px solid var(--border)', padding:'8px 14px 12px' }}>
+                            <button className="btn btn-primary btn-sm" onClick={fetchByEvent}>
+                              📋 Cargar Lista de Asistencia ({ev.title})
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
-                </select>
-              </div>
-              {events.length === 0 && (
-                <p style={{ fontSize:13, color:'var(--text-muted)' }}>
-                  No hay eventos este mes. Créalos desde el{' '}
-                  <span
-                    onClick={() => navigate('/academy/calendario')}
-                    style={{ color:'var(--primary)', cursor:'pointer', textDecoration:'underline' }}
-                  >
-                    Calendario
-                  </span>.
-                </p>
+                </div>
+              ) : (
+                /* Staff: simple dropdown */
+                <div>
+                  <div className="form-group" style={{ marginBottom:0 }}>
+                    <label>Evento del Mes</label>
+                    <select className="form-control" value={selectedEvent}
+                      onChange={e => setSelectedEvent(e.target.value)}>
+                      <option value="">-- Seleccione un evento --</option>
+                      {events.map(e => {
+                        const d = new Date(e.startTime);
+                        const fmt = d.toLocaleDateString('es', { weekday:'short', day:'2-digit', month:'short', timeZone:'UTC' });
+                        const hr  = d.toLocaleTimeString('es', { hour:'2-digit', minute:'2-digit', timeZone:'UTC' });
+                        return (
+                          <option key={e.id} value={e.id}>
+                            {fmt} {hr} — {e.title} {e.categoryName ? `(${e.categoryName})` : ''}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+                  {events.length === 0 && (
+                    <p style={{ fontSize:13, color:'var(--text-muted)', marginTop:8 }}>
+                      No hay eventos este mes. Créalos desde el{' '}
+                      <span onClick={() => navigate('/academy/calendario')}
+                        style={{ color:'var(--primary)', cursor:'pointer', textDecoration:'underline' }}>
+                        Calendario
+                      </span>.
+                    </p>
+                  )}
+                </div>
               )}
             </div>
           )}
         </div>
 
-        {/* 15-min window blocked message */}
+        {/* 15-min window blocked */}
         {windowBlocked && (
           <div className="alert alert-warning" style={{ alignItems:'flex-start' }}>
             <AlertTriangle size={18} style={{ flexShrink:0, marginTop:1 }}/>
@@ -306,9 +396,7 @@ export default function Asistencia() {
                               const Icon = btn.icon;
                               const active = s.status === btn.value;
                               return (
-                                <button
-                                  key={btn.value}
-                                  title={btn.label}
+                                <button key={btn.value} title={btn.label}
                                   onClick={() => handleStatusChange(s.studentId, btn.value)}
                                   style={{
                                     width:36, height:36, borderRadius:8, border:'1px solid',
@@ -317,8 +405,7 @@ export default function Asistencia() {
                                     background: active ? btn.color : 'var(--bg-surface)',
                                     borderColor: active ? btn.color : 'var(--border)',
                                     color: active ? '#fff' : btn.color,
-                                  }}
-                                >
+                                  }}>
                                   <Icon size={14}/>
                                 </button>
                               );
@@ -326,9 +413,7 @@ export default function Asistencia() {
                           </div>
                         </td>
                         <td>
-                          <input
-                            type="text"
-                            className="form-control"
+                          <input type="text" className="form-control"
                             style={{ fontSize:13, padding:'6px 10px' }}
                             placeholder="Observación opcional..."
                             value={s.notes || ''}
@@ -344,14 +429,16 @@ export default function Asistencia() {
           </div>
         )}
 
-        {/* Empty state when no category/event selected */}
+        {/* Empty state */}
         {!loadingStudents && students.length === 0 && !windowBlocked && (
           <div className="empty-state card">
             <CalendarDays size={48} style={{ margin:'0 auto 12px', display:'block', opacity:0.3 }}/>
             <p style={{ color:'var(--text-muted)' }}>
               {mode === 'date'
                 ? 'Selecciona una categoría y fecha para cargar la lista.'
-                : 'Selecciona un evento para abrir la lista de asistencia.'}
+                : isAdmin
+                  ? 'Selecciona un evento de la lista y presiona "Cargar Lista de Asistencia".'
+                  : 'Selecciona un evento para abrir la lista de asistencia.'}
             </p>
           </div>
         )}
