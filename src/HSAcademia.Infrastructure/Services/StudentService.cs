@@ -54,6 +54,7 @@ public class StudentService
             FirstName = s.FirstName,
             LastName = s.LastName,
             DocumentNumber = s.DocumentNumber,
+            Phone = s.Phone,
             DateOfBirth = s.DateOfBirth,
             Age = s.DateOfBirth > today.AddYears(- (today.Year - s.DateOfBirth.Year)) ? (today.Year - s.DateOfBirth.Year) - 1 : (today.Year - s.DateOfBirth.Year),
             HeadquarterId = s.HeadquarterId,
@@ -62,9 +63,9 @@ public class StudentService
             CategoryName = s.Category.Name,
             Email = s.Email,
             GuardianId = s.GuardianId,
-            GuardianName = s.Guardian.FirstName + " " + s.Guardian.LastName,
-            GuardianPhone = s.Guardian.Phone ?? "",
-            GuardianEmail = s.Guardian.Email ?? "",
+            GuardianName = s.Guardian != null ? s.Guardian.FirstName + " " + s.Guardian.LastName : "",
+            GuardianPhone = s.Guardian?.Phone ?? "",
+            GuardianEmail = s.Guardian?.Email ?? "",
             IsActive = s.IsActive,
             EnrollmentDate = s.EnrollmentDate,
             PreferentialFee = s.PreferentialFee,
@@ -83,18 +84,23 @@ public class StudentService
                 throw new Exception("Ya existe un alumno con ese número de documento en la academia.");
         }
 
-        Guid guardianId;
+        // Validation: guardian data required if student has no phone
+        bool hasPhone = !string.IsNullOrWhiteSpace(dto.Phone);
+        bool hasGuardianId = dto.GuardianId.HasValue && dto.GuardianId != Guid.Empty;
+        bool hasGuardianData = !string.IsNullOrEmpty(dto.GuardianEmail) && !string.IsNullOrEmpty(dto.GuardianFirstName);
+
+        if (!hasPhone && !hasGuardianId && !hasGuardianData)
+            throw new Exception("Debe ingresar el celular del alumno o los datos completos del apoderado.");
+
+        Guid? guardianId = null;
 
         // Either use existing or create new Guardian
-        if (dto.GuardianId.HasValue && dto.GuardianId != Guid.Empty)
+        if (hasGuardianId)
         {
-            guardianId = dto.GuardianId.Value;
+            guardianId = dto.GuardianId!.Value;
         }
-        else
+        else if (hasGuardianData)
         {
-            if (string.IsNullOrEmpty(dto.GuardianEmail) || string.IsNullOrEmpty(dto.GuardianFirstName))
-                throw new Exception("Datos del apoderado incompletos.");
-
             // Check if user email exists
             var existingUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == dto.GuardianEmail);
             if (existingUser != null)
@@ -106,9 +112,9 @@ public class StudentService
                 var newGuardian = new User
                 {
                     AcademyId = academyId,
-                    FirstName = dto.GuardianFirstName,
+                    FirstName = dto.GuardianFirstName!,
                     LastName = dto.GuardianLastName ?? "",
-                    Email = dto.GuardianEmail,
+                    Email = dto.GuardianEmail!,
                     Phone = dto.GuardianPhone,
                     Role = UserRole.Guardian,
                     PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"), // Default generic password
@@ -127,6 +133,7 @@ public class StudentService
             LastName = dto.LastName,
             DateOfBirth = dto.DateOfBirth.ToUniversalTime(),
             DocumentNumber = dto.DocumentNumber,
+            Phone = dto.Phone,
             HeadquarterId = dto.HeadquarterId,
             CategoryId = dto.CategoryId,
             GuardianId = guardianId,
@@ -367,5 +374,44 @@ public class StudentService
             FirstName = student.FirstName,
             LastName = student.LastName
         };
+    }
+
+    /// <summary>Returns all students assigned to the Guardian user.</summary>
+    public async Task<List<StudentDto>> GetMyStudentsAsync(Guid academyId, Guid guardianUserId)
+    {
+        var today = DateTime.UtcNow;
+        var students = await _context.Students
+            .Include(s => s.Headquarter)
+            .Include(s => s.Category)
+            .Include(s => s.Guardian)
+            .Where(s => s.AcademyId == academyId && !s.IsDeleted &&
+                       (s.GuardianId == guardianUserId || s.UserId == guardianUserId))
+            .ToListAsync();
+
+        return students.Select(s => new StudentDto
+        {
+            Id = s.Id,
+            FirstName = s.FirstName,
+            LastName = s.LastName,
+            DocumentNumber = s.DocumentNumber,
+            Phone = s.Phone,
+            DateOfBirth = s.DateOfBirth,
+            Age = today.Year - s.DateOfBirth.Year - (s.DateOfBirth.Date > today.AddYears(-(today.Year - s.DateOfBirth.Year)) ? 1 : 0),
+            HeadquarterId = s.HeadquarterId,
+            HeadquarterName = s.Headquarter?.Name ?? "",
+            CategoryId = s.CategoryId,
+            CategoryName = s.Category?.Name ?? "",
+            Email = s.Email,
+            GuardianId = s.GuardianId,
+            GuardianName = s.Guardian != null ? s.Guardian.FirstName + " " + s.Guardian.LastName : "",
+            GuardianPhone = s.Guardian?.Phone ?? "",
+            GuardianEmail = s.Guardian?.Email ?? "",
+            IsActive = s.IsActive,
+            EnrollmentDate = s.EnrollmentDate,
+            PreferentialFee = s.PreferentialFee,
+            IsGuest = s.IsGuest,
+            IsScholarship = s.IsScholarship,
+            ScholarshipPercentage = s.ScholarshipPercentage
+        }).ToList();
     }
 }

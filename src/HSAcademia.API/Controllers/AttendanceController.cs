@@ -186,17 +186,23 @@ public class AttendanceController : ControllerBase
     /// Resolves studentId from the JWT "studentId" claim.
     /// </summary>
     [HttpGet("my-history")]
-    public async Task<IActionResult> GetMyHistory([FromQuery] int months = 60)
+    public async Task<IActionResult> GetMyHistory([FromQuery] int months = 60, [FromQuery] Guid? studentId = null)
     {
         months = Math.Clamp(months, 1, 60);
         var academyId = GetAcademyId();
         if (academyId == Guid.Empty) return Unauthorized();
 
-        // Primary: studentId embedded in token
-        var studentId = GetStudentId();
+        // Primary: provided via query (e.g. Guardian viewing specific student)
+        var targetStudentId = studentId;
 
-        // Fallback: look up via userId (NameIdentifier) for sessions without the new claim
-        if (studentId is null)
+        // Fallback: embedded in token
+        if (targetStudentId is null)
+        {
+            targetStudentId = GetStudentId();
+        }
+
+        // Fallback: look up via userId (NameIdentifier)
+        if (targetStudentId is null)
         {
             var userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
             if (!Guid.TryParse(userIdStr, out var userId))
@@ -205,13 +211,13 @@ public class AttendanceController : ControllerBase
             var found = await _attendanceService.ResolveStudentIdAsync(academyId, userId);
             if (found is null)
                 return NotFound(new { message = "No se encontró un alumno vinculado a tu usuario." });
-            studentId = found;
+            targetStudentId = found;
         }
 
         try
         {
             var result = await _attendanceService.GetMyAttendanceHistoryAsync(
-                academyId, studentId.Value, months);
+                academyId, targetStudentId.Value, months);
             return Ok(result);
         }
         catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }

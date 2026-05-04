@@ -10,12 +10,14 @@ public class Student
     public Guid AcademyId { get; set; }
     
     // Guardian (Apoderado) is a User with Role = Guardian
-    public Guid GuardianId { get; set; }
-    public virtual User Guardian { get; set; } = null!;
+    // GuardianId is optional when student has a phone number
+    public Guid? GuardianId { get; set; }
+    public virtual User? Guardian { get; set; }
 
     public string FirstName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;
     public string? Email { get; set; }
+    public string? Phone { get; set; }   // Celular del alumno (obligatorio si no hay apoderado)
     public string? DocumentNumber { get; set; }
     public Guid? UserId { get; set; }
     public virtual User? User { get; set; }

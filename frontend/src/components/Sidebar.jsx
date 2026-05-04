@@ -116,7 +116,7 @@ export default function Sidebar({ isOpen, onClose }) {
           </>
         )}
 
-        {/* Staff / Entrenador */}
+        {/* Staff / Personal */}
         {user?.role === 'Staff' && (
           <>
             <div className="nav-section">
@@ -127,16 +127,37 @@ export default function Sidebar({ isOpen, onClose }) {
             </div>
 
             <div className="nav-section">
-              <div className="nav-label">👥 Gestión</div>
-              <NavLink to="/academy/alumnos" className={navCls} onClick={onClose}>
-                <Users size={16} /> Alumnos
-              </NavLink>
-              <NavLink to="/academy/asistencia" className={navCls} onClick={onClose}>
-                <CalendarCheck size={16} /> Asistencia
-              </NavLink>
-              <NavLink to="/academy/calendario" className={navCls} onClick={onClose}>
-                <CalendarDays size={16} /> Calendario
-              </NavLink>
+              <div className="nav-label">👥 Gestión y Portal</div>
+              {(user.permissions?.includes('view_students')) && (
+                <>
+                  <NavLink to="/academy/alumnos" className={navCls} onClick={onClose}>
+                    <Users size={16} /> Alumnos
+                  </NavLink>
+                  <NavLink to="/academy/apoderados" className={navCls} onClick={onClose}>
+                    <Users size={16} /> Apoderados
+                  </NavLink>
+                </>
+              )}
+              {(user.permissions?.includes('manage_attendance')) && (
+                <NavLink to="/academy/asistencia" className={navCls} onClick={onClose}>
+                  <CalendarCheck size={16} /> Asistencia
+                </NavLink>
+              )}
+              {(user.permissions?.includes('manage_events')) && (
+                <NavLink to="/academy/calendario" className={navCls} onClick={onClose}>
+                  <CalendarDays size={16} /> Calendario
+                </NavLink>
+              )}
+              {(user.permissions?.includes('manage_store')) && (
+                <NavLink to="/academy/tienda" className={navCls} onClick={onClose}>
+                  <ShoppingCart size={16} /> Tienda
+                </NavLink>
+              )}
+              {(user.permissions?.includes('manage_finances')) && (
+                <NavLink to="/academy/finanzas" className={navCls} onClick={onClose}>
+                  <DollarSign size={16} /> Finanzas
+                </NavLink>
+              )}
             </div>
           </>
         )}

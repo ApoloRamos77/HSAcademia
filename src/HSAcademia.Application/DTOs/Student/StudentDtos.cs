@@ -8,6 +8,7 @@ public class StudentDto
     public string FirstName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;
     public string? Email { get; set; }
+    public string? Phone { get; set; }  // Celular del alumno
     public string? DocumentNumber { get; set; }
     public DateTime DateOfBirth { get; set; }
     public int Age { get; set; }
@@ -18,7 +19,7 @@ public class StudentDto
     public Guid CategoryId { get; set; }
     public string CategoryName { get; set; } = string.Empty;
     
-    public Guid GuardianId { get; set; }
+    public Guid? GuardianId { get; set; }
     public string GuardianName { get; set; } = string.Empty;
     public string GuardianPhone { get; set; } = string.Empty;
     public string GuardianEmail { get; set; } = string.Empty;
@@ -36,6 +37,7 @@ public class CreateStudentDto
     public string FirstName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;
     public string? Email { get; set; }
+    public string? Phone { get; set; }  // Celular del alumno (obligatorio si no hay apoderado)
     public string? DocumentNumber { get; set; }
     public DateTime DateOfBirth { get; set; }
     
@@ -43,6 +45,7 @@ public class CreateStudentDto
     public Guid CategoryId { get; set; }
     
     // Guardian details (if new) or ID (if existing)
+    // Guardian is optional when student Phone is provided
     public Guid? GuardianId { get; set; }
     public string? GuardianFirstName { get; set; }
     public string? GuardianLastName { get; set; }

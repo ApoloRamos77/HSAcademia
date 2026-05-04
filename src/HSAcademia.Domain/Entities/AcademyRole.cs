@@ -10,6 +10,8 @@ public class AcademyRole
     public string Name { get; set; } = string.Empty; // e.g. "Recepción", "Coordinador"
     public string? Description { get; set; }
     
+    public List<string> Permissions { get; set; } = new List<string>();
+
     public bool IsActive { get; set; } = true;
 
     // Audit fields

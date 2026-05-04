@@ -9,7 +9,15 @@ export default function Roles() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [formData, setFormData] = useState({ name: '', description: '' });
+  const [formData, setFormData] = useState({ name: '', description: '', permissions: [] });
+
+  const availablePermissions = [
+    { id: 'view_students', label: 'Ver Alumnos / Apoderados' },
+    { id: 'manage_attendance', label: 'Tomar / Ver Asistencia' },
+    { id: 'manage_events', label: 'Gestionar Calendario / Eventos' },
+    { id: 'manage_store', label: 'Acceso a Tienda / Ventas' },
+    { id: 'manage_finances', label: 'Gestión Financiera / Pagos' }
+  ];
 
   useEffect(() => {
     fetchRoles();
@@ -27,9 +35,18 @@ export default function Roles() {
   };
 
   const handleEdit = (role) => {
-    setFormData({ name: role.name, description: role.description || '' });
+    setFormData({ name: role.name, description: role.description || '', permissions: role.permissions || [] });
     setEditingId(role.id);
     setShowModal(true);
+  };
+
+  const handleTogglePermission = (permId) => {
+    setFormData(prev => ({
+      ...prev,
+      permissions: prev.permissions.includes(permId)
+        ? prev.permissions.filter(p => p !== permId)
+        : [...prev.permissions, permId]
+    }));
   };
 
   const handleSubmit = async (e) => {
@@ -44,7 +61,7 @@ export default function Roles() {
       }
       setShowModal(false);
       setEditingId(null);
-      setFormData({ name: '', description: '' });
+      setFormData({ name: '', description: '', permissions: [] });
       fetchRoles();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Error al guardar rol.');
@@ -64,7 +81,7 @@ export default function Roles() {
               </h3>
               <p className="text-muted mt-1">Crea cargos específicos (ej. Entrenador, Recepción) para tu staff.</p>
             </div>
-            <button onClick={() => { setEditingId(null); setFormData({ name: '', description: '' }); setShowModal(true); }} className="btn btn-primary">
+            <button onClick={() => { setEditingId(null); setFormData({ name: '', description: '', permissions: [] }); setShowModal(true); }} className="btn btn-primary">
               <PlusCircle size={16} /> Nuevo Rol
             </button>
           </div>
@@ -83,6 +100,15 @@ export default function Roles() {
                 <p className="text-sm text-text-secondary min-h-[40px] mb-4">
                   {role.description || 'Sin descripción'}
                 </p>
+                <div className="mb-4">
+                  <p className="text-xs text-text-muted mb-2 font-bold uppercase tracking-wider">Permisos Habilitados</p>
+                  <div className="flex flex-wrap gap-1">
+                    {(role.permissions && role.permissions.length > 0) ? role.permissions.map(p => {
+                      const perm = availablePermissions.find(ap => ap.id === p);
+                      return <span key={p} className="badge bg-primary/20 text-primary-100 text-xs px-2 py-0.5">{perm ? perm.label : p}</span>;
+                    }) : <span className="text-xs text-text-muted">Ninguno especial (solo dashboard básico)</span>}
+                  </div>
+                </div>
                 <div className="flex justify-end gap-2 border-t border-border pt-4">
                   <button onClick={() => handleEdit(role)} className="btn btn-ghost btn-sm" title="Editar"><Edit2 size={14}/></button>
                 </div>
@@ -105,6 +131,26 @@ export default function Roles() {
                 <div className="form-group">
                   <label className="form-label">Descripción</label>
                   <textarea className="form-control" placeholder="Opcional..." value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
+                </div>
+                
+                <div className="form-group mb-6">
+                  <label className="form-label">Permisos de Acceso</label>
+                  <p className="text-xs text-text-muted mb-3">
+                    Selecciona a qué módulos tendrá acceso el staff asignado a este rol.
+                  </p>
+                  <div className="flex flex-col gap-2 bg-bg-dark border border-border p-3 rounded-lg max-h-[160px] overflow-y-auto">
+                    {availablePermissions.map(perm => (
+                      <label key={perm.id} className="flex items-center gap-3 cursor-pointer p-1 hover:bg-bg-surface rounded">
+                        <input
+                          type="checkbox"
+                          className="accent-primary w-4 h-4"
+                          checked={formData.permissions.includes(perm.id)}
+                          onChange={() => handleTogglePermission(perm.id)}
+                        />
+                        <span className="text-sm text-text-main">{perm.label}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
                 
                 <div className="modal-footer">

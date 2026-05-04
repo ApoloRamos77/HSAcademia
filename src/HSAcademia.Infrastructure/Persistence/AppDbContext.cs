@@ -223,6 +223,14 @@ public class AppDbContext : DbContext
             entity.Property(e => e.AcademyId).HasColumnName("academy_id").IsRequired();
             entity.Property(e => e.Name).HasColumnName("name").HasMaxLength(100).IsRequired();
             entity.Property(e => e.Description).HasColumnName("description").HasMaxLength(500);
+            entity.Property(e => e.Permissions)
+                  .HasColumnName("permissions")
+                  .HasColumnType("jsonb")
+                  .HasDefaultValueSql("'[]'::jsonb")
+                  .HasConversion(
+                      v => System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions)null),
+                      v => System.Text.Json.JsonSerializer.Deserialize<List<string>>(v, (System.Text.Json.JsonSerializerOptions)null) ?? new List<string>()
+                  );
             entity.Property(e => e.IsActive).HasColumnName("is_active").HasDefaultValue(true);
 
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");

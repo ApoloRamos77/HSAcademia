@@ -323,8 +323,11 @@ export default function Tienda() {
                   </div>
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Precio Unitario ($) *</label>
-                  <input required type="number" step="0.01" min="0" className="form-control text-success font-bold" value={productForm.price} onChange={e => setProductForm({...productForm, price: e.target.value})} />
+                  <label className="form-label">Precio Unitario (S/.) *</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted font-bold">S/.</span>
+                    <input required type="number" step="0.01" min="0" className="form-control pl-12 text-success font-bold" value={productForm.price} onChange={e => setProductForm({...productForm, price: e.target.value})} />
+                  </div>
                 </div>
                 <div className="form-group">
                   <label className="form-label">Descripción</label>
@@ -350,7 +353,7 @@ export default function Tienda() {
                   <select required className="form-control" value={saleForm.productId} onChange={e => setSaleForm({...saleForm, productId: e.target.value})}>
                     <option value="">-- Seleccione un Producto --</option>
                     {products.filter(p => p.stock > 0).map(p => (
-                      <option key={p.id} value={p.id}>{p.name} (Stock: {p.stock} | Precio: ${p.price.toFixed(2)})</option>
+                      <option key={p.id} value={p.id}>{p.name} (Stock: {p.stock} | Precio: S/. {p.price.toFixed(2)})</option>
                     ))}
                   </select>
                 </div>
@@ -373,8 +376,8 @@ export default function Tienda() {
                   </div>
                   <div className="form-group mb-0 flex-1">
                     <div className="bg-bg-dark border border-border rounded-lg p-3 flex justify-between items-center">
-                      <span className="text-text-secondary text-sm">Total a Cobrar:</span>
-                      <span className="text-2xl font-bold text-success">${totalSaleEstimation}</span>
+                      <p className="text-text-muted text-sm uppercase tracking-wide">Total a Cobrar</p>
+                      <span className="text-2xl font-bold text-success">S/. {totalSaleEstimation}</span>
                     </div>
                   </div>
                 </div>

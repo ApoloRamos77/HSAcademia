@@ -17,6 +17,7 @@ public class LoginResponseDto
     public string? AcademyName { get; set; }
     public bool RequirePasswordChange { get; set; }
     public Guid? CategoryId { get; set; } // For Student/Guardian: their category
+    public List<string> Permissions { get; set; } = new List<string>();
 }
 
 public class ChangePasswordRequestDto

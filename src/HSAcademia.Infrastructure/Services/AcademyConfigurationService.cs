@@ -154,16 +154,16 @@ public class AcademyConfigurationService
     {
         return await _context.AcademyRoles
             .Where(r => r.AcademyId == academyId)
-            .Select(r => new AcademyRoleDto { Id = r.Id, Name = r.Name, Description = r.Description, IsActive = r.IsActive })
+            .Select(r => new AcademyRoleDto { Id = r.Id, Name = r.Name, Description = r.Description, Permissions = r.Permissions, IsActive = r.IsActive })
             .ToListAsync();
     }
 
     public async Task<AcademyRoleDto> CreateRoleAsync(Guid academyId, CreateAcademyRoleDto dto)
     {
-        var role = new AcademyRole { AcademyId = academyId, Name = dto.Name, Description = dto.Description };
+        var role = new AcademyRole { AcademyId = academyId, Name = dto.Name, Description = dto.Description, Permissions = dto.Permissions ?? new List<string>() };
         _context.AcademyRoles.Add(role);
         await _context.SaveChangesAsync();
-        return new AcademyRoleDto { Id = role.Id, Name = role.Name, Description = role.Description, IsActive = role.IsActive };
+        return new AcademyRoleDto { Id = role.Id, Name = role.Name, Description = role.Description, Permissions = role.Permissions, IsActive = role.IsActive };
     }
 
     public async Task<AcademyRoleDto> UpdateRoleAsync(Guid academyId, Guid id, CreateAcademyRoleDto dto)
@@ -172,8 +172,9 @@ public class AcademyConfigurationService
         if (role == null) throw new Exception("Rol no encontrado.");
         role.Name = dto.Name;
         role.Description = dto.Description;
+        role.Permissions = dto.Permissions ?? new List<string>();
         await _context.SaveChangesAsync();
-        return new AcademyRoleDto { Id = role.Id, Name = role.Name, Description = role.Description, IsActive = role.IsActive };
+        return new AcademyRoleDto { Id = role.Id, Name = role.Name, Description = role.Description, Permissions = role.Permissions, IsActive = role.IsActive };
     }
 
     // ==========================================

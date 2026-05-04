@@ -85,12 +85,12 @@ export default function App() {
             </ProtectedRoute>
           } />
           <Route path="/academy/alumnos" element={
-            <ProtectedRoute roles={['AcademyAdmin', 'Staff']}>
+            <ProtectedRoute roles={['AcademyAdmin', 'Staff']} permissions={['view_students']}>
               <Alumnos />
             </ProtectedRoute>
           } />
           <Route path="/academy/apoderados" element={
-            <ProtectedRoute roles={['AcademyAdmin']}>
+            <ProtectedRoute roles={['AcademyAdmin', 'Staff']} permissions={['view_students']}>
               <Padres />
             </ProtectedRoute>
           } />
@@ -100,27 +100,27 @@ export default function App() {
             </ProtectedRoute>
           } />
           <Route path="/academy/asistencia" element={
-            <ProtectedRoute roles={['AcademyAdmin', 'Staff']}>
+            <ProtectedRoute roles={['AcademyAdmin', 'Staff']} permissions={['manage_attendance']}>
               <Asistencia />
             </ProtectedRoute>
           } />
           <Route path="/academy/asistencia-metricas" element={
-            <ProtectedRoute roles={['AcademyAdmin']}>
+            <ProtectedRoute roles={['AcademyAdmin', 'Staff']} permissions={['manage_attendance']}>
               <AsistenciaMetricas />
             </ProtectedRoute>
           } />
           <Route path="/academy/calendario" element={
-            <ProtectedRoute roles={['AcademyAdmin', 'Staff']}>
+            <ProtectedRoute roles={['AcademyAdmin', 'Staff']} permissions={['manage_events']}>
               <Calendario />
             </ProtectedRoute>
           } />
           <Route path="/academy/tienda" element={
-            <ProtectedRoute roles={['AcademyAdmin']}>
+            <ProtectedRoute roles={['AcademyAdmin', 'Staff']} permissions={['manage_store']}>
               <Tienda />
             </ProtectedRoute>
           } />
           <Route path="/academy/finanzas" element={
-            <ProtectedRoute roles={['AcademyAdmin']}>
+            <ProtectedRoute roles={['AcademyAdmin', 'Staff']} permissions={['manage_finances']}>
               <Finanzas />
             </ProtectedRoute>
           } />

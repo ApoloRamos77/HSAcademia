@@ -51,4 +51,18 @@ public class MobileStudentController : ControllerBase
 
         return Ok(profile);
     }
+
+    /// <summary>GET /api/mobile/students/my-students — Returns all students linked to the guardian.</summary>
+    [HttpGet("my-students")]
+    public async Task<IActionResult> GetMyStudents()
+    {
+        var academyId = GetAcademyId();
+        var userId    = GetUserId();
+
+        if (academyId == Guid.Empty || userId == Guid.Empty)
+            return Unauthorized();
+
+        var students = await _studentService.GetMyStudentsAsync(academyId, userId);
+        return Ok(students);
+    }
 }

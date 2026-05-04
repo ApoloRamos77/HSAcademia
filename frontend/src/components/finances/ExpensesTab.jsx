@@ -84,7 +84,7 @@ export default function ExpensesTab() {
           </div>
           <p className="text-red-400 font-medium mb-1">Egresos Totales (Mes)</p>
           <h2 className="text-4xl font-bold text-white tracking-tight">
-            ${totalExpenses.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            S/. {totalExpenses.toLocaleString('en-US', { minimumFractionDigits: 2 })}
           </h2>
           <p className="text-xs text-text-muted mt-2 flex items-center gap-1">
             <Calendar size={12} /> {new Date().toLocaleString('es-ES', { month: 'long', year: 'numeric' })}
@@ -146,7 +146,7 @@ export default function ExpensesTab() {
                     </td>
                     <td className="p-4 text-right">
                       <span className="text-white font-bold bg-white/5 px-3 py-1.5 rounded-lg border border-white/10">
-                        ${e.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        S/. {e.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                       </span>
                     </td>
                     <td className="p-4 text-center">
@@ -193,7 +193,7 @@ export default function ExpensesTab() {
               
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">Monto ($)</label>
+                  <label className="form-label">Monto (S/.)</label>
                   <input 
                     type="number" step="0.01" required min="0.01"
                     value={formData.amount}

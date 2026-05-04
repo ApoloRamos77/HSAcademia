@@ -23,6 +23,7 @@ public class AuthService
         var query = dto.EmailOrPhone.ToLower().Trim();
         var user = await _db.Users
             .Include(u => u.Academy)
+            .Include(u => u.AcademyRole)
             .IgnoreQueryFilters()
             .FirstOrDefaultAsync(u => u.Email.ToLower() == query || u.Phone == query);
 
@@ -74,7 +75,8 @@ public class AuthService
             AcademyId = user.AcademyId,
             AcademyName = user.Academy?.Name,
             RequirePasswordChange = requirePasswordChange,
-            CategoryId = categoryId
+            CategoryId = categoryId,
+            Permissions = user.AcademyRole?.Permissions ?? new List<string>()
         });
     }
 
