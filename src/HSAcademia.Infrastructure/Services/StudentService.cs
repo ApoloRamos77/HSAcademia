@@ -132,6 +132,10 @@ public class StudentService
 
         if (!string.IsNullOrEmpty(dto.Email))
         {
+            var existingStudentUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == dto.Email);
+            if (existingStudentUser != null)
+                throw new Exception("El correo electrónico del alumno ya está en uso.");
+
             var studentUser = new User
             {
                 AcademyId = academyId,
@@ -159,7 +163,7 @@ public class StudentService
                 HeightCm = dto.MedicalRecord.HeightCm,
                 BMI = dto.MedicalRecord.BMI,
                 NutritionPlan = dto.MedicalRecord.NutritionPlan,
-                NextNutritionConsultation = dto.MedicalRecord.NextNutritionConsultation
+                NextNutritionConsultation = dto.MedicalRecord.NextNutritionConsultation?.ToUniversalTime()
             };
         }
 
@@ -314,7 +318,7 @@ public class StudentService
             student.MedicalRecord.HeightCm = dto.MedicalRecord.HeightCm;
             student.MedicalRecord.BMI = dto.MedicalRecord.BMI;
             student.MedicalRecord.NutritionPlan = dto.MedicalRecord.NutritionPlan;
-            student.MedicalRecord.NextNutritionConsultation = dto.MedicalRecord.NextNutritionConsultation;
+            student.MedicalRecord.NextNutritionConsultation = dto.MedicalRecord.NextNutritionConsultation?.ToUniversalTime();
         }
 
         await _context.SaveChangesAsync();
