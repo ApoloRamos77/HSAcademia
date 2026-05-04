@@ -39,11 +39,10 @@ public class CalendarService : ICalendarService
 
         if (headquarterId.HasValue)
             query = query.Where(e => e.HeadquarterId == headquarterId);
-        if (categoryId.HasValue)
-            query = query.Where(e => e.CategoryId == categoryId);
         if (eventType.HasValue)
             query = query.Where(e => (int)e.Type == eventType.Value);
 
+        List<Guid>? staffCategoryIds = null;
         if (userRole == "Staff" && userId.HasValue)
         {
             var userWithCategories = await _db.Users
@@ -52,8 +51,7 @@ public class CalendarService : ICalendarService
 
             if (userWithCategories != null && userWithCategories.AssignedCategories.Any())
             {
-                var assignedCategoryIds = userWithCategories.AssignedCategories.Select(c => c.Id).ToList();
-                query = query.Where(e => e.CategoryId.HasValue && assignedCategoryIds.Contains(e.CategoryId.Value));
+                staffCategoryIds = userWithCategories.AssignedCategories.Select(c => c.Id).ToList();
             }
             else
             {
@@ -63,6 +61,24 @@ public class CalendarService : ICalendarService
         }
 
         var dbEvents = await query.OrderBy(e => e.StartTime).ToListAsync();
+
+        // In-memory filter for Category (CategoryIds cannot be translated to SQL due to ValueConverter)
+        if (categoryId.HasValue)
+        {
+            dbEvents = dbEvents.Where(e => 
+                e.CategoryId == categoryId.Value || 
+                (e.CategoryIds != null && e.CategoryIds.Contains(categoryId.Value))
+            ).ToList();
+        }
+
+        if (staffCategoryIds != null)
+        {
+            dbEvents = dbEvents.Where(e => 
+                (e.CategoryId.HasValue && staffCategoryIds.Contains(e.CategoryId.Value)) ||
+                (e.CategoryIds != null && e.CategoryIds.Any(c => staffCategoryIds.Contains(c)))
+            ).ToList();
+        }
+
         var result = dbEvents.Select(MapToDto).ToList();
 
         // 2. Virtual birthday events (only when no eventType filter OR filter = Birthday)
