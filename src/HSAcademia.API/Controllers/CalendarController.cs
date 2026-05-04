@@ -35,6 +35,7 @@ public class CalendarController : ControllerBase
     /// Returns all real events + virtual birthday events for the given month.
     /// </summary>
     [HttpGet("events")]
+    [AllowAnonymous]
     public async Task<IActionResult> GetEvents(
         [FromQuery] int year,
         [FromQuery] int month,
