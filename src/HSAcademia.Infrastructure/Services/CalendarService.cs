@@ -430,14 +430,9 @@ public class CalendarService : ICalendarService
                 e.StartTime < to);
 
         List<Guid>? birthdayCategoryFilter = null;
+        List<Guid>? staffCategoryIds = null;
 
-        if (userRole == "Student" && categoryId.HasValue)
-        {
-            // Student: solo ve eventos de su categoría (o sin categoría asignada)
-            query = query.Where(e => e.CategoryId == categoryId || e.CategoryId == null);
-            birthdayCategoryFilter = new List<Guid> { categoryId.Value };
-        }
-        else if (userRole == "Staff" && userId.HasValue)
+        if (userRole == "Staff" && userId.HasValue)
         {
             // Staff: ve solo eventos de las categorías que tiene asignadas,
             // o donde él es el entrenador (TeacherId)
@@ -447,11 +442,11 @@ public class CalendarService : ICalendarService
 
             if (userWithCategories != null && userWithCategories.AssignedCategories.Any())
             {
-                var assignedCategoryIds = userWithCategories.AssignedCategories.Select(c => c.Id).ToList();
+                staffCategoryIds = userWithCategories.AssignedCategories.Select(c => c.Id).ToList();
+                birthdayCategoryFilter = staffCategoryIds;
+                // SQL filter only by TeacherId (CategoryIds checked in-memory below)
                 query = query.Where(e =>
-                    (e.CategoryId.HasValue && assignedCategoryIds.Contains(e.CategoryId.Value)) ||
-                    e.TeacherId == userId.Value);
-                birthdayCategoryFilter = assignedCategoryIds;
+                    e.CategoryId.HasValue || e.CategoryIds != null || e.TeacherId == userId.Value);
             }
             else
             {
@@ -462,14 +457,42 @@ public class CalendarService : ICalendarService
         }
         else
         {
-            // AcademyAdmin/SuperAdmin: sin restricciones adicionales
-            if (categoryId.HasValue)
-                query = query.Where(e => e.CategoryId == categoryId || e.CategoryId == null);
+            // Student / Admin: no SQL restriction on HQ/Category here (applied in-memory)
             if (headquarterId.HasValue)
                 query = query.Where(e => e.HeadquarterId == headquarterId || e.HeadquarterId == null);
+            if (categoryId.HasValue)
+                birthdayCategoryFilter = new List<Guid> { categoryId.Value };
         }
 
         var dbEvents = await query.OrderBy(e => e.StartTime).ToListAsync();
+
+        // ── In-memory category filtering (CategoryIds uses ValueConverter → can't go to SQL) ──
+        if (userRole == "Student" && categoryId.HasValue)
+        {
+            dbEvents = dbEvents.Where(e =>
+                e.CategoryId == null ||
+                e.CategoryId == categoryId.Value ||
+                (e.CategoryIds != null && e.CategoryIds.Contains(categoryId.Value))
+            ).ToList();
+        }
+        else if (userRole == "Staff" && staffCategoryIds != null)
+        {
+            var uid = userId!.Value;
+            dbEvents = dbEvents.Where(e =>
+                e.TeacherId == uid ||
+                (e.CategoryId.HasValue && staffCategoryIds.Contains(e.CategoryId.Value)) ||
+                (e.CategoryIds != null && e.CategoryIds.Any(c => staffCategoryIds.Contains(c)))
+            ).ToList();
+        }
+        else if (categoryId.HasValue) // Admin with category filter
+        {
+            dbEvents = dbEvents.Where(e =>
+                e.CategoryId == null ||
+                e.CategoryId == categoryId.Value ||
+                (e.CategoryIds != null && e.CategoryIds.Contains(categoryId.Value))
+            ).ToList();
+        }
+
         var result = dbEvents.Select(e => MapToMobileDto(e)).ToList();
 
         // Add virtual birthday events for the full 12 month range
@@ -514,34 +537,48 @@ public class CalendarService : ICalendarService
                 !e.IsDeleted &&
                 e.StartTime >= now);
 
-        if (userRole == "Student" && categoryId.HasValue)
-        {
-            query = query.Where(e => e.CategoryId == categoryId || e.CategoryId == null);
-        }
-        else if (userRole == "Staff" && userId.HasValue)
+        // Load next events in-memory to support CategoryIds multi-category filter
+        List<Guid>? nextStaffCategoryIds = null;
+        if (userRole == "Staff" && userId.HasValue)
         {
             var userWithCategories = await _db.Users
                 .Include(u => u.AssignedCategories)
                 .FirstOrDefaultAsync(u => u.Id == userId.Value);
 
             if (userWithCategories != null && userWithCategories.AssignedCategories.Any())
-            {
-                var assignedCategoryIds = userWithCategories.AssignedCategories.Select(c => c.Id).ToList();
-                query = query.Where(e =>
-                    (e.CategoryId.HasValue && assignedCategoryIds.Contains(e.CategoryId.Value)) ||
-                    e.TeacherId == userId.Value);
-            }
+                nextStaffCategoryIds = userWithCategories.AssignedCategories.Select(c => c.Id).ToList();
             else
-            {
                 query = query.Where(e => e.TeacherId == userId.Value);
-            }
+        }
+
+        var candidateEvents = await query.OrderBy(e => e.StartTime).ToListAsync();
+
+        // In-memory filter for CategoryIds
+        IEnumerable<Event> filtered = candidateEvents;
+        if (userRole == "Student" && categoryId.HasValue)
+        {
+            filtered = candidateEvents.Where(e =>
+                e.CategoryId == null ||
+                e.CategoryId == categoryId.Value ||
+                (e.CategoryIds != null && e.CategoryIds.Contains(categoryId.Value)));
+        }
+        else if (userRole == "Staff" && nextStaffCategoryIds != null)
+        {
+            var uid = userId!.Value;
+            filtered = candidateEvents.Where(e =>
+                e.TeacherId == uid ||
+                (e.CategoryId.HasValue && nextStaffCategoryIds.Contains(e.CategoryId.Value)) ||
+                (e.CategoryIds != null && e.CategoryIds.Any(c => nextStaffCategoryIds.Contains(c))));
         }
         else if (categoryId.HasValue)
         {
-            query = query.Where(e => e.CategoryId == categoryId || e.CategoryId == null);
+            filtered = candidateEvents.Where(e =>
+                e.CategoryId == null ||
+                e.CategoryId == categoryId.Value ||
+                (e.CategoryIds != null && e.CategoryIds.Contains(categoryId.Value)));
         }
 
-        var next = await query.OrderBy(e => e.StartTime).FirstOrDefaultAsync();
+        var next = filtered.FirstOrDefault();
 
         if (next is null) return null;
 
