@@ -292,7 +292,7 @@ public class CalendarService : ICalendarService
         HeadquarterName = e.Headquarter?.Name,
         CategoryId     = e.CategoryId,
         CategoryName   = e.Category?.Name,
-        CategoryIds    = e.CategoryIds,
+        CategoryIds    = e.CategoryIds ?? new List<Guid>(),
         TeacherId      = e.TeacherId,
         TeacherName    = e.Teacher is null ? null : $"{e.Teacher.FirstName} {e.Teacher.LastName}",
         TournamentId   = e.TournamentId,
