@@ -8,6 +8,7 @@ public class StudentDto
     public string FirstName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;
     public string? Email { get; set; }
+    public string? DocumentNumber { get; set; }
     public DateTime DateOfBirth { get; set; }
     public int Age { get; set; }
     
@@ -35,6 +36,7 @@ public class CreateStudentDto
     public string FirstName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;
     public string? Email { get; set; }
+    public string? DocumentNumber { get; set; }
     public DateTime DateOfBirth { get; set; }
     
     public Guid HeadquarterId { get; set; }
@@ -80,6 +82,7 @@ public class MobileStudentProfileDto
     public string FirstName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;
     public string? Email { get; set; }
+    public string? DocumentNumber { get; set; }
     public DateTime DateOfBirth { get; set; }
     public int Age { get; set; }
     public DateTime EnrollmentDate { get; set; }

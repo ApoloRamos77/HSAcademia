@@ -75,6 +75,13 @@ public class StudentService
 
     public async Task<StudentDto> CreateStudentAsync(Guid academyId, CreateStudentDto dto)
     {
+        if (!string.IsNullOrEmpty(dto.DocumentNumber))
+        {
+            var existingDoc = await _context.Students.FirstOrDefaultAsync(s => s.AcademyId == academyId && s.DocumentNumber == dto.DocumentNumber);
+            if (existingDoc != null)
+                throw new Exception("Ya existe un alumno con ese número de documento en la academia.");
+        }
+
         Guid guardianId;
 
         // Either use existing or create new Guardian
@@ -118,6 +125,7 @@ public class StudentService
             FirstName = dto.FirstName,
             LastName = dto.LastName,
             DateOfBirth = dto.DateOfBirth.ToUniversalTime(),
+            DocumentNumber = dto.DocumentNumber,
             HeadquarterId = dto.HeadquarterId,
             CategoryId = dto.CategoryId,
             GuardianId = guardianId,
@@ -134,21 +142,29 @@ public class StudentService
         {
             var existingStudentUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == dto.Email);
             if (existingStudentUser != null)
-                throw new Exception("El correo electrónico del alumno ya está en uso.");
-
-            var studentUser = new User
             {
-                AcademyId = academyId,
-                FirstName = dto.FirstName,
-                LastName = dto.LastName,
-                Email = dto.Email,
-                Role = UserRole.Student,
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
-                Status = UserStatus.Active
-            };
-            _context.Users.Add(studentUser);
-            await _context.SaveChangesAsync();
-            student.UserId = studentUser.Id;
+                var linkedStudent = await _context.Students.FirstOrDefaultAsync(s => s.AcademyId == academyId && s.UserId == existingStudentUser.Id);
+                if (linkedStudent != null)
+                    throw new Exception("El correo electrónico ya pertenece a otro alumno registrado en esta sede.");
+
+                student.UserId = existingStudentUser.Id;
+            }
+            else
+            {
+                var studentUser = new User
+                {
+                    AcademyId = academyId,
+                    FirstName = dto.FirstName,
+                    LastName = dto.LastName,
+                    Email = dto.Email,
+                    Role = UserRole.Student,
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
+                    Status = UserStatus.Active
+                };
+                _context.Users.Add(studentUser);
+                await _context.SaveChangesAsync();
+                student.UserId = studentUser.Id;
+            }
         }
 
         if (dto.MedicalRecord != null)
@@ -254,8 +270,16 @@ public class StudentService
 
         if (student == null) throw new Exception("Alumno no encontrado.");
 
+        if (!string.IsNullOrEmpty(dto.DocumentNumber) && student.DocumentNumber != dto.DocumentNumber)
+        {
+            var existingDoc = await _context.Students.FirstOrDefaultAsync(s => s.AcademyId == academyId && s.DocumentNumber == dto.DocumentNumber);
+            if (existingDoc != null)
+                throw new Exception("Ya existe un alumno con ese número de documento en la academia.");
+        }
+
         student.FirstName = dto.FirstName;
         student.LastName = dto.LastName;
+        student.DocumentNumber = dto.DocumentNumber;
         student.DateOfBirth = dto.DateOfBirth.ToUniversalTime();
         student.HeadquarterId = dto.HeadquarterId;
         student.CategoryId = dto.CategoryId;
@@ -278,19 +302,31 @@ public class StudentService
             }
             else if (!string.IsNullOrEmpty(dto.Email))
             {
-                var newStUser = new User
+                var existingStudentUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == dto.Email);
+                if (existingStudentUser != null)
                 {
-                    AcademyId = academyId,
-                    FirstName = dto.FirstName,
-                    LastName = dto.LastName,
-                    Email = dto.Email,
-                    Role = UserRole.Student,
-                    PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
-                    Status = UserStatus.Active
-                };
-                _context.Users.Add(newStUser);
-                await _context.SaveChangesAsync();
-                student.UserId = newStUser.Id;
+                    var linkedStudent = await _context.Students.FirstOrDefaultAsync(s => s.AcademyId == academyId && s.UserId == existingStudentUser.Id);
+                    if (linkedStudent != null)
+                        throw new Exception("El correo electrónico ya pertenece a otro alumno registrado en esta sede.");
+
+                    student.UserId = existingStudentUser.Id;
+                }
+                else
+                {
+                    var newStUser = new User
+                    {
+                        AcademyId = academyId,
+                        FirstName = dto.FirstName,
+                        LastName = dto.LastName,
+                        Email = dto.Email,
+                        Role = UserRole.Student,
+                        PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
+                        Status = UserStatus.Active
+                    };
+                    _context.Users.Add(newStUser);
+                    await _context.SaveChangesAsync();
+                    student.UserId = newStUser.Id;
+                }
             }
         }
 

@@ -15,7 +15,7 @@ export default function Alumnos() {
   const [currentStep, setCurrentStep] = useState(1); // 1: Alumno, 2: Apoderado, 3: Ficha Médica
   
   const initialForm = {
-    firstName: '', lastName: '', email: '', dateOfBirth: '', headquarterId: '', categoryId: '',
+    firstName: '', lastName: '', email: '', dateOfBirth: '', documentNumber: '', headquarterId: '', categoryId: '',
     enrollmentDate: new Date().toISOString().split('T')[0], preferentialFee: '',
     isGuest: false, isScholarship: false, scholarshipPercentage: '',
     guardianFirstName: '', guardianLastName: '', guardianEmail: '', guardianPhone: '',
@@ -158,7 +158,7 @@ export default function Alumnos() {
                   <div>
                     <h3 className="font-bold text-lg text-primary-100">{alumno.firstName} {alumno.lastName}</h3>
                     <div className="flex items-center gap-1 text-xs text-text-muted mt-1">
-                      <Calendar size={12} /> {alumno.age} años
+                      <Calendar size={12} /> {alumno.age} años | DNI: {alumno.documentNumber || 'N/A'}
                     </div>
                   </div>
                   <span className={`badge ${alumno.isActive ? 'badge-success' : 'badge-danger'}`}>
@@ -182,6 +182,7 @@ export default function Alumnos() {
                           firstName: alumno.firstName,
                           lastName: alumno.lastName,
                           email: alumno.email || '',
+                          documentNumber: alumno.documentNumber || '',
                           dateOfBirth: alumno.dateOfBirth ? alumno.dateOfBirth.split('T')[0] : '',
                           headquarterId: alumno.headquarterId,
                           categoryId: alumno.categoryId,
@@ -248,8 +249,8 @@ export default function Alumnos() {
 
                     <div className="form-row">
                       <div className="form-group">
-                        <label className="form-label">Correo Electrónico (Opcional) *</label>
-                        <input type="email" className="form-control" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} placeholder="Para su acceso al app" />
+                        <label className="form-label">DNI / Documento Identidad *</label>
+                        <input required type="text" className="form-control" value={formData.documentNumber} onChange={e => setFormData({...formData, documentNumber: e.target.value})} />
                       </div>
                       <div className="form-group">
                         <label className="form-label">Fecha de Nacimiento *</label>
@@ -262,19 +263,23 @@ export default function Alumnos() {
 
                     <div className="form-row">
                       <div className="form-group">
+                        <label className="form-label">Correo Electrónico (Opcional) *</label>
+                        <input type="email" className="form-control" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} placeholder="Para su acceso al app" />
+                      </div>
+                      <div className="form-group">
                         <label className="form-label">Sede de Entrenamiento *</label>
                         <select required className="form-control" value={formData.headquarterId} onChange={e => setFormData({...formData, headquarterId: e.target.value})}>
                           <option value="">-- Seleccione Sede --</option>
                           {sedes.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                         </select>
                       </div>
+                    </div>
+
+                    <div className="form-row">
                       <div className="form-group">
                         <label className="form-label">Fecha de Inicio *</label>
                         <input required type="date" min="1900-01-01" max="2100-12-31" className="form-control" value={formData.enrollmentDate} onChange={e => setFormData({...formData, enrollmentDate: e.target.value})} />
                       </div>
-                    </div>
-
-                    <div className="form-row">
                       <div className="form-group">
                         <label className="form-label">Costo Preferente (Opcional)</label>
                         <input type="number" step="0.01" className="form-control" placeholder="Ej. 150.00" value={formData.preferentialFee} onChange={e => setFormData({...formData, preferentialFee: e.target.value})} />
