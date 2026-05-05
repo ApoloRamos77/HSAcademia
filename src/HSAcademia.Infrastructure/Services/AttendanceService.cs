@@ -378,14 +378,18 @@ public class AttendanceService : IAttendanceService
         var from = windowFrom < enrollMonth ? enrollMonth : windowFrom;
         var to   = DateTime.UtcNow.Date.AddDays(1); // inclusive today
 
-        // â”€â”€ 1. All events for this student's category in the range â”€â”€
-        var events = await _context.Events
+        // ── 1. All events for this student's category in the range ──
+        var allEvents = await _context.Events
             .Where(e => e.AcademyId == academyId &&
-                        e.CategoryId == student.CategoryId &&
                         e.StartTime >= from && e.StartTime < to &&
                         !e.IsDeleted)
             .OrderByDescending(e => e.StartTime)
             .ToListAsync();
+
+        var events = allEvents.Where(e =>
+            e.CategoryId == student.CategoryId ||
+            (e.CategoryIds != null && e.CategoryIds.Contains(student.CategoryId))
+        ).ToList();
 
         if (!events.Any())
         {
@@ -535,6 +539,20 @@ public class AttendanceService : IAttendanceService
         var from = new DateTime(now.Year, now.Month, 1);
         var to   = from.AddMonths(1);
 
+        var student = await _context.Students.FindAsync(studentId);
+        if (student == null) return new MobileAttendanceSummaryDto();
+
+        var allEvents = await _context.Events
+            .Where(e => e.AcademyId == academyId &&
+                        e.StartTime >= from && e.StartTime < to &&
+                        !e.IsDeleted)
+            .ToListAsync();
+
+        var events = allEvents.Where(e =>
+            e.CategoryId == student.CategoryId ||
+            (e.CategoryIds != null && e.CategoryIds.Contains(student.CategoryId))
+        ).ToList();
+
         var records = await _context.Attendances
             .Where(a => a.AcademyId == academyId &&
                         a.StudentId == studentId &&
@@ -547,7 +565,7 @@ public class AttendanceService : IAttendanceService
                                            a.Status == Domain.Enums.AttendanceStatus.Late),
             Justified = records.Count(a => a.Status == Domain.Enums.AttendanceStatus.Excused),
             Absent    = records.Count(a => a.Status == Domain.Enums.AttendanceStatus.Absent),
-            Total     = records.Count,
+            Total     = events.Count,
         };
     }
 
@@ -595,13 +613,12 @@ public class AttendanceService : IAttendanceService
             .Include(u => u.AssignedCategories)
             .FirstOrDefaultAsync(u => u.Id == staffUserId && u.AcademyId == academyId);
 
-        if (userWithCategories == null || !userWithCategories.AssignedCategories.Any())
+        if (userWithCategories == null)
             return new List<StudentAttendanceDto>();
 
         var assignedCategoryIds = userWithCategories.AssignedCategories.Select(c => c.Id).ToList();
 
         // If an eventId is provided, resolve category IDs from the event
-        // and intersect with the Staff's assigned categories
         List<Guid> targetCategoryIds;
         DateTime targetDate = date;
 
@@ -612,14 +629,20 @@ public class AttendanceService : IAttendanceService
 
             if (ev == null) return new List<StudentAttendanceDto>();
 
+            // Security: Staff can only take attendance if they are the Teacher OR have overlapping assigned categories
+            bool isTeacher = ev.TeacherId == staffUserId;
+
             // Gather all category IDs from the event (single + multi)
             var eventCategoryIds = new List<Guid>();
             if (ev.CategoryId.HasValue) eventCategoryIds.Add(ev.CategoryId.Value);
             if (ev.CategoryIds != null) eventCategoryIds.AddRange(ev.CategoryIds);
             eventCategoryIds = eventCategoryIds.Distinct().ToList();
 
-            // Intersect with Staff's assigned categories
-            targetCategoryIds = eventCategoryIds.Intersect(assignedCategoryIds).ToList();
+            // Intersect to check access, but target is ALL event categories
+            if (!isTeacher && !eventCategoryIds.Intersect(assignedCategoryIds).Any())
+                return new List<StudentAttendanceDto>(); // No access
+
+            targetCategoryIds = eventCategoryIds;
             targetDate = ev.StartTime.Date;
         }
         else if (categoryId.HasValue)
@@ -686,16 +709,44 @@ public class AttendanceService : IAttendanceService
             .Include(u => u.AssignedCategories)
             .FirstOrDefaultAsync(u => u.Id == staffUserId && u.AcademyId == academyId);
 
-        if (userWithCategories == null || !userWithCategories.AssignedCategories.Any())
-            throw new Exception("El entrenador no tiene categorÃ­as asignadas.");
+        if (userWithCategories == null)
+            throw new Exception("Entrenador no encontrado.");
 
         var assignedCategoryIds = userWithCategories.AssignedCategories.Select(c => c.Id).ToList();
 
-        // Solo los alumnos de sus categorÃ­as son vÃ¡lidos
+        List<Guid> targetCategoryIds;
+
+        if (dto.EventId.HasValue)
+        {
+            var ev = await _context.Events
+                .FirstOrDefaultAsync(e => e.AcademyId == academyId && e.Id == dto.EventId.Value && !e.IsDeleted);
+            if (ev == null) throw new Exception("Evento no encontrado.");
+
+            bool isTeacher = ev.TeacherId == staffUserId;
+
+            var eventCategoryIds = new List<Guid>();
+            if (ev.CategoryId.HasValue) eventCategoryIds.Add(ev.CategoryId.Value);
+            if (ev.CategoryIds != null) eventCategoryIds.AddRange(ev.CategoryIds);
+            eventCategoryIds = eventCategoryIds.Distinct().ToList();
+
+            if (!isTeacher && !eventCategoryIds.Intersect(assignedCategoryIds).Any())
+                throw new Exception("No tienes permiso para este evento.");
+
+            targetCategoryIds = eventCategoryIds;
+        }
+        else
+        {
+            targetCategoryIds = assignedCategoryIds;
+        }
+
+        if (!targetCategoryIds.Any())
+            throw new Exception("El entrenador no tiene categorías asignadas para este registro.");
+
+        // Solo los alumnos de sus categorías son válidos (ahora targetCategoryIds)
         var studentIds = dto.Records.Select(r => r.StudentId).ToList();
         var validStudentIds = await _context.Students
             .Where(s => s.AcademyId == academyId
-                     && assignedCategoryIds.Contains(s.CategoryId)
+                     && targetCategoryIds.Contains(s.CategoryId)
                      && studentIds.Contains(s.Id))
             .Select(s => s.Id)
             .ToListAsync();
@@ -778,7 +829,6 @@ public class AttendanceService : IAttendanceService
         await _context.SaveChangesAsync();
     }
 
-    /// <inheritdoc/>
     public async Task<List<StaffTrainingSessionDto>> GetStaffTrainingHistoryAsync(
         Guid academyId, Guid staffUserId, int months)
     {
@@ -787,41 +837,55 @@ public class AttendanceService : IAttendanceService
         // Resolve staff's assigned category IDs
         var user = await _context.Users
             .Include(u => u.AssignedCategories)
-                .ThenInclude(c => c.Headquarter)
             .FirstOrDefaultAsync(u => u.Id == staffUserId && u.AcademyId == academyId);
 
-        if (user == null || !user.AssignedCategories.Any())
+        if (user == null)
             return new List<StaffTrainingSessionDto>();
 
-        var categoryIds = user.AssignedCategories.Select(c => c.Id).ToList();
+        var categoryIds = user.AssignedCategories?.Select(c => c.Id).ToList() ?? new List<Guid>();
 
         var from = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1, 0, 0, 0, DateTimeKind.Utc)
                        .AddMonths(-(months - 1));
         var to = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1, 0, 0, 0, DateTimeKind.Utc)
                      .AddMonths(1);
 
-        // All training events for these categories in range
-        var events = await _context.Events
+        // Fetch all events in range, then filter in memory due to CategoryIds jsonb
+        var allEvents = await _context.Events
             .Include(e => e.Category)
             .Include(e => e.Headquarter)
             .Where(e => e.AcademyId == academyId &&
-                        e.CategoryId.HasValue &&
-                        categoryIds.Contains(e.CategoryId!.Value) &&
                         e.StartTime >= from && e.StartTime < to &&
                         !e.IsDeleted)
             .OrderByDescending(e => e.StartTime)
             .ToListAsync();
 
+        var events = allEvents.Where(e =>
+            e.TeacherId == staffUserId ||
+            (e.CategoryId.HasValue && categoryIds.Contains(e.CategoryId.Value)) ||
+            (e.CategoryIds != null && e.CategoryIds.Any(c => categoryIds.Contains(c)))
+        ).ToList();
+
         if (!events.Any()) return new List<StaffTrainingSessionDto>();
 
         var eventIds = events.Select(e => e.Id).ToList();
 
+        // Collect all distinct category IDs involved in these events
+        var eventCategoryIds = events
+            .SelectMany(e => (e.CategoryIds ?? new List<Guid>()).Concat(new[] { e.CategoryId ?? Guid.Empty }))
+            .Where(c => c != Guid.Empty)
+            .Distinct()
+            .ToList();
+
         // Load student counts per category
         var studentCounts = await _context.Students
-            .Where(s => s.AcademyId == academyId && categoryIds.Contains(s.CategoryId) && s.IsActive && !s.IsDeleted)
+            .Where(s => s.AcademyId == academyId && eventCategoryIds.Contains(s.CategoryId) && s.IsActive && !s.IsDeleted)
             .GroupBy(s => s.CategoryId)
             .Select(g => new { CategoryId = g.Key, Count = g.Count() })
             .ToListAsync();
+
+        var categoryDict = await _context.Categories
+            .Where(c => c.AcademyId == academyId && eventCategoryIds.Contains(c.Id))
+            .ToDictionaryAsync(c => c.Id, c => c.Name);
 
         // Load attendance summaries per event
         var attendances = await _context.Attendances
@@ -837,27 +901,34 @@ public class AttendanceService : IAttendanceService
             })
             .ToListAsync();
 
-        var culture = new System.Globalization.CultureInfo("es-CL");
-
         return events.Select(ev =>
         {
             var att  = attendances.FirstOrDefault(a => a.EventId == ev.Id);
-            var sCnt = studentCounts.FirstOrDefault(s => s.CategoryId == ev.CategoryId!.Value);
+            
+            var evCats = new List<Guid>();
+            if (ev.CategoryId.HasValue) evCats.Add(ev.CategoryId.Value);
+            if (ev.CategoryIds != null) evCats.AddRange(ev.CategoryIds);
+            evCats = evCats.Distinct().ToList();
+
+            var totalStudents = studentCounts.Where(s => evCats.Contains(s.CategoryId)).Sum(s => s.Count);
+            var categoryNames = evCats.Select(c => categoryDict.ContainsKey(c) ? categoryDict[c] : "").Where(n => !string.IsNullOrEmpty(n));
+            var categoryNameStr = string.Join(", ", categoryNames);
+
             return new StaffTrainingSessionDto
             {
                 EventId           = ev.Id,
                 Title             = ev.Title,
                 Date              = ev.StartTime.ToString("yyyy-MM-dd"),
                 StartTime         = ev.StartTime.ToString("HH:mm"),
-                CategoryId        = ev.CategoryId!.Value,
-                CategoryName      = ev.Category?.Name ?? "-",
+                CategoryId        = ev.CategoryId ?? Guid.Empty,
+                CategoryName      = string.IsNullOrEmpty(categoryNameStr) ? "-" : categoryNameStr,
                 HeadquarterName   = ev.Headquarter?.Name ?? "-",
                 AttendanceClosed  = ev.AttendanceClosed,
                 AttendanceClosedAt= ev.AttendanceClosedAt,
                 PresentCount      = att?.Present   ?? 0,
                 AbsentCount       = att?.Absent    ?? 0,
                 JustifiedCount    = att?.Justified ?? 0,
-                TotalStudents     = sCnt?.Count    ?? 0,
+                TotalStudents     = totalStudents,
                 AttendanceTaken   = att != null && att.Total > 0,
             };
         }).ToList();
