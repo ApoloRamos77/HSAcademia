@@ -607,7 +607,7 @@ public class AttendanceService : IAttendanceService
     /// with their attendance status for the specified date.
     /// </summary>
     public async Task<List<StudentAttendanceDto>> GetMyStudentsAttendanceAsync(
-        Guid academyId, Guid staffUserId, DateTime date, Guid? categoryId = null, Guid? eventId = null)
+        Guid academyId, Guid staffUserId, DateTime date, Guid? categoryId = null, Guid? eventId = null, Guid? headquarterId = null)
     {
         var userWithCategories = await _context.Users
             .Include(u => u.AssignedCategories)
@@ -616,6 +616,7 @@ public class AttendanceService : IAttendanceService
         if (userWithCategories == null)
             return new List<StudentAttendanceDto>();
 
+        bool isAdmin = userWithCategories.Role == Domain.Enums.UserRole.AcademyAdmin;
         var assignedCategoryIds = userWithCategories.AssignedCategories.Select(c => c.Id).ToList();
 
         // If an eventId is provided, resolve category IDs from the event
@@ -639,7 +640,7 @@ public class AttendanceService : IAttendanceService
             eventCategoryIds = eventCategoryIds.Distinct().ToList();
 
             // Intersect to check access, but target is ALL event categories
-            if (!isTeacher && !eventCategoryIds.Intersect(assignedCategoryIds).Any())
+            if (!isAdmin && !isTeacher && !eventCategoryIds.Intersect(assignedCategoryIds).Any())
                 return new List<StudentAttendanceDto>(); // No access
 
             targetCategoryIds = eventCategoryIds;
@@ -647,14 +648,24 @@ public class AttendanceService : IAttendanceService
         }
         else if (categoryId.HasValue)
         {
-            if (assignedCategoryIds.Contains(categoryId.Value))
+            if (isAdmin || assignedCategoryIds.Contains(categoryId.Value))
                 targetCategoryIds = new List<Guid> { categoryId.Value };
             else
                 return new List<StudentAttendanceDto>(); // No access
         }
         else
         {
-            targetCategoryIds = assignedCategoryIds;
+            if (isAdmin)
+            {
+                var q = _context.Categories.Where(c => c.AcademyId == academyId);
+                if (headquarterId.HasValue)
+                    q = q.Where(c => c.HeadquarterId == headquarterId.Value);
+                targetCategoryIds = await q.Select(c => c.Id).ToListAsync();
+            }
+            else
+            {
+                targetCategoryIds = assignedCategoryIds;
+            }
         }
 
         if (!targetCategoryIds.Any()) return new List<StudentAttendanceDto>();
@@ -712,6 +723,7 @@ public class AttendanceService : IAttendanceService
         if (userWithCategories == null)
             throw new Exception("Entrenador no encontrado.");
 
+        bool isAdmin = userWithCategories.Role == Domain.Enums.UserRole.AcademyAdmin;
         var assignedCategoryIds = userWithCategories.AssignedCategories.Select(c => c.Id).ToList();
 
         List<Guid> targetCategoryIds;
@@ -729,14 +741,17 @@ public class AttendanceService : IAttendanceService
             if (ev.CategoryIds != null) eventCategoryIds.AddRange(ev.CategoryIds);
             eventCategoryIds = eventCategoryIds.Distinct().ToList();
 
-            if (!isTeacher && !eventCategoryIds.Intersect(assignedCategoryIds).Any())
+            if (!isAdmin && !isTeacher && !eventCategoryIds.Intersect(assignedCategoryIds).Any())
                 throw new Exception("No tienes permiso para este evento.");
 
             targetCategoryIds = eventCategoryIds;
         }
         else
         {
-            targetCategoryIds = assignedCategoryIds;
+            if (isAdmin)
+                targetCategoryIds = await _context.Categories.Where(c => c.AcademyId == academyId).Select(c => c.Id).ToListAsync();
+            else
+                targetCategoryIds = assignedCategoryIds;
         }
 
         if (!targetCategoryIds.Any())
@@ -830,7 +845,7 @@ public class AttendanceService : IAttendanceService
     }
 
     public async Task<List<StaffTrainingSessionDto>> GetStaffTrainingHistoryAsync(
-        Guid academyId, Guid staffUserId, int months)
+        Guid academyId, Guid staffUserId, int months, Guid? headquarterId = null)
     {
         months = Math.Clamp(months, 1, 24);
 
@@ -842,6 +857,7 @@ public class AttendanceService : IAttendanceService
         if (user == null)
             return new List<StaffTrainingSessionDto>();
 
+        bool isAdmin = user.Role == Domain.Enums.UserRole.AcademyAdmin;
         var categoryIds = user.AssignedCategories?.Select(c => c.Id).ToList() ?? new List<Guid>();
 
         var from = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1, 0, 0, 0, DateTimeKind.Utc)
@@ -849,17 +865,20 @@ public class AttendanceService : IAttendanceService
         var to = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1, 0, 0, 0, DateTimeKind.Utc)
                      .AddMonths(1);
 
-        // Fetch all events in range, then filter in memory due to CategoryIds jsonb
-        var allEvents = await _context.Events
+        var query = _context.Events
             .Include(e => e.Category)
             .Include(e => e.Headquarter)
             .Where(e => e.AcademyId == academyId &&
                         e.StartTime >= from && e.StartTime < to &&
-                        !e.IsDeleted)
-            .OrderByDescending(e => e.StartTime)
-            .ToListAsync();
+                        !e.IsDeleted);
+
+        if (isAdmin && headquarterId.HasValue)
+            query = query.Where(e => e.HeadquarterId == headquarterId.Value);
+
+        var allEvents = await query.OrderByDescending(e => e.StartTime).ToListAsync();
 
         var events = allEvents.Where(e =>
+            isAdmin ||
             e.TeacherId == staffUserId ||
             (e.CategoryId.HasValue && categoryIds.Contains(e.CategoryId.Value)) ||
             (e.CategoryIds != null && e.CategoryIds.Any(c => categoryIds.Contains(c)))

@@ -256,7 +256,8 @@ public class AttendanceController : ControllerBase
     public async Task<IActionResult> GetMyStudentsAttendance(
         [FromQuery] DateTime? date = null,
         [FromQuery] Guid? categoryId = null,
-        [FromQuery] Guid? eventId = null)
+        [FromQuery] Guid? eventId = null,
+        [FromQuery] Guid? headquarterId = null)
     {
         var academyId = GetAcademyId();
         if (academyId == Guid.Empty) return Unauthorized();
@@ -267,7 +268,7 @@ public class AttendanceController : ControllerBase
         try
         {
             var result = await _attendanceService.GetMyStudentsAttendanceAsync(
-                academyId, userId, targetDate, categoryId, eventId);
+                academyId, userId, targetDate, categoryId, eventId, headquarterId);
             return Ok(result);
         }
         catch (Exception ex) { return BadRequest(new { message = ex.Message }); }

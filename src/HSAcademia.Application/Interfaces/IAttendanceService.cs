@@ -58,7 +58,7 @@ public interface IAttendanceService
     /// Returns students belonging to the Staff's assigned categories with their
     /// attendance status for the given date.
     /// </summary>
-    Task<List<StudentAttendanceDto>> GetMyStudentsAttendanceAsync(Guid academyId, Guid staffUserId, DateTime date, Guid? categoryId = null, Guid? eventId = null);
+    Task<List<StudentAttendanceDto>> GetMyStudentsAttendanceAsync(Guid academyId, Guid staffUserId, DateTime date, Guid? categoryId = null, Guid? eventId = null, Guid? headquarterId = null);
 
     /// <summary>
     /// Saves attendance records for the Staff's students (validates category ownership).
@@ -75,5 +75,5 @@ public interface IAttendanceService
     Task ReopenAttendanceAsync(Guid academyId, Guid eventId);
 
     /// <summary>Returns the training session history for a staff member's assigned categories.</summary>
-    Task<List<StaffTrainingSessionDto>> GetStaffTrainingHistoryAsync(Guid academyId, Guid staffUserId, int months);
+    Task<List<StaffTrainingSessionDto>> GetStaffTrainingHistoryAsync(Guid academyId, Guid staffUserId, int months, Guid? headquarterId = null);
 }
