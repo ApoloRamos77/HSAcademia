@@ -102,7 +102,7 @@ export default function Finanzas() {
   const handlePay = async (e) => {
     e.preventDefault();
     try {
-      await api.post('/finances/debts/pay', {
+      const res = await api.post('/finances/debts/pay', {
         paymentRecordId: selected.id,
         amountPaid: parseFloat(payForm.amountPaid),
         method: payForm.method,
@@ -112,23 +112,19 @@ export default function Finanzas() {
       });
       toast.success('Pago registrado.');
       setModal(null);
-      
-      // Get next receipt number from DB, then generate PDF
-      try {
-        const rRes = await api.post('/finances/next-receipt');
-        generateReceiptPDF({
-          receiptNumber: rRes.data.receiptNumber,
-          customerName: selected.studentName,
-          description: selected.description,
-          quantity: 1,
-          total: parseFloat(payForm.amountPaid),
-          notes: payForm.notes || 'Ninguna'
-        });
-      } catch {
-        // If receipt generation fails, don't block the payment flow
-        toast.error('Pago registrado, pero no se pudo generar el recibo.');
-      }
-      
+
+      // Receipt number comes from the payment response (stored in DB)
+      const lastInstallment = res.data?.installments?.slice(-1)[0];
+      const receiptNumber = lastInstallment?.receiptNumber;
+      generateReceiptPDF({
+        receiptNumber,
+        customerName: selected.studentName,
+        description: selected.description,
+        quantity: 1,
+        total: parseFloat(payForm.amountPaid),
+        notes: payForm.notes || 'Ninguna'
+      });
+
       fetchData();
     } catch (err) { toast.error(err.response?.data?.message || 'Error al registrar pago.'); }
   };
@@ -170,20 +166,18 @@ export default function Finanzas() {
     } catch (err) { toast.error(err.response?.data?.message || 'Error al generar mes siguiente.'); }
   };
 
-  const regenerateDebtReceipt = async (d) => {
-    try {
-      const rRes = await api.post('/finances/next-receipt');
-      generateReceiptPDF({
-        receiptNumber: rRes.data.receiptNumber,
-        customerName: d.studentName,
-        description: d.description,
-        quantity: 1,
-        total: parseFloat(d.amountPaid || d.amount),
-        notes: 'Copia de Recibo - Mensualidad/Cobro'
-      });
-    } catch {
-      toast.error('No se pudo generar el recibo.');
-    }
+  const regenerateDebtReceipt = (d) => {
+    // Use the stored receipt number from the last installment (no new counter increment)
+    const lastInstallment = d.installments?.slice(-1)[0];
+    const receiptNumber = lastInstallment?.receiptNumber;
+    generateReceiptPDF({
+      receiptNumber,
+      customerName: d.studentName,
+      description: d.description,
+      quantity: 1,
+      total: parseFloat(d.amountPaid || d.amount),
+      notes: 'Copia de Recibo - Mensualidad/Cobro'
+    });
   };
 
   const filtered = debts.filter(d =>

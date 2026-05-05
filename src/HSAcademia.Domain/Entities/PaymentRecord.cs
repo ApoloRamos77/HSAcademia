@@ -98,6 +98,9 @@ public class PaymentInstallment
     public string? VoucherUrl { get; set; }
     public string? Notes { get; set; }
 
+    /// <summary>Sequential receipt number assigned at the moment of payment (e.g. "000044").</summary>
+    public string? ReceiptNumber { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 

@@ -348,6 +348,9 @@ public class FinancesService
         if (!Enum.TryParse<PaymentMethod>(dto.Method, true, out var method))
             method = PaymentMethod.Cash;
 
+        // Generate a sequential receipt number stored in the DB
+        var receiptNum = await GenerateNextReceiptNumberAsync(academyId);
+
         _context.PaymentInstallments.Add(new PaymentInstallment
         {
             PaymentRecordId = record.Id,
@@ -356,7 +359,8 @@ public class FinancesService
             Method          = method,
             OperationNumber = dto.OperationNumber,
             VoucherUrl      = dto.VoucherUrl,
-            Notes           = dto.Notes
+            Notes           = dto.Notes,
+            ReceiptNumber   = receiptNum
         });
 
         record.AmountPaid += dto.AmountPaid;
@@ -609,7 +613,8 @@ public class FinancesService
                 Method          = i.Method.ToString(),
                 OperationNumber = i.OperationNumber,
                 VoucherUrl      = i.VoucherUrl,
-                Notes           = i.Notes
+                Notes           = i.Notes,
+                ReceiptNumber   = i.ReceiptNumber
             }).ToList()
         };
     }

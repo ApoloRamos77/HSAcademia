@@ -22,6 +22,7 @@ public class PaymentInstallmentDto
     public string? OperationNumber { get; set; }
     public string? VoucherUrl { get; set; }
     public string? Notes { get; set; }
+    public string? ReceiptNumber { get; set; }
 }
 
 public class PaymentRecordDto
