@@ -79,15 +79,22 @@ export default function Tienda() {
       const student = students.find(s => s.id === saleForm.studentId);
       const total = product ? (product.price * parseInt(saleForm.quantity, 10)).toFixed(2) : 0;
       
-      generateReceiptPDF({
-        customerName: student ? `${student.firstName} ${student.lastName}` : "Público General",
-        description: `Venta de: ${product ? product.name : 'Producto'}`,
-        quantity: parseInt(saleForm.quantity, 10),
-        total: parseFloat(total),
-        notes: "Venta de Tienda"
-      });
+      // Get next receipt number from DB, then generate PDF
+      try {
+        const rRes = await api.post('/finances/next-receipt');
+        generateReceiptPDF({
+          receiptNumber: rRes.data.receiptNumber,
+          customerName: student ? `${student.firstName} ${student.lastName}` : 'Público General',
+          description: `Venta de: ${product ? product.name : 'Producto'}`,
+          quantity: parseInt(saleForm.quantity, 10),
+          total: parseFloat(total),
+          notes: 'Venta de Tienda'
+        });
+      } catch {
+        toast.error('Venta registrada, pero no se pudo generar el recibo.');
+      }
       
-      fetchData(); // Reloads products (to show new stock) and sales list
+      fetchData();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Error al registrar venta. Verifique el stock.');
     }
@@ -96,14 +103,20 @@ export default function Tienda() {
   const selectedProductForSale = products.find(p => p.id === saleForm.productId);
   const totalSaleEstimation = selectedProductForSale ? (selectedProductForSale.price * parseInt(saleForm.quantity || 0)).toFixed(2) : '0.00';
 
-  const regenerateSaleReceipt = (s) => {
-    generateReceiptPDF({
-      customerName: s.studentName || "Público General",
-      description: `Venta de: ${s.productName}`,
-      quantity: s.quantity,
-      total: parseFloat(s.totalPrice),
-      notes: "Copia de Recibo - Venta de Tienda"
-    });
+  const regenerateSaleReceipt = async (s) => {
+    try {
+      const rRes = await api.post('/finances/next-receipt');
+      generateReceiptPDF({
+        receiptNumber: rRes.data.receiptNumber,
+        customerName: s.studentName || 'Público General',
+        description: `Venta de: ${s.productName}`,
+        quantity: s.quantity,
+        total: parseFloat(s.totalPrice),
+        notes: 'Copia de Recibo - Venta de Tienda'
+      });
+    } catch {
+      toast.error('No se pudo generar el recibo.');
+    }
   };
 
   // Dashboard Metrics

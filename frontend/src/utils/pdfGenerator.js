@@ -25,7 +25,7 @@ export const generateReceiptPDF = (data) => {
   
   doc.setTextColor(200, 0, 0); // Red
   doc.setFontSize(14);
-  const receiptNum = data.receiptNumber || Math.floor(100000 + Math.random() * 900000).toString();
+  const receiptNum = data.receiptNumber || 'S/N';
   doc.text(`N° ${receiptNum}`, 160, 50, { align: "center" });
 
   // Company Info (Left)

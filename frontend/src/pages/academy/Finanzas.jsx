@@ -113,14 +113,21 @@ export default function Finanzas() {
       toast.success('Pago registrado.');
       setModal(null);
       
-      // Generate PDF
-      generateReceiptPDF({
-        customerName: selected.studentName,
-        description: selected.description,
-        quantity: 1,
-        total: parseFloat(payForm.amountPaid),
-        notes: payForm.notes || "Ninguna"
-      });
+      // Get next receipt number from DB, then generate PDF
+      try {
+        const rRes = await api.post('/finances/next-receipt');
+        generateReceiptPDF({
+          receiptNumber: rRes.data.receiptNumber,
+          customerName: selected.studentName,
+          description: selected.description,
+          quantity: 1,
+          total: parseFloat(payForm.amountPaid),
+          notes: payForm.notes || 'Ninguna'
+        });
+      } catch {
+        // If receipt generation fails, don't block the payment flow
+        toast.error('Pago registrado, pero no se pudo generar el recibo.');
+      }
       
       fetchData();
     } catch (err) { toast.error(err.response?.data?.message || 'Error al registrar pago.'); }
@@ -163,14 +170,20 @@ export default function Finanzas() {
     } catch (err) { toast.error(err.response?.data?.message || 'Error al generar mes siguiente.'); }
   };
 
-  const regenerateDebtReceipt = (d) => {
-    generateReceiptPDF({
-      customerName: d.studentName,
-      description: d.description,
-      quantity: 1,
-      total: parseFloat(d.amountPaid || d.amount),
-      notes: "Copia de Recibo - Mensualidad/Cobro"
-    });
+  const regenerateDebtReceipt = async (d) => {
+    try {
+      const rRes = await api.post('/finances/next-receipt');
+      generateReceiptPDF({
+        receiptNumber: rRes.data.receiptNumber,
+        customerName: d.studentName,
+        description: d.description,
+        quantity: 1,
+        total: parseFloat(d.amountPaid || d.amount),
+        notes: 'Copia de Recibo - Mensualidad/Cobro'
+      });
+    } catch {
+      toast.error('No se pudo generar el recibo.');
+    }
   };
 
   const filtered = debts.filter(d =>

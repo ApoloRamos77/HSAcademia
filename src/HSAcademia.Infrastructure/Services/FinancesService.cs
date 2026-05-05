@@ -27,11 +27,26 @@ public class FinancesService
         var config = await _context.AcademyFinancialConfigs.FirstOrDefaultAsync(c => c.AcademyId == academyId);
         if (config == null)
         {
-            config = new AcademyFinancialConfig { AcademyId = academyId, DefaultPaymentDay = 5 };
+            config = new AcademyFinancialConfig { AcademyId = academyId, DefaultPaymentDay = 5, CurrentReceiptNumber = 43 };
             _context.AcademyFinancialConfigs.Add(config);
             await _context.SaveChangesAsync();
         }
         return new FinancialConfigDto { DefaultPaymentDay = config.DefaultPaymentDay };
+    }
+
+    public async Task<string> GenerateNextReceiptNumberAsync(Guid academyId)
+    {
+        var config = await _context.AcademyFinancialConfigs.FirstOrDefaultAsync(c => c.AcademyId == academyId);
+        if (config == null)
+        {
+            config = new AcademyFinancialConfig { AcademyId = academyId, DefaultPaymentDay = 5, CurrentReceiptNumber = 43 };
+            _context.AcademyFinancialConfigs.Add(config);
+        }
+        
+        config.CurrentReceiptNumber++;
+        await _context.SaveChangesAsync();
+        
+        return config.CurrentReceiptNumber.ToString().PadLeft(6, '0');
     }
 
     public async Task<FinancialConfigDto> UpdateConfigAsync(Guid academyId, UpdateFinancialConfigDto dto)

@@ -45,6 +45,16 @@ public class FinancesController : ControllerBase
         return Ok(await _financesService.UpdateConfigAsync(academyId, dto));
     }
 
+    [HttpPost("next-receipt")]
+    [Authorize(Roles = "AcademyAdmin,Staff")]
+    public async Task<IActionResult> GenerateNextReceipt()
+    {
+        var academyId = GetAcademyId();
+        if (academyId == Guid.Empty) return Unauthorized();
+        var nextNumber = await _financesService.GenerateNextReceiptNumberAsync(academyId);
+        return Ok(new { receiptNumber = nextNumber });
+    }
+
     // ── Generate Debts ────────────────────────────────────────────
     [HttpPost("generate-debts")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
