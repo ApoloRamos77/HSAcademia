@@ -76,4 +76,8 @@ public interface IAttendanceService
 
     /// <summary>Returns the training session history for a staff member's assigned categories.</summary>
     Task<List<StaffTrainingSessionDto>> GetStaffTrainingHistoryAsync(Guid academyId, Guid staffUserId, int months, Guid? headquarterId = null);
+
+    // ── Admin: Staff Attendance ──
+    Task<List<StaffAttendanceDto>> GetStaffAttendanceAsync(Guid academyId, DateTime date);
+    Task SaveStaffAttendanceAsync(Guid academyId, MarkStaffAttendanceDto dto);
 }

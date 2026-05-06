@@ -26,6 +26,7 @@ public class AppDbContext : DbContext
     public DbSet<PaymentRecord> PaymentRecords => Set<PaymentRecord>();
     public DbSet<PaymentInstallment> PaymentInstallments => Set<PaymentInstallment>();
     public DbSet<Attendance> Attendances => Set<Attendance>();
+    public DbSet<StaffAttendance> StaffAttendances => Set<StaffAttendance>();
     public DbSet<Tournament> Tournaments => Set<Tournament>();
     public DbSet<Event> Events => Set<Event>();
     public DbSet<Announcement> Announcements => Set<Announcement>();
@@ -522,6 +523,38 @@ public class AppDbContext : DbContext
                   .HasForeignKey(e => e.EventId)
                   .OnDelete(DeleteBehavior.SetNull)
                   .IsRequired(false);
+        });
+
+        // ----------------------------------------------------------------
+        // StaffAttendance
+        // ----------------------------------------------------------------
+        modelBuilder.Entity<StaffAttendance>(entity =>
+        {
+            entity.ToTable("staff_attendances");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.AcademyId).HasColumnName("academy_id").IsRequired();
+            entity.Property(e => e.StaffId).HasColumnName("staff_id").IsRequired();
+            entity.Property(e => e.Date).HasColumnName("date").HasColumnType("date").IsRequired();
+            entity.Property(e => e.Status).HasColumnName("status").HasConversion<int>().IsRequired();
+            entity.Property(e => e.Notes).HasColumnName("notes").HasMaxLength(500);
+
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
+
+            entity.HasIndex(e => new { e.StaffId, e.Date }).IsUnique();
+            entity.HasIndex(e => e.AcademyId);
+
+            entity.HasOne(e => e.Academy)
+                  .WithMany()
+                  .HasForeignKey(e => e.AcademyId)
+                  .HasPrincipalKey(a => a.AcademyId)
+                  .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(e => e.Staff)
+                  .WithMany()
+                  .HasForeignKey(e => e.StaffId)
+                  .OnDelete(DeleteBehavior.Restrict);
         });
 
         // ----------------------------------------------------------------

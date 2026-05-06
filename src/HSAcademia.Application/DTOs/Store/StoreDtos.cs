@@ -42,4 +42,9 @@ public class CreateProductSaleDto
     public Guid ProductId { get; set; }
     public Guid? StudentId { get; set; }
     public int Quantity { get; set; }
+
+    // Optional payment context (from mobile POS)
+    public string? PaymentMethod { get; set; }
+    public string? OperationNumber { get; set; }
+    public string? VoucherUrl { get; set; }
 }

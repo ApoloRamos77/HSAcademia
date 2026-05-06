@@ -952,4 +952,82 @@ public class AttendanceService : IAttendanceService
             };
         }).ToList();
     }
+
+    // =========================================================
+    // Admin: Staff Attendance
+    // =========================================================
+
+    public async Task<List<StaffAttendanceDto>> GetStaffAttendanceAsync(Guid academyId, DateTime date)
+    {
+        var staffUsers = await _context.Users
+            .Where(u => u.AcademyId == academyId && u.Role == Domain.Enums.UserRole.Staff && u.Status == Domain.Enums.UserStatus.Active)
+            .OrderBy(u => u.LastName).ThenBy(u => u.FirstName)
+            .ToListAsync();
+
+        var staffIds = staffUsers.Select(u => u.Id).ToList();
+
+        var attendances = await _context.StaffAttendances
+            .Where(a => a.AcademyId == academyId
+                     && a.Date >= date.Date && a.Date < date.Date.AddDays(1)
+                     && staffIds.Contains(a.StaffId))
+            .ToListAsync();
+
+        return staffUsers.Select(u =>
+        {
+            var att = attendances.FirstOrDefault(a => a.StaffId == u.Id);
+            return new StaffAttendanceDto
+            {
+                StaffId      = u.Id,
+                FirstName    = u.FirstName,
+                LastName     = u.LastName,
+                AvatarUrl    = u.AvatarUrl,
+                AttendanceId = att?.Id,
+                Status       = att?.Status,
+                Notes        = att?.Notes
+            };
+        }).ToList();
+    }
+
+    public async Task SaveStaffAttendanceAsync(Guid academyId, MarkStaffAttendanceDto dto)
+    {
+        var staffIds = dto.Records.Select(r => r.StaffId).ToList();
+
+        var validStaffIds = await _context.Users
+            .Where(u => u.AcademyId == academyId && u.Role == Domain.Enums.UserRole.Staff && staffIds.Contains(u.Id))
+            .Select(u => u.Id)
+            .ToListAsync();
+
+        var existing = await _context.StaffAttendances
+            .Where(a => a.AcademyId == academyId
+                     && a.Date.Date == dto.Date.Date
+                     && validStaffIds.Contains(a.StaffId))
+            .ToDictionaryAsync(a => a.StaffId);
+
+        foreach (var record in dto.Records)
+        {
+            if (!validStaffIds.Contains(record.StaffId)) continue;
+
+            if (existing.TryGetValue(record.StaffId, out var existAtt))
+            {
+                existAtt.Status = record.Status;
+                existAtt.Notes  = record.Notes;
+                existAtt.UpdatedAt = DateTime.UtcNow;
+                _context.StaffAttendances.Update(existAtt);
+            }
+            else
+            {
+                _context.StaffAttendances.Add(new StaffAttendance
+                {
+                    AcademyId = academyId,
+                    StaffId   = record.StaffId,
+                    Date      = dto.Date.Date,
+                    Status    = record.Status,
+                    Notes     = record.Notes,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                });
+            }
+        }
+        await _context.SaveChangesAsync();
+    }
 }

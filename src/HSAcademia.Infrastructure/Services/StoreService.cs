@@ -6,6 +6,7 @@ using HSAcademia.Application.DTOs.Store;
 using HSAcademia.Domain.Entities;
 using HSAcademia.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using static HSAcademia.Domain.Entities.PaymentMethod;
 
 namespace HSAcademia.Infrastructure.Services;
 
@@ -135,6 +136,45 @@ public class StoreService
 
         _context.ProductSales.Add(sale);
         await _context.SaveChangesAsync();
+
+        // If payment details provided, store a PaymentInstallment on the linked PaymentRecord
+        if (!string.IsNullOrEmpty(dto.PaymentMethod))
+        {
+            var paymentRecord = await _context.PaymentRecords
+                .FirstOrDefaultAsync(pr => pr.ProductSaleId == sale.Id && pr.AcademyId == academyId);
+
+            if (paymentRecord != null)
+            {
+                var method = dto.PaymentMethod switch
+                {
+                    "Yape"         => PaymentMethod.Yape,
+                    "Plin"         => PaymentMethod.Plin,
+                    "BankTransfer" => PaymentMethod.BankTransfer,
+                    "Card"         => PaymentMethod.Card,
+                    _              => PaymentMethod.Cash
+                };
+
+                var installment = new PaymentInstallment
+                {
+                    PaymentRecordId = paymentRecord.Id,
+                    AmountPaid      = sale.TotalPrice,
+                    PaidAt          = DateTime.UtcNow,
+                    Method          = method,
+                    OperationNumber = dto.OperationNumber,
+                    VoucherUrl      = dto.VoucherUrl,
+                    Notes           = $"Venta móvil — {product.Name} x{dto.Quantity}"
+                };
+
+                _context.PaymentInstallments.Add(installment);
+
+                // Mark record as paid
+                paymentRecord.IsPaid    = true;
+                paymentRecord.PaidDate  = DateTime.UtcNow;
+                paymentRecord.AmountPaid = sale.TotalPrice;
+
+                await _context.SaveChangesAsync();
+            }
+        }
 
         return new ProductSaleDto
         {

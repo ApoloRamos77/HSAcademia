@@ -120,6 +120,34 @@ public class FinancesController : ControllerBase
         }
     }
 
+    // ── Upload Voucher ───────────────────────────────────────────────
+    [HttpPost("upload-voucher")]
+    [Authorize(Roles = "AcademyAdmin,Staff")]
+    public async Task<IActionResult> UploadVoucher(Microsoft.AspNetCore.Http.IFormFile file)
+    {
+        var academyId = GetAcademyId();
+        if (academyId == Guid.Empty) return Unauthorized();
+
+        if (file == null || file.Length == 0)
+            return BadRequest(new { message = "No se proporcionó ningún archivo." });
+
+        var uploadsFolder = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), "wwwroot", "uploads", "vouchers");
+        if (!System.IO.Directory.Exists(uploadsFolder))
+            System.IO.Directory.CreateDirectory(uploadsFolder);
+
+        var ext = System.IO.Path.GetExtension(file.FileName);
+        var fileName = $"{Guid.NewGuid()}{ext}";
+        var filePath = System.IO.Path.Combine(uploadsFolder, fileName);
+
+        using (var stream = new System.IO.FileStream(filePath, System.IO.FileMode.Create))
+        {
+            await file.CopyToAsync(stream);
+        }
+
+        var url = $"/uploads/vouchers/{fileName}";
+        return Ok(new { url });
+    }
+
     // ── Quick-pay (legacy full cash) ──────────────────────────────
     [HttpPost("debts/{id}/pay")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
