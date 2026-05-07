@@ -29,6 +29,7 @@ public class AppDbContext : DbContext
     public DbSet<StaffAttendance> StaffAttendances => Set<StaffAttendance>();
     public DbSet<Tournament> Tournaments => Set<Tournament>();
     public DbSet<Event> Events => Set<Event>();
+    public DbSet<EventCall> EventCalls => Set<EventCall>();
     public DbSet<Announcement> Announcements => Set<Announcement>();
     public DbSet<Expense> Expenses => Set<Expense>();
     public DbSet<PettyCash> PettyCashes => Set<PettyCash>();
@@ -652,6 +653,42 @@ public class AppDbContext : DbContext
                   .HasForeignKey(e => e.TournamentId)
                   .OnDelete(DeleteBehavior.SetNull)
                   .IsRequired(false);
+        });
+
+        // ----------------------------------------------------------------
+        // EventCall
+        // ----------------------------------------------------------------
+        modelBuilder.Entity<EventCall>(entity =>
+        {
+            entity.ToTable("event_calls");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.AcademyId).HasColumnName("academy_id").IsRequired();
+            entity.Property(e => e.EventId).HasColumnName("event_id").IsRequired();
+            entity.Property(e => e.StudentId).HasColumnName("student_id").IsRequired();
+            entity.Property(e => e.IsConfirmed).HasColumnName("is_confirmed");
+
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
+
+            entity.HasIndex(e => new { e.EventId, e.StudentId }).IsUnique();
+            entity.HasIndex(e => e.AcademyId);
+
+            entity.HasOne(e => e.Academy)
+                  .WithMany()
+                  .HasForeignKey(e => e.AcademyId)
+                  .HasPrincipalKey(a => a.AcademyId)
+                  .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(e => e.Event)
+                  .WithMany()
+                  .HasForeignKey(e => e.EventId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.Student)
+                  .WithMany()
+                  .HasForeignKey(e => e.StudentId)
+                  .OnDelete(DeleteBehavior.Cascade);
         });
 
         // ----------------------------------------------------------------

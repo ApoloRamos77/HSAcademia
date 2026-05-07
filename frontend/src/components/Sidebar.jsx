@@ -109,6 +109,9 @@ export default function Sidebar({ isOpen, onClose }) {
               <NavLink to="/academy/roles" className={navCls} onClick={onClose}>
                 <ShieldCheck size={16} /> Roles
               </NavLink>
+              <NavLink to="/academy/torneos" className={navCls} onClick={onClose}>
+                <Crown size={16} /> Torneos
+              </NavLink>
               <NavLink to="/academy/calendario" className={navCls} onClick={onClose}>
                 <CalendarDays size={16} /> Calendario
               </NavLink>

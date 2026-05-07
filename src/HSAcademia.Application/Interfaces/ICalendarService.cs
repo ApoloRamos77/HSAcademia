@@ -38,8 +38,15 @@ public interface ICalendarService
     // --- Tournament ---
     Task<List<TournamentDto>> GetTournamentsAsync(Guid academyId);
     Task<TournamentDto> CreateTournamentAsync(Guid academyId, CreateTournamentDto dto);
+    Task<TournamentDto> UpdateTournamentAsync(Guid academyId, Guid tournamentId, UpdateTournamentDto dto);
     Task DeleteTournamentAsync(Guid academyId, Guid tournamentId);
 
+    // --- Event Calls ---
+    Task<List<EventCallDto>> GetEventCallsAsync(Guid academyId, Guid eventId);
+    Task<EventCallDto?> GetMyEventCallAsync(Guid academyId, Guid eventId, Guid studentId);
+    Task<int> AutoGenerateEventCallsAsync(Guid academyId, Guid eventId);
+    Task<EventCallDto> UpdateEventCallStatusAsync(Guid academyId, Guid eventCallId, bool? isConfirmed);
+    
     // ── Phase 3: Mobile App endpoints ──
 
     /// <summary>

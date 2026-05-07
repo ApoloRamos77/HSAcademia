@@ -3,7 +3,7 @@ import api from '../../api/axios';
 import AppLayout from '../../components/AppLayout';
 import {
   CalendarDays, ChevronLeft, ChevronRight, Plus, X, Filter,
-  Cake, Trophy, Swords, Dumbbell, Clock, MapPin, Users, RefreshCw
+  Cake, Trophy, Swords, Dumbbell, Clock, MapPin, Users, RefreshCw, Send
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -69,6 +69,12 @@ export default function Calendario() {
   const [saving, setSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
+
+  // Calls
+  const [showCallsModal, setShowCallsModal] = useState(false);
+  const [currentCallEventId, setCurrentCallEventId] = useState(null);
+  const [calls, setCalls] = useState([]);
+  const [loadingCalls, setLoadingCalls] = useState(false);
 
   const MONTH_NAMES_FULL = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
                             'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -263,6 +269,38 @@ export default function Calendario() {
     } catch { toast.error('Error al actualizar masivamente'); }
   };
 
+  // ── Calls ──
+  const openCalls = async (eventId) => {
+    setCurrentCallEventId(eventId);
+    setShowCallsModal(true);
+    fetchCalls(eventId);
+  };
+
+  const fetchCalls = async (eventId) => {
+    setLoadingCalls(true);
+    try {
+      const { data } = await api.get(`/calendar/events/${eventId}/calls`);
+      setCalls(data);
+    } catch {
+      toast.error('Error al cargar convocatorias');
+    } finally {
+      setLoadingCalls(false);
+    }
+  };
+
+  const autoGenerateCalls = async () => {
+    if (!currentCallEventId) return;
+    if (!window.confirm('¿Generar convocatorias para los alumnos de las categorías asignadas?')) return;
+    
+    try {
+      const { data } = await api.post(`/calendar/events/${currentCallEventId}/calls/auto-generate`);
+      toast.success(data.message);
+      fetchCalls(currentCallEventId);
+    } catch {
+      toast.error('Error al generar convocatorias');
+    }
+  };
+
   const calendarDays = buildCalendarDays(year, month);
 
   // ─────────── RENDER ───────────
@@ -393,6 +431,14 @@ export default function Calendario() {
                     </div>
                     {!e.isVirtual && (
                       <div style={{ display:'flex', gap: 4 }}>
+                        {e.type === 3 && (
+                          <button
+                            className="btn-icon"
+                            style={{ color:'var(--info, #3b82f6)' }}
+                            onClick={() => { setSelectedDay(null); openCalls(e.id); }}
+                            title="Convocatorias"
+                          ><Send size={14}/></button>
+                        )}
                         <button
                           className="btn-icon"
                           style={{ color:'var(--primary)' }}
@@ -639,6 +685,59 @@ export default function Calendario() {
               <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
                 {saving ? 'Guardando...' : (isEditing ? 'Actualizar Evento' : (form.type === 1 && recurringEnabled ? '📅 Crear Entrenamientos' : 'Crear Evento'))}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ════════ Calls (Convocatorias) Modal ════════ */}
+      {showCallsModal && (
+        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowCallsModal(false)}>
+          <div className="modal-box" style={{ maxWidth: 600 }}>
+            <div className="modal-header">
+              <h3><Send size={18}/> Convocatorias al Torneo</h3>
+              <button className="btn-icon" onClick={() => setShowCallsModal(false)}><X size={18}/></button>
+            </div>
+            <div className="modal-body">
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 15 }}>
+                <p style={{ margin: 0, fontSize: 14, color: 'var(--text-muted)' }}>
+                  Alumnos convocados para este torneo.
+                </p>
+                <button className="btn btn-secondary btn-sm" onClick={autoGenerateCalls}>
+                  <RefreshCw size={14} /> Autogenerar Convocatorias
+                </button>
+              </div>
+
+              {loadingCalls ? (
+                <p>Cargando convocatorias...</p>
+              ) : calls.length === 0 ? (
+                <p style={{ color: 'var(--text-muted)' }}>No hay alumnos convocados aún.</p>
+              ) : (
+                <div style={{ maxHeight: 300, overflowY: 'auto' }}>
+                  <table className="table" style={{ width: '100%', fontSize: 13 }}>
+                    <thead>
+                      <tr>
+                        <th>Alumno</th>
+                        <th>Categoría</th>
+                        <th>Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {calls.map(c => (
+                        <tr key={c.id}>
+                          <td>{c.studentName}</td>
+                          <td>{c.studentCategory}</td>
+                          <td>
+                            {c.isConfirmed === true && <span style={{ color: '#10b981', fontWeight: 'bold' }}>Confirmado</span>}
+                            {c.isConfirmed === false && <span style={{ color: '#ef4444', fontWeight: 'bold' }}>Rechazado</span>}
+                            {c.isConfirmed === null && <span style={{ color: '#f59e0b', fontWeight: 'bold' }}>Pendiente</span>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </div>
         </div>

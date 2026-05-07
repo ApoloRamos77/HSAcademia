@@ -283,6 +283,28 @@ public class CalendarService : ICalendarService
         };
     }
 
+    public async Task<TournamentDto> UpdateTournamentAsync(Guid academyId, Guid tournamentId, UpdateTournamentDto dto)
+    {
+        var t = await _db.Tournaments.FirstOrDefaultAsync(x => x.AcademyId == academyId && x.Id == tournamentId && !x.IsDeleted)
+                ?? throw new KeyNotFoundException("Torneo no encontrado.");
+
+        t.Name = dto.Name;
+        t.Organizer = dto.Organizer;
+        t.MainLocation = dto.MainLocation;
+        t.UpdatedAt = DateTime.UtcNow;
+
+        await _db.SaveChangesAsync();
+
+        return new TournamentDto
+        {
+            Id           = t.Id,
+            Name         = t.Name,
+            Organizer    = t.Organizer,
+            MainLocation = t.MainLocation,
+            CreatedAt    = t.CreatedAt
+        };
+    }
+
     public async Task DeleteTournamentAsync(Guid academyId, Guid tournamentId)
     {
         var t = await _db.Tournaments.FirstOrDefaultAsync(t => t.AcademyId == academyId && t.Id == tournamentId)
@@ -290,6 +312,124 @@ public class CalendarService : ICalendarService
         t.IsDeleted = true;
         t.DeletedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
+    }
+
+    // =========================================================
+    // EVENT CALLS (Convocatorias)
+    // =========================================================
+    public async Task<List<EventCallDto>> GetEventCallsAsync(Guid academyId, Guid eventId)
+    {
+        return await _db.EventCalls
+            .Include(c => c.Student)
+            .ThenInclude(s => s.Category)
+            .Where(c => c.AcademyId == academyId && c.EventId == eventId)
+            .Select(c => new EventCallDto
+            {
+                Id              = c.Id,
+                EventId         = c.EventId,
+                StudentId       = c.StudentId,
+                StudentName     = c.Student.FirstName + " " + c.Student.LastName,
+                StudentCategory = c.Student.Category.Name,
+                IsConfirmed     = c.IsConfirmed,
+                CreatedAt       = c.CreatedAt
+            })
+            .ToListAsync();
+    }
+
+    public async Task<EventCallDto?> GetMyEventCallAsync(Guid academyId, Guid eventId, Guid studentId)
+    {
+        var c = await _db.EventCalls
+            .Include(x => x.Student)
+            .ThenInclude(x => x.Category)
+            .FirstOrDefaultAsync(x => x.AcademyId == academyId && x.EventId == eventId && x.StudentId == studentId);
+        
+        if (c == null) return null;
+
+        return new EventCallDto
+        {
+            Id              = c.Id,
+            EventId         = c.EventId,
+            StudentId       = c.StudentId,
+            StudentName     = c.Student.FirstName + " " + c.Student.LastName,
+            StudentCategory = c.Student.Category.Name,
+            IsConfirmed     = c.IsConfirmed,
+            CreatedAt       = c.CreatedAt
+        };
+    }
+
+    public async Task<int> AutoGenerateEventCallsAsync(Guid academyId, Guid eventId)
+    {
+        var ev = await _db.Events.FirstOrDefaultAsync(e => e.AcademyId == academyId && e.Id == eventId && !e.IsDeleted)
+                 ?? throw new KeyNotFoundException("Evento no encontrado.");
+
+        var categoryIds = new List<Guid>();
+        if (ev.CategoryId.HasValue) categoryIds.Add(ev.CategoryId.Value);
+        if (ev.CategoryIds != null) categoryIds.AddRange(ev.CategoryIds);
+        
+        categoryIds = categoryIds.Distinct().ToList();
+
+        if (!categoryIds.Any()) return 0; // No categories assigned
+
+        // Get all active students in these categories
+        var students = await _db.Students
+            .Where(s => s.AcademyId == academyId && s.IsActive && !s.IsDeleted && categoryIds.Contains(s.CategoryId))
+            .ToListAsync();
+
+        // Get existing calls
+        var existingCallStudentIds = await _db.EventCalls
+            .Where(c => c.EventId == eventId)
+            .Select(c => c.StudentId)
+            .ToListAsync();
+
+        var newCalls = new List<EventCall>();
+        foreach (var s in students)
+        {
+            if (!existingCallStudentIds.Contains(s.Id))
+            {
+                newCalls.Add(new EventCall
+                {
+                    AcademyId = academyId,
+                    EventId = eventId,
+                    StudentId = s.Id,
+                    IsConfirmed = null, // Pending
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                });
+            }
+        }
+
+        if (newCalls.Any())
+        {
+            _db.EventCalls.AddRange(newCalls);
+            await _db.SaveChangesAsync();
+        }
+
+        return newCalls.Count;
+    }
+
+    public async Task<EventCallDto> UpdateEventCallStatusAsync(Guid academyId, Guid eventCallId, bool? isConfirmed)
+    {
+        var call = await _db.EventCalls
+            .Include(c => c.Student)
+            .ThenInclude(s => s.Category)
+            .FirstOrDefaultAsync(c => c.AcademyId == academyId && c.Id == eventCallId)
+            ?? throw new KeyNotFoundException("Convocatoria no encontrada.");
+
+        call.IsConfirmed = isConfirmed;
+        call.UpdatedAt = DateTime.UtcNow;
+
+        await _db.SaveChangesAsync();
+
+        return new EventCallDto
+        {
+            Id              = call.Id,
+            EventId         = call.EventId,
+            StudentId       = call.StudentId,
+            StudentName     = call.Student.FirstName + " " + call.Student.LastName,
+            StudentCategory = call.Student.Category.Name,
+            IsConfirmed     = call.IsConfirmed,
+            CreatedAt       = call.CreatedAt
+        };
     }
 
     // =========================================================

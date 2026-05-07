@@ -165,9 +165,72 @@ public class CalendarController : ControllerBase
         return Created($"/api/calendar/tournaments/{created.Id}", created);
     }
 
+    [HttpPut("tournaments/{id:guid}")]
+    public async Task<IActionResult> UpdateTournament(Guid id, [FromBody] UpdateTournamentDto dto)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+        try
+        {
+            var academyId = GetAcademyId();
+            var updated = await _calendarService.UpdateTournamentAsync(academyId, id, dto);
+            return Ok(updated);
+        }
+        catch (KeyNotFoundException) { return NotFound(); }
+    }
+
+    [HttpDelete("tournaments/{id:guid}")]
+    public async Task<IActionResult> DeleteTournament(Guid id)
+    {
+        try
+        {
+            var academyId = GetAcademyId();
+            await _calendarService.DeleteTournamentAsync(academyId, id);
+            return NoContent();
+        }
+        catch (KeyNotFoundException) { return NotFound(); }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // EVENT CALLS (Convocatorias)
+    // ─────────────────────────────────────────────────────────────
+    [HttpGet("events/{eventId:guid}/calls")]
+    public async Task<IActionResult> GetEventCalls(Guid eventId)
+    {
+        var academyId = GetAcademyId();
+        var calls = await _calendarService.GetEventCallsAsync(academyId, eventId);
+        return Ok(calls);
+    }
+
+    [HttpPost("events/{eventId:guid}/calls/auto-generate")]
+    public async Task<IActionResult> AutoGenerateEventCalls(Guid eventId)
+    {
+        try
+        {
+            var academyId = GetAcademyId();
+            var count = await _calendarService.AutoGenerateEventCallsAsync(academyId, eventId);
+            return Ok(new { message = $"Se generaron {count} nuevas convocatorias." });
+        }
+        catch (KeyNotFoundException) { return NotFound(); }
+    }
+
     // ─────────────────────────────────────────────────────────────
     // Phase 3 — Mobile App endpoints
     // ─────────────────────────────────────────────────────────────
+    [HttpGet("mobile/events/{eventId:guid}/my-call")]
+    public async Task<IActionResult> GetMyEventCall(Guid eventId, [FromQuery] Guid studentId)
+    {
+        try
+        {
+            var academyId = GetAcademyId();
+            var call = await _calendarService.GetMyEventCallAsync(academyId, eventId, studentId);
+            if (call == null) return NoContent();
+            return Ok(call);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
+        }
+    }
 
     /// <summary>
     /// GET /api/calendar/mobile/events?categoryId=...&amp;headquarterId=...
@@ -218,6 +281,18 @@ public class CalendarController : ControllerBase
         {
             return Unauthorized(new { message = ex.Message });
         }
+    }
+
+    [HttpPut("mobile/calls/{callId:guid}/confirm")]
+    public async Task<IActionResult> ConfirmEventCall(Guid callId, [FromBody] UpdateEventCallDto dto)
+    {
+        try
+        {
+            var academyId = GetAcademyId();
+            var updated = await _calendarService.UpdateEventCallStatusAsync(academyId, callId, dto.IsConfirmed);
+            return Ok(updated);
+        }
+        catch (KeyNotFoundException) { return NotFound(); }
     }
 }
 

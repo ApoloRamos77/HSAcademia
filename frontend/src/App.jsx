@@ -22,6 +22,7 @@ import AsistenciaMetricas from './pages/academy/AsistenciaMetricas';
 import Calendario from './pages/academy/Calendario';
 import Tienda from './pages/academy/Tienda';
 import Finanzas from './pages/academy/Finanzas';
+import Torneos from './pages/academy/Torneos';
 import StudentDashboard from './pages/student/Dashboard';
 import ChangePasswordPage from './pages/ChangePasswordPage';
 import SessionTimeout from './components/SessionTimeout';
@@ -112,6 +113,11 @@ export default function App() {
           <Route path="/academy/calendario" element={
             <ProtectedRoute roles={['AcademyAdmin', 'Staff']} permissions={['manage_events']}>
               <Calendario />
+            </ProtectedRoute>
+          } />
+          <Route path="/academy/torneos" element={
+            <ProtectedRoute roles={['AcademyAdmin', 'Staff']} permissions={['manage_events']}>
+              <Torneos />
             </ProtectedRoute>
           } />
           <Route path="/academy/tienda" element={

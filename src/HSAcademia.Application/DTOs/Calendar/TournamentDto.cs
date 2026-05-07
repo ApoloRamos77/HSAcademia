@@ -22,3 +22,6 @@ public class CreateTournamentDto
     [Required, MaxLength(300)]
     public string MainLocation { get; set; } = string.Empty;
 }
+
+public class UpdateTournamentDto : CreateTournamentDto { }
+
