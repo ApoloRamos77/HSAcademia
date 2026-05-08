@@ -28,19 +28,39 @@ public class FinancesPremiumService : IFinancesPremiumService
         var startDate = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Utc);
         var endDate = startDate.AddMonths(1);
 
-        return await _context.Expenses
+        var expenses = await _context.Expenses
             .Where(e => e.AcademyId == academyId && e.Date >= startDate && e.Date < endDate)
             .OrderByDescending(e => e.Date)
-            .Select(e => new ExpenseDto
-            {
-                Id = e.Id,
-                Type = e.Type,
-                Amount = e.Amount,
-                Date = e.Date,
-                Description = e.Description,
-                VoucherUrl = e.VoucherUrl
-            })
             .ToListAsync();
+
+        // Load linked products for each expense
+        var expenseIds = expenses.Select(e => e.Id).ToList();
+        var linkedProducts = await _context.Products
+            .Where(p => p.PurchaseExpenseId != null && expenseIds.Contains(p.PurchaseExpenseId.Value))
+            .ToListAsync();
+
+        return expenses.Select(e => new ExpenseDto
+        {
+            Id = e.Id,
+            Type = e.Type,
+            Amount = e.Amount,
+            Date = e.Date,
+            Description = e.Description,
+            Supplier = e.Supplier,
+            VoucherUrl = e.VoucherUrl,
+            Products = linkedProducts
+                .Where(p => p.PurchaseExpenseId == e.Id)
+                .Select(p => new PurchaseProductDto
+                {
+                    ProductId = p.Id,
+                    Name = p.Name,
+                    ProductCategory = p.ProductCategory,
+                    Quantity = p.Stock,
+                    UnitCost = p.CostPrice,
+                    SalePrice = p.Price,
+                    ForSale = p.IsActive
+                }).ToList()
+        }).ToList();
     }
 
     public async Task<ExpenseDto> CreateExpenseAsync(Guid academyId, Guid registeredBy, CreateExpenseDto dto)
@@ -52,12 +72,46 @@ public class FinancesPremiumService : IFinancesPremiumService
             Amount = dto.Amount,
             Date = dto.Date.ToUniversalTime(),
             Description = dto.Description,
+            Supplier = dto.Supplier,
             VoucherUrl = dto.VoucherUrl,
             RegisteredById = registeredBy
         };
 
         _context.Expenses.Add(expense);
         await _context.SaveChangesAsync();
+
+        // Create any linked products from this purchase
+        var createdProducts = new List<PurchaseProductDto>();
+        if (dto.Products?.Count > 0)
+        {
+            foreach (var pd in dto.Products)
+            {
+                var product = new Domain.Entities.Product
+                {
+                    AcademyId = academyId,
+                    Name = pd.Name,
+                    Description = pd.Description,
+                    ProductCategory = pd.ProductCategory,
+                    CostPrice = pd.UnitCost,
+                    Price = pd.SalePrice,
+                    Stock = pd.Quantity,
+                    IsActive = pd.ForSale && pd.SalePrice > 0, // only active for sale if price is set
+                    PurchaseExpenseId = expense.Id
+                };
+                _context.Products.Add(product);
+                createdProducts.Add(new PurchaseProductDto
+                {
+                    ProductId = product.Id,
+                    Name = product.Name,
+                    ProductCategory = product.ProductCategory,
+                    Quantity = product.Stock,
+                    UnitCost = product.CostPrice,
+                    SalePrice = product.Price,
+                    ForSale = product.IsActive
+                });
+            }
+            await _context.SaveChangesAsync();
+        }
 
         return new ExpenseDto
         {
@@ -66,7 +120,9 @@ public class FinancesPremiumService : IFinancesPremiumService
             Amount = expense.Amount,
             Date = expense.Date,
             Description = expense.Description,
-            VoucherUrl = expense.VoucherUrl
+            Supplier = expense.Supplier,
+            VoucherUrl = expense.VoucherUrl,
+            Products = createdProducts
         };
     }
 

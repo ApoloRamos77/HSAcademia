@@ -22,4 +22,7 @@ public class Product
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     public bool IsDeleted { get; set; } = false;
     public DateTime? DeletedAt { get; set; }
+
+    /// <summary>If this product was created from a purchase, links back to that Expense record.</summary>
+    public Guid? PurchaseExpenseId { get; set; }
 }
