@@ -107,11 +107,7 @@ export default function Alumnos() {
     }
 
     if (currentStep === 3) {
-      if (!formData.phone && (!formData.guardianFirstName || !formData.guardianLastName || !formData.guardianEmail || !formData.guardianPhone)) {
-        toast.error("Al no tener celular el alumno, los datos del apoderado son obligatorios para el registro.");
-        setCurrentStep(2);
-        return;
-      }
+      // No validation needed
     }
 
     try {
@@ -282,7 +278,7 @@ export default function Alumnos() {
                         <input type="email" className="form-control" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} placeholder="Para su acceso al app" />
                       </div>
                       <div className="form-group">
-                        <label className="form-label">Celular del Alumno {formData.phone ? '*' : '(Opcional si hay apoderado)'}</label>
+                        <label className="form-label">Celular del Alumno (Opcional)</label>
                         <input type="tel" className="form-control" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} placeholder="Ej. 987654321" />
                       </div>
                     </div>
@@ -351,22 +347,22 @@ export default function Alumnos() {
                     
                     <div className="form-row">
                       <div className="form-group">
-                        <label className="form-label">Nombres del Apoderado {!formData.phone && '*'}</label>
+                        <label className="form-label">Nombres del Apoderado</label>
                         <input type="text" className="form-control" value={formData.guardianFirstName} onChange={e => setFormData({...formData, guardianFirstName: e.target.value})} />
                       </div>
                       <div className="form-group">
-                        <label className="form-label">Apellidos del Apoderado {!formData.phone && '*'}</label>
+                        <label className="form-label">Apellidos del Apoderado</label>
                         <input type="text" className="form-control" value={formData.guardianLastName} onChange={e => setFormData({...formData, guardianLastName: e.target.value})} />
                       </div>
                     </div>
 
                     <div className="form-row">
                       <div className="form-group">
-                        <label className="form-label">Celular de Contacto {!formData.phone && '*'}</label>
+                        <label className="form-label">Celular de Contacto</label>
                         <input type="tel" className="form-control" placeholder="Ej. 987654321" value={formData.guardianPhone} onChange={e => setFormData({...formData, guardianPhone: e.target.value})} />
                       </div>
                       <div className="form-group">
-                        <label className="form-label">Correo Electrónico {!formData.phone && '*'}</label>
+                        <label className="form-label">Correo Electrónico</label>
                         <input type="email" className="form-control" placeholder="Para notificaciones y acceso" value={formData.guardianEmail} onChange={e => setFormData({...formData, guardianEmail: e.target.value})} />
                       </div>
                     </div>

@@ -127,7 +127,7 @@ public class FinancesService
 
         var students = await _context.Students
             .Include(s => s.Category)
-            .Where(s => s.AcademyId == academyId && s.IsActive && !s.IsGuest && !s.IsScholarship)
+            .Where(s => s.AcademyId == academyId && s.IsActive)
             .ToListAsync();
 
         int generatedCount = 0;
@@ -199,6 +199,23 @@ public class FinancesService
                 }
             }
 
+            decimal discountAmount = 0m;
+            if (student.IsGuest)
+            {
+                discountAmount = chargedAmount;
+                chargedAmount = 0m;
+            }
+            else if (student.IsScholarship)
+            {
+                discountAmount = chargedAmount;
+                chargedAmount = 0m;
+            }
+            else if (student.ScholarshipPercentage.HasValue && student.ScholarshipPercentage.Value > 0)
+            {
+                discountAmount = Math.Round(chargedAmount * student.ScholarshipPercentage.Value / 100, 2);
+                chargedAmount -= discountAmount;
+            }
+
             _context.PaymentRecords.Add(new PaymentRecord
             {
                 AcademyId           = academyId,
@@ -206,8 +223,10 @@ public class FinancesService
                 Description         = description,
                 Amount              = chargedAmount,
                 AmountPaid          = 0m,
+                DiscountAmount      = discountAmount,
                 DueDate             = dueDate,
-                IsPaid              = false,
+                IsPaid              = chargedAmount == 0m,
+                PaidDate            = chargedAmount == 0m ? DateTime.UtcNow : null,
                 Type                = PaymentType.MonthlyFee,
                 IsProrated          = isProrated,
                 ProratedStartDate   = proratedStart,
@@ -258,6 +277,23 @@ public class FinancesService
         var dueDayNum    = Math.Min(config.DefaultPaymentDay, daysInMonth);
         var dueDate      = new DateTime(year, month, dueDayNum, 0, 0, 0, DateTimeKind.Utc);
 
+        decimal discountAmount = 0m;
+        if (student.IsGuest)
+        {
+            discountAmount = fullAmount;
+            fullAmount = 0m;
+        }
+        else if (student.IsScholarship)
+        {
+            discountAmount = fullAmount;
+            fullAmount = 0m;
+        }
+        else if (student.ScholarshipPercentage.HasValue && student.ScholarshipPercentage.Value > 0)
+        {
+            discountAmount = Math.Round(fullAmount * student.ScholarshipPercentage.Value / 100, 2);
+            fullAmount -= discountAmount;
+        }
+
         // Next month is always full month (no proration needed)
         var record = new PaymentRecord
         {
@@ -266,8 +302,10 @@ public class FinancesService
             Description         = description,
             Amount              = fullAmount,
             AmountPaid          = 0m,
+            DiscountAmount      = discountAmount,
             DueDate             = dueDate,
-            IsPaid              = false,
+            IsPaid              = fullAmount == 0m,
+            PaidDate            = fullAmount == 0m ? DateTime.UtcNow : null,
             Type                = PaymentType.MonthlyFee,
             IsProrated          = false
         };
@@ -469,6 +507,25 @@ public class FinancesService
                 record.ProratedTotalDays   = null;
                 record.ProratedDaysCharged = null;
             }
+            
+            // Aplicar descuento de beca/invitado al monto recalculado
+            decimal discountAmount = 0m;
+            if (student.IsGuest)
+            {
+                discountAmount = record.Amount;
+                record.Amount = 0m;
+            }
+            else if (student.IsScholarship)
+            {
+                discountAmount = record.Amount;
+                record.Amount = 0m;
+            }
+            else if (student.ScholarshipPercentage.HasValue && student.ScholarshipPercentage.Value > 0)
+            {
+                discountAmount = Math.Round(record.Amount * student.ScholarshipPercentage.Value / 100, 2);
+                record.Amount -= discountAmount;
+            }
+            record.DiscountAmount = discountAmount;
         }
 
         // ── Ajuste de AmountPaid si supera el nuevo Amount ────────
@@ -502,6 +559,9 @@ public class FinancesService
 
         record.ExclusionType = excType;
         record.ExclusionNote = dto.ExclusionNote;
+        
+        // El monto que iba a ser cobrado se registra como pérdida/descuento
+        record.DiscountAmount = record.Amount;
         record.Amount        = 0m;
         record.AmountPaid    = 0m;
         record.IsPaid        = true;
@@ -593,6 +653,7 @@ public class FinancesService
             Description  = p.Description,
             Amount       = p.Amount,
             AmountPaid   = p.AmountPaid,
+            DiscountAmount = p.DiscountAmount,
             DueDate      = p.DueDate,
             IsPaid       = p.IsPaid,
             PaidDate     = p.PaidDate,

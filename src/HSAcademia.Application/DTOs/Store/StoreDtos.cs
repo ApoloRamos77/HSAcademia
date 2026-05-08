@@ -34,6 +34,8 @@ public class ProductSaleDto
     public int Quantity { get; set; }
     public decimal UnitPrice { get; set; }
     public decimal TotalPrice { get; set; }
+    public bool IsGift { get; set; }
+    public decimal DiscountAmount { get; set; }
     public DateTime SaleDate { get; set; }
 }
 
@@ -42,6 +44,7 @@ public class CreateProductSaleDto
     public Guid ProductId { get; set; }
     public Guid? StudentId { get; set; }
     public int Quantity { get; set; }
+    public bool IsGift { get; set; }
 
     // Optional payment context (from mobile POS)
     public string? PaymentMethod { get; set; }

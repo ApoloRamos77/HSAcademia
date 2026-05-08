@@ -49,6 +49,9 @@ public class PaymentRecord
     /// <summary>Total already paid (sum of all PaymentInstallments).</summary>
     public decimal AmountPaid { get; set; } = 0m;
 
+    /// <summary>Amount that was discounted or not charged (loss/gift/scholarship).</summary>
+    public decimal DiscountAmount { get; set; } = 0m;
+
     public DateTime DueDate { get; set; }
 
     public bool IsPaid { get; set; } = false;

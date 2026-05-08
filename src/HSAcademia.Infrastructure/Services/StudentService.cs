@@ -84,22 +84,13 @@ public class StudentService
                 throw new Exception("Ya existe un alumno con ese número de documento en la academia.");
         }
 
-        // Validation: guardian data required if student has no phone
-        bool hasPhone = !string.IsNullOrWhiteSpace(dto.Phone);
-        bool hasGuardianId = dto.GuardianId.HasValue && dto.GuardianId != Guid.Empty;
-        bool hasGuardianData = !string.IsNullOrEmpty(dto.GuardianEmail) && !string.IsNullOrEmpty(dto.GuardianFirstName);
-
-        if (!hasPhone && !hasGuardianId && !hasGuardianData)
-            throw new Exception("Debe ingresar el celular del alumno o los datos completos del apoderado.");
-
         Guid? guardianId = null;
 
-        // Either use existing or create new Guardian
-        if (hasGuardianId)
+        if (dto.GuardianId.HasValue && dto.GuardianId != Guid.Empty)
         {
             guardianId = dto.GuardianId!.Value;
         }
-        else if (hasGuardianData)
+        else if (!string.IsNullOrEmpty(dto.GuardianEmail) && !string.IsNullOrEmpty(dto.GuardianFirstName))
         {
             // Check if user email exists
             var existingUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == dto.GuardianEmail);

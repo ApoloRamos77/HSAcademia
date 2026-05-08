@@ -108,6 +108,8 @@ public class StoreService
                 Quantity = s.Quantity,
                 UnitPrice = s.UnitPrice,
                 TotalPrice = s.TotalPrice,
+                IsGift = s.IsGift,
+                DiscountAmount = s.DiscountAmount,
                 SaleDate = s.SaleDate
             })
             .ToListAsync();
@@ -130,7 +132,9 @@ public class StoreService
             StudentId = dto.StudentId,
             Quantity = dto.Quantity,
             UnitPrice = product.Price,
-            TotalPrice = product.Price * dto.Quantity,
+            TotalPrice = dto.IsGift ? 0 : (product.Price * dto.Quantity),
+            IsGift = dto.IsGift,
+            DiscountAmount = dto.IsGift ? (product.Price * dto.Quantity) : 0,
             SaleDate = DateTime.UtcNow
         };
 
@@ -185,6 +189,8 @@ public class StoreService
             Quantity = sale.Quantity,
             UnitPrice = sale.UnitPrice,
             TotalPrice = sale.TotalPrice,
+            IsGift = sale.IsGift,
+            DiscountAmount = sale.DiscountAmount,
             SaleDate = sale.SaleDate
         };
     }
