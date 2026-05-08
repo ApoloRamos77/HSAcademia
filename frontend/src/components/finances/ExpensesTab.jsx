@@ -102,7 +102,8 @@ export default function ExpensesTab() {
   const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
 
   const handleAddProduct = () => {
-    if (!productForm.name || !productForm.quantity || !productForm.unitCost || !productForm.salePrice) {
+    const isForSale = parseInt(formData.type) === 7;
+    if (!productForm.name || !productForm.quantity || !productForm.unitCost || (isForSale && !productForm.salePrice)) {
       toast.error('Complete los datos obligatorios del producto');
       return;
     }
@@ -115,8 +116,8 @@ export default function ExpensesTab() {
         description: productForm.description,
         quantity: parseInt(productForm.quantity),
         unitCost: parseFloat(productForm.unitCost),
-        salePrice: parseFloat(productForm.salePrice),
-        forSale: true
+        salePrice: isForSale ? parseFloat(productForm.salePrice) : 0,
+        forSale: isForSale
       }]
     }));
     setProductForm({ productId: null, name: '', productCategory: '', quantity: '', unitCost: '', salePrice: '', description: '' });
@@ -319,9 +320,18 @@ export default function ExpensesTab() {
                 />
               </div>
 
-              {parseInt(formData.type) === 7 && (
+              { (parseInt(formData.type) === 7 || parseInt(formData.type) === 6) && (
                 <div className="bg-bg-dark border border-primary/30 p-4 rounded-xl mb-4">
-                  <h4 className="text-primary font-bold text-sm mb-3 flex items-center gap-2"><Tag size={16}/> Registro de Productos (Inventario)</h4>
+                  <h4 className="text-primary font-bold text-sm mb-3 flex items-center gap-2">
+                    <Tag size={16}/> 
+                    {parseInt(formData.type) === 7 ? 'Registro de Productos (Inventario)' : 'Registro de Materiales (Inventario Interno)'}
+                  </h4>
+                  
+                  <datalist id="categoryList">
+                    {[...new Set(storeProducts.map(p => p.productCategory).filter(Boolean))].map(c => (
+                      <option key={c} value={c} />
+                    ))}
+                  </datalist>
                   
                   {formData.products.length > 0 && (
                     <div className="mb-3 space-y-2">
@@ -332,7 +342,7 @@ export default function ExpensesTab() {
                             <span className="text-xs text-text-muted ml-2">({p.quantity} x S/{p.unitCost.toFixed(2)})</span>
                           </div>
                           <div className="flex items-center gap-3">
-                            <span className="text-success font-medium">P.V: S/{p.salePrice.toFixed(2)}</span>
+                            {p.forSale && <span className="text-success font-medium">P.V: S/{p.salePrice.toFixed(2)}</span>}
                             <button type="button" onClick={() => handleRemoveProduct(i)} className="text-danger"><X size={14}/></button>
                           </div>
                         </div>
@@ -378,20 +388,23 @@ export default function ExpensesTab() {
                     </div>
                     <div className="col-span-12 sm:col-span-6">
                       <input type="text" placeholder="Categoría (Ej. Uniforme)" className="form-control text-sm py-1.5"
+                        list="categoryList"
                         value={productForm.productCategory} onChange={e => setProductForm({...productForm, productCategory: e.target.value})}/>
                     </div>
-                    <div className="col-span-4">
+                    <div className={parseInt(formData.type) === 7 ? "col-span-4" : "col-span-6"}>
                       <input type="number" placeholder="Cant *" className="form-control text-sm py-1.5"
                         value={productForm.quantity} onChange={e => setProductForm({...productForm, quantity: e.target.value})}/>
                     </div>
-                    <div className="col-span-4">
+                    <div className={parseInt(formData.type) === 7 ? "col-span-4" : "col-span-6"}>
                       <input type="number" step="0.01" placeholder="Costo *" className="form-control text-sm py-1.5"
                         value={productForm.unitCost} onChange={e => setProductForm({...productForm, unitCost: e.target.value})}/>
                     </div>
-                    <div className="col-span-4">
-                      <input type="number" step="0.01" placeholder="Venta *" className="form-control text-sm py-1.5"
-                        value={productForm.salePrice} onChange={e => setProductForm({...productForm, salePrice: e.target.value})}/>
-                    </div>
+                    {parseInt(formData.type) === 7 && (
+                      <div className="col-span-4">
+                        <input type="number" step="0.01" placeholder="Venta *" className="form-control text-sm py-1.5"
+                          value={productForm.salePrice} onChange={e => setProductForm({...productForm, salePrice: e.target.value})}/>
+                      </div>
+                    )}
                     <div className="col-span-12">
                       <input type="text" placeholder="Descripción adicional (Tallas, modelo...)" className="form-control text-sm py-1.5"
                         value={productForm.description} onChange={e => setProductForm({...productForm, description: e.target.value})}/>
