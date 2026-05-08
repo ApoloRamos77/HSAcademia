@@ -44,6 +44,7 @@ public class PurchaseProductDto
 /// <summary>Product item to create from a purchase.</summary>
 public class CreatePurchaseProductDto
 {
+    public Guid? ProductId { get; set; }
     public string Name { get; set; } = string.Empty;
     public string ProductCategory { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;

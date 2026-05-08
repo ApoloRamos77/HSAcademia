@@ -80,37 +80,68 @@ public class FinancesPremiumService : IFinancesPremiumService
         _context.Expenses.Add(expense);
         await _context.SaveChangesAsync();
 
-        // Create any linked products from this purchase
+        // Create or Update any linked products from this purchase
         var createdProducts = new List<PurchaseProductDto>();
         if (dto.Products?.Count > 0)
         {
             foreach (var pd in dto.Products)
             {
-                var product = new Domain.Entities.Product
+                Domain.Entities.Product product;
+
+                if (pd.ProductId.HasValue && pd.ProductId.Value != Guid.Empty)
                 {
-                    AcademyId = academyId,
-                    Name = pd.Name,
-                    Description = pd.Description,
-                    ProductCategory = pd.ProductCategory,
-                    CostPrice = pd.UnitCost,
-                    Price = pd.SalePrice,
-                    Stock = pd.Quantity,
-                    IsActive = pd.ForSale && pd.SalePrice > 0, // only active for sale if price is set
-                    PurchaseExpenseId = expense.Id
-                };
-                _context.Products.Add(product);
+                    // Update existing product
+                    product = await _context.Products.FirstOrDefaultAsync(p => p.Id == pd.ProductId.Value && p.AcademyId == academyId);
+                    if (product != null)
+                    {
+                        product.Stock += pd.Quantity;
+                        product.CostPrice = pd.UnitCost;
+                        product.Price = pd.SalePrice;
+                        // Name and category remain the same for existing products
+                        if (pd.ForSale && pd.SalePrice > 0) product.IsActive = true;
+                    }
+                    else
+                    {
+                        continue; // If not found, skip
+                    }
+                }
+                else
+                {
+                    // Create new product
+                    product = new Domain.Entities.Product
+                    {
+                        AcademyId = academyId,
+                        Name = pd.Name,
+                        Description = pd.Description,
+                        ProductCategory = pd.ProductCategory,
+                        CostPrice = pd.UnitCost,
+                        Price = pd.SalePrice,
+                        Stock = pd.Quantity,
+                        IsActive = pd.ForSale && pd.SalePrice > 0, // only active for sale if price is set
+                        PurchaseExpenseId = expense.Id
+                    };
+                    _context.Products.Add(product);
+                }
+
                 createdProducts.Add(new PurchaseProductDto
                 {
-                    ProductId = product.Id,
+                    ProductId = product.Id, // Note: For new products, this will be Empty until SaveChanges, but EF updates it.
                     Name = product.Name,
                     ProductCategory = product.ProductCategory,
-                    Quantity = product.Stock,
+                    Quantity = pd.Quantity, // Use the quantity bought, not total stock
                     UnitCost = product.CostPrice,
                     SalePrice = product.Price,
                     ForSale = product.IsActive
                 });
             }
             await _context.SaveChangesAsync();
+            
+            // Re-map ProductIds for newly created products after SaveChanges
+            foreach (var cp in createdProducts.Where(p => p.ProductId == Guid.Empty))
+            {
+                var dbProduct = await _context.Products.FirstOrDefaultAsync(p => p.PurchaseExpenseId == expense.Id && p.Name == cp.Name);
+                if (dbProduct != null) cp.ProductId = dbProduct.Id;
+            }
         }
 
         return new ExpenseDto

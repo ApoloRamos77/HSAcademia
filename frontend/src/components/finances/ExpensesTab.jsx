@@ -29,16 +29,29 @@ export default function ExpensesTab() {
   });
 
   const [productForm, setProductForm] = useState({
-    name: '', productCategory: '', quantity: '', unitCost: '', salePrice: '', description: ''
+    productId: null, name: '', productCategory: '', quantity: '', unitCost: '', salePrice: '', description: ''
   });
   const [expandedId, setExpandedId] = useState(null);
+  
+  const [storeProducts, setStoreProducts] = useState([]);
+  const [showProductSuggestions, setShowProductSuggestions] = useState(false);
 
   const currentMonth = new Date().getMonth() + 1;
   const currentYear = new Date().getFullYear();
 
   useEffect(() => {
     fetchExpenses();
+    fetchStoreProducts();
   }, []);
+
+  const fetchStoreProducts = async () => {
+    try {
+      const { data } = await axios.get('/store/products');
+      setStoreProducts(data);
+    } catch (err) {
+      console.error('Error al cargar productos de tienda', err);
+    }
+  };
 
   const fetchExpenses = async () => {
     try {
@@ -67,8 +80,9 @@ export default function ExpensesTab() {
       toast.success('Gasto registrado exitosamente');
       setIsModalOpen(false);
       setFormData({ type: 1, amount: '', date: new Date().toISOString().split('T')[0], description: '', supplier: '', voucherUrl: '', products: [] });
-      setProductForm({ name: '', productCategory: '', quantity: '', unitCost: '', salePrice: '', description: '' });
+      setProductForm({ productId: null, name: '', productCategory: '', quantity: '', unitCost: '', salePrice: '', description: '' });
       fetchExpenses();
+      fetchStoreProducts();
     } catch (err) {
       toast.error('Error al registrar gasto');
     }
@@ -95,6 +109,7 @@ export default function ExpensesTab() {
     setFormData(prev => ({
       ...prev,
       products: [...prev.products, {
+        productId: productForm.productId,
         name: productForm.name,
         productCategory: productForm.productCategory,
         description: productForm.description,
@@ -104,7 +119,7 @@ export default function ExpensesTab() {
         forSale: true
       }]
     }));
-    setProductForm({ name: '', productCategory: '', quantity: '', unitCost: '', salePrice: '', description: '' });
+    setProductForm({ productId: null, name: '', productCategory: '', quantity: '', unitCost: '', salePrice: '', description: '' });
   };
 
   const handleRemoveProduct = (index) => {
@@ -112,6 +127,25 @@ export default function ExpensesTab() {
       ...prev,
       products: prev.products.filter((_, i) => i !== index)
     }));
+  };
+
+  const handleProductNameChange = (e) => {
+    const value = e.target.value;
+    setProductForm({ ...productForm, name: value, productId: null });
+    setShowProductSuggestions(value.trim().length > 0);
+  };
+
+  const handleSelectProduct = (product) => {
+    setProductForm({
+      ...productForm,
+      productId: product.id,
+      name: product.name,
+      productCategory: product.productCategory || '',
+      unitCost: product.costPrice || '',
+      salePrice: product.price || '',
+      description: product.description || ''
+    });
+    setShowProductSuggestions(false);
   };
 
   return (
@@ -307,9 +341,40 @@ export default function ExpensesTab() {
                   )}
 
                   <div className="grid grid-cols-12 gap-2 mb-2">
-                    <div className="col-span-12 sm:col-span-6">
+                    <div className="col-span-12 sm:col-span-6 relative">
                       <input type="text" placeholder="Nombre producto *" className="form-control text-sm py-1.5"
-                        value={productForm.name} onChange={e => setProductForm({...productForm, name: e.target.value})}/>
+                        value={productForm.name} 
+                        onChange={handleProductNameChange}
+                        onFocus={() => {
+                          if (productForm.name.trim().length > 0 && !productForm.productId) {
+                            setShowProductSuggestions(true);
+                          }
+                        }}
+                      />
+                      {showProductSuggestions && (
+                        <div className="absolute z-10 w-full mt-1 bg-bg-dark border border-border/50 rounded-lg shadow-xl overflow-hidden max-h-40 overflow-y-auto">
+                          {storeProducts.filter(p => p.name.toLowerCase().includes(productForm.name.toLowerCase())).length > 0 ? (
+                            storeProducts
+                              .filter(p => p.name.toLowerCase().includes(productForm.name.toLowerCase()))
+                              .map(p => (
+                                <button
+                                  key={p.id}
+                                  type="button"
+                                  onClick={() => handleSelectProduct(p)}
+                                  className="w-full text-left px-3 py-2 text-sm text-white hover:bg-primary/20 border-b border-border/50 last:border-0"
+                                >
+                                  <div className="font-bold">{p.name}</div>
+                                  <div className="text-xs text-text-muted flex justify-between">
+                                    <span>Stock: {p.stock}</span>
+                                    <span>Venta: S/ {p.price.toFixed(2)}</span>
+                                  </div>
+                                </button>
+                              ))
+                          ) : (
+                            <div className="px-3 py-2 text-sm text-text-muted italic">No hay coincidencias (se creará uno nuevo)</div>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <div className="col-span-12 sm:col-span-6">
                       <input type="text" placeholder="Categoría (Ej. Uniforme)" className="form-control text-sm py-1.5"
