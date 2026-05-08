@@ -167,8 +167,9 @@ export default function ExpensesTab() {
                 <tr><td colSpan="5" className="p-8 text-center text-text-muted">No hay gastos registrados este mes.</td></tr>
               ) : (
                 expenses.map((e) => (
-                  <tr key={e.id} className="hover:bg-white/5 transition-colors group">
-                    <td className="p-4 text-sm text-text-main whitespace-nowrap">
+                  <React.Fragment key={e.id}>
+                    <tr className="hover:bg-white/5 transition-colors group">
+                      <td className="p-4 text-sm text-text-main whitespace-nowrap">
                       {new Date(e.date).toLocaleDateString('es-ES')}
                     </td>
                     <td className="p-4">
@@ -284,7 +285,7 @@ export default function ExpensesTab() {
                 />
               </div>
 
-              {formData.type == 7 && (
+              {parseInt(formData.type) === 7 && (
                 <div className="bg-bg-dark border border-primary/30 p-4 rounded-xl mb-4">
                   <h4 className="text-primary font-bold text-sm mb-3 flex items-center gap-2"><Tag size={16}/> Registro de Productos (Inventario)</h4>
                   
