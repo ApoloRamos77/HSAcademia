@@ -369,6 +369,30 @@ public class FinancesPremiumService : IFinancesPremiumService
                 && pr.DueDate < endDate)
             .SumAsync(pr => (decimal?)pr.AmountPaid) ?? 0m;
 
+        // Descuentos: becas, exoneraciones (montos que se dejaron de cobrar)
+        var totalDiscounts = await _context.PaymentRecords
+            .Where(pr => pr.AcademyId == academyId
+                && pr.DueDate >= startDate
+                && pr.DueDate < endDate
+                && pr.DiscountAmount > 0)
+            .SumAsync(pr => (decimal?)pr.DiscountAmount) ?? 0m;
+
+        // Tienda: ventas de productos (sin contar obsequios)
+        var storeRevenue = await _context.ProductSales
+            .Where(ps => ps.AcademyId == academyId
+                && !ps.IsGift
+                && ps.SaleDate >= startDate
+                && ps.SaleDate < endDate)
+            .SumAsync(ps => (decimal?)ps.TotalPrice) ?? 0m;
+
+        // Pérdida por obsequios: costo (precio de venta) de artículos entregados gratis
+        var giftCost = await _context.ProductSales
+            .Where(ps => ps.AcademyId == academyId
+                && ps.IsGift
+                && ps.SaleDate >= startDate
+                && ps.SaleDate < endDate)
+            .SumAsync(ps => (decimal?)ps.DiscountAmount) ?? 0m;
+
         // Egresos generales
         var expenses = await _context.Expenses
             .Where(e => e.AcademyId == academyId && e.Date >= startDate && e.Date < endDate)
@@ -396,9 +420,12 @@ public class FinancesPremiumService : IFinancesPremiumService
             Month = month,
             Year = year,
             TotalIncome = income,
+            TotalStoreRevenue = storeRevenue,
             TotalExpenses = totalExpenses,
             TotalStaffPayments = staffTotal,
-            NetBalance = income - totalExpenses - staffTotal,
+            TotalDiscounts = totalDiscounts,
+            TotalGiftCost = giftCost,
+            NetBalance = (income + storeRevenue) - totalExpenses - staffTotal,
             ExpensesByCategory = expenses
         };
     }
@@ -425,6 +452,14 @@ public class FinancesPremiumService : IFinancesPremiumService
                 .Where(pr => pr.AcademyId == academyId && pr.IsPaid && pr.DueDate >= start && pr.DueDate < end)
                 .SumAsync(pr => (decimal?)pr.AmountPaid) ?? 0m;
 
+            var storeRev = await _context.ProductSales
+                .Where(ps => ps.AcademyId == academyId && !ps.IsGift && ps.SaleDate >= start && ps.SaleDate < end)
+                .SumAsync(ps => (decimal?)ps.TotalPrice) ?? 0m;
+
+            var discounts = await _context.PaymentRecords
+                .Where(pr => pr.AcademyId == academyId && pr.DueDate >= start && pr.DueDate < end && pr.DiscountAmount > 0)
+                .SumAsync(pr => (decimal?)pr.DiscountAmount) ?? 0m;
+
             var exp = await _context.Expenses
                 .Where(e => e.AcademyId == academyId && e.Date >= start && e.Date < end)
                 .SumAsync(e => (decimal?)e.Amount) ?? 0m;
@@ -438,9 +473,11 @@ public class FinancesPremiumService : IFinancesPremiumService
             {
                 Label = $"{shortMonths[m - 1]} {y}",
                 Income = income,
+                StoreRevenue = storeRev,
                 Expenses = exp,
                 StaffPayments = staff,
-                NetBalance = income - exp - staff
+                Discounts = discounts,
+                NetBalance = (income + storeRev) - exp - staff
             });
         }
 

@@ -8,7 +8,10 @@ const EXPENSE_TYPES = {
   2: { label: 'Marketing', color: 'bg-purple-500/20 text-purple-400' },
   3: { label: 'Equipamiento', color: 'bg-orange-500/20 text-orange-400' },
   4: { label: 'Alquiler', color: 'bg-indigo-500/20 text-indigo-400' },
-  5: { label: 'Otros', color: 'bg-gray-500/20 text-gray-400' }
+  5: { label: 'Otros', color: 'bg-gray-500/20 text-gray-400' },
+  6: { label: 'Compra - Materiales', color: 'bg-emerald-500/20 text-emerald-400' },
+  7: { label: 'Compra - Prod. para Venta', color: 'bg-teal-500/20 text-teal-400' },
+  8: { label: 'Pagos/Servicios', color: 'bg-yellow-500/20 text-yellow-400' }
 };
 
 export default function ExpensesTab() {

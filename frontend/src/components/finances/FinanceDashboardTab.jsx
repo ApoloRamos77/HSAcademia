@@ -25,7 +25,10 @@ const EXPENSE_LABELS = {
   'Marketing': '📣 Marketing',
   'Equipamiento': '🏋️ Equipamiento',
   'Alquiler': '🏠 Alquiler',
-  'Otro': '📋 Otro',
+  'PurchaseMaterials': '📦 Compra Materiales',
+  'PurchaseProducts': '🛒 Compra Prod. Venta',
+  'Payments': '💳 Pagos/Servicios',
+  'Other': '📋 Otro',
 };
 
 const PIE_COLORS = ['#6366f1', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#06b6d4'];
@@ -194,16 +197,27 @@ export default function FinanceDashboardTab() {
       ) : !summary ? null : (
         <>
           {/* ── KPI Cards ── */}
-          <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 xl:grid-cols-3 gap-4">
             <div className="card p-5 border-l-4 border-l-success">
               <div className="flex justify-between items-start">
                 <div>
-                  <p className="text-xs text-text-muted uppercase tracking-wide">Ingresos</p>
+                  <p className="text-xs text-text-muted uppercase tracking-wide">Mensualidades</p>
                   <p className="text-2xl font-bold text-success mt-1">S/ {summary.totalIncome.toFixed(2)}</p>
                 </div>
                 <div className="p-2 bg-success/20 rounded-lg text-success"><TrendingUp size={20}/></div>
               </div>
-              <p className="text-xs text-text-muted mt-3">Mensualidades cobradas en {MONTHS[month-1]}</p>
+              <p className="text-xs text-text-muted mt-3">Cobrado en {MONTHS[month-1]}</p>
+            </div>
+
+            <div className="card p-5 border-l-4 border-l-teal-400">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-xs text-text-muted uppercase tracking-wide">Ventas Tienda</p>
+                  <p className="text-2xl font-bold text-teal-400 mt-1">S/ {(summary.totalStoreRevenue || 0).toFixed(2)}</p>
+                </div>
+                <div className="p-2 bg-teal-500/20 rounded-lg text-teal-400"><DollarSign size={20}/></div>
+              </div>
+              <p className="text-xs text-text-muted mt-3">Ingresos extra por productos</p>
             </div>
 
             <div className="card p-5 border-l-4 border-l-danger">
@@ -226,6 +240,19 @@ export default function FinanceDashboardTab() {
                 <div className="p-2 bg-warning/20 rounded-lg text-warning"><Users size={20}/></div>
               </div>
               <p className="text-xs text-text-muted mt-3">Pagos al personal confirmados</p>
+            </div>
+
+            <div className="card p-5 border-l-4 border-l-orange-400">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-xs text-text-muted uppercase tracking-wide">Pérdidas / Descuentos</p>
+                  <p className="text-2xl font-bold text-orange-400 mt-1">S/ {((summary.totalDiscounts || 0) + (summary.totalGiftCost || 0)).toFixed(2)}</p>
+                </div>
+                <div className="p-2 bg-orange-400/20 rounded-lg text-orange-400"><ArrowDownRight size={20}/></div>
+              </div>
+              <p className="text-xs text-text-muted mt-3">
+                Becas/Exon: S/ {(summary.totalDiscounts || 0).toFixed(2)} · Obsequios: S/ {(summary.totalGiftCost || 0).toFixed(2)}
+              </p>
             </div>
 
             <div className={`card p-5 border-l-4 ${isProfit ? 'border-l-primary' : 'border-l-danger'}`}>
@@ -322,12 +349,16 @@ export default function FinanceDashboardTab() {
                     <Tooltip content={<CustomTooltip />}/>
                     <Legend wrapperStyle={{ fontSize: 12, paddingTop: 12 }}/>
                     <ReferenceLine y={0} stroke="rgba(255,255,255,0.1)"/>
-                    <Line type="monotone" dataKey="income" name="Ingresos" stroke="#10b981"
+                    <Line type="monotone" dataKey="income" name="Mensualidades" stroke="#10b981"
                       strokeWidth={2.5} dot={{ fill: '#10b981', r: 4 }} activeDot={{ r: 6 }}/>
+                    <Line type="monotone" dataKey="storeRevenue" name="Tienda" stroke="#14b8a6"
+                      strokeWidth={2} dot={{ fill: '#14b8a6', r: 3 }} activeDot={{ r: 5 }}/>
                     <Line type="monotone" dataKey="expenses" name="Egresos" stroke="#ef4444"
                       strokeWidth={2.5} dot={{ fill: '#ef4444', r: 4 }} activeDot={{ r: 6 }}/>
                     <Line type="monotone" dataKey="staffPayments" name="Nómina" stroke="#f59e0b"
                       strokeWidth={2} strokeDasharray="5 3" dot={{ fill: '#f59e0b', r: 3 }} activeDot={{ r: 5 }}/>
+                    <Line type="monotone" dataKey="discounts" name="Pérdidas" stroke="#fb923c"
+                      strokeWidth={2} strokeDasharray="3 3" dot={{ fill: '#fb923c', r: 3 }} activeDot={{ r: 5 }}/>
                     <Line type="monotone" dataKey="netBalance" name="Balance" stroke="#6366f1"
                       strokeWidth={2.5} dot={{ fill: '#6366f1', r: 4 }} activeDot={{ r: 6 }}/>
                   </LineChart>
@@ -406,8 +437,10 @@ export default function FinanceDashboardTab() {
                     tickFormatter={v => `S/${v}`}/>
                   <Tooltip content={<CustomTooltip />}/>
                   <Legend wrapperStyle={{ fontSize: 12, paddingTop: 12 }}/>
-                  <Bar dataKey="income" name="Ingresos" fill="#10b981" radius={[6,6,0,0]}/>
+                  <Bar dataKey="income" name="Mensualidades" fill="#10b981" radius={[6,6,0,0]}/>
+                  <Bar dataKey="storeRevenue" name="Tienda" fill="#14b8a6" radius={[6,6,0,0]}/>
                   <Bar dataKey="totalEgresos" name="Total Egresos" fill="#ef4444" radius={[6,6,0,0]}/>
+                  <Bar dataKey="discounts" name="Pérdidas" fill="#fb923c" radius={[6,6,0,0]}/>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -466,12 +499,14 @@ export default function FinanceDashboardTab() {
             </div>
 
             {summary && (
-              <div className="bg-bg-dark rounded-xl p-4 mb-4 text-sm border border-border/50">
-                <div className="flex justify-between mb-2"><span className="text-text-secondary">Ingresos:</span> <span className="text-success font-bold">S/ {summary.totalIncome.toFixed(2)}</span></div>
-                <div className="flex justify-between mb-2"><span className="text-text-secondary">Egresos:</span> <span className="text-danger font-bold">S/ {summary.totalExpenses.toFixed(2)}</span></div>
-                <div className="flex justify-between mb-2"><span className="text-text-secondary">Nómina:</span> <span className="text-warning font-bold">S/ {summary.totalStaffPayments.toFixed(2)}</span></div>
-                <div className="flex justify-between pt-2 border-t border-border/50 mt-2">
-                  <span className="text-text-main font-semibold">Rentabilidad Neta:</span> 
+              <div className="bg-bg-dark rounded-xl p-4 mb-4 text-sm border border-border/50 space-y-2">
+                <div className="flex justify-between"><span className="text-text-secondary">Mensualidades:</span> <span className="text-success font-bold">S/ {summary.totalIncome.toFixed(2)}</span></div>
+                <div className="flex justify-between"><span className="text-text-secondary">Tienda:</span> <span className="text-teal-400 font-bold">S/ {(summary.totalStoreRevenue || 0).toFixed(2)}</span></div>
+                <div className="flex justify-between"><span className="text-text-secondary">Egresos:</span> <span className="text-danger font-bold">S/ {summary.totalExpenses.toFixed(2)}</span></div>
+                <div className="flex justify-between"><span className="text-text-secondary">Nómina:</span> <span className="text-warning font-bold">S/ {summary.totalStaffPayments.toFixed(2)}</span></div>
+                <div className="flex justify-between"><span className="text-text-secondary">Becas/Exon/Obsequios:</span> <span className="text-orange-400 font-bold">- S/ {((summary.totalDiscounts || 0) + (summary.totalGiftCost || 0)).toFixed(2)}</span></div>
+                <div className="flex justify-between pt-2 border-t border-border/50 mt-1">
+                  <span className="text-text-main font-semibold">Rentabilidad Neta:</span>
                   <span className={`font-bold ${summary.netBalance >= 0 ? 'text-primary-400' : 'text-danger'}`}>S/ {summary.netBalance.toFixed(2)}</span>
                 </div>
               </div>

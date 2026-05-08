@@ -11,7 +11,8 @@ public class Product
     public string Name { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public string ProductCategory { get; set; } = string.Empty; // e.g. "Uniforme", "Suplemento"
-    public decimal Price { get; set; }
+    public decimal CostPrice { get; set; } // Costo de compra
+    public decimal Price { get; set; } // Precio de venta
     public int Stock { get; set; }
     
     public bool IsActive { get; set; } = true;

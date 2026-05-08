@@ -30,6 +30,7 @@ public class StoreService
                 Name = p.Name,
                 Description = p.Description,
                 ProductCategory = p.ProductCategory,
+                CostPrice = p.CostPrice,
                 Price = p.Price,
                 Stock = p.Stock,
                 IsActive = p.IsActive
@@ -45,6 +46,7 @@ public class StoreService
             Name = dto.Name,
             Description = dto.Description,
             ProductCategory = dto.ProductCategory,
+            CostPrice = dto.CostPrice,
             Price = dto.Price,
             Stock = dto.Stock,
             IsActive = true
@@ -59,6 +61,7 @@ public class StoreService
             Name = product.Name,
             Description = product.Description,
             ProductCategory = product.ProductCategory,
+            CostPrice = product.CostPrice,
             Price = product.Price,
             Stock = product.Stock,
             IsActive = product.IsActive
@@ -73,6 +76,7 @@ public class StoreService
         product.Name = dto.Name;
         product.Description = dto.Description;
         product.ProductCategory = dto.ProductCategory;
+        product.CostPrice = dto.CostPrice;
         product.Price = dto.Price;
         product.Stock = dto.Stock;
 
@@ -84,6 +88,7 @@ public class StoreService
             Name = product.Name,
             Description = product.Description,
             ProductCategory = product.ProductCategory,
+            CostPrice = product.CostPrice,
             Price = product.Price,
             Stock = product.Stock,
             IsActive = product.IsActive

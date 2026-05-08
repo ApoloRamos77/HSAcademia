@@ -16,11 +16,11 @@ export default function Tienda() {
   const [showProductModal, setShowProductModal] = useState(false);
   const [editingProductId, setEditingProductId] = useState(null);
   
-  const initialProduct = { name: '', description: '', productCategory: '', price: '', stock: '' };
+  const initialProduct = { name: '', description: '', productCategory: '', costPrice: '', price: '', stock: '' };
   const [productForm, setProductForm] = useState(initialProduct);
 
   const [showSaleModal, setShowSaleModal] = useState(false);
-  const initialSale = { productId: '', studentId: '', quantity: '1' };
+  const initialSale = { productId: '', studentId: '', quantity: '1', isGift: false };
   const [saleForm, setSaleForm] = useState(initialSale);
 
   useEffect(() => {
@@ -47,7 +47,7 @@ export default function Tienda() {
   const handleProductSubmit = async (e) => {
     e.preventDefault();
     try {
-      const payload = { ...productForm, price: parseFloat(productForm.price), stock: parseInt(productForm.stock, 10) };
+      const payload = { ...productForm, costPrice: parseFloat(productForm.costPrice || 0), price: parseFloat(productForm.price), stock: parseInt(productForm.stock, 10) };
       
       if (editingProductId) {
         await api.put(`/store/products/${editingProductId}`, payload);
@@ -69,7 +69,8 @@ export default function Tienda() {
       const payload = { 
         productId: saleForm.productId, 
         studentId: saleForm.studentId || null, 
-        quantity: parseInt(saleForm.quantity, 10) 
+        quantity: parseInt(saleForm.quantity, 10),
+        isGift: saleForm.isGift
       };
       const res = await api.post('/store/sales', payload);
       toast.success('Venta registrada con éxito');
@@ -77,16 +78,16 @@ export default function Tienda() {
       
       const product = products.find(p => p.id === saleForm.productId);
       const student = students.find(s => s.id === saleForm.studentId);
-      const total = product ? (product.price * parseInt(saleForm.quantity, 10)).toFixed(2) : 0;
+      const total = product && !saleForm.isGift ? (product.price * parseInt(saleForm.quantity, 10)).toFixed(2) : '0.00';
       
       // Receipt number comes from the sale response
       generateReceiptPDF({
         receiptNumber: res.data?.receiptNumber,
         customerName: student ? `${student.firstName} ${student.lastName}` : 'Público General',
-        description: `Venta de: ${product ? product.name : 'Producto'}`,
+        description: `Venta de: ${product ? product.name : 'Producto'} ${saleForm.isGift ? '(Obsequio)' : ''}`,
         quantity: parseInt(saleForm.quantity, 10),
         total: parseFloat(total),
-        notes: 'Venta de Tienda'
+        notes: saleForm.isGift ? 'Obsequio / Entrega de Producto' : 'Venta de Tienda'
       });
       
       fetchData();
@@ -96,7 +97,7 @@ export default function Tienda() {
   };
 
   const selectedProductForSale = products.find(p => p.id === saleForm.productId);
-  const totalSaleEstimation = selectedProductForSale ? (selectedProductForSale.price * parseInt(saleForm.quantity || 0)).toFixed(2) : '0.00';
+  const totalSaleEstimation = selectedProductForSale && !saleForm.isGift ? (selectedProductForSale.price * parseInt(saleForm.quantity || 0)).toFixed(2) : '0.00';
 
   const regenerateSaleReceipt = (s) => {
     // Use the stored receipt number from the sale — no counter increment
@@ -235,9 +236,21 @@ export default function Tienda() {
                       <span className="font-medium text-white flex items-center gap-1"><Tag size={12} className="text-primary-400"/>{p.productCategory}</span>
                     </div>
                     <div className="flex justify-between border-b border-border/50 pb-1">
-                      <span className="text-text-secondary">Precio Unitario:</span>
+                      <span className="text-text-secondary">Costo de Compra:</span>
+                      <span className="font-medium text-warning flex items-center gap-1"><DollarSign size={14}/> {(p.costPrice || 0).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between border-b border-border/50 pb-1">
+                      <span className="text-text-secondary">Precio de Venta:</span>
                       <span className="font-bold text-success flex items-center gap-1"><DollarSign size={14}/> {p.price.toFixed(2)}</span>
                     </div>
+                    {p.costPrice > 0 && (
+                      <div className="flex justify-between pb-1">
+                        <span className="text-text-secondary">Margen:</span>
+                        <span className={`font-bold flex items-center gap-1 ${(p.price - p.costPrice) > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          S/ {(p.price - p.costPrice).toFixed(2)} ({p.price > 0 ? (((p.price - p.costPrice) / p.price) * 100).toFixed(0) : 0}%)
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="mt-4 flex gap-2">
@@ -246,7 +259,7 @@ export default function Tienda() {
                       setShowSaleModal(true);
                     }}>Vender</button>
                     <button className="btn btn-ghost btn-sm text-primary" onClick={() => {
-                      setProductForm({ name: p.name, description: p.description, productCategory: p.productCategory, price: p.price, stock: p.stock });
+                      setProductForm({ name: p.name, description: p.description, productCategory: p.productCategory, costPrice: p.costPrice || '', price: p.price, stock: p.stock });
                       setEditingProductId(p.id);
                       setShowProductModal(true);
                     }}>Editar</button>
@@ -290,7 +303,13 @@ export default function Tienda() {
                       <td><div className="font-medium text-primary-100">{s.productName}</div><div className="text-xs text-text-muted">P.U: S/ {s.unitPrice.toFixed(2)}</div></td>
                       <td>{s.studentName}</td>
                       <td>{s.quantity}</td>
-                      <td className="font-bold text-success">S/ {s.totalPrice.toFixed(2)}</td>
+                      <td>
+                        {s.isGift ? (
+                          <span className="badge badge-warning text-xs">🎁 Obsequio</span>
+                        ) : (
+                          <span className="font-bold text-success">S/ {s.totalPrice.toFixed(2)}</span>
+                        )}
+                      </td>
                       <td className="text-right">
                         <button onClick={() => regenerateSaleReceipt(s)} className="btn btn-ghost btn-sm text-primary flex items-center gap-1 justify-end ml-auto" title="Volver a descargar recibo">
                           <Download size={14} /> PDF
@@ -326,11 +345,20 @@ export default function Tienda() {
                     <input required type="number" min="0" className="form-control" value={productForm.stock} onChange={e => setProductForm({...productForm, stock: e.target.value})} />
                   </div>
                 </div>
-                <div className="form-group">
-                  <label className="form-label">Precio Unitario (S/.) *</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted font-bold">S/.</span>
-                    <input required type="number" step="0.01" min="0" className="form-control pl-12 text-success font-bold" value={productForm.price} onChange={e => setProductForm({...productForm, price: e.target.value})} />
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">Costo de Compra (S/.)</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted font-bold">S/.</span>
+                      <input required type="number" step="0.01" min="0" className="form-control pl-12 text-warning font-bold" value={productForm.costPrice} onChange={e => setProductForm({...productForm, costPrice: e.target.value})} placeholder="0.00" />
+                    </div>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Precio de Venta (S/.) *</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted font-bold">S/.</span>
+                      <input required type="number" step="0.01" min="0" className="form-control pl-12 text-success font-bold" value={productForm.price} onChange={e => setProductForm({...productForm, price: e.target.value})} />
+                    </div>
                   </div>
                 </div>
                 <div className="form-group">
@@ -373,6 +401,26 @@ export default function Tienda() {
                   </select>
                 </div>
 
+                <div className="form-group mb-4 flex items-center justify-between bg-bg-surface p-3 rounded-lg border border-border">
+                  <div>
+                    <label className="form-label mb-0 text-warning flex items-center gap-2">
+                      Marcar como Obsequio / Entrega gratuita
+                    </label>
+                    <p className="text-xs text-text-muted mt-1">
+                      El monto cobrado será 0, pero se registrará la cantidad entregada para fines de inventario y costo.
+                    </p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      className="sr-only peer"
+                      checked={saleForm.isGift} 
+                      onChange={e => setSaleForm({...saleForm, isGift: e.target.checked})} 
+                    />
+                    <div className="w-11 h-6 bg-border peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-warning"></div>
+                  </label>
+                </div>
+
                 <div className="form-row items-end">
                   <div className="form-group mb-0">
                     <label className="form-label">Cantidad *</label>
@@ -381,7 +429,8 @@ export default function Tienda() {
                   <div className="form-group mb-0 flex-1">
                     <div className="bg-bg-dark border border-border rounded-lg p-3 flex justify-between items-center">
                       <p className="text-text-muted text-sm uppercase tracking-wide">Total a Cobrar</p>
-                      <span className="text-2xl font-bold text-success">S/. {totalSaleEstimation}</span>
+                      <span className={`text-2xl font-bold ${saleForm.isGift ? 'text-warning line-through opacity-70' : 'text-success'}`}>S/. {selectedProductForSale ? (selectedProductForSale.price * parseInt(saleForm.quantity || 0)).toFixed(2) : '0.00'}</span>
+                      {saleForm.isGift && <span className="text-2xl font-bold text-success ml-2">S/. 0.00</span>}
                     </div>
                   </div>
                 </div>

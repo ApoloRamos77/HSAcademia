@@ -85,8 +85,14 @@ public class FinanceSummaryDto
     public int Month { get; set; }
     public int Year { get; set; }
     public decimal TotalIncome { get; set; }
+    /// <summary>Ingresos extra por ventas de tienda.</summary>
+    public decimal TotalStoreRevenue { get; set; }
     public decimal TotalExpenses { get; set; }
     public decimal TotalStaffPayments { get; set; }
+    /// <summary>Suma de montos que se dejaron de cobrar (becas, exoneraciones, obsequios).</summary>
+    public decimal TotalDiscounts { get; set; }
+    /// <summary>Pérdida real por obsequios de tienda (costo de artículos entregados).</summary>
+    public decimal TotalGiftCost { get; set; }
     public decimal NetBalance { get; set; }
     public List<ExpenseByCategoryDto> ExpensesByCategory { get; set; } = new();
 }
@@ -101,8 +107,10 @@ public class MonthlyTrendDto
 {
     public string Label { get; set; } = string.Empty; // "Ene", "Feb", etc.
     public decimal Income { get; set; }
+    public decimal StoreRevenue { get; set; }
     public decimal Expenses { get; set; }
     public decimal StaffPayments { get; set; }
+    public decimal Discounts { get; set; }
     public decimal NetBalance { get; set; }
 }
 
