@@ -301,8 +301,8 @@ export default function ExpensesTab() {
                     </td>
                     <td className="p-4 text-center">
                       <div className="flex items-center justify-center gap-2">
-                        {e.products?.length > 0 && (
-                          <button onClick={() => setExpandedId(expandedId === e.id ? null : e.id)} className="p-1.5 text-primary hover:bg-primary/10 rounded" title="Ver productos">
+                        {(e.type === 6 || e.type === 7) && (
+                          <button onClick={() => setExpandedId(expandedId === e.id ? null : e.id)} className="p-1.5 text-primary hover:bg-primary/10 rounded" title="Ver detalles de inventario">
                             <Tag size={16} />
                           </button>
                         )}
@@ -323,24 +323,25 @@ export default function ExpensesTab() {
                       </div>
                     </td>
                   </tr>
-                  {expandedId === e.id && e.products?.length > 0 && (
+                  {expandedId === e.id && (e.type === 6 || e.type === 7) && (
                     <tr className="bg-bg-dark/30">
                       <td colSpan="5" className="p-4 border-l-2 border-primary/50">
                         <p className="text-xs font-bold text-primary mb-2 uppercase tracking-wide">Productos Registrados en Inventario</p>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {e.products.map(p => (
-                            <div key={p.productId} className="flex items-center justify-between bg-card/50 p-2 rounded border border-border/50 text-sm">
-                              <div>
-                                <p className="font-bold text-white">{p.name}</p>
-                                <p className="text-xs text-text-muted">{p.quantity} und. x S/. {p.unitCost.toFixed(2)}</p>
+                        {e.products?.length > 0 ? (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {e.products.map(p => (
+                              <div key={p.productId} className="flex justify-between items-center bg-card/40 p-2 rounded border border-border/50 text-sm">
+                                <div>
+                                  <span className="font-bold text-white">{p.name}</span>
+                                  <span className="text-xs text-text-muted ml-2">({p.quantity} unid.)</span>
+                                </div>
+                                <span className="font-medium text-warning">S/. {p.unitCost?.toFixed(2) || '0.00'} c/u</span>
                               </div>
-                              <div className="text-right">
-                                <p className="text-success font-medium">Venta: S/. {p.salePrice.toFixed(2)}</p>
-                                {!p.forSale && <p className="text-xs text-danger">⚠️ Sin precio de venta</p>}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-text-muted italic">Esta compra actualizó el stock de materiales ya existentes en la tienda. Revisa el inventario general para ver el stock actual consolidado.</p>
+                        )}
                       </td>
                     </tr>
                   )}
