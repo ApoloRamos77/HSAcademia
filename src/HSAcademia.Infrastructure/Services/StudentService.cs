@@ -346,6 +346,9 @@ public class StudentService
             if (!string.IsNullOrEmpty(dto.GuardianPhone)) guardian.Phone = dto.GuardianPhone;
         }
 
+        var previousWeight = student.MedicalRecord?.WeightKg;
+        var previousHeight = student.MedicalRecord?.HeightCm;
+
         if (dto.MedicalRecord != null)
         {
             if (student.MedicalRecord == null)
@@ -361,6 +364,21 @@ public class StudentService
             student.MedicalRecord.BMI = dto.MedicalRecord.BMI;
             student.MedicalRecord.NutritionPlan = dto.MedicalRecord.NutritionPlan;
             student.MedicalRecord.NextNutritionConsultation = dto.MedicalRecord.NextNutritionConsultation?.ToUniversalTime();
+
+            // Check if nutrition data changed
+            if ((dto.MedicalRecord.WeightKg != previousWeight || dto.MedicalRecord.HeightCm != previousHeight) && 
+                (dto.MedicalRecord.WeightKg.HasValue || dto.MedicalRecord.HeightCm.HasValue))
+            {
+                _context.StudentNutritionRecords.Add(new StudentNutritionRecord
+                {
+                    StudentId = student.Id,
+                    WeightKg = dto.MedicalRecord.WeightKg,
+                    HeightCm = dto.MedicalRecord.HeightCm,
+                    BMI = dto.MedicalRecord.BMI,
+                    Notes = dto.MedicalRecord.NutritionPlan,
+                    RecordDate = DateTime.UtcNow
+                });
+            }
         }
 
         await _context.SaveChangesAsync();
@@ -421,7 +439,7 @@ public class StudentService
             .OrderByDescending(r => r.RecordDate)
             .ToListAsync();
 
-        return records.Select(r => new StudentNutritionRecordDto
+        var dtos = records.Select(r => new StudentNutritionRecordDto
         {
             Id = r.Id,
             StudentId = r.StudentId,
@@ -436,6 +454,28 @@ public class StudentService
             RegisteredById = r.RegisteredById,
             RegisteredByName = r.RegisteredBy != null ? $"{r.RegisteredBy.FirstName} {r.RegisteredBy.LastName}" : null
         }).ToList();
+
+        if (dtos.Count == 0)
+        {
+            var medRecord = await _context.StudentMedicalRecords.FirstOrDefaultAsync(m => m.StudentId == studentId);
+            if (medRecord != null && (medRecord.WeightKg.HasValue || medRecord.HeightCm.HasValue))
+            {
+                dtos.Add(new StudentNutritionRecordDto
+                {
+                    Id = Guid.Empty,
+                    StudentId = studentId,
+                    WeightKg = medRecord.WeightKg,
+                    HeightCm = medRecord.HeightCm,
+                    BMI = medRecord.BMI,
+                    Notes = medRecord.NutritionPlan,
+                    RecordDate = studentId == Guid.Empty ? DateTime.UtcNow : DateTime.UtcNow, // Fallback
+                    CreatedAt = DateTime.UtcNow,
+                    RegisteredByName = "Registro Inicial"
+                });
+            }
+        }
+
+        return dtos;
     }
 
     public async Task<StudentNutritionRecordDto> AddStudentNutritionRecordAsync(Guid academyId, Guid studentId, CreateStudentNutritionRecordDto dto, Guid registeredById)
