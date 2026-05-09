@@ -20,6 +20,7 @@ public class AppDbContext : DbContext
     public DbSet<AcademyRole> AcademyRoles => Set<AcademyRole>();
     public DbSet<Student> Students => Set<Student>();
     public DbSet<StudentMedicalRecord> StudentMedicalRecords => Set<StudentMedicalRecord>();
+    public DbSet<StudentNutritionRecord> StudentNutritionRecords => Set<StudentNutritionRecord>();
     public DbSet<Product> Products => Set<Product>();
     public DbSet<ProductSale> ProductSales => Set<ProductSale>();
     public DbSet<AcademyFinancialConfig> AcademyFinancialConfigs => Set<AcademyFinancialConfig>();
@@ -847,6 +848,38 @@ public class AppDbContext : DbContext
 
             entity.HasOne(e => e.Academy).WithMany().HasForeignKey(e => e.AcademyId).HasPrincipalKey(a => a.AcademyId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(e => e.Headquarter).WithMany().HasForeignKey(e => e.HeadquarterId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // ----------------------------------------------------------------
+        // StudentNutritionRecord
+        // ----------------------------------------------------------------
+        modelBuilder.Entity<StudentNutritionRecord>(entity =>
+        {
+            entity.ToTable("student_nutrition_records");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.StudentId).HasColumnName("student_id").IsRequired();
+            entity.Property(e => e.WeightKg).HasColumnName("weight_kg").HasColumnType("numeric(5,2)");
+            entity.Property(e => e.HeightCm).HasColumnName("height_cm").HasColumnType("numeric(5,2)");
+            entity.Property(e => e.BMI).HasColumnName("bmi").HasColumnType("numeric(5,2)");
+            entity.Property(e => e.MuscleMassPercentage).HasColumnName("muscle_mass_percentage").HasColumnType("numeric(5,2)");
+            entity.Property(e => e.FatPercentage).HasColumnName("fat_percentage").HasColumnType("numeric(5,2)");
+            entity.Property(e => e.Notes).HasColumnName("notes").HasMaxLength(1000);
+            entity.Property(e => e.RecordDate).HasColumnName("record_date").IsRequired().HasDefaultValueSql("NOW()");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.RegisteredById).HasColumnName("registered_by_id");
+
+            entity.HasIndex(e => e.StudentId);
+            
+            entity.HasOne(e => e.Student)
+                  .WithMany()
+                  .HasForeignKey(e => e.StudentId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.RegisteredBy)
+                  .WithMany()
+                  .HasForeignKey(e => e.RegisteredById)
+                  .OnDelete(DeleteBehavior.SetNull);
         });
 
         // ----------------------------------------------------------------

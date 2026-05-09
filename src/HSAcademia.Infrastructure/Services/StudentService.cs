@@ -411,4 +411,87 @@ public class StudentService
             ScholarshipPercentage = s.ScholarshipPercentage
         }).ToList();
     }
+
+    public async Task<List<StudentNutritionRecordDto>> GetStudentNutritionRecordsAsync(Guid academyId, Guid studentId)
+    {
+        var records = await _context.StudentNutritionRecords
+            .Include(r => r.Student)
+            .Include(r => r.RegisteredBy)
+            .Where(r => r.StudentId == studentId && r.Student.AcademyId == academyId)
+            .OrderByDescending(r => r.RecordDate)
+            .ToListAsync();
+
+        return records.Select(r => new StudentNutritionRecordDto
+        {
+            Id = r.Id,
+            StudentId = r.StudentId,
+            WeightKg = r.WeightKg,
+            HeightCm = r.HeightCm,
+            BMI = r.BMI,
+            MuscleMassPercentage = r.MuscleMassPercentage,
+            FatPercentage = r.FatPercentage,
+            Notes = r.Notes,
+            RecordDate = r.RecordDate,
+            CreatedAt = r.CreatedAt,
+            RegisteredById = r.RegisteredById,
+            RegisteredByName = r.RegisteredBy != null ? $"{r.RegisteredBy.FirstName} {r.RegisteredBy.LastName}" : null
+        }).ToList();
+    }
+
+    public async Task<StudentNutritionRecordDto> AddStudentNutritionRecordAsync(Guid academyId, Guid studentId, CreateStudentNutritionRecordDto dto, Guid registeredById)
+    {
+        var student = await _context.Students.FirstOrDefaultAsync(s => s.Id == studentId && s.AcademyId == academyId);
+        if (student == null) throw new Exception("Alumno no encontrado.");
+
+        decimal? calculatedBmi = null;
+        if (dto.WeightKg.HasValue && dto.HeightCm.HasValue && dto.HeightCm.Value > 0)
+        {
+            var heightMeters = dto.HeightCm.Value / 100m;
+            calculatedBmi = dto.WeightKg.Value / (heightMeters * heightMeters);
+        }
+
+        var record = new StudentNutritionRecord
+        {
+            StudentId = studentId,
+            WeightKg = dto.WeightKg,
+            HeightCm = dto.HeightCm,
+            BMI = calculatedBmi,
+            MuscleMassPercentage = dto.MuscleMassPercentage,
+            FatPercentage = dto.FatPercentage,
+            Notes = dto.Notes,
+            RecordDate = dto.RecordDate?.ToUniversalTime() ?? DateTime.UtcNow,
+            RegisteredById = registeredById
+        };
+
+        _context.StudentNutritionRecords.Add(record);
+        
+        // Optionally update the latest in MedicalRecord as well for quick view
+        var medicalRecord = await _context.StudentMedicalRecords.FirstOrDefaultAsync(m => m.StudentId == studentId);
+        if (medicalRecord != null)
+        {
+            medicalRecord.WeightKg = record.WeightKg;
+            medicalRecord.HeightCm = record.HeightCm;
+            medicalRecord.BMI = record.BMI;
+        }
+
+        await _context.SaveChangesAsync();
+
+        var registeredBy = await _context.Users.FindAsync(registeredById);
+
+        return new StudentNutritionRecordDto
+        {
+            Id = record.Id,
+            StudentId = record.StudentId,
+            WeightKg = record.WeightKg,
+            HeightCm = record.HeightCm,
+            BMI = record.BMI,
+            MuscleMassPercentage = record.MuscleMassPercentage,
+            FatPercentage = record.FatPercentage,
+            Notes = record.Notes,
+            RecordDate = record.RecordDate,
+            CreatedAt = record.CreatedAt,
+            RegisteredById = record.RegisteredById,
+            RegisteredByName = registeredBy != null ? $"{registeredBy.FirstName} {registeredBy.LastName}" : null
+        };
+    }
 }

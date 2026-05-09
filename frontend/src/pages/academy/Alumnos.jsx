@@ -4,6 +4,7 @@ import AppLayout from '../../components/AppLayout';
 import { PlusCircle, Search, Users, Activity, FileText, Calendar, MapPin, UserPlus, X, Filter } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
+import { Apple, Activity as ActivityIcon } from 'lucide-react';
 
 export default function Alumnos() {
   const { user } = useAuth();
@@ -13,6 +14,12 @@ export default function Alumnos() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [currentStep, setCurrentStep] = useState(1); // 1: Alumno, 2: Apoderado, 3: Ficha Médica
+  const [showNutritionModal, setShowNutritionModal] = useState(false);
+  const [nutritionStudent, setNutritionStudent] = useState(null);
+  const [nutritionRecords, setNutritionRecords] = useState([]);
+  const [nutritionForm, setNutritionForm] = useState({
+    weightKg: '', heightCm: '', muscleMassPercentage: '', fatPercentage: '', notes: '', recordDate: new Date().toISOString().split('T')[0]
+  });
   
   const [search, setSearch] = useState('');
   const [filterSede, setFilterSede] = useState('');
@@ -161,6 +168,43 @@ export default function Alumnos() {
     }
   };
 
+  const openNutritionModal = async (alumno) => {
+    setNutritionStudent(alumno);
+    setNutritionForm({
+      weightKg: '', heightCm: '', muscleMassPercentage: '', fatPercentage: '', notes: '', recordDate: new Date().toISOString().split('T')[0]
+    });
+    try {
+      const res = await api.get(`/students/${alumno.id}/nutrition-records`);
+      setNutritionRecords(res.data);
+      setShowNutritionModal(true);
+    } catch(err) {
+      toast.error("Error al cargar historial nutricional");
+    }
+  };
+
+  const handleNutritionSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const payload = {
+        ...nutritionForm,
+        weightKg: nutritionForm.weightKg ? parseFloat(nutritionForm.weightKg) : null,
+        heightCm: nutritionForm.heightCm ? parseFloat(nutritionForm.heightCm) : null,
+        muscleMassPercentage: nutritionForm.muscleMassPercentage ? parseFloat(nutritionForm.muscleMassPercentage) : null,
+        fatPercentage: nutritionForm.fatPercentage ? parseFloat(nutritionForm.fatPercentage) : null,
+      };
+      const res = await api.post(`/students/${nutritionStudent.id}/nutrition-records`, payload);
+      setNutritionRecords([res.data, ...nutritionRecords]);
+      setNutritionForm({
+        weightKg: '', heightCm: '', muscleMassPercentage: '', fatPercentage: '', notes: '', recordDate: new Date().toISOString().split('T')[0]
+      });
+      toast.success("Registro guardado");
+      // Optionally update the medical record in the main view
+      fetchData();
+    } catch(err) {
+      toast.error("Error al guardar registro");
+    }
+  };
+
   if (loading) return <AppLayout title="Alumnos"><div className="text-center p-8"><span className="spinner" style={{borderColor: 'var(--primary)', borderTopColor: 'transparent'}}></span></div></AppLayout>;
 
   return (
@@ -279,6 +323,9 @@ export default function Alumnos() {
                 </div>
 
                 <div className="flex justify-end gap-2 border-t border-border pt-4">
+                  <button className="btn btn-outline btn-sm text-success" onClick={() => openNutritionModal(alumno)} title="Nutrición">
+                    <Apple size={14} /> Historial
+                  </button>
                   <button className="btn btn-ghost btn-sm text-primary" onClick={async () => {
                       try {
                         const recRes = await api.get(`/students/${alumno.id}/medical-record`);
@@ -565,6 +612,105 @@ export default function Alumnos() {
                   )}
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {showNutritionModal && nutritionStudent && (
+          <div className="modal-overlay" onClick={() => setShowNutritionModal(false)}>
+            <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '800px' }}>
+              <div className="flex justify-between items-center mb-4 border-b border-border pb-4">
+                <h3 className="modal-title m-0 flex items-center gap-2">
+                  <Apple className="text-success" size={20} /> Historial Nutricional - {nutritionStudent.firstName} {nutritionStudent.lastName}
+                </h3>
+                <button onClick={() => setShowNutritionModal(false)} className="text-text-muted hover:text-danger"><X size={20}/></button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="md:col-span-1">
+                  <div className="bg-bg-dark p-4 rounded-lg border border-border">
+                    <h5 className="text-sm font-bold text-primary-400 mb-3">Nuevo Registro</h5>
+                    <form onSubmit={handleNutritionSubmit}>
+                      <div className="form-group mb-3">
+                        <label className="form-label text-xs">Fecha</label>
+                        <input type="date" required className="form-control text-sm" value={nutritionForm.recordDate} onChange={e => setNutritionForm({...nutritionForm, recordDate: e.target.value})} />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 mb-3">
+                        <div className="form-group mb-0">
+                          <label className="form-label text-xs">Peso (Kg)</label>
+                          <input type="number" step="0.1" className="form-control text-sm" value={nutritionForm.weightKg} onChange={e => setNutritionForm({...nutritionForm, weightKg: e.target.value})} />
+                        </div>
+                        <div className="form-group mb-0">
+                          <label className="form-label text-xs">Altura (Cm)</label>
+                          <input type="number" step="0.1" className="form-control text-sm" value={nutritionForm.heightCm} onChange={e => setNutritionForm({...nutritionForm, heightCm: e.target.value})} />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 mb-3">
+                        <div className="form-group mb-0">
+                          <label className="form-label text-xs">% Grasa</label>
+                          <input type="number" step="0.1" className="form-control text-sm" value={nutritionForm.fatPercentage} onChange={e => setNutritionForm({...nutritionForm, fatPercentage: e.target.value})} />
+                        </div>
+                        <div className="form-group mb-0">
+                          <label className="form-label text-xs">% Músculo</label>
+                          <input type="number" step="0.1" className="form-control text-sm" value={nutritionForm.muscleMassPercentage} onChange={e => setNutritionForm({...nutritionForm, muscleMassPercentage: e.target.value})} />
+                        </div>
+                      </div>
+                      <div className="form-group mb-3">
+                        <label className="form-label text-xs">Notas / Dieta</label>
+                        <textarea className="form-control text-sm" rows="2" value={nutritionForm.notes} onChange={e => setNutritionForm({...nutritionForm, notes: e.target.value})}></textarea>
+                      </div>
+                      <button type="submit" className="btn btn-primary btn-sm w-full">Guardar Registro</button>
+                    </form>
+                  </div>
+                </div>
+
+                <div className="md:col-span-2">
+                  <div className="bg-bg-dark p-4 rounded-lg border border-border h-full max-h-[400px] overflow-y-auto custom-scrollbar">
+                    <h5 className="text-sm font-bold text-success mb-3">Historial ({nutritionRecords.length})</h5>
+                    {nutritionRecords.length === 0 ? (
+                      <div className="text-center p-4 text-text-muted text-sm">No hay registros previos.</div>
+                    ) : (
+                      <div className="flex flex-col gap-3">
+                        {nutritionRecords.map(rec => (
+                          <div key={rec.id} className="p-3 bg-bg-surface rounded border border-border/50 text-sm">
+                            <div className="flex justify-between text-xs text-text-muted mb-2 border-b border-border/30 pb-1">
+                              <span><Calendar size={10} className="inline mr-1"/> {new Date(rec.recordDate).toLocaleDateString()}</span>
+                              <span>Reg: {rec.registeredByName || 'Sistema'}</span>
+                            </div>
+                            <div className="grid grid-cols-3 md:grid-cols-5 gap-2 text-center">
+                              <div>
+                                <span className="block text-xs text-text-muted">Peso</span>
+                                <strong className="text-primary-100">{rec.weightKg || '-'} kg</strong>
+                              </div>
+                              <div>
+                                <span className="block text-xs text-text-muted">Altura</span>
+                                <strong>{rec.heightCm || '-'} cm</strong>
+                              </div>
+                              <div>
+                                <span className="block text-xs text-text-muted">IMC</span>
+                                <strong>{rec.bmi || '-'}</strong>
+                              </div>
+                              <div>
+                                <span className="block text-xs text-text-muted">% Grasa</span>
+                                <strong className="text-danger">{rec.fatPercentage || '-'}%</strong>
+                              </div>
+                              <div>
+                                <span className="block text-xs text-text-muted">% Músculo</span>
+                                <strong className="text-success">{rec.muscleMassPercentage || '-'}%</strong>
+                              </div>
+                            </div>
+                            {rec.notes && (
+                              <div className="mt-2 text-xs text-text-secondary bg-bg-dark/50 p-2 rounded">
+                                <span className="font-bold">Notas: </span> {rec.notes}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}

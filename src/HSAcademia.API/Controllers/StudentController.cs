@@ -75,4 +75,32 @@ public class StudentController : ControllerBase
         if (academyId == Guid.Empty) return Unauthorized();
         return Ok(await _studentService.GetStudentMedicalRecordAsync(academyId, id));
     }
+
+    [HttpGet("{id}/nutrition-records")]
+    public async Task<IActionResult> GetNutritionRecords(Guid id)
+    {
+        var academyId = GetAcademyId();
+        if (academyId == Guid.Empty) return Unauthorized();
+        return Ok(await _studentService.GetStudentNutritionRecordsAsync(academyId, id));
+    }
+
+    [HttpPost("{id}/nutrition-records")]
+    public async Task<IActionResult> AddNutritionRecord(Guid id, [FromBody] CreateStudentNutritionRecordDto dto)
+    {
+        var academyId = GetAcademyId();
+        if (academyId == Guid.Empty) return Unauthorized();
+
+        var userIdStr = User.FindFirst("userId")?.Value;
+        if (!Guid.TryParse(userIdStr, out var userId)) return Unauthorized();
+
+        try
+        {
+            var record = await _studentService.AddStudentNutritionRecordAsync(academyId, id, dto, userId);
+            return Ok(record);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
 }
