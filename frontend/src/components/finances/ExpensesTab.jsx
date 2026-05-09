@@ -441,6 +441,7 @@ export default function ExpensesTab() {
                   <div className="grid grid-cols-12 gap-2 mb-2">
                     <div className="col-span-12 sm:col-span-6 relative">
                       <input type="text" placeholder="Nombre producto *" className="form-control text-sm py-1.5"
+                        autoComplete="off"
                         value={productForm.name} 
                         onChange={handleProductNameChange}
                         onFocus={() => {
@@ -448,6 +449,7 @@ export default function ExpensesTab() {
                             setShowProductSuggestions(true);
                           }
                         }}
+                        onBlur={() => setTimeout(() => setShowProductSuggestions(false), 200)}
                       />
                       {showProductSuggestions && (
                         <div className="absolute z-50 w-full mt-1 bg-[#0f172a] border border-border/50 rounded-lg shadow-2xl overflow-y-auto" style={{ maxHeight: '200px' }}>
