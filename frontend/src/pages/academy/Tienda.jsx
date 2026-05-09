@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import AppLayout from '../../components/AppLayout';
 import { Package, ShoppingCart, PlusCircle, DollarSign, Tag, TrendingUp, AlertCircle, ShoppingBag, BarChart3, Download } from 'lucide-react';
@@ -239,11 +239,11 @@ export default function Tienda() {
                     </div>
                     <div className="flex justify-between border-b border-border/50 pb-1">
                       <span className="text-text-secondary">Costo de Compra:</span>
-                      <span className="font-medium text-warning flex items-center gap-1"><DollarSign size={14}/> {(p.costPrice || 0).toFixed(2)}</span>
+                      <span className="font-medium text-warning">S/. {(p.costPrice || 0).toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between border-b border-border/50 pb-1">
                       <span className="text-text-secondary">Precio de Venta:</span>
-                      <span className="font-bold text-success flex items-center gap-1"><DollarSign size={14}/> {p.price.toFixed(2)}</span>
+                      <span className="font-bold text-success">S/. {p.price.toFixed(2)}</span>
                     </div>
                     {p.costPrice > 0 && (
                       <div className="flex justify-between pb-1">

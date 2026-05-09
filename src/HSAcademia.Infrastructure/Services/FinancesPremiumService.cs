@@ -231,6 +231,16 @@ public class FinancesPremiumService : IFinancesPremiumService
 
         await CheckPeriodClosedAsync(academyId, expense.Date);
 
+        if (expense.Type == ExpenseType.PurchaseMaterials || expense.Type == ExpenseType.PurchaseProducts)
+        {
+            var linkedProducts = await _context.Products.Where(p => p.PurchaseExpenseId == expense.Id).ToListAsync();
+            foreach (var p in linkedProducts)
+            {
+                p.Stock = 0;
+                p.IsActive = false;
+            }
+        }
+
         expense.IsDeleted = true;
         expense.DeletedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();

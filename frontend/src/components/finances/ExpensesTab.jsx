@@ -46,11 +46,17 @@ export default function ExpensesTab() {
   }, []);
 
   useEffect(() => {
-    if ((parseInt(formData.type) === 6 || parseInt(formData.type) === 7) && formData.products.length > 0) {
-      const total = formData.products.reduce((sum, p) => sum + (p.quantity * p.unitCost), 0);
-      setFormData(prev => ({ ...prev, amount: total.toFixed(2) }));
+    if ((parseInt(formData.type) === 6 || parseInt(formData.type) === 7)) {
+      let total = formData.products.reduce((sum, p) => sum + (p.quantity * p.unitCost), 0);
+      const pendingQ = parseFloat(productForm.quantity) || 0;
+      const pendingC = parseFloat(productForm.unitCost) || 0;
+      total += (pendingQ * pendingC);
+      
+      if (total > 0 || formData.products.length > 0) {
+        setFormData(prev => ({ ...prev, amount: total.toFixed(2) }));
+      }
     }
-  }, [formData.products, formData.type]);
+  }, [formData.products, formData.type, productForm.quantity, productForm.unitCost]);
 
   const fetchStoreProducts = async () => {
     try {
@@ -76,6 +82,21 @@ export default function ExpensesTab() {
   const handleCreate = async (e) => {
     e.preventDefault();
     try {
+      let finalProducts = [...formData.products];
+      const isForSale = parseInt(formData.type) === 7;
+      if (productForm.name && productForm.quantity && productForm.unitCost && (!isForSale || productForm.salePrice)) {
+        finalProducts.push({
+          productId: productForm.productId,
+          name: productForm.name,
+          productCategory: productForm.productCategory,
+          description: productForm.description,
+          quantity: parseInt(productForm.quantity),
+          unitCost: parseFloat(productForm.unitCost),
+          salePrice: isForSale ? parseFloat(productForm.salePrice) : 0,
+          forSale: isForSale
+        });
+      }
+
       const payload = {
         type: parseInt(formData.type),
         amount: parseFloat(formData.amount),
@@ -83,7 +104,7 @@ export default function ExpensesTab() {
         description: formData.description,
         supplier: formData.supplier || null,
         voucherUrl: formData.voucherUrl || null,
-        products: (formData.type == 7 || formData.type == 6) ? formData.products : []
+        products: (formData.type == 7 || formData.type == 6) ? finalProducts : []
       };
 
       if (editingExpenseId) {
