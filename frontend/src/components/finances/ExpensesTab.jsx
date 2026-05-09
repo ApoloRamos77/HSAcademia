@@ -449,7 +449,7 @@ export default function ExpensesTab() {
                         }}
                       />
                       {showProductSuggestions && (
-                        <div className="absolute z-10 w-full mt-1 bg-bg-dark border border-border/50 rounded-lg shadow-xl overflow-hidden max-h-40 overflow-y-auto">
+                        <div className="absolute z-50 w-full mt-1 bg-[#0f172a] border border-border/50 rounded-lg shadow-2xl overflow-y-auto" style={{ maxHeight: '200px' }}>
                           {storeProducts.filter(p => p.name.toLowerCase().includes(productForm.name.toLowerCase())).length > 0 ? (
                             storeProducts
                               .filter(p => p.name.toLowerCase().includes(productForm.name.toLowerCase()))
@@ -458,17 +458,17 @@ export default function ExpensesTab() {
                                   key={p.id}
                                   type="button"
                                   onClick={() => handleSelectProduct(p)}
-                                  className="w-full text-left px-3 py-2 text-sm text-white hover:bg-primary/20 border-b border-border/50 last:border-0"
+                                  className="block w-full text-left px-4 py-2.5 text-sm text-white hover:bg-white/10 border-b border-border/50 last:border-0 transition-colors"
                                 >
                                   <div className="font-bold">{p.name}</div>
-                                  <div className="text-xs text-text-muted flex justify-between">
+                                  <div className="text-xs text-text-muted flex justify-between mt-0.5">
                                     <span>Stock: {p.stock}</span>
                                     <span>Venta: S/. {p.price.toFixed(2)}</span>
                                   </div>
                                 </button>
                               ))
                           ) : (
-                            <div className="px-3 py-2 text-sm text-text-muted italic">No hay coincidencias (se creará uno nuevo)</div>
+                            <div className="px-4 py-3 text-sm text-text-muted italic text-center">No hay coincidencias (se creará uno nuevo)</div>
                           )}
                         </div>
                       )}
