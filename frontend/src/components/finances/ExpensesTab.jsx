@@ -14,6 +14,11 @@ const EXPENSE_TYPES = {
   8: { label: 'Pagos/Servicios', color: 'bg-yellow-500/20 text-yellow-400' }
 };
 
+const MONTHS = [
+  'Enero','Febrero','Marzo','Abril','Mayo','Junio',
+  'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'
+];
+
 export default function ExpensesTab() {
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -37,11 +42,15 @@ export default function ExpensesTab() {
   const [storeProducts, setStoreProducts] = useState([]);
   const [showProductSuggestions, setShowProductSuggestions] = useState(false);
 
-  const currentMonth = new Date().getMonth() + 1;
-  const currentYear = new Date().getFullYear();
+  const now = new Date();
+  const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState(now.getFullYear());
 
   useEffect(() => {
     fetchExpenses();
+  }, [selectedMonth, selectedYear]);
+
+  useEffect(() => {
     fetchStoreProducts();
   }, []);
 
@@ -70,7 +79,7 @@ export default function ExpensesTab() {
   const fetchExpenses = async () => {
     try {
       setLoading(true);
-      const { data } = await axios.get(`/finances-premium/expenses?month=${currentMonth}&year=${currentYear}`);
+      const { data } = await axios.get(`/finances-premium/expenses?month=${selectedMonth}&year=${selectedYear}`);
       setExpenses(data);
     } catch (err) {
       toast.error('Error al cargar los egresos');
@@ -214,7 +223,7 @@ export default function ExpensesTab() {
             S/. {totalExpenses.toLocaleString('en-US', { minimumFractionDigits: 2 })}
           </h2>
           <p className="text-xs text-text-muted mt-2 flex items-center gap-1">
-            <Calendar size={12} /> {new Date().toLocaleString('es-ES', { month: 'long', year: 'numeric' })}
+            <Calendar size={12} /> {MONTHS[selectedMonth - 1]} de {selectedYear}
           </p>
         </div>
         
@@ -226,16 +235,25 @@ export default function ExpensesTab() {
         <h3 className="text-xl font-bold text-white flex items-center gap-2">
           <FileText className="text-primary" /> Historial de Egresos
         </h3>
-        <button
-          onClick={() => {
-            setEditingExpenseId(null);
-            setFormData({ type: 1, amount: '', date: new Date().toISOString().split('T')[0], description: '', supplier: '', voucherUrl: '', products: [] });
-            setIsModalOpen(true);
-          }}
-          className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-5 py-2.5 rounded-xl font-medium transition-all transform hover:scale-105 shadow-lg shadow-primary/20"
-        >
-          <Plus size={18} /> Registrar Gasto
-        </button>
+        <div className="flex flex-wrap items-center gap-3">
+          <select className="form-control text-sm py-2 w-auto" value={selectedMonth} onChange={e => setSelectedMonth(+e.target.value)}>
+            {MONTHS.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
+          </select>
+          <select className="form-control text-sm py-2 w-auto" value={selectedYear} onChange={e => setSelectedYear(+e.target.value)}>
+            {[2024,2025,2026,2027].map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+          <button
+            onClick={() => {
+              setFormData({ type: 1, amount: '', date: new Date().toISOString().split('T')[0], description: '', supplier: '', voucherUrl: '', products: [] });
+              setProductForm({ productId: null, name: '', productCategory: '', quantity: '', unitCost: '', salePrice: '', description: '' });
+              setEditingExpenseId(null);
+              setIsModalOpen(true);
+            }}
+            className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-5 py-2.5 rounded-xl font-medium transition-all transform hover:scale-105 shadow-lg shadow-primary/20"
+          >
+            <Plus size={18} /> Registrar Gasto
+          </button>
+        </div>
       </div>
 
       {/* Tabla de Egresos */}

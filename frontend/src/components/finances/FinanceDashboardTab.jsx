@@ -1,8 +1,8 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import {
   BarChart3, TrendingUp, TrendingDown, Users, DollarSign,
-  ArrowUpRight, ArrowDownRight, RefreshCw, X
+  ArrowUpRight, ArrowDownRight, RefreshCw, X, CheckCircle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
