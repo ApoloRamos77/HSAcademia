@@ -29,6 +29,18 @@ public class CreateExpenseDto
     public List<CreatePurchaseProductDto> Products { get; set; } = new();
 }
 
+public class UpdateExpenseDto
+{
+    public ExpenseType Type { get; set; }
+    public decimal Amount { get; set; }
+    public DateTime Date { get; set; }
+    public string Description { get; set; } = string.Empty;
+    public string? Supplier { get; set; }
+    public string? VoucherUrl { get; set; }
+    // We omit Products for update to prevent complex inventory recalculations. 
+    // If they need to fix products, they should delete the expense and re-enter, or we just allow basic field edits.
+}
+
 /// <summary>Product item linked to a purchase, returned in expense detail.</summary>
 public class PurchaseProductDto
 {
@@ -56,3 +68,12 @@ public class CreatePurchaseProductDto
     public bool ForSale { get; set; }
 }
 
+public class FinancialPeriodDto
+{
+    public Guid Id { get; set; }
+    public int Year { get; set; }
+    public int Month { get; set; }
+    public bool IsClosed { get; set; }
+    public DateTime? ClosedAt { get; set; }
+    public Guid? ClosedByUserId { get; set; }
+}

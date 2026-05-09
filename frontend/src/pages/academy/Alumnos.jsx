@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import AppLayout from '../../components/AppLayout';
-import { PlusCircle, Search, Users, Activity, FileText, Calendar, MapPin, UserPlus } from 'lucide-react';
+import { PlusCircle, Search, Users, Activity, FileText, Calendar, MapPin, UserPlus, X, Filter } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 
@@ -14,10 +14,16 @@ export default function Alumnos() {
   const [showModal, setShowModal] = useState(false);
   const [currentStep, setCurrentStep] = useState(1); // 1: Alumno, 2: Apoderado, 3: Ficha Médica
   
+  const [search, setSearch] = useState('');
+  const [filterSede, setFilterSede] = useState('');
+  const [filterCat, setFilterCat] = useState('');
+  const [filterStatus, setFilterStatus] = useState(''); // '' | 'active' | 'inactive'
+  const [showFilters, setShowFilters] = useState(false);
+
   const initialForm = {
     firstName: '', lastName: '', email: '', phone: '', dateOfBirth: '', documentNumber: '', headquarterId: '', categoryId: '',
     enrollmentDate: new Date().toISOString().split('T')[0], preferentialFee: '',
-    isGuest: false, isScholarship: false, scholarshipPercentage: '',
+    isGuest: false, isScholarship: false, scholarshipPercentage: '', isActive: true,
     guardianFirstName: '', guardianLastName: '', guardianEmail: '', guardianPhone: '',
     medicalRecord: {
       allergies: '', medicalConditions: '', emergencyContactName: '', emergencyContactPhone: '',
@@ -93,6 +99,20 @@ export default function Alumnos() {
     return matchHq && matchDate;
   });
 
+  const filteredAlumnos = alumnos.filter(a => {
+    const q = search.toLowerCase();
+    const matchSearch = !q ||
+      `${a.firstName} ${a.lastName}`.toLowerCase().includes(q) ||
+      (a.documentNumber || '').toLowerCase().includes(q) ||
+      (a.guardianName || '').toLowerCase().includes(q);
+    const matchSede   = !filterSede   || a.headquarterId === filterSede;
+    const matchCat    = !filterCat    || a.categoryId    === filterCat;
+    const matchStatus = !filterStatus || (filterStatus === 'active' ? a.isActive : !a.isActive);
+    return matchSearch && matchSede && matchCat && matchStatus;
+  });
+
+  const activeFiltersCount = [filterSede, filterCat, filterStatus].filter(Boolean).length;
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -161,8 +181,82 @@ export default function Alumnos() {
             )}
           </div>
 
+          {/* ── Filter Bar ── */}
+          <div className="px-1 pt-2 pb-4 border-b border-border/40 mb-4">
+            <div className="flex gap-2 flex-wrap items-center">
+              {/* Search */}
+              <div className="relative flex-1 min-w-[180px]">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
+                <input
+                  type="text"
+                  className="form-control pl-8 py-1.5 text-sm"
+                  placeholder="Buscar nombre, DNI o apoderado..."
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                />
+                {search && <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-danger"><X size={14}/></button>}
+              </div>
+
+              {/* Filter toggle */}
+              <button
+                onClick={() => setShowFilters(v => !v)}
+                className={`btn btn-sm flex items-center gap-1.5 ${ activeFiltersCount > 0 ? 'btn-primary' : 'btn-outline'}`}
+              >
+                <Filter size={14}/> Filtros {activeFiltersCount > 0 && <span className="badge badge-warning text-xs ml-1">{activeFiltersCount}</span>}
+              </button>
+
+              {/* Clear all */}
+              {(search || activeFiltersCount > 0) && (
+                <button onClick={() => { setSearch(''); setFilterSede(''); setFilterCat(''); setFilterStatus(''); }} className="btn btn-ghost btn-sm text-danger flex items-center gap-1">
+                  <X size={13}/> Limpiar
+                </button>
+              )}
+            </div>
+
+            {/* Expanded filter panel */}
+            {showFilters && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3 fade-in">
+                {/* Sede */}
+                <div>
+                  <label className="form-label text-xs mb-1">Sede</label>
+                  <select className="form-control text-sm py-1.5" value={filterSede} onChange={e => setFilterSede(e.target.value)}>
+                    <option value="">Todas las sedes</option>
+                    {sedes.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+                {/* Categoría */}
+                <div>
+                  <label className="form-label text-xs mb-1">Categoría</label>
+                  <select className="form-control text-sm py-1.5" value={filterCat} onChange={e => setFilterCat(e.target.value)}>
+                    <option value="">Todas las categorías</option>
+                    {categorias
+                      .filter(c => !filterSede || c.headquarterId === filterSede)
+                      .map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+                {/* Estado */}
+                <div>
+                  <label className="form-label text-xs mb-1">Estado</label>
+                  <select className="form-control text-sm py-1.5" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+                    <option value="">Todos</option>
+                    <option value="active">Activos</option>
+                    <option value="inactive">Inactivos</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {/* Result count */}
+            <div className="flex items-center gap-3 mt-3 text-xs text-text-muted">
+              <span>Mostrando <strong className="text-text-main">{filteredAlumnos.length}</strong> de <strong>{alumnos.length}</strong> alumnos</span>
+              {filterSede && <span className="badge badge-primary text-xs">{sedes.find(s=>s.id===filterSede)?.name}</span>}
+              {filterCat  && <span className="badge badge-success text-xs">{categorias.find(c=>c.id===filterCat)?.name}</span>}
+              {filterStatus && <span className={`badge text-xs ${filterStatus==='active' ? 'badge-success' : 'badge-danger'}`}>{filterStatus==='active' ? 'Activos' : 'Inactivos'}</span>}
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {alumnos.map(alumno => (
+            {filteredAlumnos.map(alumno => (
               <div key={alumno.id} className="card p-5" style={{ background: 'var(--bg-surface)' }}>
                 <div className="flex justify-between items-start mb-4">
                   <div>
@@ -202,6 +296,7 @@ export default function Alumnos() {
                           isGuest: alumno.isGuest || false,
                           isScholarship: alumno.isScholarship || false,
                           scholarshipPercentage: alumno.scholarshipPercentage || '',
+                          isActive: alumno.isActive,
                           guardianFirstName: alumno.guardianName.split(' ')[0] || '',
                           guardianLastName: alumno.guardianName.split(' ').slice(1).join(' ') || '',
                           guardianPhone: alumno.guardianPhone || '',
@@ -226,7 +321,7 @@ export default function Alumnos() {
               </div>
             ))}
           </div>
-          {alumnos.length === 0 && <div className="empty-state"><Users size={40}/><p>No hay alumnos registrados</p></div>}
+          {filteredAlumnos.length === 0 && <div className="empty-state"><Users size={40}/><p>{alumnos.length === 0 ? 'No hay alumnos registrados' : 'No hay alumnos que coincidan con los filtros'}</p></div>}
         </div>
 
         {showModal && (
@@ -246,7 +341,25 @@ export default function Alumnos() {
                 {/* STEP 1: ALUMNO */}
                 {currentStep === 1 && (
                   <div className="fade-in">
-                    <h4 className="text-primary-400 font-bold mb-4 flex items-center gap-2"><Users size={18}/> Datos Personales del Alumno</h4>
+                    <div className="flex justify-between items-center mb-4">
+                      <h4 className="text-primary-400 font-bold flex items-center gap-2"><Users size={18}/> Datos Personales del Alumno</h4>
+                      
+                      {editingId && (
+                        <div className="flex items-center gap-2">
+                          <label className="text-sm font-medium text-text-muted">Estado:</label>
+                          <label className="flex items-center cursor-pointer">
+                            <div className="relative">
+                              <input type="checkbox" className="sr-only" checked={formData.isActive} onChange={(e) => setFormData({...formData, isActive: e.target.checked})} />
+                              <div className={`block w-10 h-6 rounded-full transition-colors ${formData.isActive ? 'bg-success' : 'bg-danger'}`}></div>
+                              <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${formData.isActive ? 'transform translate-x-4' : ''}`}></div>
+                            </div>
+                            <span className={`ml-2 text-sm font-bold ${formData.isActive ? 'text-success' : 'text-danger'}`}>
+                              {formData.isActive ? 'Activo' : 'Inactivo'}
+                            </span>
+                          </label>
+                        </div>
+                      )}
+                    </div>
                     <div className="form-row">
                       <div className="form-group">
                         <label className="form-label">Nombres *</label>
@@ -260,8 +373,8 @@ export default function Alumnos() {
 
                     <div className="form-row">
                       <div className="form-group">
-                        <label className="form-label">DNI / Documento Identidad *</label>
-                        <input required type="text" className="form-control" value={formData.documentNumber} onChange={e => setFormData({...formData, documentNumber: e.target.value})} />
+                        <label className="form-label">DNI / Documento Identidad <span className="text-text-muted text-xs font-normal">(Opcional)</span></label>
+                        <input type="text" className="form-control" value={formData.documentNumber} onChange={e => setFormData({...formData, documentNumber: e.target.value})} />
                       </div>
                       <div className="form-group">
                         <label className="form-label">Fecha de Nacimiento *</label>
@@ -274,12 +387,19 @@ export default function Alumnos() {
 
                     <div className="form-row">
                       <div className="form-group">
-                        <label className="form-label">Correo Electrónico (Opcional)</label>
+                        <label className="form-label flex justify-between items-center">
+                          <span>Correo Electrónico <span className="text-text-muted text-xs font-normal">(Opcional)</span></span>
+                          <span className="text-xs text-primary-400 font-normal">Para acceso al app</span>
+                        </label>
                         <input type="email" className="form-control" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} placeholder="Para su acceso al app" />
                       </div>
                       <div className="form-group">
-                        <label className="form-label">Celular del Alumno (Opcional)</label>
+                        <label className="form-label flex justify-between items-center">
+                          <span>Celular del Alumno <span className="text-text-muted text-xs font-normal">(Opcional)</span></span>
+                        </label>
                         <input type="tel" className="form-control" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} placeholder="Ej. 987654321" />
+                        {(formData.email && formData.phone) && <p className="text-xs text-success mt-1">✓ Usuario del app se creará automáticamente al guardar.</p>}
+                        {(formData.email && !formData.phone) && <p className="text-xs text-warning mt-1">⚠ Se necesita celular + correo para crear acceso al app.</p>}
                       </div>
                     </div>
 

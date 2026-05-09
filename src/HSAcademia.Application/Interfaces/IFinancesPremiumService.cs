@@ -10,6 +10,7 @@ public interface IFinancesPremiumService
     // ── Expenses ──────────────────────────────────────────────────────────────
     Task<List<ExpenseDto>> GetExpensesAsync(Guid academyId, int month, int year);
     Task<ExpenseDto> CreateExpenseAsync(Guid academyId, Guid registeredBy, CreateExpenseDto dto);
+    Task<ExpenseDto> UpdateExpenseAsync(Guid academyId, Guid expenseId, UpdateExpenseDto dto);
     Task DeleteExpenseAsync(Guid expenseId, Guid academyId);
 
     // ── Petty Cash ────────────────────────────────────────────────────────────
@@ -35,4 +36,7 @@ public interface IFinancesPremiumService
     // ── Monthly Closings ─────────────────────────────────────────────────────
     Task<MonthlyClosingDto?> GetMonthlyClosingAsync(Guid academyId, int month, int year);
     Task<MonthlyClosingDto> CloseMonthAsync(Guid academyId, Guid closedBy, CloseMonthDto dto);
+    // ── Financial Close ───────────────────────────────────────────────────────
+    Task<FinancialPeriodDto> GetPeriodStatusAsync(Guid academyId, int month, int year);
+    Task<FinancialPeriodDto> TogglePeriodCloseAsync(Guid academyId, int month, int year, Guid userId);
 }

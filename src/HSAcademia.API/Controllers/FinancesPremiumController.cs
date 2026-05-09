@@ -49,6 +49,13 @@ public class FinancesPremiumController : ControllerBase
         return Ok(result);
     }
 
+    [HttpPut("expenses/{id}")]
+    public async Task<IActionResult> UpdateExpense(Guid id, [FromBody] UpdateExpenseDto dto)
+    {
+        var result = await _service.UpdateExpenseAsync(GetAcademyId(), id, dto);
+        return Ok(result);
+    }
+
     [HttpDelete("expenses/{id}")]
     public async Task<IActionResult> DeleteExpense(Guid id)
     {
@@ -194,10 +201,26 @@ public class FinancesPremiumController : ControllerBase
         return Ok(result);
     }
 
-    [HttpPost("closings")]
-    public async Task<IActionResult> CloseMonth([FromBody] CloseMonthDto dto)
+    [HttpPost("monthly-closings/{year}/{month}/close")]
+    public async Task<IActionResult> CloseMonth(int year, int month, [FromBody] CloseMonthDto dto)
     {
         var result = await _service.CloseMonthAsync(GetAcademyId(), GetUserId(), dto);
+        return Ok(result);
+    }
+
+    // ── Financial Period Closings (Block modifications) ──────────────────────
+
+    [HttpGet("periods/{year}/{month}")]
+    public async Task<IActionResult> GetPeriodStatus(int year, int month)
+    {
+        var result = await _service.GetPeriodStatusAsync(GetAcademyId(), month, year);
+        return Ok(result);
+    }
+
+    [HttpPost("periods/{year}/{month}/toggle")]
+    public async Task<IActionResult> TogglePeriodClose(int year, int month)
+    {
+        var result = await _service.TogglePeriodCloseAsync(GetAcademyId(), month, year, GetUserId());
         return Ok(result);
     }
 }

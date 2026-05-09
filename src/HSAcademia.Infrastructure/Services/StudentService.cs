@@ -90,7 +90,7 @@ public class StudentService
         {
             guardianId = dto.GuardianId!.Value;
         }
-        else if (!string.IsNullOrEmpty(dto.GuardianEmail) && !string.IsNullOrEmpty(dto.GuardianFirstName))
+        else if (!string.IsNullOrEmpty(dto.GuardianEmail) && !string.IsNullOrEmpty(dto.GuardianFirstName) && !string.IsNullOrEmpty(dto.GuardianPhone))
         {
             // Check if user email exists
             var existingUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == dto.GuardianEmail);
@@ -137,7 +137,7 @@ public class StudentService
             Email = dto.Email
         };
 
-        if (!string.IsNullOrEmpty(dto.Email))
+        if (!string.IsNullOrEmpty(dto.Email) && !string.IsNullOrEmpty(dto.Phone))
         {
             var existingStudentUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == dto.Email);
             if (existingStudentUser != null)
@@ -283,6 +283,7 @@ public class StudentService
         student.DateOfBirth = dto.DateOfBirth.ToUniversalTime();
         student.HeadquarterId = dto.HeadquarterId;
         student.CategoryId = dto.CategoryId;
+        student.IsActive = dto.IsActive;
 
         if (dto.EnrollmentDate.HasValue)
             student.EnrollmentDate = dto.EnrollmentDate.Value.ToUniversalTime();
@@ -300,33 +301,38 @@ public class StudentService
                 var stUser = await _context.Users.FindAsync(student.UserId.Value);
                 if (stUser != null) stUser.Email = dto.Email ?? "";
             }
-            else if (!string.IsNullOrEmpty(dto.Email))
+        }
+        
+        student.Phone = dto.Phone;
+        
+        // Try creating User if it doesn't exist but now we have Email & Phone
+        if (!student.UserId.HasValue && !string.IsNullOrEmpty(dto.Email) && !string.IsNullOrEmpty(dto.Phone))
+        {
+            var existingStudentUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == dto.Email);
+            if (existingStudentUser != null)
             {
-                var existingStudentUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == dto.Email);
-                if (existingStudentUser != null)
-                {
-                    var linkedStudent = await _context.Students.FirstOrDefaultAsync(s => s.AcademyId == academyId && s.UserId == existingStudentUser.Id);
-                    if (linkedStudent != null)
-                        throw new Exception("El correo electrónico ya pertenece a otro alumno registrado en esta sede.");
+                var linkedStudent = await _context.Students.FirstOrDefaultAsync(s => s.AcademyId == academyId && s.UserId == existingStudentUser.Id);
+                if (linkedStudent != null && linkedStudent.Id != student.Id)
+                    throw new Exception("El correo electrónico ya pertenece a otro alumno registrado en esta sede.");
 
-                    student.UserId = existingStudentUser.Id;
-                }
-                else
+                student.UserId = existingStudentUser.Id;
+            }
+            else
+            {
+                var newStUser = new User
                 {
-                    var newStUser = new User
-                    {
-                        AcademyId = academyId,
-                        FirstName = dto.FirstName,
-                        LastName = dto.LastName,
-                        Email = dto.Email,
-                        Role = UserRole.Student,
-                        PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
-                        Status = UserStatus.Active
-                    };
-                    _context.Users.Add(newStUser);
-                    await _context.SaveChangesAsync();
-                    student.UserId = newStUser.Id;
-                }
+                    AcademyId = academyId,
+                    FirstName = dto.FirstName,
+                    LastName = dto.LastName,
+                    Email = dto.Email,
+                    Phone = dto.Phone,
+                    Role = UserRole.Student,
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
+                    Status = UserStatus.Active
+                };
+                _context.Users.Add(newStUser);
+                await _context.SaveChangesAsync();
+                student.UserId = newStUser.Id;
             }
         }
 

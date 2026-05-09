@@ -20,7 +20,7 @@ export default function Tienda() {
   const [productForm, setProductForm] = useState(initialProduct);
 
   const [showSaleModal, setShowSaleModal] = useState(false);
-  const initialSale = { productId: '', studentId: '', quantity: '1', isGift: false };
+  const initialSale = { productId: '', studentId: '', quantity: '1', isGift: false, paymentMethod: 'Cash', operationNumber: '' };
   const [saleForm, setSaleForm] = useState(initialSale);
 
   useEffect(() => {
@@ -70,10 +70,12 @@ export default function Tienda() {
         productId: saleForm.productId, 
         studentId: saleForm.studentId || null, 
         quantity: parseInt(saleForm.quantity, 10),
-        isGift: saleForm.isGift
+        isGift: saleForm.isGift,
+        paymentMethod: saleForm.isGift ? null : saleForm.paymentMethod,
+        operationNumber: saleForm.operationNumber || null,
       };
       const res = await api.post('/store/sales', payload);
-      toast.success('Venta registrada con éxito');
+      toast.success(saleForm.isGift ? '🎁 Obsequio registrado' : 'Venta registrada con éxito');
       setShowSaleModal(false);
       
       const product = products.find(p => p.id === saleForm.productId);
@@ -437,6 +439,29 @@ export default function Tienda() {
 
                 {!selectedProductForSale && saleForm.productId && (
                   <p className="text-danger text-sm mt-3 flex items-center gap-1"><AlertCircle size={14}/> Producto sin stock disponible.</p>
+                )}
+
+                {!saleForm.isGift && (
+                  <>
+                    <div className="form-group">
+                      <label className="form-label">Método de Pago *</label>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {[{v:'Cash',l:'💵 Efectivo'},{v:'Yape',l:'📱 Yape'},{v:'Plin',l:'📱 Plin'},{v:'BankTransfer',l:'🏦 Transferencia'},{v:'Card',l:'💳 Tarjeta'}].map(m => (
+                          <button type="button" key={m.v}
+                            className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-all ${saleForm.paymentMethod===m.v ? 'bg-primary text-white border-primary' : 'border-border text-text-muted hover:border-primary'}`}
+                            onClick={() => setSaleForm({...saleForm, paymentMethod: m.v})}>
+                            {m.l}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    {saleForm.paymentMethod !== 'Cash' && (
+                      <div className="form-group">
+                        <label className="form-label">N° Operación <span className="text-text-muted font-normal">(Opcional)</span></label>
+                        <input type="text" className="form-control" value={saleForm.operationNumber} onChange={e => setSaleForm({...saleForm, operationNumber: e.target.value})} placeholder="Ej. 123456789" />
+                      </div>
+                    )}
+                  </>
                 )}
 
                 <div className="modal-footer mt-6">

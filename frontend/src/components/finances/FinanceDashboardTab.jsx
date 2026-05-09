@@ -63,6 +63,7 @@ export default function FinanceDashboardTab() {
   const [summary, setSummary] = useState(null);
   const [goal, setGoal] = useState(null);
   const [closing, setClosing] = useState(null);
+  const [periodStatus, setPeriodStatus] = useState(null);
   const [trendData, setTrendData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingTrend, setLoadingTrend] = useState(true);
@@ -81,14 +82,16 @@ export default function FinanceDashboardTab() {
   const fetchSummaryAndGoal = async () => {
     try {
       setLoading(true);
-      const [sumRes, goalRes, closingRes] = await Promise.all([
+      const [sumRes, goalRes, closingRes, periodRes] = await Promise.all([
         api.get(`/finances-premium/summary?month=${month}&year=${year}`),
         api.get(`/finances-premium/goals?month=${month}&year=${year}`),
-        api.get(`/finances-premium/closings?month=${month}&year=${year}`)
+        api.get(`/finances-premium/closings?month=${month}&year=${year}`),
+        api.get(`/finances-premium/periods/${year}/${month}`)
       ]);
       setSummary(sumRes.data);
       setGoal(goalRes.data);
       setClosing(closingRes.data);
+      setPeriodStatus(periodRes.data);
       if (goalRes.data) {
         setGoalForm({
           targetIncome: goalRes.data.targetIncome,
@@ -135,6 +138,16 @@ export default function FinanceDashboardTab() {
     } catch (err) { toast.error(err.response?.data?.message || 'Error al cerrar el mes'); }
   };
 
+  const handleToggleLock = async () => {
+    try {
+      await api.post(`/finances-premium/periods/${year}/${month}/toggle`);
+      toast.success(periodStatus?.isClosed ? 'Mes reabierto.' : 'Mes cerrado (Bloqueo contable activado).');
+      fetchSummaryAndGoal();
+    } catch {
+      toast.error('Error al cambiar estado del periodo.');
+    }
+  };
+
   const handleExportPL = () => {
     toast.success('Generando reporte P&L en PDF...');
     // A placeholder for the actual PDF generation logic.
@@ -174,14 +187,24 @@ export default function FinanceDashboardTab() {
           </select>
           
           {closing && closing.status === 'Closed' ? (
-             <button onClick={handleExportPL} className="btn btn-primary btn-sm flex items-center gap-2">
-               <DollarSign size={16}/> Reporte P&L
-             </button>
+             <div className="flex items-center gap-2">
+               <span className="badge badge-success flex items-center gap-1.5 px-3 py-1.5"><ArrowUpRight size={14}/> Cierre Registrado</span>
+               <button onClick={handleExportPL} className="btn btn-primary btn-sm flex items-center gap-2">
+                 <DollarSign size={16}/> Reporte P&L
+               </button>
+             </div>
           ) : (
              <button onClick={() => setShowClosingModal(true)} className="btn btn-success btn-sm flex items-center gap-2">
-               <ArrowUpRight size={16}/> Cerrar Mes
+               <ArrowUpRight size={16}/> Guardar Cierre (Snapshot)
              </button>
           )}
+
+          <button
+            onClick={handleToggleLock}
+            className={`btn btn-sm flex items-center gap-2 ${periodStatus?.isClosed ? 'bg-danger hover:bg-danger/80 text-white' : 'bg-primary hover:bg-primary/80 text-white'}`}
+          >
+            {periodStatus?.isClosed ? <><X size={16}/> Reabrir Periodo</> : <><CheckCircle size={16}/> Cierre Contable Seguro</>}
+          </button>
 
           <button onClick={fetchSummaryAndGoal} className="btn btn-ghost btn-sm p-2" title="Actualizar">
             <RefreshCw size={16}/>

@@ -31,6 +31,7 @@ public class AppDbContext : DbContext
     public DbSet<Event> Events => Set<Event>();
     public DbSet<EventCall> EventCalls => Set<EventCall>();
     public DbSet<Announcement> Announcements => Set<Announcement>();
+    public DbSet<FinancialPeriod> FinancialPeriods => Set<FinancialPeriod>();
     public DbSet<Expense> Expenses => Set<Expense>();
     public DbSet<PettyCash> PettyCashes => Set<PettyCash>();
     public DbSet<PettyCashTransaction> PettyCashTransactions => Set<PettyCashTransaction>();

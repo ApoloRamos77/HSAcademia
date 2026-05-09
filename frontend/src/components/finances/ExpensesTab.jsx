@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../../api/axios';
-import { TrendingDown, Plus, FileText, Filter, Calendar, Tag, DollarSign, Trash2, X } from 'lucide-react';
+import { TrendingDown, Plus, FileText, Filter, Calendar, Tag, DollarSign, Trash2, X, Edit } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const EXPENSE_TYPES = {
@@ -32,6 +32,7 @@ export default function ExpensesTab() {
     productId: null, name: '', productCategory: '', quantity: '', unitCost: '', salePrice: '', description: ''
   });
   const [expandedId, setExpandedId] = useState(null);
+  const [editingExpenseId, setEditingExpenseId] = useState(null);
   
   const [storeProducts, setStoreProducts] = useState([]);
   const [showProductSuggestions, setShowProductSuggestions] = useState(false);
@@ -43,6 +44,13 @@ export default function ExpensesTab() {
     fetchExpenses();
     fetchStoreProducts();
   }, []);
+
+  useEffect(() => {
+    if ((parseInt(formData.type) === 6 || parseInt(formData.type) === 7) && formData.products.length > 0) {
+      const total = formData.products.reduce((sum, p) => sum + (p.quantity * p.unitCost), 0);
+      setFormData(prev => ({ ...prev, amount: total.toFixed(2) }));
+    }
+  }, [formData.products, formData.type]);
 
   const fetchStoreProducts = async () => {
     try {
@@ -68,17 +76,26 @@ export default function ExpensesTab() {
   const handleCreate = async (e) => {
     e.preventDefault();
     try {
-      await axios.post('/finances-premium/expenses', {
+      const payload = {
         type: parseInt(formData.type),
         amount: parseFloat(formData.amount),
         date: formData.date,
         description: formData.description,
         supplier: formData.supplier || null,
         voucherUrl: formData.voucherUrl || null,
-        products: formData.type == 7 ? formData.products : []
-      });
-      toast.success('Gasto registrado exitosamente');
+        products: (formData.type == 7 || formData.type == 6) ? formData.products : []
+      };
+
+      if (editingExpenseId) {
+        await axios.put(`/finances-premium/expenses/${editingExpenseId}`, payload);
+        toast.success('Gasto actualizado exitosamente');
+      } else {
+        await axios.post('/finances-premium/expenses', payload);
+        toast.success('Gasto registrado exitosamente');
+      }
+
       setIsModalOpen(false);
+      setEditingExpenseId(null);
       setFormData({ type: 1, amount: '', date: new Date().toISOString().split('T')[0], description: '', supplier: '', voucherUrl: '', products: [] });
       setProductForm({ productId: null, name: '', productCategory: '', quantity: '', unitCost: '', salePrice: '', description: '' });
       fetchExpenses();
@@ -86,6 +103,20 @@ export default function ExpensesTab() {
     } catch (err) {
       toast.error('Error al registrar gasto');
     }
+  };
+
+  const handleEdit = (expense) => {
+    setFormData({
+      type: expense.type,
+      amount: expense.amount,
+      date: new Date(expense.date).toISOString().split('T')[0],
+      description: expense.description,
+      supplier: expense.supplier || '',
+      voucherUrl: expense.voucherUrl || '',
+      products: expense.products || []
+    });
+    setEditingExpenseId(expense.id);
+    setIsModalOpen(true);
   };
 
   const handleDelete = async (id) => {
@@ -175,7 +206,11 @@ export default function ExpensesTab() {
           <FileText className="text-primary" /> Historial de Egresos
         </h3>
         <button
-          onClick={() => setIsModalOpen(true)}
+          onClick={() => {
+            setEditingExpenseId(null);
+            setFormData({ type: 1, amount: '', date: new Date().toISOString().split('T')[0], description: '', supplier: '', voucherUrl: '', products: [] });
+            setIsModalOpen(true);
+          }}
           className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-5 py-2.5 rounded-xl font-medium transition-all transform hover:scale-105 shadow-lg shadow-primary/20"
         >
           <Plus size={18} /> Registrar Gasto
@@ -233,6 +268,13 @@ export default function ExpensesTab() {
                           </button>
                         )}
                         <button 
+                          onClick={() => handleEdit(e)}
+                          className="p-1.5 text-text-muted hover:text-blue-400 hover:bg-blue-500/10 rounded transition-colors opacity-0 group-hover:opacity-100"
+                          title="Editar gasto"
+                        >
+                          <Edit size={16} />
+                        </button>
+                        <button 
                           onClick={() => handleDelete(e.id)}
                           className="p-1.5 text-text-muted hover:text-red-400 hover:bg-red-500/10 rounded transition-colors opacity-0 group-hover:opacity-100"
                           title="Eliminar gasto"
@@ -277,9 +319,9 @@ export default function ExpensesTab() {
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 480 }}>
             <div className="flex justify-between items-center mb-5 border-b border-border pb-3">
               <h3 className="modal-title m-0 flex items-center gap-2">
-                <DollarSign size={18} className="text-primary" /> Nuevo Egreso
+                <DollarSign size={18} className="text-primary" /> {editingExpenseId ? 'Editar Egreso' : 'Nuevo Egreso'}
               </h3>
-              <button onClick={() => setIsModalOpen(false)} className="btn btn-ghost btn-sm">
+              <button onClick={() => { setIsModalOpen(false); setEditingExpenseId(null); }} className="btn btn-ghost btn-sm">
                 <X size={16} />
               </button>
             </div>
@@ -327,6 +369,12 @@ export default function ExpensesTab() {
                     {parseInt(formData.type) === 7 ? 'Registro de Productos (Inventario)' : 'Registro de Materiales (Inventario Interno)'}
                   </h4>
                   
+                  {editingExpenseId && (
+                    <div className="mb-4 text-xs text-warning bg-warning/10 p-2 rounded border border-warning/20">
+                      No puedes editar los productos individualmente desde aquí porque ya afectaron al inventario. Si te equivocaste con los productos, elimina este registro y crea uno nuevo.
+                    </div>
+                  )}
+
                   <datalist id="categoryList">
                     {[...new Set(storeProducts.map(p => p.productCategory).filter(Boolean))].map(c => (
                       <option key={c} value={c} />
@@ -410,9 +458,12 @@ export default function ExpensesTab() {
                         value={productForm.description} onChange={e => setProductForm({...productForm, description: e.target.value})}/>
                     </div>
                   </div>
-                  <button type="button" onClick={handleAddProduct} className="btn btn-sm btn-ghost border border-primary/50 text-primary w-full py-1">
-                    + Añadir a la lista
-                  </button>
+                  
+                  {!editingExpenseId && (
+                    <button type="button" onClick={handleAddProduct} className="btn btn-sm btn-ghost border border-primary/50 text-primary w-full py-1">
+                      + Añadir a la lista
+                    </button>
+                  )}
                   <p className="text-xs text-text-muted mt-2 text-center">Los productos se crearán en la tienda con su costo y precio de venta.</p>
                 </div>
               )}
@@ -455,11 +506,11 @@ export default function ExpensesTab() {
               </div>
               
               <div className="modal-footer mt-4 flex justify-end gap-2">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="btn btn-ghost text-danger">
+                <button type="button" onClick={() => { setIsModalOpen(false); setEditingExpenseId(null); }} className="btn btn-ghost text-danger">
                   Cancelar
                 </button>
                 <button type="submit" className="btn btn-primary flex items-center gap-2">
-                  <DollarSign size={15} /> Guardar Gasto
+                  <DollarSign size={15} /> {editingExpenseId ? 'Actualizar Gasto' : 'Guardar Gasto'}
                 </button>
               </div>
             </form>

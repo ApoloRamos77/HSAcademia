@@ -20,6 +20,17 @@ public class FinancesPremiumService : IFinancesPremiumService
         _context = context;
     }
 
+    private async Task CheckPeriodClosedAsync(Guid academyId, DateTime date)
+    {
+        var period = await _context.FinancialPeriods
+            .FirstOrDefaultAsync(p => p.AcademyId == academyId && p.Year == date.Year && p.Month == date.Month);
+            
+        if (period != null && period.IsClosed)
+        {
+            throw new Exception($"El periodo contable de {date:MMMM yyyy} está cerrado. No se pueden realizar modificaciones.");
+        }
+    }
+
     // ══════════════════════════════════════════
     // EXPENSES
     // ══════════════════════════════════════════
@@ -65,6 +76,8 @@ public class FinancesPremiumService : IFinancesPremiumService
 
     public async Task<ExpenseDto> CreateExpenseAsync(Guid academyId, Guid registeredBy, CreateExpenseDto dto)
     {
+        await CheckPeriodClosedAsync(academyId, dto.Date);
+
         var expense = new Expense
         {
             AcademyId = academyId,
@@ -157,12 +170,66 @@ public class FinancesPremiumService : IFinancesPremiumService
         };
     }
 
+    public async Task<ExpenseDto> UpdateExpenseAsync(Guid academyId, Guid expenseId, UpdateExpenseDto dto)
+    {
+        await CheckPeriodClosedAsync(academyId, dto.Date);
+
+        var expense = await _context.Expenses
+            .FirstOrDefaultAsync(e => e.Id == expenseId && e.AcademyId == academyId);
+
+        if (expense == null)
+            throw new Exception("Egreso no encontrado.");
+        
+        await CheckPeriodClosedAsync(academyId, expense.Date); // Must also check original date
+
+        // NOTE: We do not allow editing products from here to prevent inventory corruption. 
+        // Only basic properties can be changed.
+        expense.Type = dto.Type;
+        expense.Amount = dto.Amount;
+        expense.Date = dto.Date.ToUniversalTime();
+        expense.Description = dto.Description;
+        expense.Supplier = dto.Supplier;
+        expense.VoucherUrl = dto.VoucherUrl;
+
+        await _context.SaveChangesAsync();
+
+        // Load any existing products just for the return DTO
+        var products = await _context.Products
+            .Where(p => p.PurchaseExpenseId == expense.Id)
+            .Select(p => new PurchaseProductDto
+            {
+                ProductId = p.Id,
+                Name = p.Name,
+                ProductCategory = p.ProductCategory,
+                Quantity = p.Stock, // Approximated
+                UnitCost = p.CostPrice,
+                SalePrice = p.Price,
+                ForSale = p.IsActive
+            })
+            .ToListAsync();
+
+        return new ExpenseDto
+        {
+            Id = expense.Id,
+            Type = expense.Type,
+            Amount = expense.Amount,
+            Date = expense.Date,
+            Description = expense.Description,
+            Supplier = expense.Supplier,
+            VoucherUrl = expense.VoucherUrl,
+            Products = products
+        };
+    }
+
     public async Task DeleteExpenseAsync(Guid expenseId, Guid academyId)
     {
         var expense = await _context.Expenses
             .FirstOrDefaultAsync(e => e.Id == expenseId && e.AcademyId == academyId);
 
-        if (expense == null) throw new Exception("Gasto no encontrado");
+        if (expense == null)
+            throw new Exception("Egreso no encontrado.");
+
+        await CheckPeriodClosedAsync(academyId, expense.Date);
 
         expense.IsDeleted = true;
         expense.DeletedAt = DateTime.UtcNow;
@@ -245,6 +312,8 @@ public class FinancesPremiumService : IFinancesPremiumService
             .FirstOrDefaultAsync(p => p.Id == dto.PettyCashId && p.AcademyId == academyId);
 
         if (pettyCash == null) throw new Exception("Caja Chica no encontrada.");
+        
+        await CheckPeriodClosedAsync(academyId, new DateTime(pettyCash.Year, pettyCash.Month, 1));
 
         var transaction = new PettyCashTransaction
         {
@@ -373,6 +442,8 @@ public class FinancesPremiumService : IFinancesPremiumService
 
     public async Task<StaffPaymentDto> CreateStaffPaymentAsync(Guid academyId, CreateStaffPaymentDto dto)
     {
+        await CheckPeriodClosedAsync(academyId, new DateTime(dto.PeriodYear, dto.PeriodMonth, 1));
+
         var payment = new StaffPayment
         {
             AcademyId = academyId,
@@ -417,6 +488,8 @@ public class FinancesPremiumService : IFinancesPremiumService
             .FirstOrDefaultAsync(sp => sp.Id == paymentId && sp.AcademyId == academyId);
 
         if (payment == null) throw new Exception("Pago de nómina no encontrado.");
+        
+        await CheckPeriodClosedAsync(academyId, new DateTime(payment.PeriodYear, payment.PeriodMonth, 1));
 
         payment.Status = StaffPaymentStatus.Paid;
         payment.PaidAt = DateTime.UtcNow;
@@ -715,5 +788,82 @@ public class FinancesPremiumService : IFinancesPremiumService
         await _context.SaveChangesAsync();
 
         return await GetMonthlyClosingAsync(academyId, dto.Month, dto.Year) ?? throw new Exception("Error al recuperar el cierre.");
+    }
+
+    // ══════════════════════════════════════════
+    // FINANCIAL CLOSE
+    // ══════════════════════════════════════════
+    public async Task<FinancialPeriodDto> GetPeriodStatusAsync(Guid academyId, int month, int year)
+    {
+        var period = await _context.FinancialPeriods
+            .FirstOrDefaultAsync(p => p.AcademyId == academyId && p.Year == year && p.Month == month);
+
+        if (period == null)
+        {
+            return new FinancialPeriodDto
+            {
+                Id = Guid.Empty,
+                Year = year,
+                Month = month,
+                IsClosed = false
+            };
+        }
+
+        return new FinancialPeriodDto
+        {
+            Id = period.Id,
+            Year = period.Year,
+            Month = period.Month,
+            IsClosed = period.IsClosed,
+            ClosedAt = period.ClosedAt,
+            ClosedByUserId = period.ClosedByUserId
+        };
+    }
+
+    public async Task<FinancialPeriodDto> TogglePeriodCloseAsync(Guid academyId, int month, int year, Guid userId)
+    {
+        var period = await _context.FinancialPeriods
+            .FirstOrDefaultAsync(p => p.AcademyId == academyId && p.Year == year && p.Month == month);
+
+        if (period == null)
+        {
+            period = new FinancialPeriod
+            {
+                AcademyId = academyId,
+                Year = year,
+                Month = month,
+                IsClosed = true,
+                ClosedAt = DateTime.UtcNow,
+                ClosedByUserId = userId
+            };
+            _context.FinancialPeriods.Add(period);
+        }
+        else
+        {
+            period.IsClosed = !period.IsClosed;
+            
+            if (period.IsClosed)
+            {
+                period.ClosedAt = DateTime.UtcNow;
+                period.ClosedByUserId = userId;
+            }
+            else
+            {
+                period.ReopenedAt = DateTime.UtcNow;
+                period.ReopenedByUserId = userId;
+            }
+        }
+
+        await _context.SaveChangesAsync();
+
+        return new FinancialPeriodDto
+        {
+            Id = period.Id,
+            Year = period.Year,
+            Month = period.Month,
+            IsClosed = period.IsClosed,
+            ClosedAt = period.ClosedAt,
+            ClosedByUserId = period.ClosedByUserId
+        };
     }
 }

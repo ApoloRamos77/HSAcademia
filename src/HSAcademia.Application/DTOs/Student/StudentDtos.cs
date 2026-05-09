@@ -61,6 +61,9 @@ public class CreateStudentDto
 
     // Medical Record
     public MedicalRecordDto MedicalRecord { get; set; } = new();
+
+    // Status
+    public bool IsActive { get; set; } = true;
 }
 
 public class MedicalRecordDto
