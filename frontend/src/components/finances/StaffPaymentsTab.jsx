@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import { Users, Plus, CheckCircle, Clock, X, DollarSign } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -112,14 +112,14 @@ export default function StaffPaymentsTab() {
         <div className="card p-5 flex items-center gap-4 bg-warning/10 border-warning/30">
           <div className="p-3 bg-warning/20 rounded-full text-warning"><Clock size={22}/></div>
           <div>
-            <p className="text-warning font-bold text-lg">S/ {totalPending.toFixed(2)}</p>
+            <p className="text-warning font-bold text-lg">S/. {totalPending.toFixed(2)}</p>
             <p className="text-sm text-text-secondary">{payments.filter(p => p.status === 0).length} pendientes de pago</p>
           </div>
         </div>
         <div className="card p-5 flex items-center gap-4 bg-success/10 border-success/30">
           <div className="p-3 bg-success/20 rounded-full text-success"><CheckCircle size={22}/></div>
           <div>
-            <p className="text-success font-bold text-lg">S/ {totalPaid.toFixed(2)}</p>
+            <p className="text-success font-bold text-lg">S/. {totalPaid.toFixed(2)}</p>
             <p className="text-sm text-text-secondary">{payments.filter(p => p.status === 1).length} pagados este período</p>
           </div>
         </div>
@@ -152,10 +152,10 @@ export default function StaffPaymentsTab() {
                       <p className="font-bold text-white">{p.staffName}</p>
                       {p.notes && <p className="text-xs text-text-muted mt-0.5 italic">{p.notes}</p>}
                     </td>
-                    <td className="text-text-main">S/ {p.baseAmount.toFixed(2)}</td>
-                    <td className="text-success">+ S/ {p.bonuses.toFixed(2)}</td>
-                    <td className="text-danger">- S/ {p.deductions.toFixed(2)}</td>
-                    <td className="font-bold text-white">S/ {p.totalPaid.toFixed(2)}</td>
+                    <td className="text-text-main">S/. {p.baseAmount.toFixed(2)}</td>
+                    <td className="text-success">+ S/. {p.bonuses.toFixed(2)}</td>
+                    <td className="text-danger">- S/. {p.deductions.toFixed(2)}</td>
+                    <td className="font-bold text-white">S/. {p.totalPaid.toFixed(2)}</td>
                     <td>
                       {p.status === 1
                         ? <span className="badge badge-success flex items-center gap-1 w-max"><CheckCircle size={11}/> Pagado</span>
@@ -237,7 +237,7 @@ export default function StaffPaymentsTab() {
                 <div className="form-group">
                   <label className="form-label">Total Neto</label>
                   <div className={`form-control flex items-center font-bold ${net >= 0 ? 'text-success' : 'text-danger'}`}>
-                    S/ {net.toFixed(2)}
+                    S/. {net.toFixed(2)}
                   </div>
                 </div>
               </div>

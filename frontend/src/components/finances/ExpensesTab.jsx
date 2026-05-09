@@ -293,10 +293,10 @@ export default function ExpensesTab() {
                             <div key={p.productId} className="flex items-center justify-between bg-card/50 p-2 rounded border border-border/50 text-sm">
                               <div>
                                 <p className="font-bold text-white">{p.name}</p>
-                                <p className="text-xs text-text-muted">{p.quantity} und. x S/ {p.unitCost.toFixed(2)}</p>
+                                <p className="text-xs text-text-muted">{p.quantity} und. x S/. {p.unitCost.toFixed(2)}</p>
                               </div>
                               <div className="text-right">
-                                <p className="text-success font-medium">Venta: S/ {p.salePrice.toFixed(2)}</p>
+                                <p className="text-success font-medium">Venta: S/. {p.salePrice.toFixed(2)}</p>
                                 {!p.forSale && <p className="text-xs text-danger">⚠️ Sin precio de venta</p>}
                               </div>
                             </div>
@@ -387,10 +387,10 @@ export default function ExpensesTab() {
                         <div key={i} className="flex justify-between items-center bg-card/60 p-2 rounded border border-border/50 text-sm">
                           <div>
                             <span className="font-bold text-white">{p.name}</span>
-                            <span className="text-xs text-text-muted ml-2">({p.quantity} x S/{p.unitCost.toFixed(2)})</span>
+                            <span className="text-xs text-text-muted ml-2">({p.quantity} x S/. {p.unitCost.toFixed(2)})</span>
                           </div>
                           <div className="flex items-center gap-3">
-                            {p.forSale && <span className="text-success font-medium">P.V: S/{p.salePrice.toFixed(2)}</span>}
+                            {p.forSale && <span className="text-success font-medium">P.V: S/. {p.salePrice.toFixed(2)}</span>}
                             <button type="button" onClick={() => handleRemoveProduct(i)} className="text-danger"><X size={14}/></button>
                           </div>
                         </div>
@@ -424,7 +424,7 @@ export default function ExpensesTab() {
                                   <div className="font-bold">{p.name}</div>
                                   <div className="text-xs text-text-muted flex justify-between">
                                     <span>Stock: {p.stock}</span>
-                                    <span>Venta: S/ {p.price.toFixed(2)}</span>
+                                    <span>Venta: S/. {p.price.toFixed(2)}</span>
                                   </div>
                                 </button>
                               ))

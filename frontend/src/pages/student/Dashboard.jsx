@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import AppLayout from '../../components/AppLayout';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../api/axios';
@@ -136,7 +136,7 @@ export default function StudentDashboard() {
                         <p className="text-xs text-text-muted mt-1">Vence: {new Date(d.dueDate).toLocaleDateString('es-PE')}</p>
                       </div>
                       <div className="text-right">
-                        <p className="font-bold text-lg text-white">S/ {d.amountPending.toFixed(2)}</p>
+                        <p className="font-bold text-lg text-white">S/. {d.amountPending.toFixed(2)}</p>
                         <span className={`badge mt-1 ${d.status === 'Vencido' ? 'badge-danger' : 'badge-warning'}`}>
                           {d.status}
                         </span>

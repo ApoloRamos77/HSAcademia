@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+﻿import { useState, useEffect, useCallback } from 'react';
 import api from '../../api/axios';
 import AppLayout from '../../components/AppLayout';
 import {
@@ -232,7 +232,7 @@ export default function Finanzas() {
               </div>
               <div className="card p-4 flex items-center gap-4 bg-primary/10 border-primary/30">
                 <div className="p-3 bg-primary/20 rounded-full text-primary"><DollarSign size={22}/></div>
-                <div><h4 className="text-primary font-bold">Total por Cobrar</h4><p className="text-sm text-text-secondary">S/ {totalPending.toFixed(2)}</p></div>
+                <div><h4 className="text-primary font-bold">Total por Cobrar</h4><p className="text-sm text-text-secondary">S/. {totalPending.toFixed(2)}</p></div>
               </div>
             </div>
 
@@ -289,10 +289,10 @@ export default function Finanzas() {
                             )}
                           </td>
                           <td className="text-sm">{new Date(d.dueDate).toLocaleDateString('es-PE', { timeZone: 'UTC' })}</td>
-                          <td className="font-bold">S/ {d.amount.toFixed(2)}</td>
-                          <td className="text-success font-medium">S/ {d.amountPaid.toFixed(2)}</td>
+                          <td className="font-bold">S/. {d.amount.toFixed(2)}</td>
+                          <td className="text-success font-medium">S/. {d.amountPaid.toFixed(2)}</td>
                           <td className={`font-bold ${d.amountPending > 0 ? 'text-danger' : 'text-success'}`}>
-                            S/ {d.amountPending.toFixed(2)}
+                            S/. {d.amountPending.toFixed(2)}
                           </td>
                           <td className="text-right">
                             <div className="flex items-center justify-end gap-1">
@@ -338,7 +338,7 @@ export default function Finanzas() {
                               <div className="flex flex-col gap-1">
                                 {d.installments.map(i => (
                                   <div key={i.id} className="flex items-center gap-3 text-sm bg-bg-surface rounded p-2">
-                                    <span className="text-success font-bold">S/ {i.amountPaid.toFixed(2)}</span>
+                                    <span className="text-success font-bold">S/. {i.amountPaid.toFixed(2)}</span>
                                     <span className="text-text-muted">{new Date(i.paidAt).toLocaleDateString('es-PE')} {new Date(i.paidAt).toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'})}</span>
                                     <span className="badge badge-primary text-xs">{PAYMENT_METHODS.find(m=>m.value===i.method)?.label || i.method}</span>
                                     {i.operationNumber && <span className="text-text-muted text-xs">Op: {i.operationNumber}</span>}
@@ -429,9 +429,9 @@ export default function Finanzas() {
               <p className="font-bold text-white">{selected.studentName}</p>
               <p className="text-text-muted">{selected.description}</p>
               <div className="flex gap-4 mt-2">
-                <span>Total: <b className="text-white">S/ {selected.amount.toFixed(2)}</b></span>
-                <span>Pagado: <b className="text-success">S/ {selected.amountPaid.toFixed(2)}</b></span>
-                <span>Pendiente: <b className="text-danger">S/ {selected.amountPending.toFixed(2)}</b></span>
+                <span>Total: <b className="text-white">S/. {selected.amount.toFixed(2)}</b></span>
+                <span>Pagado: <b className="text-success">S/. {selected.amountPaid.toFixed(2)}</b></span>
+                <span>Pendiente: <b className="text-danger">S/. {selected.amountPending.toFixed(2)}</b></span>
               </div>
             </div>
             <form onSubmit={handlePay}>
@@ -440,7 +440,7 @@ export default function Finanzas() {
                   <label className="form-label">Monto a Pagar *</label>
                   <input required type="number" step="0.01" min="0.01" max={selected.amountPending} className="form-control"
                     value={payForm.amountPaid} onChange={e=>setPayForm({...payForm,amountPaid:e.target.value})}/>
-                  <span className="text-xs text-text-muted mt-1 inline-block">Máx. pendiente: S/ {selected.amountPending.toFixed(2)}</span>
+                  <span className="text-xs text-text-muted mt-1 inline-block">Máx. pendiente: S/. {selected.amountPending.toFixed(2)}</span>
                 </div>
                 <div className="form-group">
                   <label className="form-label">Medio de Pago *</label>
@@ -485,7 +485,7 @@ export default function Finanzas() {
             </div>
             <div className="bg-bg-dark p-3 rounded border border-border mb-4 text-sm">
               <p className="font-bold text-white">{selected.studentName} — {selected.description}</p>
-              <p className="text-text-muted">Monto actual: <b className="text-white">S/ {selected.amount.toFixed(2)}</b></p>
+              <p className="text-text-muted">Monto actual: <b className="text-white">S/. {selected.amount.toFixed(2)}</b></p>
             </div>
             <form onSubmit={handleRecalc}>
               <div className="form-group">
@@ -521,7 +521,7 @@ export default function Finanzas() {
               <h3 className="modal-title m-0 flex items-center gap-2"><Ban size={18}/> Exonerar Cobro</h3>
               <button onClick={()=>setModal(null)} className="btn btn-ghost btn-sm"><X size={16}/></button>
             </div>
-            <p className="text-sm text-text-secondary mb-4">Marcar este cobro como exonerado reduce el monto a S/ 0.00 y lo marca como pagado. Esta acción indica que el período no se debe cobrar.</p>
+            <p className="text-sm text-text-secondary mb-4">Marcar este cobro como exonerado reduce el monto a S/. 0.00 y lo marca como pagado. Esta acción indica que el período no se debe cobrar.</p>
             <form onSubmit={handleExclude}>
               <div className="form-group">
                 <label className="form-label">Motivo de Exoneración *</label>

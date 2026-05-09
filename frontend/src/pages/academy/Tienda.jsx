@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import AppLayout from '../../components/AppLayout';
 import { Package, ShoppingCart, PlusCircle, DollarSign, Tag, TrendingUp, AlertCircle, ShoppingBag, BarChart3, Download } from 'lucide-react';
@@ -167,7 +167,7 @@ export default function Tienda() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               <div className="card p-4 flex items-center gap-4 bg-primary/10 border-primary/30">
                 <div className="p-3 bg-primary/20 rounded-full text-primary"><DollarSign size={22}/></div>
-                <div><h4 className="text-primary font-bold">Ingresos Totales</h4><p className="text-sm text-text-secondary">S/ {totalRevenue.toFixed(2)}</p></div>
+                <div><h4 className="text-primary font-bold">Ingresos Totales</h4><p className="text-sm text-text-secondary">S/. {totalRevenue.toFixed(2)}</p></div>
               </div>
               <div className="card p-4 flex items-center gap-4 bg-success/10 border-success/30">
                 <div className="p-3 bg-success/20 rounded-full text-success"><ShoppingCart size={22}/></div>
@@ -249,7 +249,7 @@ export default function Tienda() {
                       <div className="flex justify-between pb-1">
                         <span className="text-text-secondary">Margen:</span>
                         <span className={`font-bold flex items-center gap-1 ${(p.price - p.costPrice) > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                          S/ {(p.price - p.costPrice).toFixed(2)} ({p.price > 0 ? (((p.price - p.costPrice) / p.price) * 100).toFixed(0) : 0}%)
+                          S/. {(p.price - p.costPrice).toFixed(2)} ({p.price > 0 ? (((p.price - p.costPrice) / p.price) * 100).toFixed(0) : 0}%)
                         </span>
                       </div>
                     )}
@@ -302,14 +302,14 @@ export default function Tienda() {
                   {sales.map(s => (
                     <tr key={s.id}>
                       <td>{new Date(s.saleDate).toLocaleDateString()} {new Date(s.saleDate).toLocaleTimeString()}</td>
-                      <td><div className="font-medium text-primary-100">{s.productName}</div><div className="text-xs text-text-muted">P.U: S/ {s.unitPrice.toFixed(2)}</div></td>
+                      <td><div className="font-medium text-primary-100">{s.productName}</div><div className="text-xs text-text-muted">P.U: S/. {s.unitPrice.toFixed(2)}</div></td>
                       <td>{s.studentName}</td>
                       <td>{s.quantity}</td>
                       <td>
                         {s.isGift ? (
                           <span className="badge badge-warning text-xs">🎁 Obsequio</span>
                         ) : (
-                          <span className="font-bold text-success">S/ {s.totalPrice.toFixed(2)}</span>
+                          <span className="font-bold text-success">S/. {s.totalPrice.toFixed(2)}</span>
                         )}
                       </td>
                       <td className="text-right">

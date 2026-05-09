@@ -1,4 +1,4 @@
-import { jsPDF } from "jspdf";
+﻿import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
 export const generateReceiptPDF = (data) => {
@@ -70,7 +70,7 @@ export const generateReceiptPDF = (data) => {
 
   // Table
   const tableData = [
-    [data.quantity || 1, data.description || "Descripción no disponible", `S/ ${parseFloat(data.total).toFixed(2)}`]
+    [data.quantity || 1, data.description || "Descripción no disponible", `S/. ${parseFloat(data.total).toFixed(2)}`]
   ];
   
   autoTable(doc, {
@@ -111,7 +111,7 @@ export const generateReceiptPDF = (data) => {
   doc.setFont("helvetica", "bold");
   doc.setTextColor(0, 0, 0);
   doc.setFontSize(14);
-  doc.text(`TOTAL: S/ ${parseFloat(data.total).toFixed(2)}`, 160, finalY + 53, { align: "center" });
+  doc.text(`TOTAL: S/. ${parseFloat(data.total).toFixed(2)}`, 160, finalY + 53, { align: "center" });
 
   doc.save(`Recibo_${receiptNum}.pdf`);
 };

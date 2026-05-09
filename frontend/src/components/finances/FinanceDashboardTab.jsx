@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import {
   BarChart3, TrendingUp, TrendingDown, Users, DollarSign,
@@ -46,7 +46,7 @@ const CustomTooltip = ({ active, payload, label }) => {
         <p style={{ color: '#a0aec0', marginBottom: 8, fontWeight: 600 }}>{label}</p>
         {payload.map((entry, i) => (
           <p key={i} style={{ color: entry.color, margin: '2px 0' }}>
-            {entry.name}: <strong>S/ {Number(entry.value).toFixed(2)}</strong>
+            {entry.name}: <strong>S/. {Number(entry.value).toFixed(2)}</strong>
           </p>
         ))}
       </div>
@@ -225,7 +225,7 @@ export default function FinanceDashboardTab() {
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-xs text-text-muted uppercase tracking-wide">Mensualidades</p>
-                  <p className="text-2xl font-bold text-success mt-1">S/ {summary.totalIncome.toFixed(2)}</p>
+                  <p className="text-2xl font-bold text-success mt-1">S/. {summary.totalIncome.toFixed(2)}</p>
                 </div>
                 <div className="p-2 bg-success/20 rounded-lg text-success"><TrendingUp size={20}/></div>
               </div>
@@ -236,7 +236,7 @@ export default function FinanceDashboardTab() {
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-xs text-text-muted uppercase tracking-wide">Ventas Tienda</p>
-                  <p className="text-2xl font-bold text-teal-400 mt-1">S/ {(summary.totalStoreRevenue || 0).toFixed(2)}</p>
+                  <p className="text-2xl font-bold text-teal-400 mt-1">S/. {(summary.totalStoreRevenue || 0).toFixed(2)}</p>
                 </div>
                 <div className="p-2 bg-teal-500/20 rounded-lg text-teal-400"><DollarSign size={20}/></div>
               </div>
@@ -247,7 +247,7 @@ export default function FinanceDashboardTab() {
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-xs text-text-muted uppercase tracking-wide">Egresos</p>
-                  <p className="text-2xl font-bold text-danger mt-1">S/ {summary.totalExpenses.toFixed(2)}</p>
+                  <p className="text-2xl font-bold text-danger mt-1">S/. {summary.totalExpenses.toFixed(2)}</p>
                 </div>
                 <div className="p-2 bg-danger/20 rounded-lg text-danger"><TrendingDown size={20}/></div>
               </div>
@@ -258,7 +258,7 @@ export default function FinanceDashboardTab() {
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-xs text-text-muted uppercase tracking-wide">Nómina</p>
-                  <p className="text-2xl font-bold text-warning mt-1">S/ {summary.totalStaffPayments.toFixed(2)}</p>
+                  <p className="text-2xl font-bold text-warning mt-1">S/. {summary.totalStaffPayments.toFixed(2)}</p>
                 </div>
                 <div className="p-2 bg-warning/20 rounded-lg text-warning"><Users size={20}/></div>
               </div>
@@ -269,12 +269,12 @@ export default function FinanceDashboardTab() {
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-xs text-text-muted uppercase tracking-wide">Pérdidas / Descuentos</p>
-                  <p className="text-2xl font-bold text-orange-400 mt-1">S/ {((summary.totalDiscounts || 0) + (summary.totalGiftCost || 0)).toFixed(2)}</p>
+                  <p className="text-2xl font-bold text-orange-400 mt-1">S/. {((summary.totalDiscounts || 0) + (summary.totalGiftCost || 0)).toFixed(2)}</p>
                 </div>
                 <div className="p-2 bg-orange-400/20 rounded-lg text-orange-400"><ArrowDownRight size={20}/></div>
               </div>
               <p className="text-xs text-text-muted mt-3">
-                Becas/Exon: S/ {(summary.totalDiscounts || 0).toFixed(2)} · Obsequios: S/ {(summary.totalGiftCost || 0).toFixed(2)}
+                Becas/Exon: S/. {(summary.totalDiscounts || 0).toFixed(2)} · Obsequios: S/. {(summary.totalGiftCost || 0).toFixed(2)}
               </p>
             </div>
 
@@ -283,7 +283,7 @@ export default function FinanceDashboardTab() {
                 <div>
                   <p className="text-xs text-text-muted uppercase tracking-wide">Balance Neto</p>
                   <p className={`text-2xl font-bold mt-1 ${isProfit ? 'text-primary-400' : 'text-danger'}`}>
-                    S/ {summary.netBalance.toFixed(2)}
+                    S/. {summary.netBalance.toFixed(2)}
                   </p>
                 </div>
                 <div className={`p-2 rounded-lg ${isProfit ? 'bg-primary/20 text-primary-400' : 'bg-danger/20 text-danger'}`}>
@@ -318,7 +318,7 @@ export default function FinanceDashboardTab() {
                 <div>
                   <div className="flex justify-between text-sm mb-2">
                     <span className="text-text-secondary">Meta de Ingresos</span>
-                    <span className="font-bold text-success">S/ {goal.currentIncome.toFixed(2)} / S/ {goal.targetIncome.toFixed(2)}</span>
+                    <span className="font-bold text-success">S/. {goal.currentIncome.toFixed(2)} / S/. {goal.targetIncome.toFixed(2)}</span>
                   </div>
                   <div className="w-full bg-bg-dark rounded-full h-3 overflow-hidden">
                     <div className="h-3 rounded-full bg-success transition-all" style={{ width: `${goal.incomeProgress}%` }}/>
@@ -329,7 +329,7 @@ export default function FinanceDashboardTab() {
                 <div>
                   <div className="flex justify-between text-sm mb-2">
                     <span className="text-text-secondary">Meta de Rentabilidad (Neta)</span>
-                    <span className="font-bold text-primary-400">S/ {goal.currentProfit.toFixed(2)} / S/ {goal.targetProfit.toFixed(2)}</span>
+                    <span className="font-bold text-primary-400">S/. {goal.currentProfit.toFixed(2)} / S/. {goal.targetProfit.toFixed(2)}</span>
                   </div>
                   <div className="w-full bg-bg-dark rounded-full h-3 overflow-hidden">
                     <div className="h-3 rounded-full bg-primary-500 transition-all" style={{ width: `${goal.profitProgress}%` }}/>
@@ -416,7 +416,7 @@ export default function FinanceDashboardTab() {
                           <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]}/>
                         ))}
                       </Pie>
-                      <Tooltip formatter={(val) => `S/ ${val.toFixed(2)}`}
+                      <Tooltip formatter={(val) => `S/. ${val.toFixed(2)}`}
                         contentStyle={{ background: 'rgba(15,15,35,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10 }}
                         labelStyle={{ color: '#a0aec0' }} itemStyle={{ color: '#fff' }}/>
                     </PieChart>
@@ -429,7 +429,7 @@ export default function FinanceDashboardTab() {
                             style={{ background: PIE_COLORS[i % PIE_COLORS.length] }}/>
                           <span className="text-text-secondary">{item.name}</span>
                         </div>
-                        <span className="text-white font-semibold">S/ {item.value.toFixed(2)}</span>
+                        <span className="text-white font-semibold">S/. {item.value.toFixed(2)}</span>
                       </div>
                     ))}
                   </div>
@@ -523,14 +523,14 @@ export default function FinanceDashboardTab() {
 
             {summary && (
               <div className="bg-bg-dark rounded-xl p-4 mb-4 text-sm border border-border/50 space-y-2">
-                <div className="flex justify-between"><span className="text-text-secondary">Mensualidades:</span> <span className="text-success font-bold">S/ {summary.totalIncome.toFixed(2)}</span></div>
-                <div className="flex justify-between"><span className="text-text-secondary">Tienda:</span> <span className="text-teal-400 font-bold">S/ {(summary.totalStoreRevenue || 0).toFixed(2)}</span></div>
-                <div className="flex justify-between"><span className="text-text-secondary">Egresos:</span> <span className="text-danger font-bold">S/ {summary.totalExpenses.toFixed(2)}</span></div>
-                <div className="flex justify-between"><span className="text-text-secondary">Nómina:</span> <span className="text-warning font-bold">S/ {summary.totalStaffPayments.toFixed(2)}</span></div>
-                <div className="flex justify-between"><span className="text-text-secondary">Becas/Exon/Obsequios:</span> <span className="text-orange-400 font-bold">- S/ {((summary.totalDiscounts || 0) + (summary.totalGiftCost || 0)).toFixed(2)}</span></div>
+                <div className="flex justify-between"><span className="text-text-secondary">Mensualidades:</span> <span className="text-success font-bold">S/. {summary.totalIncome.toFixed(2)}</span></div>
+                <div className="flex justify-between"><span className="text-text-secondary">Tienda:</span> <span className="text-teal-400 font-bold">S/. {(summary.totalStoreRevenue || 0).toFixed(2)}</span></div>
+                <div className="flex justify-between"><span className="text-text-secondary">Egresos:</span> <span className="text-danger font-bold">S/. {summary.totalExpenses.toFixed(2)}</span></div>
+                <div className="flex justify-between"><span className="text-text-secondary">Nómina:</span> <span className="text-warning font-bold">S/. {summary.totalStaffPayments.toFixed(2)}</span></div>
+                <div className="flex justify-between"><span className="text-text-secondary">Becas/Exon/Obsequios:</span> <span className="text-orange-400 font-bold">- S/. {((summary.totalDiscounts || 0) + (summary.totalGiftCost || 0)).toFixed(2)}</span></div>
                 <div className="flex justify-between pt-2 border-t border-border/50 mt-1">
                   <span className="text-text-main font-semibold">Rentabilidad Neta:</span>
-                  <span className={`font-bold ${summary.netBalance >= 0 ? 'text-primary-400' : 'text-danger'}`}>S/ {summary.netBalance.toFixed(2)}</span>
+                  <span className={`font-bold ${summary.netBalance >= 0 ? 'text-primary-400' : 'text-danger'}`}>S/. {summary.netBalance.toFixed(2)}</span>
                 </div>
               </div>
             )}

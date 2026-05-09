@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import AppLayout from '../../components/AppLayout';
 import { PlusCircle, Users, Mail, Phone, MapPin, Shield, Edit2, CheckSquare } from 'lucide-react';
@@ -181,7 +181,7 @@ export default function Usuarios() {
                     </div>
                     <div className="mt-2 pt-2 border-t border-border/50 text-xs flex gap-3 text-text-muted">
                       <span className="font-semibold">{user.paymentType === 1 ? '⏱ Por Sesión' : '📅 Mensual'}</span>
-                      <span>Tarifa: S/ {(user.paymentRate || 0).toFixed(2)}</span>
+                      <span>Tarifa: S/. {(user.paymentRate || 0).toFixed(2)}</span>
                     </div>
                     
                     {user.categoryNames?.length > 0 && (

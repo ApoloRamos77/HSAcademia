@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import {
   Archive, Plus, TrendingDown, TrendingUp, ChevronDown, ChevronUp, X, DollarSign
@@ -130,12 +130,12 @@ export default function PettyCashTab() {
                   <div className="grid grid-cols-2 gap-3 mt-4">
                     <div className="bg-bg-dark rounded-lg p-3 border border-border/50">
                       <p className="text-xs text-text-muted">Asignado</p>
-                      <p className="text-lg font-bold text-white">S/ {box.assignedAmount.toFixed(2)}</p>
+                      <p className="text-lg font-bold text-white">S/. {box.assignedAmount.toFixed(2)}</p>
                     </div>
                     <div className={`rounded-lg p-3 border ${box.currentBalance < box.assignedAmount * 0.2 ? 'bg-danger/10 border-danger/30' : 'bg-success/10 border-success/30'}`}>
                       <p className="text-xs text-text-muted">Saldo</p>
                       <p className={`text-lg font-bold ${box.currentBalance < box.assignedAmount * 0.2 ? 'text-danger' : 'text-success'}`}>
-                        S/ {box.currentBalance.toFixed(2)}
+                        S/. {box.currentBalance.toFixed(2)}
                       </p>
                     </div>
                   </div>
@@ -182,7 +182,7 @@ export default function PettyCashTab() {
                             </div>
                           </div>
                           <span className={`font-bold ${t.type === 2 ? 'text-danger' : 'text-success'}`}>
-                            {t.type === 2 ? '-' : '+'}S/ {t.amount.toFixed(2)}
+                            {t.type === 2 ? '-' : '+'}S/. {t.amount.toFixed(2)}
                           </span>
                         </div>
                       ))
@@ -242,7 +242,7 @@ export default function PettyCashTab() {
               <button onClick={() => setModal(null)} className="btn btn-ghost btn-sm"><X size={16}/></button>
             </div>
             <p className="text-sm text-text-secondary mb-4">
-              Caja: <strong className="text-white">{selectedBox.headquarterName || 'General'}</strong> — Saldo: <strong className="text-success">S/ {selectedBox.currentBalance.toFixed(2)}</strong>
+              Caja: <strong className="text-white">{selectedBox.headquarterName || 'General'}</strong> — Saldo: <strong className="text-success">S/. {selectedBox.currentBalance.toFixed(2)}</strong>
             </p>
             <form onSubmit={handleAddTransaction}>
               <div className="form-row">
