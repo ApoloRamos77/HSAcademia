@@ -62,11 +62,16 @@ public class FinancesController : ControllerBase
     {
         var academyId = GetAcademyId();
         if (academyId == Guid.Empty) return Unauthorized();
-        int count = await _financesService.GenerateMonthlyDebtsAsync(academyId, dto?.Year, dto?.Month);
+        var (generated, replaced, cleaned) = await _financesService.GenerateMonthlyDebtsAsync(academyId, dto?.Year, dto?.Month);
         var period = dto?.Year != null && dto?.Month != null
             ? $"{new System.Globalization.CultureInfo("es-PE").DateTimeFormat.GetMonthName(dto.Month.Value)} {dto.Year}"
             : "mes actual";
-        return Ok(new { message = $"Motor ejecutado para {period}. Se generaron {count} nuevas deudas.", generatedCount = count });
+        var parts = new List<string>();
+        if (generated > 0) parts.Add($"{generated} nuevos");
+        if (replaced  > 0) parts.Add($"{replaced} actualizados");
+        if (cleaned   > 0) parts.Add($"{cleaned} eliminados (antes de fecha inicio)");
+        var detail = parts.Any() ? string.Join(", ", parts) : "sin cambios";
+        return Ok(new { message = $"Motor ejecutado para {period}: {detail}.", generatedCount = generated, replacedCount = replaced, cleanedCount = cleaned });
     }
 
     // ── Generate next-month debt for a specific student ───────────

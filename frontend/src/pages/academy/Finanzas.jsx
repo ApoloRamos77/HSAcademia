@@ -262,26 +262,23 @@ export default function Finanzas() {
                     {showAll ? 'Ver Pendientes' : 'Ver Todos'}
                   </button>
                 </div>
-                <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-3 flex-wrap">
                   {/* Selector mes/año */}
-                  <div className="flex items-center gap-1 bg-bg-dark border border-border/50 rounded-lg px-2 py-1">
-                    <Calendar size={14} className="text-primary-400 shrink-0"/>
-                    <select
-                      className="bg-transparent text-sm text-text-main focus:outline-none cursor-pointer"
-                      value={filterMonth}
-                      onChange={e => setFilterMonth(parseInt(e.target.value))}
-                    >
-                      {['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
-                        .map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
-                    </select>
-                    <select
-                      className="bg-transparent text-sm text-text-main focus:outline-none cursor-pointer"
-                      value={filterYear}
-                      onChange={e => setFilterYear(parseInt(e.target.value))}
-                    >
-                      {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
-                    </select>
-                  </div>
+                  <select
+                    className="form-control text-sm py-2 w-auto"
+                    value={filterMonth}
+                    onChange={e => setFilterMonth(parseInt(e.target.value))}
+                  >
+                    {['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+                      .map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
+                  </select>
+                  <select
+                    className="form-control text-sm py-2 w-auto"
+                    value={filterYear}
+                    onChange={e => setFilterYear(parseInt(e.target.value))}
+                  >
+                    {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
+                  </select>
                   <div className="relative">
                     <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted"/>
                     <input type="text" placeholder="Buscar alumno o categoría..." className="form-control pl-9 py-1 text-sm w-56"
@@ -424,9 +421,9 @@ export default function Finanzas() {
                 <label className="form-label flex items-center gap-2 mb-2">
                   <Calendar size={14} className="text-primary-400"/> Período objetivo
                 </label>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap items-center gap-3">
                   <select
-                    className="form-control flex-1"
+                    className="form-control text-sm py-2 w-auto"
                     value={motorMonth}
                     onChange={e => setMotorMonth(parseInt(e.target.value))}
                   >
@@ -434,7 +431,7 @@ export default function Finanzas() {
                       .map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
                   </select>
                   <select
-                    className="form-control w-28"
+                    className="form-control text-sm py-2 w-auto"
                     value={motorYear}
                     onChange={e => setMotorYear(parseInt(e.target.value))}
                   >

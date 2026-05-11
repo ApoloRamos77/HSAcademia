@@ -116,7 +116,8 @@ public class FinancesService
     // ─────────────────────────────────────────────────────────────
     // Motor de Generación de Deudas (prorrateo por sesiones)
     // ─────────────────────────────────────────────────────────────
-    public async Task<int> GenerateMonthlyDebtsAsync(Guid academyId, int? targetYear = null, int? targetMonth = null)
+    public async Task<(int Generated, int Replaced, int Cleaned)> GenerateMonthlyDebtsAsync(
+        Guid academyId, int? targetYear = null, int? targetMonth = null)
     {
         var config = await GetConfigAsync(academyId);
         var today  = DateTime.UtcNow;
@@ -127,11 +128,7 @@ public class FinancesService
         var daysInMonth = DateTime.DaysInMonth(year, month);
         var dueDayNum   = Math.Min(config.DefaultPaymentDay, daysInMonth);
         var dueDate     = new DateTime(year, month, dueDayNum, 0, 0, 0, DateTimeKind.Utc);
-
-        // Reference date used for comparing PaymentStartDate (use first day of target month)
-        var targetRef = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Utc);
-
-        // Build description for the target period
+        var targetRef   = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Utc);
         string description = $"Mensualidad {new DateTime(year, month, 1):MMMM yyyy}";
 
         var students = await _context.Students
@@ -139,15 +136,49 @@ public class FinancesService
             .Where(s => s.AcademyId == academyId && s.IsActive)
             .ToListAsync();
 
-        int generatedCount = 0;
-        int replacedCount  = 0;
+        int generatedCount = 0, replacedCount = 0, cleanedCount = 0;
 
+        // ── STEP 1: Cleanup — soft-delete unpaid records that fall BEFORE ──
+        //   each student's effective start month (PaymentStartDate ?? EnrollmentDate)
+        var studentIds = students.Select(s => s.Id).ToList();
+        var allUnpaidMonthly = await _context.PaymentRecords
+            .Where(p => p.AcademyId == academyId
+                     && !p.IsPaid && !p.IsDeleted
+                     && p.Type == PaymentType.MonthlyFee
+                     && studentIds.Contains(p.StudentId))
+            .ToListAsync();
+
+        foreach (var record in allUnpaidMonthly)
+        {
+            var student = students.FirstOrDefault(s => s.Id == record.StudentId);
+            if (student == null) continue;
+
+            var effStart = (student.PaymentStartDate.HasValue
+                ? student.PaymentStartDate.Value
+                : student.EnrollmentDate).ToUniversalTime();
+
+            var effStartMonth  = new DateTime(effStart.Year,  effStart.Month,  1, 0, 0, 0, DateTimeKind.Utc);
+            var recordMonth    = new DateTime(record.DueDate.Year, record.DueDate.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+
+            if (recordMonth < effStartMonth)
+            {
+                record.IsDeleted  = true;
+                record.DeletedAt  = DateTime.UtcNow;
+                cleanedCount++;
+            }
+        }
+
+        // ── STEP 2: Generate / replace for the target month ───────────────
         foreach (var student in students)
         {
-            // Skip students whose billing hasn't started yet for the target month
-            if (student.PaymentStartDate.HasValue &&
-                student.PaymentStartDate.Value.ToUniversalTime() > targetRef.AddMonths(1).AddDays(-1))
-                continue;
+            var effStart = (student.PaymentStartDate.HasValue
+                ? student.PaymentStartDate.Value
+                : student.EnrollmentDate).ToUniversalTime();
+
+            var effStartMonth = new DateTime(effStart.Year, effStart.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+
+            // Skip if target month is BEFORE the student's effective start month
+            if (targetRef < effStartMonth) continue;
 
             var existingDebt = await _context.PaymentRecords
                 .Include(p => p.Installments)
@@ -155,12 +186,13 @@ public class FinancesService
                     p.AcademyId == academyId &&
                     p.StudentId == student.Id &&
                     p.Type == PaymentType.MonthlyFee &&
-                    p.Description == description);
+                    p.Description == description &&
+                    !p.IsDeleted);
 
-            // If the existing record is already paid → skip (never overwrite a paid record)
+            // Paid → never overwrite (mes cerrado implícito)
             if (existingDebt != null && existingDebt.IsPaid) continue;
 
-            // If there is an unpaid record → soft-delete it so we can regenerate
+            // Unpaid existing → soft-delete to regenerate
             if (existingDebt != null)
             {
                 existingDebt.IsDeleted = true;
@@ -171,23 +203,12 @@ public class FinancesService
             var fullAmount = student.PreferentialFee ?? student.Category?.MonthlyFee ?? 0m;
             if (fullAmount <= 0) continue;
 
-            // ── Determine start date for proration ───────────────
+            // ── Proration: only if student started THIS target month after day 1 ──
             DateTime? startForProration = null;
-            var enrollUtc = student.EnrollmentDate.Kind == DateTimeKind.Utc
-                ? student.EnrollmentDate
-                : student.EnrollmentDate.ToUniversalTime();
+            if (effStart.Year == year && effStart.Month == month && effStart.Day > 1)
+                startForProration = effStart;
 
-            if (enrollUtc.Year == year && enrollUtc.Month == month && enrollUtc.Day > 1)
-                startForProration = enrollUtc;
-            else if (student.PaymentStartDate.HasValue)
-            {
-                var ps = student.PaymentStartDate.Value.ToUniversalTime();
-                if (ps.Year == year && ps.Month == month && ps.Day > 1)
-                    startForProration = ps;
-            }
-
-            // ── Session-based proration ──────────────────────────
-            bool isProrated       = false;
+            bool isProrated = false;
             decimal chargedAmount = fullAmount;
             DateTime? proratedStart = null;
             int? totalSessions = null, sessionsCharged = null;
@@ -199,23 +220,21 @@ public class FinancesService
 
                 if (total > 0)
                 {
-                    chargedAmount  = Math.Round(fullAmount * fromDate / total, 2);
-                    isProrated     = true;
-                    proratedStart  = new DateTime(year, month,
-                        startForProration.Value.Day, 0, 0, 0, DateTimeKind.Utc);
-                    totalSessions    = total;
-                    sessionsCharged  = fromDate;
+                    chargedAmount   = Math.Round(fullAmount * fromDate / total, 2);
+                    isProrated      = true;
+                    proratedStart   = new DateTime(year, month, startForProration.Value.Day, 0, 0, 0, DateTimeKind.Utc);
+                    totalSessions   = total;
+                    sessionsCharged = fromDate;
                 }
                 else
                 {
-                    // No sessions → day-based proration
-                    int startDay   = startForProration.Value.Day;
-                    int charged    = daysInMonth - startDay + 1;
-                    chargedAmount  = Math.Round(fullAmount * charged / daysInMonth, 2);
-                    isProrated     = true;
-                    proratedStart  = new DateTime(year, month, startDay, 0, 0, 0, DateTimeKind.Utc);
-                    totalSessions    = daysInMonth;
-                    sessionsCharged  = charged;
+                    int startDay    = startForProration.Value.Day;
+                    int charged     = daysInMonth - startDay + 1;
+                    chargedAmount   = Math.Round(fullAmount * charged / daysInMonth, 2);
+                    isProrated      = true;
+                    proratedStart   = new DateTime(year, month, startDay, 0, 0, 0, DateTimeKind.Utc);
+                    totalSessions   = daysInMonth;
+                    sessionsCharged = charged;
                 }
             }
 
@@ -223,12 +242,12 @@ public class FinancesService
             if (student.IsGuest)
             {
                 discountAmount = chargedAmount;
-                chargedAmount = 0m;
+                chargedAmount  = 0m;
             }
             else if (student.IsScholarship)
             {
                 discountAmount = chargedAmount;
-                chargedAmount = 0m;
+                chargedAmount  = 0m;
             }
             else if (student.ScholarshipPercentage.HasValue && student.ScholarshipPercentage.Value > 0)
             {
@@ -256,10 +275,10 @@ public class FinancesService
             generatedCount++;
         }
 
-        if (generatedCount > 0 || replacedCount > 0)
+        if (generatedCount > 0 || replacedCount > 0 || cleanedCount > 0)
             await _context.SaveChangesAsync();
 
-        return generatedCount;
+        return (generatedCount, replacedCount, cleanedCount);
     }
 
     // ─────────────────────────────────────────────────────────────
