@@ -20,7 +20,8 @@ export default function Tienda() {
   const [productForm, setProductForm] = useState(initialProduct);
 
   const [showSaleModal, setShowSaleModal] = useState(false);
-  const initialSale = { productId: '', studentId: '', quantity: '1', isGift: false, paymentMethod: 'Cash', operationNumber: '' };
+  const todayISO = () => new Date().toISOString().split('T')[0];
+  const initialSale = { productId: '', studentId: '', quantity: '1', isGift: false, paymentMethod: 'Cash', operationNumber: '', saleDate: todayISO() };
   const [saleForm, setSaleForm] = useState(initialSale);
 
   useEffect(() => {
@@ -73,6 +74,7 @@ export default function Tienda() {
         isGift: saleForm.isGift,
         paymentMethod: saleForm.isGift ? null : saleForm.paymentMethod,
         operationNumber: saleForm.operationNumber || null,
+        saleDate: saleForm.saleDate ? new Date(saleForm.saleDate + 'T12:00:00').toISOString() : null,
       };
       const res = await api.post('/store/sales', payload);
       toast.success(saleForm.isGift ? '🎁 Obsequio registrado' : 'Venta registrada con éxito');
@@ -424,6 +426,16 @@ export default function Tienda() {
                 </div>
 
                 <div className="form-row items-end">
+                  <div className="form-group mb-0">
+                    <label className="form-label">Fecha de Venta *</label>
+                    <input
+                      type="date"
+                      required
+                      className="form-control"
+                      value={saleForm.saleDate}
+                      onChange={e => setSaleForm({...saleForm, saleDate: e.target.value})}
+                    />
+                  </div>
                   <div className="form-group mb-0">
                     <label className="form-label">Cantidad *</label>
                     <input required type="number" min="1" max={selectedProductForSale?.stock || 1} className="form-control" value={saleForm.quantity} onChange={e => setSaleForm({...saleForm, quantity: e.target.value})} />

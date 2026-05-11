@@ -39,6 +39,7 @@ public class ProductSaleDto
     public bool IsGift { get; set; }
     public decimal DiscountAmount { get; set; }
     public DateTime SaleDate { get; set; }
+    public string? ReceiptNumber { get; set; }
 }
 
 public class CreateProductSaleDto
@@ -47,6 +48,9 @@ public class CreateProductSaleDto
     public Guid? StudentId { get; set; }
     public int Quantity { get; set; }
     public bool IsGift { get; set; }
+
+    /// <summary>Optional override for the sale timestamp. Defaults to UTC now.</summary>
+    public DateTime? SaleDate { get; set; }
 
     // Optional payment context (from mobile POS)
     public string? PaymentMethod { get; set; }

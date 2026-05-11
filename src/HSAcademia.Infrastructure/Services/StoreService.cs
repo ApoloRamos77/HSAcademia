@@ -115,7 +115,8 @@ public class StoreService
                 TotalPrice = s.TotalPrice,
                 IsGift = s.IsGift,
                 DiscountAmount = s.DiscountAmount,
-                SaleDate = s.SaleDate
+                SaleDate = s.SaleDate,
+                ReceiptNumber = s.ReceiptNumber
             })
             .ToListAsync();
     }
@@ -130,6 +131,10 @@ public class StoreService
         // Deduct stock
         product.Stock -= dto.Quantity;
 
+        var saleTimestamp = dto.SaleDate.HasValue
+            ? DateTime.SpecifyKind(dto.SaleDate.Value, DateTimeKind.Utc)
+            : DateTime.UtcNow;
+
         var sale = new ProductSale
         {
             AcademyId = academyId,
@@ -140,7 +145,7 @@ public class StoreService
             TotalPrice = dto.IsGift ? 0 : (product.Price * dto.Quantity),
             IsGift = dto.IsGift,
             DiscountAmount = dto.IsGift ? (product.Price * dto.Quantity) : 0,
-            SaleDate = DateTime.UtcNow
+            SaleDate = saleTimestamp
         };
 
         _context.ProductSales.Add(sale);
@@ -196,7 +201,8 @@ public class StoreService
             TotalPrice = sale.TotalPrice,
             IsGift = sale.IsGift,
             DiscountAmount = sale.DiscountAmount,
-            SaleDate = sale.SaleDate
+            SaleDate = sale.SaleDate,
+            ReceiptNumber = sale.ReceiptNumber
         };
     }
 }
