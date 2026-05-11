@@ -116,14 +116,23 @@ public class FinancesService
     // ─────────────────────────────────────────────────────────────
     // Motor de Generación de Deudas (prorrateo por sesiones)
     // ─────────────────────────────────────────────────────────────
-    public async Task<int> GenerateMonthlyDebtsAsync(Guid academyId)
+    public async Task<int> GenerateMonthlyDebtsAsync(Guid academyId, int? targetYear = null, int? targetMonth = null)
     {
         var config = await GetConfigAsync(academyId);
         var today  = DateTime.UtcNow;
 
-        var daysInMonth = DateTime.DaysInMonth(today.Year, today.Month);
+        int year  = targetYear  ?? today.Year;
+        int month = targetMonth ?? today.Month;
+
+        var daysInMonth = DateTime.DaysInMonth(year, month);
         var dueDayNum   = Math.Min(config.DefaultPaymentDay, daysInMonth);
-        var dueDate     = new DateTime(today.Year, today.Month, dueDayNum, 0, 0, 0, DateTimeKind.Utc);
+        var dueDate     = new DateTime(year, month, dueDayNum, 0, 0, 0, DateTimeKind.Utc);
+
+        // Reference date used for comparing PaymentStartDate (use first day of target month)
+        var targetRef = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        // Build description for the target period
+        string description = $"Mensualidad {new DateTime(year, month, 1):MMMM yyyy}";
 
         var students = await _context.Students
             .Include(s => s.Category)
@@ -131,21 +140,33 @@ public class FinancesService
             .ToListAsync();
 
         int generatedCount = 0;
+        int replacedCount  = 0;
 
         foreach (var student in students)
         {
-            if (student.PaymentStartDate.HasValue && student.PaymentStartDate.Value.ToUniversalTime() > today)
+            // Skip students whose billing hasn't started yet for the target month
+            if (student.PaymentStartDate.HasValue &&
+                student.PaymentStartDate.Value.ToUniversalTime() > targetRef.AddMonths(1).AddDays(-1))
                 continue;
 
-            string description = $"Mensualidad {today:MMMM yyyy}";
+            var existingDebt = await _context.PaymentRecords
+                .Include(p => p.Installments)
+                .FirstOrDefaultAsync(p =>
+                    p.AcademyId == academyId &&
+                    p.StudentId == student.Id &&
+                    p.Type == PaymentType.MonthlyFee &&
+                    p.Description == description);
 
-            var existingDebt = await _context.PaymentRecords.FirstOrDefaultAsync(p =>
-                p.AcademyId == academyId &&
-                p.StudentId == student.Id &&
-                p.Type == PaymentType.MonthlyFee &&
-                p.Description == description);
+            // If the existing record is already paid → skip (never overwrite a paid record)
+            if (existingDebt != null && existingDebt.IsPaid) continue;
 
-            if (existingDebt != null) continue;
+            // If there is an unpaid record → soft-delete it so we can regenerate
+            if (existingDebt != null)
+            {
+                existingDebt.IsDeleted = true;
+                existingDebt.DeletedAt = DateTime.UtcNow;
+                replacedCount++;
+            }
 
             var fullAmount = student.PreferentialFee ?? student.Category?.MonthlyFee ?? 0m;
             if (fullAmount <= 0) continue;
@@ -156,12 +177,12 @@ public class FinancesService
                 ? student.EnrollmentDate
                 : student.EnrollmentDate.ToUniversalTime();
 
-            if (enrollUtc.Year == today.Year && enrollUtc.Month == today.Month && enrollUtc.Day > 1)
+            if (enrollUtc.Year == year && enrollUtc.Month == month && enrollUtc.Day > 1)
                 startForProration = enrollUtc;
             else if (student.PaymentStartDate.HasValue)
             {
                 var ps = student.PaymentStartDate.Value.ToUniversalTime();
-                if (ps.Year == today.Year && ps.Month == today.Month && ps.Day > 1)
+                if (ps.Year == year && ps.Month == month && ps.Day > 1)
                     startForProration = ps;
             }
 
@@ -174,27 +195,26 @@ public class FinancesService
             if (startForProration.HasValue)
             {
                 var (total, fromDate) = await GetSessionCountsAsync(
-                    academyId, student.CategoryId, today.Year, today.Month, startForProration);
+                    academyId, student.CategoryId, year, month, startForProration);
 
                 if (total > 0)
                 {
-                    // Session-based proration
                     chargedAmount  = Math.Round(fullAmount * fromDate / total, 2);
                     isProrated     = true;
-                    proratedStart  = new DateTime(today.Year, today.Month,
+                    proratedStart  = new DateTime(year, month,
                         startForProration.Value.Day, 0, 0, 0, DateTimeKind.Utc);
                     totalSessions    = total;
                     sessionsCharged  = fromDate;
                 }
                 else
                 {
-                    // No sessions in calendar → fall back to day-based proration
+                    // No sessions → day-based proration
                     int startDay   = startForProration.Value.Day;
                     int charged    = daysInMonth - startDay + 1;
                     chargedAmount  = Math.Round(fullAmount * charged / daysInMonth, 2);
                     isProrated     = true;
-                    proratedStart  = new DateTime(today.Year, today.Month, startDay, 0, 0, 0, DateTimeKind.Utc);
-                    totalSessions    = daysInMonth;  // store days as fallback
+                    proratedStart  = new DateTime(year, month, startDay, 0, 0, 0, DateTimeKind.Utc);
+                    totalSessions    = daysInMonth;
                     sessionsCharged  = charged;
                 }
             }
@@ -236,7 +256,7 @@ public class FinancesService
             generatedCount++;
         }
 
-        if (generatedCount > 0)
+        if (generatedCount > 0 || replacedCount > 0)
             await _context.SaveChangesAsync();
 
         return generatedCount;
@@ -325,27 +345,33 @@ public class FinancesService
     // ─────────────────────────────────────────────────────────────
     // Query debts
     // ─────────────────────────────────────────────────────────────
-    public async Task<List<PaymentRecordDto>> GetPendingDebtsAsync(Guid academyId)
+    public async Task<List<PaymentRecordDto>> GetPendingDebtsAsync(Guid academyId, int? year = null, int? month = null)
     {
         var today = DateTime.UtcNow;
-        var debts = await _context.PaymentRecords
+        var query = _context.PaymentRecords
             .Include(p => p.Student).ThenInclude(s => s.Category)
             .Include(p => p.Installments)
-            .Where(p => p.AcademyId == academyId && !p.IsPaid && !p.IsDeleted)
-            .OrderBy(p => p.DueDate)
-            .ToListAsync();
+            .Where(p => p.AcademyId == academyId && !p.IsPaid && !p.IsDeleted);
+
+        if (year.HasValue && month.HasValue)
+            query = query.Where(p => p.DueDate.Year == year.Value && p.DueDate.Month == month.Value);
+
+        var debts = await query.OrderBy(p => p.DueDate).ToListAsync();
         return debts.Select(p => MapToDto(p, today)).ToList();
     }
 
-    public async Task<List<PaymentRecordDto>> GetAllDebtsAsync(Guid academyId)
+    public async Task<List<PaymentRecordDto>> GetAllDebtsAsync(Guid academyId, int? year = null, int? month = null)
     {
         var today = DateTime.UtcNow;
-        var debts = await _context.PaymentRecords
+        var query = _context.PaymentRecords
             .Include(p => p.Student).ThenInclude(s => s.Category)
             .Include(p => p.Installments)
-            .Where(p => p.AcademyId == academyId && !p.IsDeleted)
-            .OrderByDescending(p => p.DueDate)
-            .ToListAsync();
+            .Where(p => p.AcademyId == academyId && !p.IsDeleted);
+
+        if (year.HasValue && month.HasValue)
+            query = query.Where(p => p.DueDate.Year == year.Value && p.DueDate.Month == month.Value);
+
+        var debts = await query.OrderByDescending(p => p.DueDate).ToListAsync();
         return debts.Select(p => MapToDto(p, today)).ToList();
     }
 

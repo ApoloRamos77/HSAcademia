@@ -85,4 +85,5 @@ public class CreateAcademyUserDto
     public List<Guid>? CategoryIds { get; set; }
     public int PaymentType { get; set; } = 0; // 0: Monthly, 1: PerSession
     public decimal PaymentRate { get; set; } = 0m;
+    public string Status { get; set; } = "Active";
 }

@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import AppLayout from '../../components/AppLayout';
 import { PlusCircle, Users, Mail, Phone, MapPin, Shield, Edit2, CheckSquare } from 'lucide-react';
@@ -15,7 +15,7 @@ export default function Usuarios() {
   
   const initialForm = {
     firstName: '', lastName: '', email: '', password: '', phone: '', systemRole: 'Staff', academyRoleId: '', headquarterIds: [], categoryIds: [],
-    paymentType: 0, paymentRate: ''
+    paymentType: 0, paymentRate: '', status: 'Active'
   };
   const [formData, setFormData] = useState(initialForm);
 
@@ -67,7 +67,8 @@ export default function Usuarios() {
       })(),
       categoryIds: user.categoryIds || [],
       paymentType: user.paymentType ?? 0,
-      paymentRate: user.paymentRate?.toString() || ''
+      paymentRate: user.paymentRate?.toString() || '',
+      status: user.status || 'Active'
     });
     setEditingId(user.id);
     setShowModal(true);
@@ -82,7 +83,8 @@ export default function Usuarios() {
         academyRoleId: (formData.academyRoleId === '__admin__' || formData.academyRoleId === '') ? null : formData.academyRoleId,
         headquarterId: formData.headquarterIds.length === 1 ? formData.headquarterIds[0] : null,
         paymentType: parseInt(formData.paymentType),
-        paymentRate: parseFloat(formData.paymentRate) || 0
+        paymentRate: parseFloat(formData.paymentRate) || 0,
+        status: formData.status
       };
       if (editingId) {
         await api.put(`/academy-config/users/${editingId}`, payload);
@@ -321,6 +323,40 @@ export default function Usuarios() {
                     )}
                   </div>
                 </div>
+
+                {/* Estado activo/inactivo — solo al editar */}
+                {editingId && (
+                  <div className="form-group mt-2">
+                    <label className="form-label mb-2">Estado del Personal</label>
+                    <div className="flex gap-3">
+                      {['Active', 'Inactive', 'Suspended'].map(st => {
+                        const labels = { Active: '✅ Activo', Inactive: '⛔ Inactivo', Suspended: '⏸ Suspendido' };
+                        const colors = { Active: 'var(--success)', Inactive: 'var(--danger)', Suspended: 'var(--warning)' };
+                        const selected = formData.status === st;
+                        return (
+                          <button
+                            key={st}
+                            type="button"
+                            onClick={() => setFormData({ ...formData, status: st })}
+                            style={{
+                              padding: '6px 14px',
+                              borderRadius: '8px',
+                              border: `2px solid ${selected ? colors[st] : 'var(--border)'}`,
+                              background: selected ? `${colors[st]}22` : 'var(--bg-dark)',
+                              color: selected ? colors[st] : 'var(--text-muted)',
+                              fontWeight: selected ? 600 : 400,
+                              cursor: 'pointer',
+                              fontSize: '13px',
+                              transition: 'all 0.15s'
+                            }}
+                          >
+                            {labels[st]}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 <div className="form-group mt-2">
                   <label className="form-label flex items-center gap-2 mb-3">

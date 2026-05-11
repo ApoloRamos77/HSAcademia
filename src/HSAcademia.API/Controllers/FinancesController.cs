@@ -55,15 +55,18 @@ public class FinancesController : ControllerBase
         return Ok(new { receiptNumber = nextNumber });
     }
 
-    // ── Generate Debts ────────────────────────────────────────────
+    // ── Generate Debts ──────────────────────────────────────
     [HttpPost("generate-debts")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
-    public async Task<IActionResult> GenerateDebts()
+    public async Task<IActionResult> GenerateDebts([FromBody] GenerateDebtsRequestDto? dto = null)
     {
         var academyId = GetAcademyId();
         if (academyId == Guid.Empty) return Unauthorized();
-        int count = await _financesService.GenerateMonthlyDebtsAsync(academyId);
-        return Ok(new { message = $"Se generaron {count} nuevas deudas.", generatedCount = count });
+        int count = await _financesService.GenerateMonthlyDebtsAsync(academyId, dto?.Year, dto?.Month);
+        var period = dto?.Year != null && dto?.Month != null
+            ? $"{new System.Globalization.CultureInfo("es-PE").DateTimeFormat.GetMonthName(dto.Month.Value)} {dto.Year}"
+            : "mes actual";
+        return Ok(new { message = $"Motor ejecutado para {period}. Se generaron {count} nuevas deudas.", generatedCount = count });
     }
 
     // ── Generate next-month debt for a specific student ───────────
@@ -84,23 +87,23 @@ public class FinancesController : ControllerBase
         }
     }
 
-    // ── Query Debts ───────────────────────────────────────────────
+    // ── Query Debts ──────────────────────────────────────
     [HttpGet("debts/pending")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
-    public async Task<IActionResult> GetPendingDebts()
+    public async Task<IActionResult> GetPendingDebts([FromQuery] int? year, [FromQuery] int? month)
     {
         var academyId = GetAcademyId();
         if (academyId == Guid.Empty) return Unauthorized();
-        return Ok(await _financesService.GetPendingDebtsAsync(academyId));
+        return Ok(await _financesService.GetPendingDebtsAsync(academyId, year, month));
     }
 
     [HttpGet("debts/all")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
-    public async Task<IActionResult> GetAllDebts()
+    public async Task<IActionResult> GetAllDebts([FromQuery] int? year, [FromQuery] int? month)
     {
         var academyId = GetAcademyId();
         if (academyId == Guid.Empty) return Unauthorized();
-        return Ok(await _financesService.GetAllDebtsAsync(academyId));
+        return Ok(await _financesService.GetAllDebtsAsync(academyId, year, month));
     }
 
     // ── Register Payment (partial/full + method + voucher) ────────

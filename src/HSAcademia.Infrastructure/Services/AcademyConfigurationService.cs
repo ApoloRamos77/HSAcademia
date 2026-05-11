@@ -267,6 +267,8 @@ public class AcademyConfigurationService
         user.HeadquarterId = dto.HeadquarterId;
         user.PaymentType = (StaffPaymentType)dto.PaymentType;
         user.PaymentRate = dto.PaymentRate;
+        if (Enum.TryParse<UserStatus>(dto.Status, out var newStatus))
+            user.Status = newStatus;
 
         if (dto.CategoryIds != null)
         {

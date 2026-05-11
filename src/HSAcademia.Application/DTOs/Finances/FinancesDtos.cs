@@ -13,6 +13,14 @@ public class UpdateFinancialConfigDto
     public int DefaultPaymentDay { get; set; }
 }
 
+/// <summary>Optional target period for the debt generation motor.</summary>
+public class GenerateDebtsRequestDto
+{
+    public int? Year  { get; set; }
+    public int? Month { get; set; }
+}
+
+
 public class PaymentInstallmentDto
 {
     public Guid Id { get; set; }

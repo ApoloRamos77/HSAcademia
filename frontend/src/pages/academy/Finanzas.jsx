@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import api from '../../api/axios';
 import AppLayout from '../../components/AppLayout';
 import {
@@ -44,6 +44,15 @@ export default function Finanzas() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
 
+  // Filtro mes/año para cobranzas
+  const today = new Date();
+  const [filterYear,  setFilterYear]  = useState(today.getFullYear());
+  const [filterMonth, setFilterMonth] = useState(today.getMonth() + 1); // 1-based
+
+  // Mes/año objetivo para el motor de generación
+  const [motorYear,  setMotorYear]  = useState(today.getFullYear());
+  const [motorMonth, setMotorMonth] = useState(today.getMonth() + 1);
+
   // Modal state
   const [modal, setModal] = useState(null); // null | 'pay' | 'recalculate' | 'exclude'
   const [selected, setSelected] = useState(null);
@@ -58,13 +67,15 @@ export default function Finanzas() {
 
   const fetchData = useCallback(async () => {
     try {
-      const endpoint = showAll ? '/finances/debts/all' : '/finances/debts/pending';
+      const endpoint = showAll
+        ? `/finances/debts/all?year=${filterYear}&month=${filterMonth}`
+        : `/finances/debts/pending?year=${filterYear}&month=${filterMonth}`;
       const [cRes, dRes] = await Promise.all([api.get('/finances/config'), api.get(endpoint)]);
       setConfig(cRes.data);
       setDebts(dRes.data);
     } catch { toast.error('Error al cargar datos financieros.'); }
     finally { setLoading(false); }
-  }, [showAll]);
+  }, [showAll, filterYear, filterMonth]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -76,7 +87,14 @@ export default function Finanzas() {
 
   const handleGenerateDebts = async () => {
     setGenerating(true);
-    try { const r = await api.post('/finances/generate-debts'); toast.success(r.data.message); fetchData(); }
+    try {
+      const r = await api.post('/finances/generate-debts', { year: motorYear, month: motorMonth });
+      toast.success(r.data.message);
+      // Sync filter to the motor period so the user sees the result
+      setFilterYear(motorYear);
+      setFilterMonth(motorMonth);
+      fetchData();
+    }
     catch { toast.error('Error al ejecutar el motor.'); }
     finally { setGenerating(false); }
   };
@@ -244,10 +262,31 @@ export default function Finanzas() {
                     {showAll ? 'Ver Pendientes' : 'Ver Todos'}
                   </button>
                 </div>
-                <div className="relative">
-                  <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted"/>
-                  <input type="text" placeholder="Buscar alumno o categoría..." className="form-control pl-9 py-1 text-sm w-64"
-                    value={search} onChange={e=>setSearch(e.target.value)}/>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {/* Selector mes/año */}
+                  <div className="flex items-center gap-1 bg-bg-dark border border-border/50 rounded-lg px-2 py-1">
+                    <Calendar size={14} className="text-primary-400 shrink-0"/>
+                    <select
+                      className="bg-transparent text-sm text-text-main focus:outline-none cursor-pointer"
+                      value={filterMonth}
+                      onChange={e => setFilterMonth(parseInt(e.target.value))}
+                    >
+                      {['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+                        .map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
+                    </select>
+                    <select
+                      className="bg-transparent text-sm text-text-main focus:outline-none cursor-pointer"
+                      value={filterYear}
+                      onChange={e => setFilterYear(parseInt(e.target.value))}
+                    >
+                      {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
+                    </select>
+                  </div>
+                  <div className="relative">
+                    <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted"/>
+                    <input type="text" placeholder="Buscar alumno o categoría..." className="form-control pl-9 py-1 text-sm w-56"
+                      value={search} onChange={e=>setSearch(e.target.value)}/>
+                  </div>
                 </div>
               </div>
 
@@ -362,7 +401,7 @@ export default function Finanzas() {
 
         {/* CONFIG TAB */}
         {activeTab === 'config' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 fade-in">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 fade-in">
             <div className="card">
               <div className="card-header border-b border-border/50 pb-4 mb-4"><h3 className="card-title">Configuración del Ciclo</h3></div>
               <form onSubmit={handleConfigSubmit}>
@@ -378,11 +417,37 @@ export default function Finanzas() {
             </div>
             <div className="card border-primary/30">
               <div className="card-header border-b border-primary/20 pb-4 mb-4"><h3 className="card-title text-primary-400">Motor de Generación</h3></div>
-              <p className="text-sm text-text-secondary mb-4">Genera deudas mensuales para todos los alumnos activos. Calcula prorrateo automático si el alumno inició a mitad de mes.</p>
+              <p className="text-sm text-text-secondary mb-3">Genera deudas mensuales para todos los alumnos activos. Calcula prorrateo automático si el alumno inició a mitad de mes.</p>
+
+              {/* Selector mes/año para el motor */}
+              <div className="mb-4">
+                <label className="form-label flex items-center gap-2 mb-2">
+                  <Calendar size={14} className="text-primary-400"/> Período objetivo
+                </label>
+                <div className="flex gap-2">
+                  <select
+                    className="form-control flex-1"
+                    value={motorMonth}
+                    onChange={e => setMotorMonth(parseInt(e.target.value))}
+                  >
+                    {['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+                      .map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
+                  </select>
+                  <select
+                    className="form-control w-28"
+                    value={motorYear}
+                    onChange={e => setMotorYear(parseInt(e.target.value))}
+                  >
+                    {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
+                  </select>
+                </div>
+              </div>
+
               <div className="bg-bg-dark p-4 rounded border border-border mb-4">
                 <ul className="text-sm text-text-muted list-disc pl-4 space-y-1">
                   <li>Respeta exoneraciones (Becados, Invitados).</li>
-                  <li>No duplica cargos (verifica si ya se generó en este mes).</li>
+                  <li><b className="text-warning">Reemplaza</b> cargos no pagados si ya existen para ese mes.</li>
+                  <li><b className="text-success">Nunca sobreescribe</b> un cobro ya pagado.</li>
                   <li>Aplica montos preferenciales si existen.</li>
                   <li>Calcula <b>prorrateo automático</b> si el alumno inició después del día 1.</li>
                   <li>Estado <b>En Curso</b> = antes de vencer · <b>Vencido</b> = superó la fecha.</li>
@@ -390,7 +455,7 @@ export default function Finanzas() {
               </div>
               <button onClick={handleGenerateDebts} disabled={generating} className="btn btn-primary w-full flex justify-center items-center gap-2">
                 {generating ? <span className="spinner w-4 h-4"></span> : <Play size={16}/>}
-                {generating ? 'Generando...' : 'Ejecutar Motor Manualmente'}
+                {generating ? 'Generando...' : `Ejecutar Motor — ${['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][motorMonth-1]} ${motorYear}`}
               </button>
             </div>
           </div>
