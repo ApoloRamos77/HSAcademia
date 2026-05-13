@@ -1,9 +1,58 @@
 import { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import AppLayout from '../../components/AppLayout';
-import { Package, ShoppingCart, PlusCircle, DollarSign, Tag, TrendingUp, AlertCircle, ShoppingBag, BarChart3, Download, Trash2, X, AlertTriangle } from 'lucide-react';
+import { Package, ShoppingCart, PlusCircle, DollarSign, Tag, TrendingUp, AlertCircle, ShoppingBag, BarChart3, Download, Trash2, X, AlertTriangle, ChevronDown } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { generateReceiptPDF } from '../../utils/pdfGenerator';
+
+function SearchableStudentSelect({ students, value, onChange }) {
+  const [search, setSearch] = useState('');
+  const [open, setOpen] = useState(false);
+  const selected = students.find(s => s.id === value);
+
+  return (
+    <div className="relative">
+      <div 
+        className="form-control cursor-pointer flex justify-between items-center"
+        onClick={() => setOpen(!open)}
+      >
+        <span className="truncate text-sm">{selected ? `${selected.firstName} ${selected.lastName} (Apoderado: ${selected.guardianName || 'N/A'})` : 'Público General'}</span>
+        <ChevronDown size={14} className="text-text-muted shrink-0 ml-2" />
+      </div>
+      {open && (
+        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-bg-dark border border-border rounded shadow-lg max-h-60 overflow-y-auto">
+          <div className="p-2 sticky top-0 bg-bg-dark border-b border-border z-10">
+            <input 
+              type="text" 
+              className="form-control text-sm py-1.5" 
+              placeholder="Buscar por nombre, apellido o DNI..." 
+              value={search} 
+              onChange={e=>setSearch(e.target.value)}
+              onClick={e=>e.stopPropagation()}
+              autoFocus
+            />
+          </div>
+          <div 
+            className={`p-2 hover:bg-primary/20 cursor-pointer text-sm ${!value ? 'bg-primary/10' : ''}`}
+            onClick={() => { onChange(''); setOpen(false); setSearch(''); }}
+          >
+            Público General
+          </div>
+          {students.filter(s => `${s.firstName} ${s.lastName} ${s.guardianName} ${s.documentNumber}`.toLowerCase().includes(search.toLowerCase())).map(s => (
+            <div 
+              key={s.id} 
+              className={`p-2 hover:bg-primary/20 cursor-pointer text-sm ${value === s.id ? 'bg-primary/10' : ''}`}
+              onClick={() => { onChange(s.id); setOpen(false); setSearch(''); }}
+            >
+              <div className="font-bold">{s.firstName} {s.lastName}</div>
+              <div className="text-xs text-text-muted">Apoderado: {s.guardianName || 'N/A'}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function Tienda() {
   const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' | 'inventory' | 'sales'
@@ -504,10 +553,13 @@ export default function Tienda() {
                     <span>Comprador (Opcional)</span>
                     <span className="text-xs text-text-muted font-normal">Si se deja vacío, es "Público General"</span>
                   </label>
-                  <select className="form-control" value={saleForm.studentId} onChange={e => setSaleForm({...saleForm, studentId: e.target.value})}>
-                    <option value="">Público General</option>
-                    {students.map(s => <option key={s.id} value={s.id}>{s.firstName} {s.lastName} (Apoderado: {s.guardianName})</option>)}
-                  </select>
+                  <SearchableStudentSelect 
+                    students={students} 
+                    value={saleForm.studentId} 
+                    onChange={val => {
+                      setSaleForm({...saleForm, studentId: val, paymentRecordId: '', monthlyAmountPaid: ''});
+                    }}
+                  />
                 </div>
 
                 {saleForm.studentId && pendingDebts.filter(d => d.studentId === saleForm.studentId).length > 0 && (
