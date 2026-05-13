@@ -68,6 +68,8 @@ public class StudentService
             GuardianEmail = s.Guardian?.Email ?? "",
             IsActive = s.IsActive,
             EnrollmentDate = s.EnrollmentDate,
+            PaymentStartDate = s.PaymentStartDate,
+            WithdrawalDate = s.WithdrawalDate,
             PreferentialFee = s.PreferentialFee,
             IsGuest = s.IsGuest,
             IsScholarship = s.IsScholarship,
@@ -130,6 +132,8 @@ public class StudentService
             GuardianId = guardianId,
             IsActive = true,
             EnrollmentDate = dto.EnrollmentDate?.ToUniversalTime() ?? DateTime.UtcNow,
+            PaymentStartDate = dto.PaymentStartDate?.ToUniversalTime(),
+            WithdrawalDate = dto.WithdrawalDate?.ToUniversalTime(),
             PreferentialFee = dto.PreferentialFee,
             IsGuest = dto.IsGuest,
             IsScholarship = dto.IsScholarship,
@@ -287,6 +291,9 @@ public class StudentService
 
         if (dto.EnrollmentDate.HasValue)
             student.EnrollmentDate = dto.EnrollmentDate.Value.ToUniversalTime();
+            
+        student.PaymentStartDate = dto.PaymentStartDate?.ToUniversalTime();
+        student.WithdrawalDate = dto.WithdrawalDate?.ToUniversalTime();
 
         student.PreferentialFee = dto.PreferentialFee;
         student.IsGuest = dto.IsGuest;
@@ -423,6 +430,8 @@ public class StudentService
             GuardianEmail = s.Guardian?.Email ?? "",
             IsActive = s.IsActive,
             EnrollmentDate = s.EnrollmentDate,
+            PaymentStartDate = s.PaymentStartDate,
+            WithdrawalDate = s.WithdrawalDate,
             PreferentialFee = s.PreferentialFee,
             IsGuest = s.IsGuest,
             IsScholarship = s.IsScholarship,

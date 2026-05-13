@@ -38,6 +38,7 @@ public class Student
     public bool IsScholarship { get; set; } = false;
     public decimal? ScholarshipPercentage { get; set; }
     public DateTime? PaymentStartDate { get; set; }
+    public DateTime? WithdrawalDate { get; set; }
 
     // Navigation for One-to-One
     public virtual StudentMedicalRecord? MedicalRecord { get; set; }

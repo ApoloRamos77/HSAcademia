@@ -278,9 +278,9 @@ export default function Finanzas() {
                   >
                     {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
                   </select>
-                  <div className="relative flex items-center">
-                    <Search size={15} className="absolute left-3 text-text-muted"/>
-                    <input type="text" placeholder="Buscar alumno..." className="form-control pl-9 py-2 text-sm w-48"
+                  <div className="relative">
+                    <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted"/>
+                    <input type="text" placeholder="Buscar alumno..." className="form-control pl-8 py-1.5 text-sm min-w-[200px]"
                       value={search} onChange={e=>setSearch(e.target.value)}/>
                   </div>
                 </div>

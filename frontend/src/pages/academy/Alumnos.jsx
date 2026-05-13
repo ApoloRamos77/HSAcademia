@@ -35,7 +35,7 @@ export default function Alumnos() {
 
   const initialForm = {
     firstName: '', lastName: '', email: '', phone: '', dateOfBirth: '', documentNumber: '', headquarterId: '', categoryId: '',
-    enrollmentDate: new Date().toISOString().split('T')[0], preferentialFee: '',
+    enrollmentDate: new Date().toISOString().split('T')[0], paymentStartDate: '', withdrawalDate: '', preferentialFee: '',
     isGuest: false, isScholarship: false, scholarshipPercentage: '', isActive: true,
     guardianFirstName: '', guardianLastName: '', guardianEmail: '', guardianPhone: '',
     medicalRecord: {
@@ -377,6 +377,8 @@ export default function Alumnos() {
                           headquarterId: alumno.headquarterId,
                           categoryId: alumno.categoryId,
                           enrollmentDate: alumno.enrollmentDate ? alumno.enrollmentDate.split('T')[0] : '',
+                          paymentStartDate: alumno.paymentStartDate ? alumno.paymentStartDate.split('T')[0] : '',
+                          withdrawalDate: alumno.withdrawalDate ? alumno.withdrawalDate.split('T')[0] : '',
                           preferentialFee: alumno.preferentialFee || '',
                           isGuest: alumno.isGuest || false,
                           isScholarship: alumno.isScholarship || false,
@@ -500,8 +502,27 @@ export default function Alumnos() {
 
                     <div className="form-row">
                       <div className="form-group">
-                        <label className="form-label">Fecha de Inicio *</label>
+                        <label className="form-label">Fecha de Inscripción (Original) *</label>
                         <input required type="date" min="1900-01-01" max="2100-12-31" className="form-control" value={formData.enrollmentDate} onChange={e => setFormData({...formData, enrollmentDate: e.target.value})} />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label flex justify-between items-center">
+                          <span>Fecha de Reingreso / Inicio de Pagos</span>
+                          <span className="text-xs text-text-muted font-normal">(Opcional)</span>
+                        </label>
+                        <input type="date" min="1900-01-01" max="2100-12-31" className="form-control" value={formData.paymentStartDate} onChange={e => setFormData({...formData, paymentStartDate: e.target.value})} />
+                        <span className="text-xs text-warning mt-1 inline-block">Si el alumno se retiró y vuelve, ingrese esta fecha para calcular el prorrateo correctamente sin perder su fecha original.</span>
+                      </div>
+                    </div>
+
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label className="form-label flex justify-between items-center">
+                          <span className="text-danger">Fecha de Cese / Inactividad</span>
+                          <span className="text-xs text-text-muted font-normal">(Opcional)</span>
+                        </label>
+                        <input type="date" min="1900-01-01" max="2100-12-31" className="form-control" value={formData.withdrawalDate} onChange={e => setFormData({...formData, withdrawalDate: e.target.value})} disabled={formData.isActive} />
+                        <span className="text-xs text-text-muted mt-1 inline-block">Habilitado solo si el estado es Inactivo. Permite calcular deuda solo hasta esta fecha.</span>
                       </div>
                       <div className="form-group">
                         <label className="form-label">Costo Preferente (Opcional)</label>

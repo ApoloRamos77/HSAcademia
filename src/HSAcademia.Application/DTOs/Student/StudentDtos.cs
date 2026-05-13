@@ -26,6 +26,8 @@ public class StudentDto
     
     public bool IsActive { get; set; }
     public DateTime EnrollmentDate { get; set; }
+    public DateTime? PaymentStartDate { get; set; }
+    public DateTime? WithdrawalDate { get; set; }
     public decimal? PreferentialFee { get; set; }
     public bool IsGuest { get; set; }
     public bool IsScholarship { get; set; }
@@ -54,6 +56,8 @@ public class CreateStudentDto
 
     // Enrollment and Financials
     public DateTime? EnrollmentDate { get; set; }
+    public DateTime? PaymentStartDate { get; set; }
+    public DateTime? WithdrawalDate { get; set; }
     public decimal? PreferentialFee { get; set; }
     public bool IsGuest { get; set; }
     public bool IsScholarship { get; set; }

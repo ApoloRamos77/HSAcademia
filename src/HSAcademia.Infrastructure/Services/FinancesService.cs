@@ -87,8 +87,8 @@ public class FinancesService
     /// in a given year/month. Used for session-based proration.
     /// Returns (totalSessions, sessionsFromDate).
     /// </summary>
-    private async Task<(int total, int fromDate)> GetSessionCountsAsync(
-        Guid academyId, Guid? categoryId, int year, int month, DateTime? fromDate)
+    private async Task<(int total, int activeSessions)> GetSessionCountsAsync(
+        Guid academyId, Guid? categoryId, int year, int month, DateTime? fromDate, DateTime? toDate)
     {
         var from = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Utc);
         var to   = from.AddMonths(1);
@@ -100,17 +100,19 @@ public class FinancesService
                      && e.StartTime >= from
                      && e.StartTime < to);
 
-        // Match category or events without category (academy-wide trainings)
         if (categoryId.HasValue)
             query = query.Where(e => e.CategoryId == categoryId || e.CategoryId == null);
 
         var sessions = await query.Select(e => e.StartTime).ToListAsync();
         int total    = sessions.Count;
-        int after    = fromDate.HasValue
-            ? sessions.Count(s => s.Date >= fromDate.Value.Date)
-            : total;
+        
+        var validSessions = sessions.AsEnumerable();
+        if (fromDate.HasValue) validSessions = validSessions.Where(s => s.Date >= fromDate.Value.Date);
+        if (toDate.HasValue)   validSessions = validSessions.Where(s => s.Date <= toDate.Value.Date);
+        
+        int active = validSessions.Count();
 
-        return (total, after);
+        return (total, active);
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -133,7 +135,9 @@ public class FinancesService
 
         var students = await _context.Students
             .Include(s => s.Category)
-            .Where(s => s.AcademyId == academyId && s.IsActive)
+            .Where(s => s.AcademyId == academyId && 
+                       (s.IsActive || 
+                       (s.WithdrawalDate.HasValue && s.WithdrawalDate.Value >= targetRef)))
             .ToListAsync();
 
         int generatedCount = 0, replacedCount = 0, cleanedCount = 0;
@@ -208,28 +212,35 @@ public class FinancesService
             if (effStart.Year == year && effStart.Month == month && effStart.Day > 1)
                 startForProration = effStart;
 
+            DateTime? endForProration = (!student.IsActive && student.WithdrawalDate.HasValue && 
+                                          student.WithdrawalDate.Value.Year == year && 
+                                          student.WithdrawalDate.Value.Month == month)
+                ? student.WithdrawalDate.Value
+                : null;
+
             bool isProrated = false;
             decimal chargedAmount = fullAmount;
             DateTime? proratedStart = null;
             int? totalSessions = null, sessionsCharged = null;
 
-            if (startForProration.HasValue)
+            if (startForProration.HasValue || endForProration.HasValue)
             {
-                var (total, fromDate) = await GetSessionCountsAsync(
-                    academyId, student.CategoryId, year, month, startForProration);
+                var (total, activeCount) = await GetSessionCountsAsync(
+                    academyId, student.CategoryId, year, month, startForProration, endForProration);
 
                 if (total > 0)
                 {
-                    chargedAmount   = Math.Round(fullAmount * fromDate / total, 2);
+                    chargedAmount   = Math.Round(fullAmount * activeCount / total, 2);
                     isProrated      = true;
-                    proratedStart   = new DateTime(year, month, startForProration.Value.Day, 0, 0, 0, DateTimeKind.Utc);
+                    proratedStart   = startForProration ?? targetRef;
                     totalSessions   = total;
-                    sessionsCharged = fromDate;
+                    sessionsCharged = activeCount;
                 }
                 else
                 {
-                    int startDay    = startForProration.Value.Day;
-                    int charged     = daysInMonth - startDay + 1;
+                    int startDay    = startForProration?.Day ?? 1;
+                    int endDay      = endForProration?.Day ?? daysInMonth;
+                    int charged     = Math.Max(0, endDay - startDay + 1);
                     chargedAmount   = Math.Round(fullAmount * charged / daysInMonth, 2);
                     isProrated      = true;
                     proratedStart   = new DateTime(year, month, startDay, 0, 0, 0, DateTimeKind.Utc);
