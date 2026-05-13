@@ -60,7 +60,7 @@ export default function Finanzas() {
   const [expandedId, setExpandedId] = useState(null);
 
   // Pay form
-  const [payForm, setPayForm] = useState({ amountPaid: '', method: 'Cash', operationNumber: '', voucherUrl: '', notes: '' });
+  const [payForm, setPayForm] = useState({ amountPaid: '', method: 'Cash', operationNumber: '', voucherUrl: '', notes: '', discount: '' });
   // Recalc form
   const [recalcForm, setRecalcForm] = useState({ newAmount: '', proratedStartDate: '', notes: '' });
   // Exclude form
@@ -103,7 +103,7 @@ export default function Finanzas() {
   // ── Open modals ──────────────────────────────────────────────
   const openPay = (d) => {
     setSelected(d);
-    setPayForm({ amountPaid: (d.amount - d.amountPaid).toFixed(2), method: 'Cash', operationNumber: '', voucherUrl: '', notes: '' });
+    setPayForm({ amountPaid: (d.amount - d.amountPaid).toFixed(2), method: 'Cash', operationNumber: '', voucherUrl: '', notes: '', discount: '' });
     setModal('pay');
   };
   const openRecalc = (d) => {
@@ -121,6 +121,22 @@ export default function Finanzas() {
   const handlePay = async (e) => {
     e.preventDefault();
     try {
+      const discountVal = parseFloat(payForm.discount) || 0;
+      let finalDescription = selected.description;
+
+      if (discountVal > 0) {
+        if (discountVal >= selected.amountPending) {
+          toast.error('El descuento no puede ser mayor o igual al saldo pendiente.');
+          return;
+        }
+        await api.post('/finances/debts/recalculate', {
+          paymentRecordId: selected.id,
+          newAmount: selected.amount - discountVal,
+          notes: 'Descuento en caja.'
+        });
+        finalDescription += ` (Desc. S/ ${discountVal.toFixed(2)})`;
+      }
+
       const res = await api.post('/finances/debts/pay', {
         paymentRecordId: selected.id,
         amountPaid: parseFloat(payForm.amountPaid),
@@ -138,7 +154,7 @@ export default function Finanzas() {
       generateReceiptPDF({
         receiptNumber,
         customerName: selected.studentName,
-        description: selected.description,
+        description: finalDescription,
         quantity: 1,
         total: parseFloat(payForm.amountPaid),
         notes: payForm.notes || 'Ninguna'
@@ -535,21 +551,42 @@ export default function Finanzas() {
             <form onSubmit={handlePay}>
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label flex justify-between items-center">
-                    <span>Monto a Pagar *</span>
-                    <span className={`badge ${parseFloat(payForm.amountPaid || 0) < selected.amountPending ? 'badge-warning' : 'badge-success'} text-xs`}>
-                      {parseFloat(payForm.amountPaid || 0) < selected.amountPending ? 'Pago Parcial' : 'Pago Total'}
-                    </span>
+                  <label className="form-label text-warning flex justify-between items-center">
+                    <span>Descuento (S/.)</span>
+                    <span className="text-xs text-text-muted">Opcional</span>
                   </label>
-                  <input required type="number" step="0.01" min="0.01" max={selected.amountPending} className="form-control text-lg font-bold"
-                    value={payForm.amountPaid} onChange={e=>setPayForm({...payForm,amountPaid:e.target.value})}/>
-                  <span className="text-xs text-text-muted mt-1 inline-block">Máx. pendiente: S/. {selected.amountPending.toFixed(2)}</span>
+                  <input type="number" step="0.01" min="0" max={selected.amountPending - 0.01} className="form-control"
+                    value={payForm.discount} 
+                    onChange={e => {
+                      const d = parseFloat(e.target.value) || 0;
+                      setPayForm({
+                        ...payForm, 
+                        discount: e.target.value, 
+                        amountPaid: Math.max(0.01, selected.amountPending - d).toFixed(2)
+                      });
+                    }}/>
                 </div>
                 <div className="form-group">
                   <label className="form-label">Medio de Pago *</label>
                   <select required className="form-control" value={payForm.method} onChange={e=>setPayForm({...payForm,method:e.target.value})}>
                     {PAYMENT_METHODS.map(m=><option key={m.value} value={m.value}>{m.label}</option>)}
                   </select>
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label flex justify-between items-center">
+                    <span>Monto a Pagar *</span>
+                    <span className={`badge ${parseFloat(payForm.amountPaid || 0) < (selected.amountPending - (parseFloat(payForm.discount)||0)) ? 'badge-warning' : 'badge-success'} text-xs`}>
+                      {parseFloat(payForm.amountPaid || 0) < (selected.amountPending - (parseFloat(payForm.discount)||0)) ? 'Pago Parcial' : 'Pago Total'}
+                    </span>
+                  </label>
+                  <input required type="number" step="0.01" min="0.01" max={(selected.amountPending - (parseFloat(payForm.discount)||0)).toFixed(2)} className="form-control text-lg font-bold"
+                    value={payForm.amountPaid} onChange={e=>setPayForm({...payForm,amountPaid:e.target.value})}/>
+                  <span className="text-xs text-text-muted mt-1 inline-block">Máx. a pagar: S/. {(selected.amountPending - (parseFloat(payForm.discount)||0)).toFixed(2)}</span>
+                </div>
+                <div className="form-group">
+                  {/* Espacio para alinear si se desea */}
                 </div>
               </div>
               <div className="form-row">
