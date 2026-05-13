@@ -366,7 +366,8 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Quantity).HasColumnName("quantity").IsRequired();
             entity.Property(e => e.UnitPrice).HasColumnName("unit_price").HasColumnType("numeric(10,2)").IsRequired();
             entity.Property(e => e.TotalPrice).HasColumnName("total_price").HasColumnType("numeric(10,2)").IsRequired();
-            entity.Property(e => e.SaleDate).HasColumnName("sale_date").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.SaleDate).HasColumnName("sale_date");  // No default: value always set explicitly from service
+            entity.Property(e => e.ReceiptNumber).HasColumnName("receipt_number").HasMaxLength(20);
 
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
             entity.Property(e => e.IsDeleted).HasColumnName("is_deleted").HasDefaultValue(false);

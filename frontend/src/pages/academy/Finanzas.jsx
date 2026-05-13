@@ -303,90 +303,112 @@ export default function Finanzas() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filtered.map(d => (
-                      <>
-                        <tr key={d.id} className={`${d.status==='Vencido'&&!d.isPaid?'bg-danger/5':''} cursor-pointer`}>
-                          <td>{statusBadge(d)}</td>
-                          <td className="font-medium text-white">
-                            {d.studentName}
-                            {d.isProrated && <span className="ml-1 text-xs text-warning bg-warning/10 px-1 rounded">Prorr.</span>}
-                            {d.exclusionType !== 'None' && <span className="ml-1 text-xs text-success bg-success/10 px-1 rounded">Exon.</span>}
+                    {Object.values(filtered.reduce((acc, d) => {
+                      const key = d.studentId || d.studentName;
+                      if (!acc[key]) acc[key] = { studentName: d.studentName, totalPending: 0, items: [] };
+                      acc[key].items.push(d);
+                      acc[key].totalPending += d.amountPending;
+                      return acc;
+                    }, {})).sort((a,b) => b.totalPending - a.totalPending).map((group, gIdx) => (
+                      <React.Fragment key={gIdx}>
+                        {/* Fila de resumen del alumno */}
+                        <tr className="bg-primary/10 border-t-2 border-primary/20">
+                          <td colSpan={7} className="font-bold text-primary-100 p-3">
+                            <Users size={15} className="inline mr-2 mb-1"/>
+                            Resumen de Deuda Total: {group.studentName}
                           </td>
-                          <td className="text-sm">{d.categoryName}</td>
-                          <td>
-                            <div className="flex items-center gap-1">
-                              <FileText size={13} className="text-primary-400"/>
-                              <span className="text-sm">{d.description}</span>
-                            </div>
-                            {d.isProrated && (
-                              <div className="text-xs text-warning/80 mt-0.5">
-                                Desde día {d.proratedStartDate ? new Date(d.proratedStartDate).toLocaleDateString('es-PE', { timeZone: 'UTC', day: 'numeric' }) : '?'} — {d.proratedDaysCharged}/{d.proratedTotalDays} sesiones
-                              </div>
-                            )}
+                          <td className="font-bold text-danger p-3 text-lg">
+                            S/. {group.totalPending.toFixed(2)}
                           </td>
-                          <td className="text-sm">{new Date(d.dueDate).toLocaleDateString('es-PE', { timeZone: 'UTC' })}</td>
-                          <td className="font-bold">S/. {d.amount.toFixed(2)}</td>
-                          <td className="text-success font-medium">S/. {d.amountPaid.toFixed(2)}</td>
-                          <td className={`font-bold ${d.amountPending > 0 ? 'text-danger' : 'text-success'}`}>
-                            S/. {d.amountPending.toFixed(2)}
-                          </td>
-                          <td className="text-right">
-                            <div className="flex items-center justify-end gap-1">
-                              {!d.isPaid && (
-                                <>
-                                  <button onClick={()=>openPay(d)} className="btn btn-sm btn-success flex items-center gap-1" title="Registrar Pago">
-                                    <CreditCard size={13}/> Cobrar
-                                  </button>
-                                  <button onClick={()=>openRecalc(d)} className="btn btn-sm btn-ghost text-warning flex items-center gap-1" title="Recalcular">
-                                    <RefreshCw size={13}/>
-                                  </button>
-                                  <button onClick={()=>openExclude(d)} className="btn btn-sm btn-ghost text-text-muted flex items-center gap-1" title="Exonerar">
-                                    <Ban size={13}/>
-                                  </button>
-                                </>
-                              )}
-                              {d.isPaid && (
-                                <>
-                                  <button onClick={()=>regenerateDebtReceipt(d)}
-                                    className="btn btn-sm btn-ghost text-success flex items-center gap-1"
-                                    title="Volver a descargar recibo">
-                                    <Download size={13}/>
-                                  </button>
-                                  <button onClick={()=>handleGenerateNextMonth(d)}
-                                    className="btn btn-sm btn-ghost text-primary flex items-center gap-1"
-                                    title="Generar mensualidad del mes siguiente">
-                                    <CalendarPlus size={13}/>
-                                  </button>
-                                </>
-                              )}
-                              {d.installments?.length > 0 && (
-                                <button onClick={()=>setExpandedId(expandedId===d.id?null:d.id)} className="btn btn-sm btn-ghost text-primary-400" title="Ver pagos">
-                                  {expandedId===d.id ? <ChevronUp size={13}/> : <ChevronDown size={13}/>}
-                                </button>
-                              )}
-                            </div>
-                          </td>
+                          <td></td>
                         </tr>
-                        {expandedId === d.id && d.installments?.length > 0 && (
-                          <tr key={`${d.id}-detail`} className="bg-bg-dark/50">
-                            <td colSpan={9} className="p-4">
-                              <p className="text-xs text-text-muted font-bold mb-2 uppercase tracking-wide">Historial de pagos parciales</p>
-                              <div className="flex flex-col gap-1">
-                                {d.installments.map(i => (
-                                  <div key={i.id} className="flex items-center gap-3 text-sm bg-bg-surface rounded p-2">
-                                    <span className="text-success font-bold">S/. {i.amountPaid.toFixed(2)}</span>
-                                    <span className="text-text-muted">{new Date(i.paidAt).toLocaleDateString('es-PE')} {new Date(i.paidAt).toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'})}</span>
-                                    <span className="badge badge-primary text-xs">{PAYMENT_METHODS.find(m=>m.value===i.method)?.label || i.method}</span>
-                                    {i.operationNumber && <span className="text-text-muted text-xs">Op: {i.operationNumber}</span>}
-                                    {i.notes && <span className="text-text-muted text-xs italic">{i.notes}</span>}
-                                    {i.voucherUrl && <a href={i.voucherUrl} target="_blank" rel="noreferrer" className="text-primary-400 text-xs underline">Ver voucher</a>}
+                        {/* Detalles de la deuda */}
+                        {group.items.map(d => (
+                          <React.Fragment key={d.id}>
+                            <tr className={`${d.status==='Vencido'&&!d.isPaid?'bg-danger/5':''} cursor-pointer`}>
+                              <td>{statusBadge(d)}</td>
+                              <td className="font-medium text-white pl-6">
+                                ↳ {d.categoryName ? d.categoryName : 'Concepto individual'}
+                                {d.isProrated && <span className="ml-1 text-xs text-warning bg-warning/10 px-1 rounded">Prorr.</span>}
+                                {d.exclusionType !== 'None' && <span className="ml-1 text-xs text-success bg-success/10 px-1 rounded">Exon.</span>}
+                              </td>
+                              <td className="text-sm">{d.categoryName}</td>
+                              <td>
+                                <div className="flex items-center gap-1">
+                                  <FileText size={13} className="text-primary-400"/>
+                                  <span className="text-sm">{d.description}</span>
+                                </div>
+                                {d.isProrated && (
+                                  <div className="text-xs text-warning/80 mt-0.5">
+                                    Desde día {d.proratedStartDate ? new Date(d.proratedStartDate).toLocaleDateString('es-PE', { timeZone: 'UTC', day: 'numeric' }) : '?'} — {d.proratedDaysCharged}/{d.proratedTotalDays} sesiones
                                   </div>
-                                ))}
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </>
+                                )}
+                              </td>
+                              <td className="text-sm">{new Date(d.dueDate).toLocaleDateString('es-PE', { timeZone: 'UTC' })}</td>
+                              <td className="font-bold">S/. {d.amount.toFixed(2)}</td>
+                              <td className="text-success font-medium">S/. {d.amountPaid.toFixed(2)}</td>
+                              <td className={`font-bold ${d.amountPending > 0 ? 'text-danger' : 'text-success'}`}>
+                                S/. {d.amountPending.toFixed(2)}
+                              </td>
+                              <td className="text-right">
+                                <div className="flex items-center justify-end gap-1">
+                                  {!d.isPaid && (
+                                    <>
+                                      <button onClick={()=>openPay(d)} className="btn btn-sm btn-success flex items-center gap-1" title="Registrar Pago">
+                                        <CreditCard size={13}/> Cobrar
+                                      </button>
+                                      <button onClick={()=>openRecalc(d)} className="btn btn-sm btn-ghost text-warning flex items-center gap-1" title="Recalcular">
+                                        <RefreshCw size={13}/>
+                                      </button>
+                                      <button onClick={()=>openExclude(d)} className="btn btn-sm btn-ghost text-text-muted flex items-center gap-1" title="Exonerar">
+                                        <Ban size={13}/>
+                                      </button>
+                                    </>
+                                  )}
+                                  {d.isPaid && (
+                                    <>
+                                      <button onClick={()=>regenerateDebtReceipt(d)}
+                                        className="btn btn-sm btn-ghost text-success flex items-center gap-1"
+                                        title="Volver a descargar recibo">
+                                        <Download size={13}/>
+                                      </button>
+                                      <button onClick={()=>handleGenerateNextMonth(d)}
+                                        className="btn btn-sm btn-ghost text-primary flex items-center gap-1"
+                                        title="Generar mensualidad del mes siguiente">
+                                        <CalendarPlus size={13}/>
+                                      </button>
+                                    </>
+                                  )}
+                                  {d.installments?.length > 0 && (
+                                    <button onClick={()=>setExpandedId(expandedId===d.id?null:d.id)} className="btn btn-sm btn-ghost text-primary-400" title="Ver pagos">
+                                      {expandedId===d.id ? <ChevronUp size={13}/> : <ChevronDown size={13}/>}
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                            {expandedId === d.id && d.installments?.length > 0 && (
+                              <tr key={`${d.id}-detail`} className="bg-bg-dark/50">
+                                <td colSpan={9} className="p-4">
+                                  <p className="text-xs text-text-muted font-bold mb-2 uppercase tracking-wide">Historial de pagos parciales</p>
+                                  <div className="flex flex-col gap-1">
+                                    {d.installments.map(i => (
+                                      <div key={i.id} className="flex items-center gap-3 text-sm bg-bg-surface rounded p-2">
+                                        <span className="text-success font-bold">S/. {i.amountPaid.toFixed(2)}</span>
+                                        <span className="text-text-muted">{new Date(i.paidAt).toLocaleDateString('es-PE')} {new Date(i.paidAt).toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'})}</span>
+                                        <span className="badge badge-primary text-xs">{PAYMENT_METHODS.find(m=>m.value===i.method)?.label || i.method}</span>
+                                        {i.operationNumber && <span className="text-text-muted text-xs">Op: {i.operationNumber}</span>}
+                                        {i.notes && <span className="text-text-muted text-xs italic">{i.notes}</span>}
+                                        {i.voucherUrl && <a href={i.voucherUrl} target="_blank" rel="noreferrer" className="text-primary-400 text-xs underline">Ver voucher</a>}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
+                        ))}
+                      </React.Fragment>
                     ))}
                   </tbody>
                 </table>

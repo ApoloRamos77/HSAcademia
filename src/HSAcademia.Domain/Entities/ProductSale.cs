@@ -24,6 +24,9 @@ public class ProductSale
     
     public DateTime SaleDate { get; set; } = DateTime.UtcNow;
     
+    /// <summary>Receipt number from the centralized counter (same sequence as payment installments).</summary>
+    public string? ReceiptNumber { get; set; }
+    
     // Audit
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public bool IsDeleted { get; set; } = false;

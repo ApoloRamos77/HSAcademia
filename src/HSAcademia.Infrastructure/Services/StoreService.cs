@@ -13,10 +13,12 @@ namespace HSAcademia.Infrastructure.Services;
 public class StoreService
 {
     private readonly AppDbContext _context;
+    private readonly FinancesService _financesService;
 
-    public StoreService(AppDbContext context)
+    public StoreService(AppDbContext context, FinancesService financesService)
     {
         _context = context;
+        _financesService = financesService;
     }
 
     // --- Products ---
@@ -131,9 +133,14 @@ public class StoreService
         // Deduct stock
         product.Stock -= dto.Quantity;
 
+        // Correct date: if a custom date is provided convert to UTC properly;
+        // otherwise use UTC now so the value is always set (no DB default).
         var saleTimestamp = dto.SaleDate.HasValue
-            ? DateTime.SpecifyKind(dto.SaleDate.Value, DateTimeKind.Utc)
+            ? DateTime.SpecifyKind(dto.SaleDate.Value.ToUniversalTime(), DateTimeKind.Utc)
             : DateTime.UtcNow;
+
+        // Generate receipt number from the centralized counter
+        var receiptNumber = await _financesService.GenerateNextReceiptNumberAsync(academyId);
 
         var sale = new ProductSale
         {
@@ -145,14 +152,67 @@ public class StoreService
             TotalPrice = dto.IsGift ? 0 : (product.Price * dto.Quantity),
             IsGift = dto.IsGift,
             DiscountAmount = dto.IsGift ? (product.Price * dto.Quantity) : 0,
-            SaleDate = saleTimestamp
+            SaleDate = saleTimestamp,
+            ReceiptNumber = receiptNumber
         };
 
         _context.ProductSales.Add(sale);
         await _context.SaveChangesAsync();
 
-        // If payment details provided, store a PaymentInstallment on the linked PaymentRecord
-        if (!string.IsNullOrEmpty(dto.PaymentMethod))
+        string? combinedMonthlyDesc = null;
+        decimal? combinedMonthlyAmount = null;
+
+        // ── Flujo 1: Recibo combinado (mensualidad + producto en un solo recibo) ──────
+        // El frontend envía un PaymentRecordId explícito y el monto a abonar.
+        if (dto.PaymentRecordId.HasValue && dto.MonthlyAmountPaid.HasValue && dto.MonthlyAmountPaid.Value > 0)
+        {
+            var paymentRecord = await _context.PaymentRecords
+                .FirstOrDefaultAsync(pr => pr.Id == dto.PaymentRecordId.Value && pr.AcademyId == academyId);
+
+            if (paymentRecord != null && !paymentRecord.IsPaid)
+            {
+                var method = (dto.PaymentMethod ?? "Cash") switch
+                {
+                    "Yape"         => PaymentMethod.Yape,
+                    "Plin"         => PaymentMethod.Plin,
+                    "BankTransfer" => PaymentMethod.BankTransfer,
+                    "Card"         => PaymentMethod.Card,
+                    _              => PaymentMethod.Cash
+                };
+
+                var pending = paymentRecord.Amount - paymentRecord.AmountPaid;
+                var toPay   = Math.Min(dto.MonthlyAmountPaid.Value, pending);
+
+                // Capture for response
+                combinedMonthlyDesc = paymentRecord.Description;
+                combinedMonthlyAmount = toPay;
+
+                // Reuse the same receipt number so the receipt PDF covers both items
+                _context.PaymentInstallments.Add(new PaymentInstallment
+                {
+                    PaymentRecordId = paymentRecord.Id,
+                    AmountPaid      = toPay,
+                    PaidAt          = saleTimestamp,
+                    Method          = method,
+                    OperationNumber = dto.OperationNumber,
+                    VoucherUrl      = dto.VoucherUrl,
+                    ReceiptNumber   = receiptNumber,
+                    Notes           = $"Pago combinado — recibo #{receiptNumber}"
+                });
+
+                paymentRecord.AmountPaid += toPay;
+                if (paymentRecord.AmountPaid >= paymentRecord.Amount - 0.01m)
+                {
+                    paymentRecord.AmountPaid = paymentRecord.Amount;
+                    paymentRecord.IsPaid     = true;
+                    paymentRecord.PaidDate   = saleTimestamp;
+                }
+
+                await _context.SaveChangesAsync();
+            }
+        }
+        // ── Flujo 2: Pago móvil legacy (PaymentRecord ligado por ProductSaleId) ───────
+        else if (!string.IsNullOrEmpty(dto.PaymentMethod))
         {
             var paymentRecord = await _context.PaymentRecords
                 .FirstOrDefaultAsync(pr => pr.ProductSaleId == sale.Id && pr.AcademyId == academyId);
@@ -168,7 +228,7 @@ public class StoreService
                     _              => PaymentMethod.Cash
                 };
 
-                var installment = new PaymentInstallment
+                _context.PaymentInstallments.Add(new PaymentInstallment
                 {
                     PaymentRecordId = paymentRecord.Id,
                     AmountPaid      = sale.TotalPrice,
@@ -176,19 +236,18 @@ public class StoreService
                     Method          = method,
                     OperationNumber = dto.OperationNumber,
                     VoucherUrl      = dto.VoucherUrl,
+                    ReceiptNumber   = receiptNumber,
                     Notes           = $"Venta móvil — {product.Name} x{dto.Quantity}"
-                };
+                });
 
-                _context.PaymentInstallments.Add(installment);
-
-                // Mark record as paid
-                paymentRecord.IsPaid    = true;
-                paymentRecord.PaidDate  = DateTime.UtcNow;
+                paymentRecord.IsPaid     = true;
+                paymentRecord.PaidDate   = DateTime.UtcNow;
                 paymentRecord.AmountPaid = sale.TotalPrice;
 
                 await _context.SaveChangesAsync();
             }
         }
+
 
         return new ProductSaleDto
         {
@@ -202,7 +261,9 @@ public class StoreService
             IsGift = sale.IsGift,
             DiscountAmount = sale.DiscountAmount,
             SaleDate = sale.SaleDate,
-            ReceiptNumber = sale.ReceiptNumber
+            ReceiptNumber = sale.ReceiptNumber,
+            CombinedMonthlyDescription = combinedMonthlyDesc,
+            CombinedMonthlyAmount = combinedMonthlyAmount
         };
     }
 }

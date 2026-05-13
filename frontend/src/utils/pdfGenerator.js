@@ -1,4 +1,4 @@
-﻿import { jsPDF } from "jspdf";
+import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
 export const generateReceiptPDF = (data) => {
@@ -68,10 +68,18 @@ export const generateReceiptPDF = (data) => {
   doc.text("D.N.I:", 140, 72);
   doc.line(152, 73, 190, 73);
 
-  // Table
-  const tableData = [
-    [data.quantity || 1, data.description || "Descripción no disponible", `S/. ${parseFloat(data.total).toFixed(2)}`]
-  ];
+  let tableData = [];
+  if (data.items && data.items.length > 0) {
+    tableData = data.items.map(item => [
+      item.quantity || 1, 
+      item.description || "Descripción no disponible", 
+      `S/. ${parseFloat(item.total).toFixed(2)}`
+    ]);
+  } else {
+    tableData = [
+      [data.quantity || 1, data.description || "Descripción no disponible", `S/. ${parseFloat(data.total).toFixed(2)}`]
+    ];
+  }
   
   autoTable(doc, {
     startY: 85,

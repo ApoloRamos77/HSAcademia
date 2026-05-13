@@ -40,6 +40,10 @@ public class ProductSaleDto
     public decimal DiscountAmount { get; set; }
     public DateTime SaleDate { get; set; }
     public string? ReceiptNumber { get; set; }
+    
+    /// <summary>Populated when a monthly fee was also paid in the same receipt.</summary>
+    public string? CombinedMonthlyDescription { get; set; }
+    public decimal? CombinedMonthlyAmount { get; set; }
 }
 
 public class CreateProductSaleDto
@@ -56,4 +60,12 @@ public class CreateProductSaleDto
     public string? PaymentMethod { get; set; }
     public string? OperationNumber { get; set; }
     public string? VoucherUrl { get; set; }
+
+    /// <summary>
+    /// Optional: If provided, also registers a payment installment for this monthly fee record,
+    /// combining store product + monthly payment into the same receipt number.
+    /// </summary>
+    public Guid? PaymentRecordId { get; set; }
+    /// <summary>Amount to pay toward the monthly fee (required when PaymentRecordId is set).</summary>
+    public decimal? MonthlyAmountPaid { get; set; }
 }

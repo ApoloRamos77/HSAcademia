@@ -11,6 +11,7 @@ export default function Tienda() {
   const [products, setProducts] = useState([]);
   const [sales, setSales] = useState([]);
   const [students, setStudents] = useState([]);
+  const [pendingDebts, setPendingDebts] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [showProductModal, setShowProductModal] = useState(false);
@@ -21,7 +22,7 @@ export default function Tienda() {
 
   const [showSaleModal, setShowSaleModal] = useState(false);
   const todayISO = () => new Date().toISOString().split('T')[0];
-  const initialSale = { productId: '', studentId: '', quantity: '1', isGift: false, paymentMethod: 'Cash', operationNumber: '', saleDate: todayISO() };
+  const initialSale = { productId: '', studentId: '', quantity: '1', isGift: false, paymentMethod: 'Cash', operationNumber: '', saleDate: todayISO(), paymentRecordId: '', monthlyAmountPaid: '' };
   const [saleForm, setSaleForm] = useState(initialSale);
 
   useEffect(() => {
@@ -30,14 +31,16 @@ export default function Tienda() {
 
   const fetchData = async () => {
     try {
-      const [pRes, sRes, stuRes] = await Promise.all([
+      const [pRes, sRes, stuRes, debtsRes] = await Promise.all([
         api.get('/store/products'),
         api.get('/store/sales'),
-        api.get('/students') // Fetch students to link to sale
+        api.get('/students'),
+        api.get('/finances/debts/pending')
       ]);
       setProducts(pRes.data);
       setSales(sRes.data);
       setStudents(stuRes.data);
+      setPendingDebts(debtsRes.data || []);
     } catch (err) {
       toast.error('Error al cargar la tienda.');
     } finally {
@@ -75,6 +78,8 @@ export default function Tienda() {
         paymentMethod: saleForm.isGift ? null : saleForm.paymentMethod,
         operationNumber: saleForm.operationNumber || null,
         saleDate: saleForm.saleDate ? new Date(saleForm.saleDate + 'T12:00:00').toISOString() : null,
+        paymentRecordId: saleForm.paymentRecordId || null,
+        monthlyAmountPaid: saleForm.monthlyAmountPaid ? parseFloat(saleForm.monthlyAmountPaid) : null
       };
       const res = await api.post('/store/sales', payload);
       toast.success(saleForm.isGift ? '🎁 Obsequio registrado' : 'Venta registrada con éxito');
@@ -84,14 +89,37 @@ export default function Tienda() {
       const student = students.find(s => s.id === saleForm.studentId);
       const total = product && !saleForm.isGift ? (product.price * parseInt(saleForm.quantity, 10)).toFixed(2) : '0.00';
       
-      // Receipt number comes from the sale response
+      const items = [];
+      if (!saleForm.isGift && product) {
+        items.push({
+          quantity: parseInt(saleForm.quantity, 10),
+          description: `Venta de: ${product.name}`,
+          total: parseFloat(total)
+        });
+      } else if (saleForm.isGift && product) {
+        items.push({
+          quantity: parseInt(saleForm.quantity, 10),
+          description: `Venta de: ${product.name} (Obsequio)`,
+          total: 0
+        });
+      }
+      
+      if (res.data?.combinedMonthlyDescription) {
+        items.push({
+          quantity: 1,
+          description: res.data.combinedMonthlyDescription,
+          total: parseFloat(res.data.combinedMonthlyAmount || 0)
+        });
+      }
+      
+      const combinedTotal = items.reduce((acc, curr) => acc + curr.total, 0);
+
       generateReceiptPDF({
         receiptNumber: res.data?.receiptNumber,
         customerName: student ? `${student.firstName} ${student.lastName}` : 'Público General',
-        description: `Venta de: ${product ? product.name : 'Producto'} ${saleForm.isGift ? '(Obsequio)' : ''}`,
-        quantity: parseInt(saleForm.quantity, 10),
-        total: parseFloat(total),
-        notes: saleForm.isGift ? 'Obsequio / Entrega de Producto' : 'Venta de Tienda'
+        items: items,
+        total: combinedTotal,
+        notes: saleForm.isGift && items.length === 1 ? 'Obsequio / Entrega de Producto' : 'Venta de Tienda'
       });
       
       fetchData();
@@ -104,14 +132,29 @@ export default function Tienda() {
   const totalSaleEstimation = selectedProductForSale && !saleForm.isGift ? (selectedProductForSale.price * parseInt(saleForm.quantity || 0)).toFixed(2) : '0.00';
 
   const regenerateSaleReceipt = (s) => {
-    // Use the stored receipt number from the sale — no counter increment
+    const items = [];
+    items.push({
+      quantity: s.quantity,
+      description: `Venta de: ${s.productName}${s.isGift ? ' (Obsequio)' : ''}`,
+      total: s.isGift ? 0 : parseFloat(s.totalPrice)
+    });
+    
+    if (s.combinedMonthlyDescription) {
+      items.push({
+        quantity: 1,
+        description: s.combinedMonthlyDescription,
+        total: parseFloat(s.combinedMonthlyAmount || 0)
+      });
+    }
+
+    const combinedTotal = items.reduce((acc, curr) => acc + curr.total, 0);
+
     generateReceiptPDF({
       receiptNumber: s.receiptNumber,
       customerName: s.studentName || 'Público General',
-      description: `Venta de: ${s.productName}`,
-      quantity: s.quantity,
-      total: parseFloat(s.totalPrice),
-      notes: 'Copia de Recibo - Venta de Tienda'
+      items: items,
+      total: combinedTotal,
+      notes: s.isGift && items.length === 1 ? 'Obsequio / Entrega de Producto' : 'Copia de Recibo - Venta de Tienda'
     });
   };
 
@@ -405,6 +448,49 @@ export default function Tienda() {
                   </select>
                 </div>
 
+                {saleForm.studentId && pendingDebts.filter(d => d.studentId === saleForm.studentId).length > 0 && (
+                  <div className="form-row">
+                    <div className="form-group flex-1">
+                      <label className="form-label flex justify-between">
+                        <span className="text-primary-100">Vincular Mensualidad (Opcional)</span>
+                        <span className="text-xs text-text-muted">Añadir al mismo recibo</span>
+                      </label>
+                      <select 
+                        className="form-control" 
+                        value={saleForm.paymentRecordId || ''} 
+                        onChange={e => {
+                          const selectedRecordId = e.target.value;
+                          const selectedRecord = pendingDebts.find(d => d.id === selectedRecordId);
+                          setSaleForm({
+                            ...saleForm, 
+                            paymentRecordId: selectedRecordId,
+                            monthlyAmountPaid: selectedRecord ? (selectedRecord.amount - selectedRecord.amountPaid).toFixed(2) : ''
+                          });
+                        }}
+                      >
+                        <option value="">-- No vincular --</option>
+                        {pendingDebts.filter(d => d.studentId === saleForm.studentId).map(d => (
+                          <option key={d.id} value={d.id}>{d.description} (Pendiente: S/. {(d.amount - d.amountPaid).toFixed(2)})</option>
+                        ))}
+                      </select>
+                    </div>
+                    {saleForm.paymentRecordId && (
+                      <div className="form-group w-32">
+                        <label className="form-label">Monto a pagar</label>
+                        <input 
+                          type="number" 
+                          step="0.01"
+                          min="0.01"
+                          max={pendingDebts.find(d => d.id === saleForm.paymentRecordId) ? pendingDebts.find(d => d.id === saleForm.paymentRecordId).amount - pendingDebts.find(d => d.id === saleForm.paymentRecordId).amountPaid : undefined}
+                          className="form-control text-success font-bold" 
+                          value={saleForm.monthlyAmountPaid} 
+                          onChange={e => setSaleForm({...saleForm, monthlyAmountPaid: e.target.value})} 
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="form-group mb-4 flex items-center justify-between bg-bg-surface p-3 rounded-lg border border-border">
                   <div>
                     <label className="form-label mb-0 text-warning flex items-center gap-2">
@@ -443,8 +529,23 @@ export default function Tienda() {
                   <div className="form-group mb-0 flex-1">
                     <div className="bg-bg-dark border border-border rounded-lg p-3 flex justify-between items-center">
                       <p className="text-text-muted text-sm uppercase tracking-wide">Total a Cobrar</p>
-                      <span className={`text-2xl font-bold ${saleForm.isGift ? 'text-warning line-through opacity-70' : 'text-success'}`}>S/. {selectedProductForSale ? (selectedProductForSale.price * parseInt(saleForm.quantity || 0)).toFixed(2) : '0.00'}</span>
-                      {saleForm.isGift && <span className="text-2xl font-bold text-success ml-2">S/. 0.00</span>}
+                      <div className="text-right">
+                        {!saleForm.isGift && (
+                          <div className={`text-2xl font-bold text-success`}>
+                            S/. {((parseFloat(selectedProductForSale?.price || 0) * parseInt(saleForm.quantity || 0)) + (parseFloat(saleForm.monthlyAmountPaid) || 0)).toFixed(2)}
+                          </div>
+                        )}
+                        {saleForm.isGift && (
+                          <div className="text-2xl font-bold text-success">
+                            S/. {(parseFloat(saleForm.monthlyAmountPaid) || 0).toFixed(2)}
+                          </div>
+                        )}
+                        {saleForm.paymentRecordId && (
+                          <div className="text-xs text-text-muted mt-1">
+                            (Producto: S/. {saleForm.isGift ? '0.00' : (parseFloat(selectedProductForSale?.price || 0) * parseInt(saleForm.quantity || 0)).toFixed(2)} + Mensualidad: S/. {(parseFloat(saleForm.monthlyAmountPaid) || 0).toFixed(2)})
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
