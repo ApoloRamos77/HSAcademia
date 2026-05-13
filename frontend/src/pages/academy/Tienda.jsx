@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import AppLayout from '../../components/AppLayout';
-import { Package, ShoppingCart, PlusCircle, DollarSign, Tag, TrendingUp, AlertCircle, ShoppingBag, BarChart3, Download, Trash2 } from 'lucide-react';
+import { Package, ShoppingCart, PlusCircle, DollarSign, Tag, TrendingUp, AlertCircle, ShoppingBag, BarChart3, Download, Trash2, X, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { generateReceiptPDF } from '../../utils/pdfGenerator';
 
@@ -13,6 +13,9 @@ export default function Tienda() {
   const [students, setStudents] = useState([]);
   const [pendingDebts, setPendingDebts] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Confirm void dialog
+  const [confirmVoid, setConfirmVoid] = useState(null); // null | sale object
 
   const [showProductModal, setShowProductModal] = useState(false);
   const [editingProductId, setEditingProductId] = useState(null);
@@ -159,13 +162,19 @@ export default function Tienda() {
   };
 
   const handleVoidSale = async (sale) => {
-    if (!window.confirm(`¿Estás seguro de que deseas anular la venta del producto "${sale.productName}"?\nSe restaurará el stock y esta acción no se puede deshacer.`)) return;
+    setConfirmVoid(sale);
+  };
+
+  const confirmVoidSale = async () => {
+    if (!confirmVoid) return;
     try {
-      await api.delete(`/store/sales/${sale.id}`);
+      await api.delete(`/store/sales/${confirmVoid.id}`);
       toast.success('Venta anulada correctamente.');
-      loadData();
+      setConfirmVoid(null);
+      fetchData();
     } catch (err) {
       toast.error('Error al anular venta: ' + (err.response?.data?.message || err.message));
+      setConfirmVoid(null);
     }
   };
 
@@ -610,6 +619,57 @@ export default function Tienda() {
           </div>
         )}
       </div>
+
+      {/* ── MODAL: CONFIRMAR ANULACIÓN ── */}
+      {confirmVoid && (
+        <div className="modal-overlay" onClick={() => setConfirmVoid(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
+            {/* Header */}
+            <div className="flex justify-between items-center mb-5 border-b border-border pb-3">
+              <h3 className="modal-title m-0 flex items-center gap-2 text-danger">
+                <AlertTriangle size={20} /> Anular Venta
+              </h3>
+              <button onClick={() => setConfirmVoid(null)} className="btn btn-ghost btn-sm">
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex flex-col items-center text-center gap-4 py-2">
+              <div className="p-4 bg-danger/15 rounded-full">
+                <Trash2 size={32} className="text-danger" />
+              </div>
+              <div>
+                <p className="text-text-main font-medium mb-1">¿Estás seguro de que deseas anular esta venta?</p>
+                <p className="text-sm text-text-muted">
+                  Producto: <span className="font-bold text-white">&ldquo;{confirmVoid.productName}&rdquo;</span>
+                </p>
+                <p className="text-xs text-text-muted mt-2">
+                  Se restaurará el stock automáticamente. Esta acción no se puede deshacer.
+                </p>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="modal-footer mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmVoid(null)}
+                className="btn btn-ghost"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmVoidSale}
+                className="btn btn-danger flex items-center gap-2"
+              >
+                <Trash2 size={15} /> Sí, anular venta
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 }
