@@ -3,9 +3,10 @@ import api from '../../api/axios';
 import AppLayout from '../../components/AppLayout';
 import {
   CalendarDays, ChevronLeft, ChevronRight, Plus, X, Filter,
-  Cake, Trophy, Swords, Dumbbell, Clock, MapPin, Users, RefreshCw, Send
+  Cake, Trophy, Swords, Dumbbell, Clock, MapPin, Users, RefreshCw, Send, Trash2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import ConfirmDialog from '../../components/ConfirmDialog';
 
 // ─────────────────────────── helpers ────────────────────────────
 const EVENT_TYPES = [
@@ -75,6 +76,11 @@ export default function Calendario() {
   const [currentCallEventId, setCurrentCallEventId] = useState(null);
   const [calls, setCalls] = useState([]);
   const [loadingCalls, setLoadingCalls] = useState(false);
+
+  // Confirm dialogs
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);    // eliminar evento
+  const [confirmBulkDays, setConfirmBulkDays] = useState(null);    // null | number of days
+  const [confirmAutoGen, setConfirmAutoGen] = useState(false);     // autogenerar convocatorias
 
   const MONTH_NAMES_FULL = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
                             'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -250,23 +256,27 @@ export default function Calendario() {
   };
 
   // ── Delete event ──
-  const handleDelete = async (id) => {
-    if (!window.confirm('¿Eliminar este evento?')) return;
+  const handleDelete = (id) => setConfirmDeleteId(id);
+
+  const confirmDelete = async () => {
     try {
-      await api.delete(`/calendar/events/${id}`);
+      await api.delete(`/calendar/events/${confirmDeleteId}`);
       toast.success('Evento eliminado');
       setSelectedDay(null);
       fetchEvents();
     } catch { toast.error('Error al eliminar'); }
+    finally { setConfirmDeleteId(null); }
   };
 
-  const handleBulkShift = async (days) => {
-    if (!window.confirm(`¿Estás seguro de desplazar todos los eventos ${days > 0 ? '+' : ''}${days} días?`)) return;
+  const handleBulkShift = (days) => setConfirmBulkDays(days);
+
+  const confirmBulkShift = async () => {
     try {
-      await api.post(`/calendar/events/bulk-shift?days=${days}`);
+      await api.post(`/calendar/events/bulk-shift?days=${confirmBulkDays}`);
       toast.success('Eventos actualizados masivamente');
       fetchEvents();
     } catch { toast.error('Error al actualizar masivamente'); }
+    finally { setConfirmBulkDays(null); }
   };
 
   // ── Calls ──
@@ -288,16 +298,18 @@ export default function Calendario() {
     }
   };
 
-  const autoGenerateCalls = async () => {
+  const autoGenerateCalls = () => setConfirmAutoGen(true);
+
+  const confirmAutoGenerateCalls = async () => {
     if (!currentCallEventId) return;
-    if (!window.confirm('¿Generar convocatorias para los alumnos de las categorías asignadas?')) return;
-    
     try {
       const { data } = await api.post(`/calendar/events/${currentCallEventId}/calls/auto-generate`);
       toast.success(data.message);
       fetchCalls(currentCallEventId);
     } catch {
       toast.error('Error al generar convocatorias');
+    } finally {
+      setConfirmAutoGen(false);
     }
   };
 
@@ -742,6 +754,37 @@ export default function Calendario() {
           </div>
         </div>
       )}
+
+      {/* ── CONFIRM DIALOGS ── */}
+      <ConfirmDialog
+        isOpen={!!confirmDeleteId}
+        title="Eliminar Evento"
+        message="¿Estás seguro de que deseas eliminar este evento del calendario?"
+        detail="Esta acción no se puede deshacer."
+        confirmLabel="Sí, eliminar"
+        onConfirm={confirmDelete}
+        onCancel={() => setConfirmDeleteId(null)}
+      />
+      <ConfirmDialog
+        isOpen={confirmBulkDays !== null}
+        title="Desplazamiento Masivo"
+        message={`¿Desplazar todos los eventos ${confirmBulkDays > 0 ? '+' : ''}${confirmBulkDays} día(s)?`}
+        detail="Esta acción moverá todos los eventos visibles del calendario."
+        confirmLabel="Sí, desplazar"
+        confirmClass="btn-warning"
+        onConfirm={confirmBulkShift}
+        onCancel={() => setConfirmBulkDays(null)}
+      />
+      <ConfirmDialog
+        isOpen={confirmAutoGen}
+        title="Autogenerar Convocatorias"
+        message="¿Generar convocatorias para todos los alumnos de las categorías asignadas al evento?"
+        detail="Se crearán registros de convocatoria para cada alumno de la categoría."
+        confirmLabel="Sí, generar"
+        confirmClass="btn-primary"
+        onConfirm={confirmAutoGenerateCalls}
+        onCancel={() => setConfirmAutoGen(false)}
+      />
     </AppLayout>
   );
 }

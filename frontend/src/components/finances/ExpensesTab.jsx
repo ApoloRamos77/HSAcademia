@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from '../../api/axios';
 import { TrendingDown, Plus, FileText, Filter, Calendar, Tag, DollarSign, Trash2, X, Edit } from 'lucide-react';
 import toast from 'react-hot-toast';
+import ConfirmDialog from '../ConfirmDialog';
 
 const EXPENSE_TYPES = {
   1: { label: 'Operativo', color: 'bg-blue-500/20 text-blue-400' },
@@ -22,6 +23,7 @@ const MONTHS = [
 export default function ExpensesTab() {
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [confirmDelete, setConfirmDelete] = useState(null); // null | expense id
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({
     type: 1,
@@ -149,14 +151,17 @@ export default function ExpensesTab() {
     setIsModalOpen(true);
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('¿Eliminar este gasto?')) return;
+  const handleDelete = (id) => setConfirmDelete(id);
+
+  const confirmDeleteExpense = async () => {
     try {
-      await axios.delete(`/finances-premium/expenses/${id}`);
+      await axios.delete(`/finances-premium/expenses/${confirmDelete}`);
       toast.success('Gasto eliminado');
       fetchExpenses();
     } catch (err) {
       toast.error('Error al eliminar gasto');
+    } finally {
+      setConfirmDelete(null);
     }
   };
 
@@ -559,6 +564,16 @@ export default function ExpensesTab() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        isOpen={!!confirmDelete}
+        title="Eliminar Gasto"
+        message="¿Estás seguro de que deseas eliminar este registro de egreso?"
+        detail="Esta acción no se puede deshacer y afectará el balance financiero del mes."
+        confirmLabel="Sí, eliminar"
+        onConfirm={confirmDeleteExpense}
+        onCancel={() => setConfirmDelete(null)}
+      />
     </div>
   );
 }

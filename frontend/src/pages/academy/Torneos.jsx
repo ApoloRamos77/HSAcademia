@@ -3,11 +3,13 @@ import api from '../../api/axios';
 import AppLayout from '../../components/AppLayout';
 import { Trophy, Plus, Edit, Trash2, X, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
+import ConfirmDialog from '../../components/ConfirmDialog';
 
 export default function Torneos() {
   const [tournaments, setTournaments] = useState([]);
   const [loading, setLoading] = useState(true);
-  
+  const [confirmDelete, setConfirmDelete] = useState(null); // null | tournament id
+
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -73,14 +75,17 @@ export default function Torneos() {
     setShowModal(true);
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('¿Seguro que deseas eliminar este torneo?')) return;
+  const handleDelete = (id) => setConfirmDelete(id);
+
+  const confirmDeleteTournament = async () => {
     try {
-      await api.delete(`/calendar/tournaments/${id}`);
+      await api.delete(`/calendar/tournaments/${confirmDelete}`);
       toast.success('Torneo eliminado');
       fetchTournaments();
     } catch {
       toast.error('Error al eliminar');
+    } finally {
+      setConfirmDelete(null);
     }
   };
 
@@ -158,6 +163,16 @@ export default function Torneos() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        isOpen={!!confirmDelete}
+        title="Eliminar Torneo"
+        message="¿Estás seguro de que deseas eliminar este torneo?"
+        detail="Esta acción no se puede deshacer."
+        confirmLabel="Sí, eliminar"
+        onConfirm={confirmDeleteTournament}
+        onCancel={() => setConfirmDelete(null)}
+      />
     </AppLayout>
   );
 }

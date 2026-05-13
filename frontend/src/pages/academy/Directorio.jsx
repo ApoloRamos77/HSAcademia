@@ -3,12 +3,14 @@ import api from '../../api/axios';
 import AppLayout from '../../components/AppLayout';
 import { Search, Filter, Shield, User, GraduationCap, Users, KeyRound } from 'lucide-react';
 import toast from 'react-hot-toast';
+import ConfirmDialog from '../../components/ConfirmDialog';
 
 export default function Directorio() {
   const [usuarios, setUsuarios] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filtroRol, setFiltroRol] = useState('Todos');
+  const [confirmReset, setConfirmReset] = useState(null); // null | { id, name }
 
   useEffect(() => {
     fetchData();
@@ -26,13 +28,18 @@ export default function Directorio() {
     }
   };
 
-  const handleResetPassword = async (userId, userName) => {
-    if (!window.confirm(`¿Estás seguro de resetear la contraseña de ${userName} a "123456"?`)) return;
+  const handleResetPassword = (userId, userName) => {
+    setConfirmReset({ id: userId, name: userName });
+  };
+
+  const confirmResetPassword = async () => {
     try {
-      await api.post(`/academy-config/users/${userId}/reset-password`);
-      toast.success(`Contraseña de ${userName} reseteada a 123456`);
+      await api.post(`/academy-config/users/${confirmReset.id}/reset-password`);
+      toast.success(`Contraseña de ${confirmReset.name} reseteada a 123456`);
     } catch (err) {
       toast.error('Error al resetear la contraseña');
+    } finally {
+      setConfirmReset(null);
     }
   };
 
@@ -164,6 +171,16 @@ export default function Directorio() {
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={!!confirmReset}
+        title="Resetear Contraseña"
+        message={`¿Resetear la contraseña de ${confirmReset?.name} a "123456"?`}
+        detail="El usuario deberá cambiarla en su próximo ingreso."
+        confirmLabel="Sí, resetear"
+        onConfirm={confirmResetPassword}
+        onCancel={() => setConfirmReset(null)}
+      />
     </AppLayout>
   );
 }
