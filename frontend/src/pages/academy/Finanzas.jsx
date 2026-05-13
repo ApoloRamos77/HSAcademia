@@ -280,7 +280,7 @@ export default function Finanzas() {
                   </select>
                   <div className="relative">
                     <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted"/>
-                    <input type="text" placeholder="Buscar alumno..." className="form-control pl-8 py-1.5 text-sm min-w-[200px]"
+                    <input type="text" placeholder="Buscar alumno, concepto..." className="form-control pl-9 py-2 text-sm w-64 md:w-80"
                       value={search} onChange={e=>setSearch(e.target.value)}/>
                   </div>
                 </div>

@@ -172,6 +172,24 @@ public class FinancesService
             }
         }
 
+        // ── STEP 1.5: Cleanup — soft-delete unpaid records FOR THE TARGET MONTH if the student is no longer eligible
+        var unpaidInTargetMonth = await _context.PaymentRecords
+            .Where(p => p.AcademyId == academyId
+                     && !p.IsPaid && !p.IsDeleted
+                     && p.Type == PaymentType.MonthlyFee
+                     && p.Description == description)
+            .ToListAsync();
+
+        foreach (var record in unpaidInTargetMonth)
+        {
+            if (!studentIds.Contains(record.StudentId))
+            {
+                record.IsDeleted = true;
+                record.DeletedAt = DateTime.UtcNow;
+                cleanedCount++;
+            }
+        }
+
         // ── STEP 2: Generate / replace for the target month ───────────────
         foreach (var student in students)
         {
