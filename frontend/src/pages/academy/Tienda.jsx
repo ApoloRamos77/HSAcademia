@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import AppLayout from '../../components/AppLayout';
-import { Package, ShoppingCart, PlusCircle, DollarSign, Tag, TrendingUp, AlertCircle, ShoppingBag, BarChart3, Download } from 'lucide-react';
+import { Package, ShoppingCart, PlusCircle, DollarSign, Tag, TrendingUp, AlertCircle, ShoppingBag, BarChart3, Download, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { generateReceiptPDF } from '../../utils/pdfGenerator';
 
@@ -156,6 +156,23 @@ export default function Tienda() {
       total: combinedTotal,
       notes: s.isGift && items.length === 1 ? 'Obsequio / Entrega de Producto' : 'Copia de Recibo - Venta de Tienda'
     });
+  };
+
+  const handleVoidSale = async (sale) => {
+    if (!window.confirm(`¿Estás seguro de que deseas anular la venta del producto "${sale.productName}"?\nSe restaurará el stock y esta acción no se puede deshacer.`)) return;
+    try {
+      await api.delete(`/store/sales/${sale.id}`);
+      toast.success('Venta anulada correctamente.');
+      loadData();
+    } catch (err) {
+      toast.error('Error al anular venta: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const isCurrentMonth = (dateString) => {
+    const d = new Date(dateString);
+    const now = new Date();
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   };
 
   // Dashboard Metrics
@@ -358,9 +375,16 @@ export default function Tienda() {
                         )}
                       </td>
                       <td className="text-right">
-                        <button onClick={() => regenerateSaleReceipt(s)} className="btn btn-ghost btn-sm text-primary flex items-center gap-1 justify-end ml-auto" title="Volver a descargar recibo">
-                          <Download size={14} /> PDF
-                        </button>
+                        <div className="flex items-center justify-end gap-2">
+                          <button onClick={() => regenerateSaleReceipt(s)} className="btn btn-ghost btn-sm text-primary flex items-center gap-1" title="Volver a descargar recibo">
+                            <Download size={14} /> PDF
+                          </button>
+                          {isCurrentMonth(s.saleDate) && (
+                            <button onClick={() => handleVoidSale(s)} className="btn btn-ghost btn-sm text-danger flex items-center gap-1" title="Anular Venta">
+                              <Trash2 size={14} /> Anular
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}

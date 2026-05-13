@@ -123,6 +123,37 @@ public class StoreService
             .ToListAsync();
     }
 
+    public async Task VoidSaleAsync(Guid academyId, Guid saleId)
+    {
+        var sale = await _context.ProductSales
+            .Include(s => s.Product)
+            .FirstOrDefaultAsync(s => s.Id == saleId && s.AcademyId == academyId && !s.IsDeleted);
+
+        if (sale == null) throw new Exception("Venta no encontrada o ya fue anulada.");
+
+        // Soft delete the sale
+        sale.IsDeleted = true;
+        sale.DeletedAt = DateTime.UtcNow;
+
+        // Restore stock
+        if (sale.Product != null)
+        {
+            sale.Product.Stock += sale.Quantity;
+        }
+
+        // Check if there is an exclusive PaymentRecord linked to this sale (Legacy flow)
+        var paymentRecord = await _context.PaymentRecords
+            .FirstOrDefaultAsync(pr => pr.ProductSaleId == sale.Id && !pr.IsDeleted);
+        
+        if (paymentRecord != null)
+        {
+            paymentRecord.IsDeleted = true;
+            paymentRecord.DeletedAt = DateTime.UtcNow;
+        }
+
+        await _context.SaveChangesAsync();
+    }
+
     public async Task<ProductSaleDto> CreateSaleAsync(Guid academyId, CreateProductSaleDto dto)
     {
         var product = await _context.Products.FirstOrDefaultAsync(p => p.Id == dto.ProductId && p.AcademyId == academyId);

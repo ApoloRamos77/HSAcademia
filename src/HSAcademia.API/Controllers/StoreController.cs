@@ -85,4 +85,21 @@ public class StoreController : ControllerBase
             return BadRequest(new { message = ex.Message }); 
         }
     }
+
+    [HttpDelete("sales/{id}")]
+    [Authorize(Roles = "AcademyAdmin")]
+    public async Task<IActionResult> VoidSale(Guid id)
+    {
+        var academyId = GetAcademyId();
+        if (academyId == Guid.Empty) return Unauthorized();
+        try 
+        { 
+            await _storeService.VoidSaleAsync(academyId, id);
+            return Ok(new { message = "Venta anulada correctamente." }); 
+        }
+        catch (Exception ex) 
+        { 
+            return BadRequest(new { message = ex.Message }); 
+        }
+    }
 }
