@@ -41,6 +41,7 @@ export default function Finanzas() {
   const [config, setConfig] = useState({ defaultPaymentDay: 5 });
   const [debts, setDebts] = useState([]);
   const [search, setSearch] = useState('');
+  const [filterCategory, setFilterCategory] = useState('');
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
 
@@ -198,10 +199,15 @@ export default function Finanzas() {
     });
   };
 
-  const filtered = debts.filter(d =>
-    d.studentName?.toLowerCase().includes(search.toLowerCase()) ||
-    d.categoryName?.toLowerCase().includes(search.toLowerCase())
-  );
+  const availableCategories = Array.from(new Set(debts.map(d => d.categoryName).filter(Boolean))).sort();
+
+  const filtered = debts.filter(d => {
+    const matchSearch = d.studentName?.toLowerCase().includes(search.toLowerCase()) || 
+                        d.categoryName?.toLowerCase().includes(search.toLowerCase()) ||
+                        d.description?.toLowerCase().includes(search.toLowerCase());
+    const matchCat = filterCategory ? d.categoryName === filterCategory : true;
+    return matchSearch && matchCat;
+  });
 
   const overdueDebts   = debts.filter(d => !d.isPaid && d.status === 'Vencido');
   const inCourseDebts  = debts.filter(d => !d.isPaid && d.status === 'En Curso');
@@ -255,34 +261,43 @@ export default function Finanzas() {
             </div>
 
             <div className="card">
-              <div className="card-header border-b border-border/50 pb-4 mb-4 flex-wrap gap-3">
-                <div className="flex items-center gap-3">
-                  <h3 className="card-title">Cuentas por Cobrar</h3>
-                  <button onClick={()=>setShowAll(p=>!p)} className={`btn btn-sm ${showAll?'btn-primary':'btn-ghost'}`}>
+              <div className="p-4 border-b border-border/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div className="flex flex-wrap items-center gap-3">
+                  <h3 className="card-title whitespace-nowrap m-0">Cuentas por Cobrar</h3>
+                  <button onClick={()=>setShowAll(p=>!p)} className={`btn btn-sm ${showAll?'btn-primary':'btn-ghost'} whitespace-nowrap`}>
                     {showAll ? 'Ver Pendientes' : 'Ver Todos'}
                   </button>
-                </div>
-                <div className="flex items-center gap-3 flex-wrap">
-                  <select
-                    className="form-control text-sm py-2 w-auto"
-                    value={filterMonth}
-                    onChange={e => setFilterMonth(parseInt(e.target.value))}
-                  >
-                    {['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
-                      .map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
-                  </select>
-                  <select
-                    className="form-control text-sm py-2 w-auto"
-                    value={filterYear}
-                    onChange={e => setFilterYear(parseInt(e.target.value))}
-                  >
-                    {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
-                  </select>
-                  <div className="relative">
-                    <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted"/>
-                    <input type="text" placeholder="Buscar alumno, concepto..." className="form-control pl-9 py-2 text-sm w-64 md:w-80"
-                      value={search} onChange={e=>setSearch(e.target.value)}/>
+                  
+                  <div className="flex flex-wrap items-center gap-2 ml-0 md:ml-2 md:border-l border-border/50 md:pl-3">
+                    <select
+                      className="form-control text-sm py-1.5 w-auto"
+                      value={filterMonth}
+                      onChange={e => setFilterMonth(parseInt(e.target.value))}
+                    >
+                      {['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'].map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
+                    </select>
+                    <select
+                      className="form-control text-sm py-1.5 w-auto"
+                      value={filterYear}
+                      onChange={e => setFilterYear(parseInt(e.target.value))}
+                    >
+                      {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
+                    </select>
+                    <select
+                      className="form-control text-sm py-1.5 w-auto max-w-[150px]"
+                      value={filterCategory}
+                      onChange={e => setFilterCategory(e.target.value)}
+                    >
+                      <option value="">Categorías (Todas)</option>
+                      {availableCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
                   </div>
+                </div>
+
+                <div className="relative w-full md:w-auto flex-1 max-w-sm">
+                  <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted"/>
+                  <input type="text" placeholder="Buscar alumno, concepto..." className="form-control pl-9 py-1.5 text-sm w-full"
+                    value={search} onChange={e=>setSearch(e.target.value)}/>
                 </div>
               </div>
 
