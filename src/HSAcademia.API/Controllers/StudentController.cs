@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using HSAcademia.Application.DTOs.Student;
 using HSAcademia.Infrastructure.Services;
@@ -102,5 +103,24 @@ public class StudentController : ControllerBase
         {
             return BadRequest(new { message = ex.Message });
         }
+    }
+
+    [HttpGet("{id}/financial-history")]
+    public async Task<IActionResult> GetFinancialHistory(Guid id, [FromServices] FinancesService financesService, [FromServices] StoreService storeService, [FromQuery] int? year, [FromQuery] int? month)
+    {
+        var academyId = GetAcademyId();
+        if (academyId == Guid.Empty) return Unauthorized();
+
+        var debts = await financesService.GetAllDebtsAsync(academyId, year, month);
+        var studentDebts = debts.Where(d => d.StudentId == id).ToList();
+
+        var sales = await storeService.GetSalesAsync(academyId);
+        var studentSales = sales.Where(s => s.StudentId == id).ToList();
+
+        if (year.HasValue && month.HasValue) {
+            studentSales = studentSales.Where(s => s.SaleDate.Year == year && s.SaleDate.Month == month).ToList();
+        }
+
+        return Ok(new { debts = studentDebts, sales = studentSales });
     }
 }

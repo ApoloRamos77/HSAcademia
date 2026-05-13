@@ -60,6 +60,8 @@ public class CreateProductSaleDto
     public string? PaymentMethod { get; set; }
     public string? OperationNumber { get; set; }
     public string? VoucherUrl { get; set; }
+    
+    public decimal? CustomDiscount { get; set; }
 
     /// <summary>
     /// Optional: If provided, also registers a payment installment for this monthly fee record,

@@ -20,6 +20,12 @@ export default function Alumnos() {
   const [nutritionForm, setNutritionForm] = useState({
     weightKg: '', heightCm: '', muscleMassPercentage: '', fatPercentage: '', notes: '', recordDate: new Date().toISOString().split('T')[0]
   });
+
+  const [showFinancialModal, setShowFinancialModal] = useState(false);
+  const [financialStudent, setFinancialStudent] = useState(null);
+  const [financialData, setFinancialData] = useState({ debts: [], sales: [] });
+  const [finFilterMonth, setFinFilterMonth] = useState('');
+  const [finFilterYear, setFinFilterYear] = useState('');
   
   const [search, setSearch] = useState('');
   const [filterSede, setFilterSede] = useState('');
@@ -205,6 +211,35 @@ export default function Alumnos() {
     }
   };
 
+  const openFinancialModal = async (alumno) => {
+    setFinancialStudent(alumno);
+    setFinFilterMonth('');
+    setFinFilterYear('');
+    await fetchFinancialHistory(alumno.id, '', '');
+    setShowFinancialModal(true);
+  };
+
+  const fetchFinancialHistory = async (studentId, month, year) => {
+    try {
+      let url = `/students/${studentId}/financial-history`;
+      const params = new URLSearchParams();
+      if (month) params.append('month', month);
+      if (year) params.append('year', year);
+      if (params.toString()) url += `?${params.toString()}`;
+      
+      const res = await api.get(url);
+      setFinancialData(res.data);
+    } catch (err) {
+      toast.error("Error al cargar historial financiero");
+    }
+  };
+
+  useEffect(() => {
+    if (financialStudent && showFinancialModal) {
+      fetchFinancialHistory(financialStudent.id, finFilterMonth, finFilterYear);
+    }
+  }, [finFilterMonth, finFilterYear]);
+
   if (loading) return <AppLayout title="Alumnos"><div className="text-center p-8"><span className="spinner" style={{borderColor: 'var(--primary)', borderTopColor: 'transparent'}}></span></div></AppLayout>;
 
   return (
@@ -323,6 +358,9 @@ export default function Alumnos() {
                 </div>
 
                 <div className="flex justify-end gap-2 border-t border-border pt-4">
+                  <button className="btn btn-outline btn-sm text-primary" onClick={() => openFinancialModal(alumno)} title="Finanzas">
+                    <FileText size={14} /> Finanzas
+                  </button>
                   <button className="btn btn-outline btn-sm text-success" onClick={() => openNutritionModal(alumno)} title="Nutrición">
                     <Apple size={14} /> Historial
                   </button>
@@ -708,6 +746,73 @@ export default function Alumnos() {
                         ))}
                       </div>
                     )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showFinancialModal && financialStudent && (
+          <div className="modal-overlay" onClick={() => setShowFinancialModal(false)}>
+            <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '800px' }}>
+              <div className="flex justify-between items-center mb-4 border-b border-border pb-4">
+                <h3 className="modal-title m-0 flex items-center gap-2">
+                  <FileText className="text-primary" size={20} /> Historial Financiero - {financialStudent.firstName} {financialStudent.lastName}
+                </h3>
+                <button onClick={() => setShowFinancialModal(false)} className="text-text-muted hover:text-danger"><X size={20}/></button>
+              </div>
+
+              <div className="flex items-center gap-3 mb-4">
+                <select className="form-control text-sm py-2 w-auto" value={finFilterMonth} onChange={e => setFinFilterMonth(e.target.value)}>
+                  <option value="">Todos los meses</option>
+                  {['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'].map((m, i) => (
+                    <option key={i+1} value={i+1}>{m}</option>
+                  ))}
+                </select>
+                <select className="form-control text-sm py-2 w-auto" value={finFilterYear} onChange={e => setFinFilterYear(e.target.value)}>
+                  <option value="">Todos los años</option>
+                  {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-bg-dark p-4 rounded-lg border border-border">
+                  <h5 className="font-bold text-warning mb-3">Mensualidades ({financialData.debts.length})</h5>
+                  <div className="max-h-[300px] overflow-y-auto custom-scrollbar flex flex-col gap-2 pr-1">
+                    {financialData.debts.length === 0 && <div className="text-sm text-text-muted">No hay cobros registrados.</div>}
+                    {financialData.debts.map(d => (
+                      <div key={d.id} className="p-3 bg-bg-surface rounded border border-border/50 text-sm">
+                        <div className="flex justify-between font-bold text-primary-100 mb-1">
+                          <span>{d.description}</span>
+                          <span>S/. {d.amount.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between text-xs text-text-muted">
+                          <span>Vence: {new Date(d.dueDate).toLocaleDateString()}</span>
+                          <span className={d.isPaid ? 'text-success font-bold' : 'text-danger font-bold'}>{d.isPaid ? 'Pagado' : 'Pendiente'}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="bg-bg-dark p-4 rounded-lg border border-border">
+                  <h5 className="font-bold text-success mb-3">Compras en Tienda ({financialData.sales.length})</h5>
+                  <div className="max-h-[300px] overflow-y-auto custom-scrollbar flex flex-col gap-2 pr-1">
+                    {financialData.sales.length === 0 && <div className="text-sm text-text-muted">No hay compras registradas.</div>}
+                    {financialData.sales.map(s => (
+                      <div key={s.id} className="p-3 bg-bg-surface rounded border border-border/50 text-sm">
+                        <div className="flex justify-between font-bold text-primary-100 mb-1">
+                          <span>{s.productName} (x{s.quantity})</span>
+                          <span>S/. {s.totalPrice.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between text-xs text-text-muted">
+                          <span>Fecha: {new Date(s.saleDate).toLocaleDateString()}</span>
+                          {s.isGift && <span className="text-warning">Obsequio</span>}
+                          {s.discountAmount > 0 && !s.isGift && <span className="text-warning">Desc: S/. {s.discountAmount.toFixed(2)}</span>}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>

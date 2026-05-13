@@ -25,8 +25,12 @@ export default function Tienda() {
 
   const [showSaleModal, setShowSaleModal] = useState(false);
   const todayISO = () => new Date().toISOString().split('T')[0];
-  const initialSale = { productId: '', studentId: '', quantity: '1', isGift: false, paymentMethod: 'Cash', operationNumber: '', saleDate: todayISO(), paymentRecordId: '', monthlyAmountPaid: '' };
+  const initialSale = { productId: '', studentId: '', quantity: '1', isGift: false, customDiscount: '', paymentMethod: 'Cash', operationNumber: '', saleDate: todayISO(), paymentRecordId: '', monthlyAmountPaid: '' };
   const [saleForm, setSaleForm] = useState(initialSale);
+
+  const today = new Date();
+  const [filterYear,  setFilterYear]  = useState(today.getFullYear());
+  const [filterMonth, setFilterMonth] = useState(today.getMonth() + 1);
 
   useEffect(() => {
     fetchData();
@@ -82,7 +86,8 @@ export default function Tienda() {
         operationNumber: saleForm.operationNumber || null,
         saleDate: saleForm.saleDate ? new Date(saleForm.saleDate + 'T12:00:00').toISOString() : null,
         paymentRecordId: saleForm.paymentRecordId || null,
-        monthlyAmountPaid: saleForm.monthlyAmountPaid ? parseFloat(saleForm.monthlyAmountPaid) : null
+        monthlyAmountPaid: saleForm.monthlyAmountPaid ? parseFloat(saleForm.monthlyAmountPaid) : null,
+        customDiscount: saleForm.customDiscount ? parseFloat(saleForm.customDiscount) : null
       };
       const res = await api.post('/store/sales', payload);
       toast.success(saleForm.isGift ? '🎁 Obsequio registrado' : 'Venta registrada con éxito');
@@ -93,11 +98,12 @@ export default function Tienda() {
       const total = product && !saleForm.isGift ? (product.price * parseInt(saleForm.quantity, 10)).toFixed(2) : '0.00';
       
       const items = [];
+      const discount = saleForm.customDiscount ? parseFloat(saleForm.customDiscount) : 0;
       if (!saleForm.isGift && product) {
         items.push({
           quantity: parseInt(saleForm.quantity, 10),
-          description: `Venta de: ${product.name}`,
-          total: parseFloat(total)
+          description: `Venta de: ${product.name}${discount > 0 ? ' (Incluye Descuento)' : ''}`,
+          total: parseFloat(total) - discount
         });
       } else if (saleForm.isGift && product) {
         items.push({
@@ -138,7 +144,7 @@ export default function Tienda() {
     const items = [];
     items.push({
       quantity: s.quantity,
-      description: `Venta de: ${s.productName}${s.isGift ? ' (Obsequio)' : ''}`,
+      description: `Venta de: ${s.productName}${s.isGift ? ' (Obsequio)' : ''}${s.discountAmount > 0 && !s.isGift ? ' (Incluye Descuento)' : ''}`,
       total: s.isGift ? 0 : parseFloat(s.totalPrice)
     });
     
@@ -189,8 +195,14 @@ export default function Tienda() {
   const totalItemsSold = sales.reduce((acc, curr) => acc + curr.quantity, 0);
   
   // Best selling product
+  const filteredSales = sales.filter(s => {
+    if (activeTab !== 'sales') return true;
+    const d = new Date(s.saleDate);
+    return d.getMonth() + 1 === filterMonth && d.getFullYear() === filterYear;
+  });
+
   const productSalesMap = {};
-  sales.forEach(s => {
+  filteredSales.forEach(s => {
     if (!productSalesMap[s.productName]) productSalesMap[s.productName] = 0;
     productSalesMap[s.productName] += s.quantity;
   });
@@ -352,9 +364,26 @@ export default function Tienda() {
                 <h3 className="card-title flex items-center gap-2"><TrendingUp className="text-success" size={20} /> Ventas Realizadas</h3>
                 <p className="text-muted mt-1">Historial de productos vendidos a los alumnos o público general.</p>
               </div>
-              <button onClick={() => { setSaleForm(initialSale); setShowSaleModal(true); }} className="btn btn-success">
-                <ShoppingBag size={16} /> Registrar Venta
-              </button>
+              <div className="flex items-center gap-3 flex-wrap">
+                <select
+                  className="form-control text-sm py-2 w-auto"
+                  value={filterMonth}
+                  onChange={e => setFilterMonth(parseInt(e.target.value))}
+                >
+                  {['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+                    .map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
+                </select>
+                <select
+                  className="form-control text-sm py-2 w-auto"
+                  value={filterYear}
+                  onChange={e => setFilterYear(parseInt(e.target.value))}
+                >
+                  {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
+                </select>
+                <button onClick={() => { setSaleForm(initialSale); setShowSaleModal(true); }} className="btn btn-success">
+                  <ShoppingBag size={16} /> Registrar Venta
+                </button>
+              </div>
             </div>
 
             <div className="table-container">
@@ -370,10 +399,10 @@ export default function Tienda() {
                   </tr>
                 </thead>
                 <tbody>
-                  {sales.map(s => (
+                  {filteredSales.map(s => (
                     <tr key={s.id}>
                       <td>{new Date(s.saleDate).toLocaleDateString()} {new Date(s.saleDate).toLocaleTimeString()}</td>
-                      <td><div className="font-medium text-primary-100">{s.productName}</div><div className="text-xs text-text-muted">P.U: S/. {s.unitPrice.toFixed(2)}</div></td>
+                      <td><div className="font-medium text-primary-100">{s.productName}</div><div className="text-xs text-text-muted">P.U: S/. {s.unitPrice.toFixed(2)} {s.discountAmount > 0 && !s.isGift && <span className="text-warning ml-1">(Desc: S/. {s.discountAmount.toFixed(2)})</span>}</div></td>
                       <td>{s.studentName}</td>
                       <td>{s.quantity}</td>
                       <td>
@@ -400,7 +429,7 @@ export default function Tienda() {
                 </tbody>
               </table>
             </div>
-            {sales.length === 0 && <div className="empty-state"><ShoppingCart size={40}/><p>Aún no hay ventas registradas</p></div>}
+            {filteredSales.length === 0 && <div className="empty-state"><ShoppingCart size={40}/><p>Aún no hay ventas registradas en este período</p></div>}
           </div>
         )}
 
@@ -559,26 +588,31 @@ export default function Tienda() {
                     <label className="form-label">Cantidad *</label>
                     <input required type="number" min="1" max={selectedProductForSale?.stock || 1} className="form-control" value={saleForm.quantity} onChange={e => setSaleForm({...saleForm, quantity: e.target.value})} />
                   </div>
-                  <div className="form-group mb-0 flex-1">
-                    <div className="bg-bg-dark border border-border rounded-lg p-3 flex justify-between items-center">
-                      <p className="text-text-muted text-sm uppercase tracking-wide">Total a Cobrar</p>
-                      <div className="text-right">
-                        {!saleForm.isGift && (
-                          <div className={`text-2xl font-bold text-success`}>
-                            S/. {((parseFloat(selectedProductForSale?.price || 0) * parseInt(saleForm.quantity || 0)) + (parseFloat(saleForm.monthlyAmountPaid) || 0)).toFixed(2)}
-                          </div>
-                        )}
-                        {saleForm.isGift && (
-                          <div className="text-2xl font-bold text-success">
-                            S/. {(parseFloat(saleForm.monthlyAmountPaid) || 0).toFixed(2)}
-                          </div>
-                        )}
-                        {saleForm.paymentRecordId && (
-                          <div className="text-xs text-text-muted mt-1">
-                            (Producto: S/. {saleForm.isGift ? '0.00' : (parseFloat(selectedProductForSale?.price || 0) * parseInt(saleForm.quantity || 0)).toFixed(2)} + Mensualidad: S/. {(parseFloat(saleForm.monthlyAmountPaid) || 0).toFixed(2)})
-                          </div>
-                        )}
-                      </div>
+                  <div className="form-group mb-0">
+                    <label className="form-label">Desc. (S/.)</label>
+                    <input type="number" step="0.01" min="0" className="form-control" value={saleForm.customDiscount} onChange={e => setSaleForm({...saleForm, customDiscount: e.target.value})} disabled={saleForm.isGift} placeholder="0.00" />
+                  </div>
+                </div>
+                
+                <div className="form-group mt-4 flex-1">
+                  <div className="bg-bg-dark border border-border rounded-lg p-3 flex justify-between items-center">
+                    <p className="text-text-muted text-sm uppercase tracking-wide">Total a Cobrar</p>
+                    <div className="text-right">
+                      {!saleForm.isGift && (
+                        <div className={`text-2xl font-bold text-success`}>
+                          S/. {Math.max(0, ((parseFloat(selectedProductForSale?.price || 0) * parseInt(saleForm.quantity || 0)) - (parseFloat(saleForm.customDiscount) || 0)) + (parseFloat(saleForm.monthlyAmountPaid) || 0)).toFixed(2)}
+                        </div>
+                      )}
+                      {saleForm.isGift && (
+                        <div className="text-2xl font-bold text-success">
+                          S/. {(parseFloat(saleForm.monthlyAmountPaid) || 0).toFixed(2)}
+                        </div>
+                      )}
+                      {saleForm.paymentRecordId && (
+                        <div className="text-xs text-text-muted mt-1">
+                          (Producto: S/. {saleForm.isGift ? '0.00' : Math.max(0, (parseFloat(selectedProductForSale?.price || 0) * parseInt(saleForm.quantity || 0)) - (parseFloat(saleForm.customDiscount) || 0)).toFixed(2)} + Mensualidad: S/. {(parseFloat(saleForm.monthlyAmountPaid) || 0).toFixed(2)})
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

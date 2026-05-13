@@ -263,7 +263,6 @@ export default function Finanzas() {
                   </button>
                 </div>
                 <div className="flex items-center gap-3 flex-wrap">
-                  {/* Selector mes/año */}
                   <select
                     className="form-control text-sm py-2 w-auto"
                     value={filterMonth}
@@ -279,9 +278,9 @@ export default function Finanzas() {
                   >
                     {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
                   </select>
-                  <div className="relative">
-                    <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted"/>
-                    <input type="text" placeholder="Buscar alumno o categoría..." className="form-control pl-9 py-1 text-sm w-56"
+                  <div className="relative flex items-center">
+                    <Search size={15} className="absolute left-3 text-text-muted"/>
+                    <input type="text" placeholder="Buscar alumno..." className="form-control pl-9 py-2 text-sm w-48"
                       value={search} onChange={e=>setSearch(e.target.value)}/>
                   </div>
                 </div>
@@ -521,8 +520,13 @@ export default function Finanzas() {
             <form onSubmit={handlePay}>
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">Monto a Pagar *</label>
-                  <input required type="number" step="0.01" min="0.01" max={selected.amountPending} className="form-control"
+                  <label className="form-label flex justify-between items-center">
+                    <span>Monto a Pagar *</span>
+                    <span className={`badge ${parseFloat(payForm.amountPaid || 0) < selected.amountPending ? 'badge-warning' : 'badge-success'} text-xs`}>
+                      {parseFloat(payForm.amountPaid || 0) < selected.amountPending ? 'Pago Parcial' : 'Pago Total'}
+                    </span>
+                  </label>
+                  <input required type="number" step="0.01" min="0.01" max={selected.amountPending} className="form-control text-lg font-bold"
                     value={payForm.amountPaid} onChange={e=>setPayForm({...payForm,amountPaid:e.target.value})}/>
                   <span className="text-xs text-text-muted mt-1 inline-block">Máx. pendiente: S/. {selected.amountPending.toFixed(2)}</span>
                 </div>

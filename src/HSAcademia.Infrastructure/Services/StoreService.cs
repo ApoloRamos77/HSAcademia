@@ -173,6 +173,10 @@ public class StoreService
         // Generate receipt number from the centralized counter
         var receiptNumber = await _financesService.GenerateNextReceiptNumberAsync(academyId);
 
+        var baseTotal = product.Price * dto.Quantity;
+        var discount = dto.IsGift ? baseTotal : (dto.CustomDiscount ?? 0m);
+        if (discount > baseTotal) throw new Exception("El descuento no puede ser mayor al precio total.");
+
         var sale = new ProductSale
         {
             AcademyId = academyId,
@@ -180,9 +184,9 @@ public class StoreService
             StudentId = dto.StudentId,
             Quantity = dto.Quantity,
             UnitPrice = product.Price,
-            TotalPrice = dto.IsGift ? 0 : (product.Price * dto.Quantity),
+            TotalPrice = dto.IsGift ? 0 : (baseTotal - discount),
             IsGift = dto.IsGift,
-            DiscountAmount = dto.IsGift ? (product.Price * dto.Quantity) : 0,
+            DiscountAmount = discount,
             SaleDate = saleTimestamp,
             ReceiptNumber = receiptNumber
         };
