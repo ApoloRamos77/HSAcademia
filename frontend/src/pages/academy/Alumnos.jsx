@@ -146,6 +146,8 @@ export default function Alumnos() {
     try {
       const payload = {
         ...formData,
+        paymentStartDate: formData.paymentStartDate !== '' ? formData.paymentStartDate : null,
+        withdrawalDate: formData.withdrawalDate !== '' ? formData.withdrawalDate : null,
         preferentialFee: formData.preferentialFee !== '' && formData.preferentialFee !== null ? parseFloat(formData.preferentialFee) : null,
         scholarshipPercentage: formData.scholarshipPercentage !== '' && formData.scholarshipPercentage !== null ? parseFloat(formData.scholarshipPercentage) : null,
         medicalRecord: {
