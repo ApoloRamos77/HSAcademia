@@ -109,7 +109,7 @@ public class StoreService
             {
                 Id = s.Id,
                 ProductId = s.ProductId,
-                ProductName = s.Product.Name,
+                ProductName = s.Product != null ? s.Product.Name : "Producto No Disponible",
                 StudentId = s.StudentId,
                 StudentName = s.Student != null ? s.Student.FirstName + " " + s.Student.LastName : "Público General",
                 Quantity = s.Quantity,
