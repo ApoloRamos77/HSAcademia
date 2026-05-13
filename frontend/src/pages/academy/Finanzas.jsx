@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Fragment } from 'react';
 import api from '../../api/axios';
 import AppLayout from '../../components/AppLayout';
 import {
@@ -310,7 +310,7 @@ export default function Finanzas() {
                       acc[key].totalPending += d.amountPending;
                       return acc;
                     }, {})).sort((a,b) => b.totalPending - a.totalPending).map((group, gIdx) => (
-                      <React.Fragment key={gIdx}>
+                      <Fragment key={gIdx}>
                         {/* Fila de resumen del alumno */}
                         <tr className="bg-primary/10 border-t-2 border-primary/20">
                           <td colSpan={7} className="font-bold text-primary-100 p-3">
@@ -408,7 +408,7 @@ export default function Finanzas() {
                             )}
                           </React.Fragment>
                         ))}
-                      </React.Fragment>
+                      </Fragment>
                     ))}
                   </tbody>
                 </table>
