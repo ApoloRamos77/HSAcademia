@@ -76,6 +76,10 @@ export default function FinanceDashboardTab() {
   const [showClosingModal, setShowClosingModal] = useState(false);
   const [closingNotes, setClosingNotes] = useState('');
 
+  // Detail Modal
+  const [detailModal, setDetailModal] = useState({ show: false, title: '', type: '', data: null, loading: false });
+
+
   useEffect(() => { fetchSummaryAndGoal(); }, [month, year]);
   useEffect(() => { fetchTrend(); }, [trendMonths]);
 
@@ -159,6 +163,39 @@ export default function FinanceDashboardTab() {
     ? ((summary.netBalance / summary.totalIncome) * 100).toFixed(1)
     : 0;
 
+  const openDetail = async (type, title) => {
+    setDetailModal({ show: true, title, type, data: null, loading: true });
+    try {
+      let resData = [];
+      if (type === 'income') {
+        const res = await api.get(`/finances/debts/all?year=${year}&month=${month}`);
+        // Filter those with some payment
+        resData = res.data.filter(d => d.amountPaid > 0);
+      } else if (type === 'store') {
+        const res = await api.get('/store/sales');
+        // Filter by month/year and not voided
+        resData = res.data.filter(s => {
+          const d = new Date(s.saleDate);
+          return d.getMonth() + 1 === month && d.getFullYear() === year && s.status !== 'Voided';
+        });
+      } else if (type === 'expenses') {
+        const res = await api.get(`/finances-premium/expenses?year=${year}&month=${month}`);
+        resData = res.data;
+      } else if (type === 'staff') {
+        const res = await api.get(`/finances-premium/staff-payments?year=${year}&month=${month}`);
+        resData = res.data;
+      } else if (type === 'losses') {
+        const res = await api.get(`/finances/debts/all?year=${year}&month=${month}`);
+        // Filter those with discount
+        resData = res.data.filter(d => d.discount > 0);
+      }
+      setDetailModal(prev => ({ ...prev, data: resData, loading: false }));
+    } catch {
+      toast.error('Error al cargar detalle');
+      setDetailModal(prev => ({ ...prev, loading: false }));
+    }
+  };
+
   // Pie chart data from expense categories
   const pieData = summary?.expensesByCategory?.map(cat => ({
     name: EXPENSE_LABELS[cat.category] || cat.category,
@@ -220,78 +257,77 @@ export default function FinanceDashboardTab() {
       ) : !summary ? null : (
         <>
           {/* ── KPI Cards ── */}
-          <div className="grid grid-cols-2 xl:grid-cols-3 gap-4">
-            <div className="card p-5 border-l-4 border-l-success">
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-xs text-text-muted uppercase tracking-wide">Mensualidades</p>
-                  <p className="text-2xl font-bold text-success mt-1">S/. {summary.totalIncome.toFixed(2)}</p>
-                </div>
-                <div className="p-2 bg-success/20 rounded-lg text-success"><TrendingUp size={20}/></div>
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+            <div 
+              className="card p-4 border-t-4 border-t-success cursor-pointer hover:bg-white/5 transition-all hover:-translate-y-1"
+              onClick={() => openDetail('income', 'Detalle de Mensualidades')}
+            >
+              <div className="flex justify-between items-start mb-2">
+                <p className="text-[10px] text-text-muted uppercase tracking-wider font-bold">Mensualidades</p>
+                <TrendingUp size={16} className="text-success"/>
               </div>
-              <p className="text-xs text-text-muted mt-3">Cobrado en {MONTHS[month-1]}</p>
+              <p className="text-xl font-bold text-success truncate">S/. {summary.totalIncome.toFixed(2)}</p>
+              <p className="text-[10px] text-text-muted mt-1 truncate">Cobrado en {MONTHS[month-1]}</p>
             </div>
 
-            <div className="card p-5 border-l-4 border-l-teal-400">
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-xs text-text-muted uppercase tracking-wide">Ventas Tienda</p>
-                  <p className="text-2xl font-bold text-teal-400 mt-1">S/. {(summary.totalStoreRevenue || 0).toFixed(2)}</p>
-                </div>
-                <div className="p-2 bg-teal-500/20 rounded-lg text-teal-400"><DollarSign size={20}/></div>
+            <div 
+              className="card p-4 border-t-4 border-t-teal-400 cursor-pointer hover:bg-white/5 transition-all hover:-translate-y-1"
+              onClick={() => openDetail('store', 'Detalle de Tienda')}
+            >
+              <div className="flex justify-between items-start mb-2">
+                <p className="text-[10px] text-text-muted uppercase tracking-wider font-bold">Ventas Tienda</p>
+                <DollarSign size={16} className="text-teal-400"/>
               </div>
-              <p className="text-xs text-text-muted mt-3">Ingresos extra por productos</p>
+              <p className="text-xl font-bold text-teal-400 truncate">S/. {(summary.totalStoreRevenue || 0).toFixed(2)}</p>
+              <p className="text-[10px] text-text-muted mt-1 truncate">Ingresos extra</p>
             </div>
 
-            <div className="card p-5 border-l-4 border-l-danger">
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-xs text-text-muted uppercase tracking-wide">Egresos</p>
-                  <p className="text-2xl font-bold text-danger mt-1">S/. {summary.totalExpenses.toFixed(2)}</p>
-                </div>
-                <div className="p-2 bg-danger/20 rounded-lg text-danger"><TrendingDown size={20}/></div>
+            <div 
+              className="card p-4 border-t-4 border-t-danger cursor-pointer hover:bg-white/5 transition-all hover:-translate-y-1"
+              onClick={() => openDetail('expenses', 'Detalle de Egresos')}
+            >
+              <div className="flex justify-between items-start mb-2">
+                <p className="text-[10px] text-text-muted uppercase tracking-wider font-bold">Egresos</p>
+                <TrendingDown size={16} className="text-danger"/>
               </div>
-              <p className="text-xs text-text-muted mt-3">Gastos operativos del período</p>
+              <p className="text-xl font-bold text-danger truncate">S/. {summary.totalExpenses.toFixed(2)}</p>
+              <p className="text-[10px] text-text-muted mt-1 truncate">Gastos del período</p>
             </div>
 
-            <div className="card p-5 border-l-4 border-l-warning">
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-xs text-text-muted uppercase tracking-wide">Nómina</p>
-                  <p className="text-2xl font-bold text-warning mt-1">S/. {summary.totalStaffPayments.toFixed(2)}</p>
-                </div>
-                <div className="p-2 bg-warning/20 rounded-lg text-warning"><Users size={20}/></div>
+            <div 
+              className="card p-4 border-t-4 border-t-warning cursor-pointer hover:bg-white/5 transition-all hover:-translate-y-1"
+              onClick={() => openDetail('staff', 'Detalle de Nómina')}
+            >
+              <div className="flex justify-between items-start mb-2">
+                <p className="text-[10px] text-text-muted uppercase tracking-wider font-bold">Nómina</p>
+                <Users size={16} className="text-warning"/>
               </div>
-              <p className="text-xs text-text-muted mt-3">Pagos al personal confirmados</p>
+              <p className="text-xl font-bold text-warning truncate">S/. {summary.totalStaffPayments.toFixed(2)}</p>
+              <p className="text-[10px] text-text-muted mt-1 truncate">Pagos confirmados</p>
             </div>
 
-            <div className="card p-5 border-l-4 border-l-orange-400">
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-xs text-text-muted uppercase tracking-wide">Pérdidas / Descuentos</p>
-                  <p className="text-2xl font-bold text-orange-400 mt-1">S/. {((summary.totalDiscounts || 0) + (summary.totalGiftCost || 0)).toFixed(2)}</p>
-                </div>
-                <div className="p-2 bg-orange-400/20 rounded-lg text-orange-400"><ArrowDownRight size={20}/></div>
+            <div 
+              className="card p-4 border-t-4 border-t-orange-400 cursor-pointer hover:bg-white/5 transition-all hover:-translate-y-1"
+              onClick={() => openDetail('losses', 'Detalle de Pérdidas')}
+            >
+              <div className="flex justify-between items-start mb-2">
+                <p className="text-[10px] text-text-muted uppercase tracking-wider font-bold">Pérdidas</p>
+                <ArrowDownRight size={16} className="text-orange-400"/>
               </div>
-              <p className="text-xs text-text-muted mt-3">
-                Becas/Exon: S/. {(summary.totalDiscounts || 0).toFixed(2)} · Obsequios: S/. {(summary.totalGiftCost || 0).toFixed(2)}
+              <p className="text-xl font-bold text-orange-400 truncate">S/. {((summary.totalDiscounts || 0) + (summary.totalGiftCost || 0)).toFixed(2)}</p>
+              <p className="text-[10px] text-text-muted mt-1 truncate">Becas: {(summary.totalDiscounts || 0).toFixed(2)}</p>
+            </div>
+
+            <div className={`card p-4 border-t-4 ${isProfit ? 'border-t-primary' : 'border-t-danger'}`}>
+              <div className="flex justify-between items-start mb-2">
+                <p className="text-[10px] text-text-muted uppercase tracking-wider font-bold">Balance Neto</p>
+                {isProfit ? <ArrowUpRight size={16} className="text-primary-400"/> : <ArrowDownRight size={16} className="text-danger"/>}
+              </div>
+              <p className={`text-xl font-bold truncate ${isProfit ? 'text-primary-400' : 'text-danger'}`}>
+                S/. {summary.netBalance.toFixed(2)}
               </p>
-            </div>
-
-            <div className={`card p-5 border-l-4 ${isProfit ? 'border-l-primary' : 'border-l-danger'}`}>
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-xs text-text-muted uppercase tracking-wide">Balance Neto</p>
-                  <p className={`text-2xl font-bold mt-1 ${isProfit ? 'text-primary-400' : 'text-danger'}`}>
-                    S/. {summary.netBalance.toFixed(2)}
-                  </p>
-                </div>
-                <div className={`p-2 rounded-lg ${isProfit ? 'bg-primary/20 text-primary-400' : 'bg-danger/20 text-danger'}`}>
-                  {isProfit ? <ArrowUpRight size={20}/> : <ArrowDownRight size={20}/>}
-                </div>
-              </div>
-              <p className={`text-xs mt-3 font-semibold ${isProfit ? 'text-success' : 'text-danger'}`}>
-                {isProfit ? `✅ Margen: ${profitMargin}%` : `⚠️ Déficit este mes`}
+              <p className={`text-[10px] mt-1 font-semibold truncate ${isProfit ? 'text-success' : 'text-danger'}`}>
+                {isProfit ? `Margen: ${profitMargin}%` : `Déficit`}
               </p>
             </div>
           </div>
@@ -547,6 +583,103 @@ export default function FinanceDashboardTab() {
                 <button type="submit" className="btn btn-danger flex items-center gap-2"><ArrowUpRight size={15}/> Cerrar Mes Definitivamente</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Detail Modal ── */}
+      {detailModal.show && (
+        <div className="modal-overlay" onClick={() => setDetailModal({ show: false, title: '', type: '', data: null, loading: false })}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 800 }}>
+            <div className="flex justify-between items-center mb-5 border-b border-border pb-3">
+              <h3 className="modal-title m-0">{detailModal.title}</h3>
+              <button onClick={() => setDetailModal({ show: false, title: '', type: '', data: null, loading: false })} className="btn btn-ghost btn-sm"><X size={16}/></button>
+            </div>
+            
+            {detailModal.loading ? (
+              <div className="text-center py-10 text-text-muted">
+                <span className="spinner mx-auto block mb-3" style={{borderColor:'var(--primary)',borderTopColor:'transparent'}}></span>
+                Cargando datos...
+              </div>
+            ) : !detailModal.data || detailModal.data.length === 0 ? (
+              <div className="text-center py-8 text-text-muted bg-bg-dark rounded-xl border border-border/50">
+                <p>No hay registros para mostrar en esta categoría.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="table w-full text-sm">
+                  <thead>
+                    <tr>
+                      {detailModal.type === 'income' && (
+                        <><th>Alumno</th><th>Mes</th><th>Pagado</th></>
+                      )}
+                      {detailModal.type === 'store' && (
+                        <><th>Venta</th><th>Método</th><th>Total</th></>
+                      )}
+                      {detailModal.type === 'expenses' && (
+                        <><th>Fecha</th><th>Categoría</th><th>Concepto</th><th>Monto</th></>
+                      )}
+                      {detailModal.type === 'staff' && (
+                        <><th>Staff</th><th>Total Pagado</th><th>Estado</th></>
+                      )}
+                      {detailModal.type === 'losses' && (
+                        <><th>Alumno</th><th>Mes</th><th>Descuento</th></>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {detailModal.data.map((item, i) => (
+                      <tr key={i}>
+                        {detailModal.type === 'income' && (
+                          <>
+                            <td>{item.studentName}</td>
+                            <td>{MONTHS[item.month - 1]} {item.year}</td>
+                            <td className="text-success font-bold">S/. {item.amountPaid.toFixed(2)}</td>
+                          </>
+                        )}
+                        {detailModal.type === 'store' && (
+                          <>
+                            <td>{new Date(item.saleDate).toLocaleDateString()}</td>
+                            <td>{item.paymentMethod}</td>
+                            <td className="text-teal-400 font-bold">S/. {item.totalAmount.toFixed(2)}</td>
+                          </>
+                        )}
+                        {detailModal.type === 'expenses' && (
+                          <>
+                            <td>{new Date(item.date).toLocaleDateString()}</td>
+                            <td>{EXPENSE_LABELS[item.category] || item.category}</td>
+                            <td>{item.concept}</td>
+                            <td className="text-danger font-bold">S/. {item.amount.toFixed(2)}</td>
+                          </>
+                        )}
+                        {detailModal.type === 'staff' && (
+                          <>
+                            <td>{item.staffName}</td>
+                            <td className="text-warning font-bold">S/. {item.totalPaid.toFixed(2)}</td>
+                            <td>
+                              <span className={`badge ${item.status === 'Paid' ? 'badge-success' : 'badge-warning'}`}>
+                                {item.status === 'Paid' ? 'Pagado' : 'Pendiente'}
+                              </span>
+                            </td>
+                          </>
+                        )}
+                        {detailModal.type === 'losses' && (
+                          <>
+                            <td>{item.studentName}</td>
+                            <td>{MONTHS[item.month - 1]} {item.year}</td>
+                            <td className="text-orange-400 font-bold">S/. {item.discount.toFixed(2)}</td>
+                          </>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            
+            <div className="modal-footer mt-5 flex justify-end">
+              <button type="button" onClick={() => setDetailModal({ show: false, title: '', type: '', data: null, loading: false })} className="btn btn-primary">Cerrar</button>
+            </div>
           </div>
         </div>
       )}
