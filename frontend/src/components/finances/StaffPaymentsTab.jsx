@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import { Users, Plus, CheckCircle, Clock, X, DollarSign } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -108,20 +108,16 @@ export default function StaffPaymentsTab() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="card p-5 flex items-center gap-4 bg-warning/10 border-warning/30">
-          <div className="p-3 bg-warning/20 rounded-full text-warning"><Clock size={22}/></div>
-          <div>
-            <p className="text-warning font-bold text-lg">S/. {totalPending.toFixed(2)}</p>
-            <p className="text-sm text-text-secondary">{payments.filter(p => p.status === 0).length} pendientes de pago</p>
-          </div>
+      <div className="stats-grid" style={{ marginBottom: 24 }}>
+        <div className="stat-card" style={{ borderTop: '2px solid var(--warning)' }}>
+          <div className="stat-value" style={{ color: 'var(--warning)' }}>S/. {totalPending.toFixed(2)}</div>
+          <div className="stat-label">{payments.filter(p => p.status === 0).length} pendientes de pago</div>
+          <div className="stat-icon"><Clock size={32} style={{ color: 'var(--warning)', opacity: 0.2 }}/></div>
         </div>
-        <div className="card p-5 flex items-center gap-4 bg-success/10 border-success/30">
-          <div className="p-3 bg-success/20 rounded-full text-success"><CheckCircle size={22}/></div>
-          <div>
-            <p className="text-success font-bold text-lg">S/. {totalPaid.toFixed(2)}</p>
-            <p className="text-sm text-text-secondary">{payments.filter(p => p.status === 1).length} pagados este período</p>
-          </div>
+        <div className="stat-card" style={{ borderTop: '2px solid var(--success)' }}>
+          <div className="stat-value" style={{ color: 'var(--success)' }}>S/. {totalPaid.toFixed(2)}</div>
+          <div className="stat-label">{payments.filter(p => p.status === 1).length} pagados este período</div>
+          <div className="stat-icon"><CheckCircle size={32} style={{ color: 'var(--success)', opacity: 0.2 }}/></div>
         </div>
       </div>
 

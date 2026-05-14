@@ -63,6 +63,8 @@ export default function Tienda() {
   const [pendingDebts, setPendingDebts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchProduct, setSearchProduct] = useState('');
+  const [inventoryPage, setInventoryPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
 
   // Confirm void dialog
   const [confirmVoid, setConfirmVoid] = useState(null); // null | sale object
@@ -267,6 +269,16 @@ export default function Tienda() {
 
   if (loading) return <AppLayout title="Tienda"><div className="text-center p-8"><span className="spinner" style={{borderColor: 'var(--primary)', borderTopColor: 'transparent'}}></span></div></AppLayout>;
 
+  // Pagination for Inventory
+  const filteredInventory = products.filter(p => p.name.toLowerCase().includes(searchProduct.toLowerCase()) || p.productCategory.toLowerCase().includes(searchProduct.toLowerCase()));
+  const totalInventoryPages = Math.ceil(filteredInventory.length / ITEMS_PER_PAGE) || 1;
+  const currentInventoryPageData = filteredInventory.slice((inventoryPage - 1) * ITEMS_PER_PAGE, inventoryPage * ITEMS_PER_PAGE);
+
+  // Reset page when searching
+  useEffect(() => {
+    setInventoryPage(1);
+  }, [searchProduct]);
+
   return (
     <AppLayout title="Tienda y Ventas">
       <div className="fade-in">
@@ -297,18 +309,21 @@ export default function Tienda() {
         {activeTab === 'dashboard' && (
           <div className="fade-in">
             <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><BarChart3 className="text-primary-400" /> Resumen de Ventas</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-              <div className="card p-4 flex items-center gap-4 bg-primary/10 border-primary/30">
-                <div className="p-3 bg-primary/20 rounded-full text-primary"><DollarSign size={22}/></div>
-                <div><h4 className="text-primary font-bold">Ingresos Totales</h4><p className="text-sm text-text-secondary">S/. {totalRevenue.toFixed(2)}</p></div>
+            <div className="stats-grid" style={{ marginBottom: 24 }}>
+              <div className="stat-card" style={{ borderTop: '2px solid var(--primary-light)' }}>
+                <div className="stat-value" style={{ color: 'var(--primary-light)' }}>S/. {totalRevenue.toFixed(2)}</div>
+                <div className="stat-label">Ingresos Totales</div>
+                <div className="stat-icon"><DollarSign size={32} style={{ color: 'var(--primary-light)', opacity: 0.2 }}/></div>
               </div>
-              <div className="card p-4 flex items-center gap-4 bg-success/10 border-success/30">
-                <div className="p-3 bg-success/20 rounded-full text-success"><ShoppingCart size={22}/></div>
-                <div><h4 className="text-success font-bold">Artículos Vendidos</h4><p className="text-sm text-text-secondary">{totalItemsSold} unidades</p></div>
+              <div className="stat-card" style={{ borderTop: '2px solid var(--success)' }}>
+                <div className="stat-value" style={{ color: 'var(--success)' }}>{totalItemsSold}</div>
+                <div className="stat-label">Artículos Vendidos</div>
+                <div className="stat-icon"><ShoppingCart size={32} style={{ color: 'var(--success)', opacity: 0.2 }}/></div>
               </div>
-              <div className="card p-4 flex items-center gap-4 bg-warning/10 border-warning/30">
-                <div className="p-3 bg-warning/20 rounded-full text-warning"><TrendingUp size={22}/></div>
-                <div><h4 className="text-warning font-bold">Más Vendido</h4><p className="text-sm text-text-secondary">{bestSellingProduct}</p></div>
+              <div className="stat-card" style={{ borderTop: '2px solid var(--warning)' }}>
+                <div className="stat-value" style={{ color: 'var(--warning)', fontSize: '20px', lineHeight: '30px' }} title={bestSellingProduct}>{bestSellingProduct.length > 20 ? bestSellingProduct.substring(0, 18) + '...' : bestSellingProduct}</div>
+                <div className="stat-label">Más Vendido</div>
+                <div className="stat-icon"><TrendingUp size={32} style={{ color: 'var(--warning)', opacity: 0.2 }}/></div>
               </div>
             </div>
             
@@ -366,55 +381,80 @@ export default function Tienda() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {products.filter(p => p.name.toLowerCase().includes(searchProduct.toLowerCase()) || p.productCategory.toLowerCase().includes(searchProduct.toLowerCase())).map(p => (
-                <div key={p.id} className="card p-4" style={{ background: 'var(--bg-surface)' }}>
-                  <div className="flex justify-between items-start mb-2">
-                    <h3 className="font-bold text-lg text-primary-100">{p.name}</h3>
-                    <span className={`badge ${p.stock > 5 ? 'badge-success' : p.stock > 0 ? 'badge-warning' : 'badge-danger'}`}>
-                      {p.stock} en stock
-                    </span>
-                  </div>
-                  <div className="text-sm text-text-muted mb-4 h-10 overflow-hidden">{p.description}</div>
-                  
-                  <div className="flex flex-col gap-2 text-sm">
-                    <div className="flex justify-between border-b border-border/50 pb-1">
-                      <span className="text-text-secondary">Categoría:</span>
-                      <span className="font-medium text-white flex items-center gap-1"><Tag size={12} className="text-primary-400"/>{p.productCategory}</span>
-                    </div>
-                    <div className="flex justify-between border-b border-border/50 pb-1">
-                      <span className="text-text-secondary">Costo de Compra:</span>
-                      <span className="font-medium text-warning">S/. {(p.costPrice || 0).toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between border-b border-border/50 pb-1">
-                      <span className="text-text-secondary">Precio de Venta:</span>
-                      <span className="font-bold text-success">S/. {p.price.toFixed(2)}</span>
-                    </div>
-                    {p.costPrice > 0 && (
-                      <div className="flex justify-between pb-1">
-                        <span className="text-text-secondary">Margen:</span>
-                        <span className={`font-bold flex items-center gap-1 ${(p.price - p.costPrice) > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                          S/. {(p.price - p.costPrice).toFixed(2)} ({p.price > 0 ? (((p.price - p.costPrice) / p.price) * 100).toFixed(0) : 0}%)
+            <div className="table-container">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Producto</th>
+                    <th>Categoría</th>
+                    <th>Stock</th>
+                    <th>Costo</th>
+                    <th>Precio</th>
+                    <th>Margen</th>
+                    <th className="text-center">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {currentInventoryPageData.map(p => (
+                    <tr key={p.id}>
+                      <td>
+                        <div className="font-bold text-primary-100">{p.name}</div>
+                        <div className="text-xs text-text-muted mt-1 w-48 truncate" title={p.description}>{p.description}</div>
+                      </td>
+                      <td><span className="badge badge-primary text-xs"><Tag size={10} className="mr-1 inline"/>{p.productCategory}</span></td>
+                      <td>
+                        <span className={`badge ${p.stock > 5 ? 'badge-success' : p.stock > 0 ? 'badge-warning' : 'badge-danger'}`}>
+                          {p.stock} unid.
                         </span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="mt-4 flex gap-2">
-                    <button className="btn btn-outline btn-sm flex-1" onClick={() => {
-                      setSaleForm({ ...initialSale, productId: p.id });
-                      setShowSaleModal(true);
-                    }}>Vender</button>
-                    <button className="btn btn-ghost btn-sm text-primary" onClick={() => {
-                      setProductForm({ name: p.name, description: p.description, productCategory: p.productCategory, costPrice: p.costPrice || '', price: p.price, stock: p.stock });
-                      setEditingProductId(p.id);
-                      setShowProductModal(true);
-                    }}>Editar</button>
-                  </div>
-                </div>
-              ))}
+                      </td>
+                      <td className="text-warning">S/. {(p.costPrice || 0).toFixed(2)}</td>
+                      <td className="font-bold text-success">S/. {p.price.toFixed(2)}</td>
+                      <td>
+                        {p.costPrice > 0 ? (
+                          <span className={`text-sm ${(p.price - p.costPrice) > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                            S/. {(p.price - p.costPrice).toFixed(2)} ({p.price > 0 ? (((p.price - p.costPrice) / p.price) * 100).toFixed(0) : 0}%)
+                          </span>
+                        ) : <span className="text-text-muted">-</span>}
+                      </td>
+                      <td>
+                        <div className="flex gap-2 justify-center">
+                          <button className="btn btn-sm btn-outline" onClick={() => {
+                            setSaleForm({ ...initialSale, productId: p.id });
+                            setShowSaleModal(true);
+                          }}>Vender</button>
+                          <button className="btn btn-sm btn-ghost text-primary" onClick={() => {
+                            setProductForm({ name: p.name, description: p.description, productCategory: p.productCategory, costPrice: p.costPrice || '', price: p.price, stock: p.stock });
+                            setEditingProductId(p.id);
+                            setShowProductModal(true);
+                          }}>Editar</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-            {products.length === 0 && <div className="empty-state"><Package size={40}/><p>No hay productos en inventario</p></div>}
+            
+            {/* Pagination Controls */}
+            {totalInventoryPages > 1 && (
+              <div className="flex justify-between items-center mt-4 pt-4 border-t border-border/50">
+                <span className="text-sm text-text-muted">Mostrando página {inventoryPage} de {totalInventoryPages}</span>
+                <div className="flex gap-2">
+                  <button 
+                    disabled={inventoryPage === 1}
+                    onClick={() => setInventoryPage(p => p - 1)}
+                    className="btn btn-sm btn-outline disabled:opacity-50"
+                  >Anterior</button>
+                  <button 
+                    disabled={inventoryPage === totalInventoryPages}
+                    onClick={() => setInventoryPage(p => p + 1)}
+                    className="btn btn-sm btn-outline disabled:opacity-50"
+                  >Siguiente</button>
+                </div>
+              </div>
+            )}
+
+            {filteredInventory.length === 0 && <div className="empty-state"><Package size={40}/><p>No hay productos en inventario</p></div>}
           </div>
         )}
 

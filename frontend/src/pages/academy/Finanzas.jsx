@@ -262,18 +262,21 @@ export default function Finanzas() {
         {activeTab === 'debts' && (
           <div className="fade-in">
             {/* Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-              <div className="card p-4 flex items-center gap-4 bg-danger/10 border-danger/30">
-                <div className="p-3 bg-danger/20 rounded-full text-danger"><AlertTriangle size={22}/></div>
-                <div><h4 className="text-danger font-bold">En Mora</h4><p className="text-sm text-text-secondary">{overdueDebts.length} registros vencidos</p></div>
+            <div className="stats-grid" style={{ marginBottom: 24 }}>
+              <div className="stat-card" style={{ borderTop: '2px solid var(--danger)' }}>
+                <div className="stat-value" style={{ color: 'var(--danger)' }}>{overdueDebts.length}</div>
+                <div className="stat-label">Registros vencidos en mora</div>
+                <div className="stat-icon"><AlertTriangle size={32} style={{ color: 'var(--danger)', opacity: 0.2 }}/></div>
               </div>
-              <div className="card p-4 flex items-center gap-4 bg-warning/10 border-warning/30">
-                <div className="p-3 bg-warning/20 rounded-full text-warning"><Calendar size={22}/></div>
-                <div><h4 className="text-warning font-bold">En Curso</h4><p className="text-sm text-text-secondary">{inCourseDebts.length} pendientes por vencer</p></div>
+              <div className="stat-card" style={{ borderTop: '2px solid var(--warning)' }}>
+                <div className="stat-value" style={{ color: 'var(--warning)' }}>{inCourseDebts.length}</div>
+                <div className="stat-label">Pendientes por vencer en curso</div>
+                <div className="stat-icon"><Calendar size={32} style={{ color: 'var(--warning)', opacity: 0.2 }}/></div>
               </div>
-              <div className="card p-4 flex items-center gap-4 bg-primary/10 border-primary/30">
-                <div className="p-3 bg-primary/20 rounded-full text-primary"><DollarSign size={22}/></div>
-                <div><h4 className="text-primary font-bold">Total por Cobrar</h4><p className="text-sm text-text-secondary">S/. {totalPending.toFixed(2)}</p></div>
+              <div className="stat-card" style={{ borderTop: '2px solid var(--primary-light)' }}>
+                <div className="stat-value" style={{ color: 'var(--primary-light)' }}>S/. {totalPending.toFixed(2)}</div>
+                <div className="stat-label">Total por Cobrar</div>
+                <div className="stat-icon"><DollarSign size={32} style={{ color: 'var(--primary-light)', opacity: 0.2 }}/></div>
               </div>
             </div>
 
