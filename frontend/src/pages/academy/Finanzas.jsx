@@ -31,6 +31,7 @@ const EXCLUSION_TYPES = [
 
 const statusBadge = (d) => {
   if (d.isPaid) return <span className="badge badge-success">Pagado</span>;
+  if (d.amountPaid > 0 && d.amountPending > 0) return <span className="badge badge-info bg-blue-500/20 text-blue-400">Pago Parcial</span>;
   if (d.status === 'Vencido') return <span className="badge badge-danger flex items-center gap-1 w-max"><AlertTriangle size={11}/> Vencido {d.daysOverdue}d</span>;
   return <span className="badge badge-warning">En Curso</span>;
 };

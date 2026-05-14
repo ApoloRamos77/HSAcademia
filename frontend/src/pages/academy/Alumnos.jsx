@@ -12,6 +12,11 @@ export default function Alumnos() {
   const [sedes, setSedes] = useState([]);
   const [categorias, setCategorias] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
   const [showModal, setShowModal] = useState(false);
   const [currentStep, setCurrentStep] = useState(1); // 1: Alumno, 2: Apoderado, 3: Ficha Médica
   const [showNutritionModal, setShowNutritionModal] = useState(false);
@@ -125,6 +130,12 @@ export default function Alumnos() {
   });
 
   const activeFiltersCount = [filterSede, filterCat, filterStatus].filter(Boolean).length;
+
+  // Pagination Logic
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentAlumnos = filteredAlumnos.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredAlumnos.length / itemsPerPage);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -288,7 +299,7 @@ export default function Alumnos() {
 
               {/* Clear all */}
               {(search || activeFiltersCount > 0) && (
-                <button onClick={() => { setSearch(''); setFilterSede(''); setFilterCat(''); setFilterStatus(''); }} className="btn btn-ghost btn-sm text-danger flex items-center gap-1">
+                <button onClick={() => { setSearch(''); setFilterSede(''); setFilterCat(''); setFilterStatus(''); setCurrentPage(1); }} className="btn btn-ghost btn-sm text-danger flex items-center gap-1">
                   <X size={13}/> Limpiar
                 </button>
               )}
@@ -300,7 +311,7 @@ export default function Alumnos() {
                 {/* Sede */}
                 <div>
                   <label className="form-label text-xs mb-1">Sede</label>
-                  <select className="form-control text-sm py-1.5" value={filterSede} onChange={e => setFilterSede(e.target.value)}>
+                  <select className="form-control text-sm py-1.5" value={filterSede} onChange={e => { setFilterSede(e.target.value); setCurrentPage(1); }}>
                     <option value="">Todas las sedes</option>
                     {sedes.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
@@ -308,7 +319,7 @@ export default function Alumnos() {
                 {/* Categoría */}
                 <div>
                   <label className="form-label text-xs mb-1">Categoría</label>
-                  <select className="form-control text-sm py-1.5" value={filterCat} onChange={e => setFilterCat(e.target.value)}>
+                  <select className="form-control text-sm py-1.5" value={filterCat} onChange={e => { setFilterCat(e.target.value); setCurrentPage(1); }}>
                     <option value="">Todas las categorías</option>
                     {categorias
                       .filter(c => !filterSede || c.headquarterId === filterSede)
@@ -318,7 +329,7 @@ export default function Alumnos() {
                 {/* Estado */}
                 <div>
                   <label className="form-label text-xs mb-1">Estado</label>
-                  <select className="form-control text-sm py-1.5" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+                  <select className="form-control text-sm py-1.5" value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setCurrentPage(1); }}>
                     <option value="">Todos</option>
                     <option value="active">Activos</option>
                     <option value="inactive">Inactivos</option>
@@ -336,80 +347,115 @@ export default function Alumnos() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredAlumnos.map(alumno => (
-              <div key={alumno.id} className="card p-5" style={{ background: 'var(--bg-surface)' }}>
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <h3 className="font-bold text-lg text-primary-100">{alumno.firstName} {alumno.lastName}</h3>
-                    <div className="flex items-center gap-1 text-xs text-text-muted mt-1">
-                      <Calendar size={12} /> {alumno.age} años | DNI: {alumno.documentNumber || 'N/A'}
-                    </div>
-                  </div>
-                  <span className={`badge ${alumno.isActive ? 'badge-success' : 'badge-danger'}`}>
-                    {alumno.isActive ? 'Activo' : 'Inactivo'}
-                  </span>
-                </div>
-                
-                <div className="flex flex-col gap-2 text-sm text-text-secondary mb-4">
-                  <div className="flex items-center gap-2"><MapPin size={15} className="text-primary-400"/> Sede: {alumno.headquarterName}</div>
-                  <div className="flex items-center gap-2"><Activity size={15} className="text-success"/> Categoría: {alumno.categoryName}</div>
-                  <div className="flex items-center gap-2 border-t border-border/50 pt-2 mt-2">
-                    <UserPlus size={15} className="text-warning"/> Apoderado: {alumno.guardianName}
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-2 border-t border-border pt-4">
-                  <button className="btn btn-outline btn-sm text-primary" onClick={() => openFinancialModal(alumno)} title="Finanzas">
-                    <FileText size={14} /> Finanzas
-                  </button>
-                  <button className="btn btn-outline btn-sm text-success" onClick={() => openNutritionModal(alumno)} title="Nutrición">
-                    <Apple size={14} /> Historial
-                  </button>
-                  <button className="btn btn-ghost btn-sm text-primary" onClick={async () => {
-                      try {
-                        const recRes = await api.get(`/students/${alumno.id}/medical-record`);
-                        setFormData({
-                          firstName: alumno.firstName,
-                          lastName: alumno.lastName,
-                          email: alumno.email || '',
-                          phone: alumno.phone || '',
-                          documentNumber: alumno.documentNumber || '',
-                          dateOfBirth: alumno.dateOfBirth ? alumno.dateOfBirth.split('T')[0] : '',
-                          headquarterId: alumno.headquarterId,
-                          categoryId: alumno.categoryId,
-                          enrollmentDate: alumno.enrollmentDate ? alumno.enrollmentDate.split('T')[0] : '',
-                          paymentStartDate: alumno.paymentStartDate ? alumno.paymentStartDate.split('T')[0] : '',
-                          withdrawalDate: alumno.withdrawalDate ? alumno.withdrawalDate.split('T')[0] : '',
-                          preferentialFee: alumno.preferentialFee || '',
-                          isGuest: alumno.isGuest || false,
-                          isScholarship: alumno.isScholarship || false,
-                          scholarshipPercentage: alumno.scholarshipPercentage || '',
-                          isActive: alumno.isActive,
-                          guardianFirstName: alumno.guardianName.split(' ')[0] || '',
-                          guardianLastName: alumno.guardianName.split(' ').slice(1).join(' ') || '',
-                          guardianPhone: alumno.guardianPhone || '',
-                          guardianEmail: alumno.guardianEmail || '',
-                          medicalRecord: {
-                            allergies: recRes.data.allergies || '',
-                            medicalConditions: recRes.data.medicalConditions || '',
-                            emergencyContactName: recRes.data.emergencyContactName || '',
-                            emergencyContactPhone: recRes.data.emergencyContactPhone || '',
-                            weightKg: recRes.data.weightKg || '',
-                            heightCm: recRes.data.heightCm || '',
-                            bmi: recRes.data.bmi || '',
-                            nutritionPlan: recRes.data.nutritionPlan || ''
-                          }
-                        });
-                        setEditingId(alumno.id);
-                        setCurrentStep(1);
-                        setShowModal(true);
-                      } catch(e) { toast.error("Error al cargar datos"); }
-                  }} title={user?.role === 'Staff' ? "Ver Alumno" : "Editar Alumno"}>{user?.role === 'Staff' ? "Ver" : "Editar"}</button>
-                </div>
-              </div>
-            ))}
+          <div className="table-container">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Alumno</th>
+                  <th>Contacto</th>
+                  <th>Sede & Categoría</th>
+                  <th>Estado</th>
+                  <th className="text-right">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {currentAlumnos.map(alumno => (
+                  <tr key={alumno.id}>
+                    <td>
+                      <div className="font-bold text-primary-100">{alumno.firstName} {alumno.lastName}</div>
+                      <div className="text-xs text-text-muted mt-1">{alumno.age} años | DNI: {alumno.documentNumber || 'N/A'}</div>
+                    </td>
+                    <td>
+                      <div className="text-sm"><UserPlus size={12} className="inline mr-1 text-warning"/> {alumno.guardianName}</div>
+                      <div className="text-xs text-text-muted mt-1">{alumno.guardianPhone || 'Sin teléfono'}</div>
+                    </td>
+                    <td>
+                      <div className="text-sm"><MapPin size={12} className="inline mr-1 text-primary-400"/> {alumno.headquarterName}</div>
+                      <div className="text-xs text-text-muted mt-1"><ActivityIcon size={12} className="inline mr-1 text-success"/> {alumno.categoryName}</div>
+                    </td>
+                    <td>
+                      <span className={`badge ${alumno.isActive ? 'badge-success' : 'badge-danger'}`}>
+                        {alumno.isActive ? 'Activo' : 'Inactivo'}
+                      </span>
+                    </td>
+                    <td className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <button className="btn btn-ghost btn-sm text-primary" onClick={() => openFinancialModal(alumno)} title="Finanzas">
+                          <FileText size={15} />
+                        </button>
+                        <button className="btn btn-ghost btn-sm text-success" onClick={() => openNutritionModal(alumno)} title="Nutrición">
+                          <Apple size={15} />
+                        </button>
+                        <button className="btn btn-ghost btn-sm text-warning" onClick={async () => {
+                            try {
+                              const recRes = await api.get(`/students/${alumno.id}/medical-record`);
+                              setFormData({
+                                firstName: alumno.firstName,
+                                lastName: alumno.lastName,
+                                email: alumno.email || '',
+                                phone: alumno.phone || '',
+                                documentNumber: alumno.documentNumber || '',
+                                dateOfBirth: alumno.dateOfBirth ? alumno.dateOfBirth.split('T')[0] : '',
+                                headquarterId: alumno.headquarterId,
+                                categoryId: alumno.categoryId,
+                                enrollmentDate: alumno.enrollmentDate ? alumno.enrollmentDate.split('T')[0] : '',
+                                paymentStartDate: alumno.paymentStartDate ? alumno.paymentStartDate.split('T')[0] : '',
+                                withdrawalDate: alumno.withdrawalDate ? alumno.withdrawalDate.split('T')[0] : '',
+                                preferentialFee: alumno.preferentialFee || '',
+                                isGuest: alumno.isGuest || false,
+                                isScholarship: alumno.isScholarship || false,
+                                scholarshipPercentage: alumno.scholarshipPercentage || '',
+                                isActive: alumno.isActive,
+                                guardianFirstName: alumno.guardianName.split(' ')[0] || '',
+                                guardianLastName: alumno.guardianName.split(' ').slice(1).join(' ') || '',
+                                guardianPhone: alumno.guardianPhone || '',
+                                guardianEmail: alumno.guardianEmail || '',
+                                medicalRecord: {
+                                  allergies: recRes.data.allergies || '',
+                                  medicalConditions: recRes.data.medicalConditions || '',
+                                  emergencyContactName: recRes.data.emergencyContactName || '',
+                                  emergencyContactPhone: recRes.data.emergencyContactPhone || '',
+                                  weightKg: recRes.data.weightKg || '',
+                                  heightCm: recRes.data.heightCm || '',
+                                  bmi: recRes.data.bmi || '',
+                                  nutritionPlan: recRes.data.nutritionPlan || ''
+                                }
+                              });
+                              setEditingId(alumno.id);
+                              setCurrentStep(1);
+                              setShowModal(true);
+                            } catch(e) { toast.error("Error al cargar datos"); }
+                        }} title={user?.role === 'Staff' ? "Ver Alumno" : "Editar Alumno"}>
+                          {user?.role === 'Staff' ? <Search size={15} /> : <Users size={15} />}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
+          
+          {totalPages > 1 && (
+            <div className="flex justify-between items-center mt-4 p-4 bg-bg-dark rounded-b-xl border-t border-border">
+              <button 
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
+                disabled={currentPage === 1}
+                className="btn btn-outline btn-sm"
+              >
+                Anterior
+              </button>
+              <span className="text-sm text-text-muted">Página {currentPage} de {totalPages}</span>
+              <button 
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} 
+                disabled={currentPage === totalPages}
+                className="btn btn-outline btn-sm"
+              >
+                Siguiente
+              </button>
+            </div>
+          )}
+
           {filteredAlumnos.length === 0 && <div className="empty-state"><Users size={40}/><p>{alumnos.length === 0 ? 'No hay alumnos registrados' : 'No hay alumnos que coincidan con los filtros'}</p></div>}
         </div>
 
@@ -799,43 +845,82 @@ export default function Alumnos() {
                 </select>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-bg-dark p-4 rounded-lg border border-border">
-                  <h5 className="font-bold text-warning mb-3">Mensualidades ({financialData.debts.length})</h5>
-                  <div className="max-h-[300px] overflow-y-auto custom-scrollbar flex flex-col gap-2 pr-1">
-                    {financialData.debts.length === 0 && <div className="text-sm text-text-muted">No hay cobros registrados.</div>}
-                    {financialData.debts.map(d => (
-                      <div key={d.id} className="p-3 bg-bg-surface rounded border border-border/50 text-sm">
-                        <div className="flex justify-between font-bold text-primary-100 mb-1">
-                          <span>{d.description}</span>
-                          <span>S/. {d.amount.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between text-xs text-text-muted">
-                          <span>Vence: {new Date(d.dueDate).toLocaleDateString()}</span>
-                          <span className={d.isPaid ? 'text-success font-bold' : 'text-danger font-bold'}>{d.isPaid ? 'Pagado' : 'Pendiente'}</span>
-                        </div>
-                      </div>
-                    ))}
+              <div className="grid grid-cols-1 gap-6">
+                <div className="bg-bg-dark rounded-lg border border-border overflow-hidden">
+                  <div className="p-4 border-b border-border bg-bg-surface">
+                    <h5 className="font-bold text-warning m-0">Mensualidades ({financialData.debts.length})</h5>
+                  </div>
+                  <div className="overflow-x-auto max-h-[300px] custom-scrollbar">
+                    {financialData.debts.length === 0 ? (
+                      <div className="text-center p-6 text-sm text-text-muted">No hay cobros registrados en este período.</div>
+                    ) : (
+                      <table className="table w-full text-sm">
+                        <thead className="sticky top-0 bg-bg-dark z-10">
+                          <tr>
+                            <th>Concepto</th>
+                            <th>Vencimiento</th>
+                            <th>Total</th>
+                            <th>Pagado</th>
+                            <th>Pendiente</th>
+                            <th>Estado</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {financialData.debts.map(d => (
+                            <tr key={d.id}>
+                              <td className="font-medium text-primary-100">{d.description}</td>
+                              <td>{new Date(d.dueDate).toLocaleDateString()}</td>
+                              <td className="font-bold">S/. {d.amount.toFixed(2)}</td>
+                              <td className="text-success">S/. {d.amountPaid.toFixed(2)}</td>
+                              <td className="text-danger font-bold">S/. {d.amountPending.toFixed(2)}</td>
+                              <td>
+                                <span className={`badge ${d.isPaid ? 'badge-success' : 'badge-danger'}`}>
+                                  {d.isPaid ? 'Pagado' : 'Pendiente'}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
                   </div>
                 </div>
 
-                <div className="bg-bg-dark p-4 rounded-lg border border-border">
-                  <h5 className="font-bold text-success mb-3">Compras en Tienda ({financialData.sales.length})</h5>
-                  <div className="max-h-[300px] overflow-y-auto custom-scrollbar flex flex-col gap-2 pr-1">
-                    {financialData.sales.length === 0 && <div className="text-sm text-text-muted">No hay compras registradas.</div>}
-                    {financialData.sales.map(s => (
-                      <div key={s.id} className="p-3 bg-bg-surface rounded border border-border/50 text-sm">
-                        <div className="flex justify-between font-bold text-primary-100 mb-1">
-                          <span>{s.productName} (x{s.quantity})</span>
-                          <span>S/. {s.totalPrice.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between text-xs text-text-muted">
-                          <span>Fecha: {new Date(s.saleDate).toLocaleDateString()}</span>
-                          {s.isGift && <span className="text-warning">Obsequio</span>}
-                          {s.discountAmount > 0 && !s.isGift && <span className="text-warning">Desc: S/. {s.discountAmount.toFixed(2)}</span>}
-                        </div>
-                      </div>
-                    ))}
+                <div className="bg-bg-dark rounded-lg border border-border overflow-hidden">
+                  <div className="p-4 border-b border-border bg-bg-surface">
+                    <h5 className="font-bold text-success m-0">Compras en Tienda ({financialData.sales.length})</h5>
+                  </div>
+                  <div className="overflow-x-auto max-h-[300px] custom-scrollbar">
+                    {financialData.sales.length === 0 ? (
+                      <div className="text-center p-6 text-sm text-text-muted">No hay compras registradas en este período.</div>
+                    ) : (
+                      <table className="table w-full text-sm">
+                        <thead className="sticky top-0 bg-bg-dark z-10">
+                          <tr>
+                            <th>Producto</th>
+                            <th>Fecha</th>
+                            <th>Cant.</th>
+                            <th>Total</th>
+                            <th>Estado / Notas</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {financialData.sales.map(s => (
+                            <tr key={s.id}>
+                              <td className="font-medium text-primary-100">{s.productName}</td>
+                              <td>{new Date(s.saleDate).toLocaleDateString()}</td>
+                              <td>{s.quantity}</td>
+                              <td className="font-bold text-teal-400">S/. {s.totalPrice.toFixed(2)}</td>
+                              <td>
+                                {s.isGift ? <span className="badge badge-warning">Obsequio</span> : 
+                                 s.discountAmount > 0 ? <span className="text-warning text-xs">Desc: S/. {s.discountAmount.toFixed(2)}</span> : 
+                                 <span className="badge badge-success">Pagado</span>}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
                   </div>
                 </div>
               </div>
