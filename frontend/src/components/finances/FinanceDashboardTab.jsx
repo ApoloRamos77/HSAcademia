@@ -257,80 +257,111 @@ export default function FinanceDashboardTab() {
       ) : !summary ? null : (
         <>
           {/* ── KPI Cards ── */}
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div 
-              className="card p-4 border-t-4 border-t-success cursor-pointer hover:bg-white/5 transition-all hover:-translate-y-1"
+              className="rounded-xl p-0 overflow-hidden cursor-pointer hover:-translate-y-1 transition-transform relative text-white"
+              style={{ background: 'linear-gradient(135deg, #fca5a5 0%, #f87171 100%)' }}
               onClick={() => openDetail('income', 'Detalle de Mensualidades')}
             >
-              <div className="flex justify-between items-start mb-2">
-                <p className="text-[10px] text-text-muted uppercase tracking-wider font-bold">Mensualidades</p>
-                <TrendingUp size={16} className="text-success"/>
+              <div className="p-5 flex justify-between items-start">
+                <div>
+                  <p className="text-3xl font-bold mb-1">S/. {summary.totalIncome.toFixed(2)}</p>
+                  <p className="text-sm font-medium text-white/90">Mensualidades</p>
+                </div>
+                <div className="opacity-70"><BarChart3 size={32}/></div>
               </div>
-              <p className="text-xl font-bold text-success truncate">S/. {summary.totalIncome.toFixed(2)}</p>
-              <p className="text-[10px] text-text-muted mt-1 truncate">Cobrado en {MONTHS[month-1]}</p>
+              <div className="bg-black/10 px-5 py-2 text-xs flex items-center gap-1">
+                <RefreshCw size={12}/> actualización reciente
+              </div>
             </div>
 
             <div 
-              className="card p-4 border-t-4 border-t-teal-400 cursor-pointer hover:bg-white/5 transition-all hover:-translate-y-1"
+              className="rounded-xl p-0 overflow-hidden cursor-pointer hover:-translate-y-1 transition-transform relative text-white"
+              style={{ background: 'linear-gradient(135deg, #34d399 0%, #10b981 100%)' }}
               onClick={() => openDetail('store', 'Detalle de Tienda')}
             >
-              <div className="flex justify-between items-start mb-2">
-                <p className="text-[10px] text-text-muted uppercase tracking-wider font-bold">Ventas Tienda</p>
-                <DollarSign size={16} className="text-teal-400"/>
+              <div className="p-5 flex justify-between items-start">
+                <div>
+                  <p className="text-3xl font-bold mb-1">S/. {(summary.totalStoreRevenue || 0).toFixed(2)}</p>
+                  <p className="text-sm font-medium text-white/90">Ventas Tienda</p>
+                </div>
+                <div className="opacity-70"><DollarSign size={32}/></div>
               </div>
-              <p className="text-xl font-bold text-teal-400 truncate">S/. {(summary.totalStoreRevenue || 0).toFixed(2)}</p>
-              <p className="text-[10px] text-text-muted mt-1 truncate">Ingresos extra</p>
+              <div className="bg-black/10 px-5 py-2 text-xs flex items-center gap-1">
+                <RefreshCw size={12}/> actualización reciente
+              </div>
             </div>
 
             <div 
-              className="card p-4 border-t-4 border-t-danger cursor-pointer hover:bg-white/5 transition-all hover:-translate-y-1"
+              className="rounded-xl p-0 overflow-hidden cursor-pointer hover:-translate-y-1 transition-transform relative text-white"
+              style={{ background: 'linear-gradient(135deg, #fb7185 0%, #f43f5e 100%)' }}
               onClick={() => openDetail('expenses', 'Detalle de Egresos')}
             >
-              <div className="flex justify-between items-start mb-2">
-                <p className="text-[10px] text-text-muted uppercase tracking-wider font-bold">Egresos</p>
-                <TrendingDown size={16} className="text-danger"/>
+              <div className="p-5 flex justify-between items-start">
+                <div>
+                  <p className="text-3xl font-bold mb-1">S/. {summary.totalExpenses.toFixed(2)}</p>
+                  <p className="text-sm font-medium text-white/90">Egresos Totales</p>
+                </div>
+                <div className="opacity-70"><TrendingDown size={32}/></div>
               </div>
-              <p className="text-xl font-bold text-danger truncate">S/. {summary.totalExpenses.toFixed(2)}</p>
-              <p className="text-[10px] text-text-muted mt-1 truncate">Gastos del período</p>
+              <div className="bg-black/10 px-5 py-2 text-xs flex items-center gap-1">
+                <RefreshCw size={12}/> actualización reciente
+              </div>
             </div>
 
             <div 
-              className="card p-4 border-t-4 border-t-warning cursor-pointer hover:bg-white/5 transition-all hover:-translate-y-1"
+              className="rounded-xl p-0 overflow-hidden cursor-pointer hover:-translate-y-1 transition-transform relative text-white"
+              style={{ background: 'linear-gradient(135deg, #2dd4bf 0%, #14b8a6 100%)' }}
               onClick={() => openDetail('staff', 'Detalle de Nómina')}
             >
-              <div className="flex justify-between items-start mb-2">
-                <p className="text-[10px] text-text-muted uppercase tracking-wider font-bold">Nómina</p>
-                <Users size={16} className="text-warning"/>
+              <div className="p-5 flex justify-between items-start">
+                <div>
+                  <p className="text-3xl font-bold mb-1">S/. {summary.totalStaffPayments.toFixed(2)}</p>
+                  <p className="text-sm font-medium text-white/90">Nómina</p>
+                </div>
+                <div className="opacity-70"><Users size={32}/></div>
               </div>
-              <p className="text-xl font-bold text-warning truncate">S/. {summary.totalStaffPayments.toFixed(2)}</p>
-              <p className="text-[10px] text-text-muted mt-1 truncate">Pagos confirmados</p>
+              <div className="bg-black/10 px-5 py-2 text-xs flex items-center gap-1">
+                <RefreshCw size={12}/> actualización reciente
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+            <div 
+              className="rounded-xl p-0 overflow-hidden cursor-pointer hover:-translate-y-1 transition-transform relative text-white"
+              style={{ background: 'linear-gradient(135deg, #fb923c 0%, #ea580c 100%)' }}
+              onClick={() => openDetail('losses', 'Detalle de Pérdidas')}
+            >
+              <div className="p-5 flex justify-between items-start">
+                <div>
+                  <p className="text-3xl font-bold mb-1">S/. {((summary.totalDiscounts || 0) + (summary.totalGiftCost || 0)).toFixed(2)}</p>
+                  <p className="text-sm font-medium text-white/90">Pérdidas y Descuentos</p>
+                </div>
+                <div className="opacity-70"><ArrowDownRight size={32}/></div>
+              </div>
+              <div className="bg-black/10 px-5 py-2 text-xs flex items-center gap-1">
+                <RefreshCw size={12}/> actualización reciente
+              </div>
             </div>
 
             <div 
-              className="card p-4 border-t-4 border-t-orange-400 cursor-pointer hover:bg-white/5 transition-all hover:-translate-y-1"
-              onClick={() => openDetail('losses', 'Detalle de Pérdidas')}
+              className="rounded-xl p-0 overflow-hidden relative text-white"
+              style={{ background: isProfit ? 'linear-gradient(135deg, #818cf8 0%, #6366f1 100%)' : 'linear-gradient(135deg, #f87171 0%, #ef4444 100%)' }}
             >
-              <div className="flex justify-between items-start mb-2">
-                <p className="text-[10px] text-text-muted uppercase tracking-wider font-bold">Pérdidas</p>
-                <ArrowDownRight size={16} className="text-orange-400"/>
+              <div className="p-5 flex justify-between items-start">
+                <div>
+                  <p className="text-3xl font-bold mb-1">S/. {summary.netBalance.toFixed(2)}</p>
+                  <p className="text-sm font-medium text-white/90">Balance Neto ({isProfit ? `Margen: ${profitMargin}%` : `Déficit`})</p>
+                </div>
+                <div className="opacity-70">{isProfit ? <ArrowUpRight size={32}/> : <TrendingDown size={32}/>}</div>
               </div>
-              <p className="text-xl font-bold text-orange-400 truncate">S/. {((summary.totalDiscounts || 0) + (summary.totalGiftCost || 0)).toFixed(2)}</p>
-              <p className="text-[10px] text-text-muted mt-1 truncate">Becas: {(summary.totalDiscounts || 0).toFixed(2)}</p>
+              <div className="bg-black/10 px-5 py-2 text-xs flex items-center gap-1">
+                <RefreshCw size={12}/> actualización reciente
+              </div>
             </div>
 
-            <div className={`card p-4 border-t-4 ${isProfit ? 'border-t-primary' : 'border-t-danger'}`}>
-              <div className="flex justify-between items-start mb-2">
-                <p className="text-[10px] text-text-muted uppercase tracking-wider font-bold">Balance Neto</p>
-                {isProfit ? <ArrowUpRight size={16} className="text-primary-400"/> : <ArrowDownRight size={16} className="text-danger"/>}
-              </div>
-              <p className={`text-xl font-bold truncate ${isProfit ? 'text-primary-400' : 'text-danger'}`}>
-                S/. {summary.netBalance.toFixed(2)}
-              </p>
-              <p className={`text-[10px] mt-1 font-semibold truncate ${isProfit ? 'text-success' : 'text-danger'}`}>
-                {isProfit ? `Margen: ${profitMargin}%` : `Déficit`}
-              </p>
-            </div>
-          </div>
+
 
           {/* ── Metas Financieras ── */}
           <div className="card p-6">
@@ -614,7 +645,7 @@ export default function FinanceDashboardTab() {
                         <><th>Alumno</th><th>Mes</th><th>Pagado</th></>
                       )}
                       {detailModal.type === 'store' && (
-                        <><th>Venta</th><th>Método</th><th>Total</th></>
+                        <><th>Fecha</th><th>Producto</th><th>Cantidad</th><th>Total</th></>
                       )}
                       {detailModal.type === 'expenses' && (
                         <><th>Fecha</th><th>Categoría</th><th>Concepto</th><th>Monto</th></>
@@ -633,15 +664,16 @@ export default function FinanceDashboardTab() {
                         {detailModal.type === 'income' && (
                           <>
                             <td>{item.studentName}</td>
-                            <td>{MONTHS[item.month - 1]} {item.year}</td>
+                            <td>{item.description}</td>
                             <td className="text-success font-bold">S/. {item.amountPaid.toFixed(2)}</td>
                           </>
                         )}
                         {detailModal.type === 'store' && (
                           <>
                             <td>{new Date(item.saleDate).toLocaleDateString()}</td>
-                            <td>{item.paymentMethod}</td>
-                            <td className="text-teal-400 font-bold">S/. {item.totalAmount.toFixed(2)}</td>
+                            <td>{item.productName}</td>
+                            <td>{item.quantity}</td>
+                            <td className="text-teal-400 font-bold">S/. {(item.totalPrice || 0).toFixed(2)}</td>
                           </>
                         )}
                         {detailModal.type === 'expenses' && (
