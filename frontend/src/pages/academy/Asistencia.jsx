@@ -214,142 +214,150 @@ export default function Asistencia() {
               </div>
             </div>
           ) : (
-            <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
-
-              {/* Admin: filters for events */}
-              {isAdmin && (
-                <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(130px, 1fr))', gap:12, padding:12, background:'var(--bg-dark)', borderRadius:8, border:'1px solid var(--border)' }}>
-                  <div className="form-group" style={{ marginBottom:0 }}>
-                    <label style={{ fontSize:12 }}><Filter size={12}/> Mes</label>
-                    <select className="form-control text-sm" value={filterMonth} onChange={e => setFilterMonth(parseInt(e.target.value))}>
-                      {['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'].map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
-                    </select>
-                  </div>
-                  <div className="form-group" style={{ marginBottom:0 }}>
-                    <label style={{ fontSize:12 }}><Filter size={12}/> Año</label>
-                    <select className="form-control text-sm" value={filterYear} onChange={e => setFilterYear(parseInt(e.target.value))}>
-                      {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
-                    </select>
-                  </div>
-                  <div className="form-group" style={{ marginBottom:0 }}>
-                    <label style={{ fontSize:12 }}><Filter size={12}/> Sede (T:{events.length} F:{filteredEvents.length})</label>
-                    <select className="form-control text-sm" value={selectedSede}
-                      onChange={e => setSelectedSede(e.target.value)}>
-                      <option value="">Todas las Sedes</option>
-                      {sedes.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                    </select>
-                  </div>
-                  <div className="form-group" style={{ marginBottom:0 }}>
-                    <label style={{ fontSize:12 }}><Filter size={12}/> Categoría</label>
-                    <select className="form-control text-sm" value={selectedCategory}
-                      onChange={e => setSelectedCategory(e.target.value)}>
-                      <option value="">Todas las Categorías</option>
-                      {categorias.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
-                  </div>
-                  <div className="form-group" style={{ marginBottom:0 }}>
-                    <label style={{ fontSize:12 }}><Search size={12}/> Buscar Evento</label>
-                    <input className="form-control text-sm" placeholder="Nombre..."
-                      value={eventSearch} onChange={e => setEventSearch(e.target.value)}/>
-                  </div>
+            /* Admin: filters row */
+            isAdmin && (
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(130px, 1fr))', gap:12 }}>
+                <div className="form-group" style={{ marginBottom:0 }}>
+                  <label style={{ fontSize:12 }}><Filter size={12}/> Mes</label>
+                  <select className="form-control" value={filterMonth} onChange={e => setFilterMonth(parseInt(e.target.value))}>
+                    {['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'].map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
+                  </select>
                 </div>
-              )}
-
-              {/* Admin: expandable event list */}
-              {isAdmin ? (
-                <div style={{ display:'flex', flexDirection:'column', gap:6, maxHeight:420, overflowY:'auto', background:'var(--bg-dark)', borderRadius:8, padding:8, border:'1px solid var(--border)' }}>
-                  {filteredEvents.length === 0 ? (
-                    <p style={{ fontSize:13, color:'var(--text-muted)', textAlign:'center', padding:24 }}>
-                      {events.length === 0 ? 'Cargando eventos...' : 'No hay eventos que coincidan con los filtros.'}
-                    </p>
-                  ) : filteredEvents.map((ev, idx) => {
-                    const d = new Date(ev.startTime);
-                    const fmt = d.toLocaleDateString('es-PE', { weekday:'short', day:'2-digit', month:'short', timeZone:'UTC' });
-                    const hr  = d.toLocaleTimeString('es-PE', { hour:'2-digit', minute:'2-digit', timeZone:'UTC' });
-                    const isSelected = selectedEvent === ev.id;
-                    return (
-                      <div key={ev.id || idx} style={{
-                        border:`1px solid ${isSelected ? 'var(--primary)' : 'rgba(255,255,255,0.08)'}`,
-                        borderRadius:10, overflow:'hidden',
-                        background: isSelected ? 'rgba(99,102,241,0.12)' : 'rgba(255,255,255,0.04)',
-                        transition:'all 0.15s'
-                      }}>
-                        <div
-                          style={{ padding:'10px 14px', display:'flex', justifyContent:'space-between', alignItems:'center', cursor:'pointer' }}
-                          onClick={() => {
-                            const next = isSelected ? '' : ev.id;
-                            setSelectedEvent(next);
-                            setStudents([]);
-                            setWindowBlocked(null);
-                          }}>
-                          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                            <div style={{ width:6, height:6, borderRadius:3, background: isSelected ? 'var(--primary)' : 'var(--border)' }}/>
-                            <div>
-                              <span style={{ fontWeight:600, fontSize:14, color:'var(--text-main)' }}>{ev.title}</span>
-                              <span style={{ fontSize:12, color:'var(--text-muted)', marginLeft:8 }}>{fmt} {hr}</span>
-                              {ev.headquarterName && (
-                                <span style={{ fontSize:11, background:'var(--bg-dark)', color:'var(--text-muted)', padding:'1px 6px', borderRadius:4, marginLeft:6 }}>
-                                  {ev.headquarterName}
-                                </span>
-                              )}
-                              {ev.categoryName && (
-                                <span style={{ fontSize:11, background:'rgba(99,102,241,0.15)', color:'var(--primary)', padding:'1px 6px', borderRadius:4, marginLeft:4 }}>
-                                  {ev.categoryName}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          {isSelected
-                            ? <ChevronUp size={16} style={{ color:'var(--primary)', flexShrink:0 }}/>
-                            : <ChevronDown size={16} style={{ color:'var(--text-muted)', flexShrink:0 }}/>}
-                        </div>
-
-                        {/* Expanded: load button */}
-                        {isSelected && (
-                          <div style={{ borderTop:'1px solid var(--border)', padding:'8px 14px 12px' }}>
-                            <button className="btn btn-primary btn-sm" onClick={fetchByEvent}>
-                              📋 Cargar Lista de Asistencia ({ev.title})
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                <div className="form-group" style={{ marginBottom:0 }}>
+                  <label style={{ fontSize:12 }}><Filter size={12}/> Año</label>
+                  <select className="form-control" value={filterYear} onChange={e => setFilterYear(parseInt(e.target.value))}>
+                    {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
+                  </select>
                 </div>
-              ) : (
-                /* Staff: simple dropdown */
-                <div>
-                  <div className="form-group" style={{ marginBottom:0 }}>
-                    <label>Evento del Mes</label>
-                    <select className="form-control" value={selectedEvent}
-                      onChange={e => setSelectedEvent(e.target.value)}>
-                      <option value="">-- Seleccione un evento --</option>
-                      {events.map(e => {
-                        const d = new Date(e.startTime);
-                        const fmt = d.toLocaleDateString('es', { weekday:'short', day:'2-digit', month:'short', timeZone:'UTC' });
-                        const hr  = d.toLocaleTimeString('es', { hour:'2-digit', minute:'2-digit', timeZone:'UTC' });
-                        return (
-                          <option key={e.id} value={e.id}>
-                            {fmt} {hr} — {e.title} {e.categoryName ? `(${e.categoryName})` : ''}
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </div>
-                  {events.length === 0 && (
-                    <p style={{ fontSize:13, color:'var(--text-muted)', marginTop:8 }}>
-                      No hay eventos este mes. Créalos desde el{' '}
-                      <span onClick={() => navigate('/academy/calendario')}
-                        style={{ color:'var(--primary)', cursor:'pointer', textDecoration:'underline' }}>
-                        Calendario
-                      </span>.
-                    </p>
-                  )}
+                <div className="form-group" style={{ marginBottom:0 }}>
+                  <label style={{ fontSize:12 }}><Filter size={12}/> Sede</label>
+                  <select className="form-control" value={selectedSede}
+                    onChange={e => setSelectedSede(e.target.value)}>
+                    <option value="">Todas las Sedes</option>
+                    {sedes.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
                 </div>
-              )}
-            </div>
+                <div className="form-group" style={{ marginBottom:0 }}>
+                  <label style={{ fontSize:12 }}><Filter size={12}/> Categoría</label>
+                  <select className="form-control" value={selectedCategory}
+                    onChange={e => setSelectedCategory(e.target.value)}>
+                    <option value="">Todas las Categorías</option>
+                    {categorias.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+                <div className="form-group" style={{ marginBottom:0 }}>
+                  <label style={{ fontSize:12 }}><Search size={12}/> Buscar Evento</label>
+                  <input className="form-control" placeholder="Nombre..."
+                    value={eventSearch} onChange={e => setEventSearch(e.target.value)}/>
+                </div>
+              </div>
+            )
           )}
         </div>
+
+        {/* Event list — outside the card so overflow:hidden doesn't clip it */}
+        {mode === 'event' && isAdmin && (
+          <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+            {filteredEvents.length === 0 ? (
+              <div className="card" style={{ textAlign:'center', padding:32, color:'var(--text-muted)', fontSize:14 }}>
+                {events.length === 0
+                  ? '⏳ Cargando eventos...'
+                  : `No se encontraron eventos para los filtros seleccionados.`}
+              </div>
+            ) : filteredEvents.map((ev, idx) => {
+              const d = new Date(ev.startTime);
+              const fmt = d.toLocaleDateString('es-PE', { weekday:'short', day:'2-digit', month:'short', timeZone:'UTC' });
+              const hr  = d.toLocaleTimeString('es-PE', { hour:'2-digit', minute:'2-digit', timeZone:'UTC' });
+              const isSelected = selectedEvent === ev.id;
+              return (
+                <div key={ev.id || idx} style={{
+                  border:`1px solid ${isSelected ? '#24588C' : 'rgba(66,176,230,0.15)'}`,
+                  borderRadius:12,
+                  background: isSelected ? 'rgba(36,88,140,0.15)' : 'rgba(19,35,64,0.8)',
+                  transition:'all 0.15s',
+                  boxShadow: isSelected ? '0 0 0 2px rgba(36,88,140,0.4)' : 'none'
+                }}>
+                  <div
+                    style={{ padding:'12px 16px', display:'flex', justifyContent:'space-between', alignItems:'center', cursor:'pointer' }}
+                    onClick={() => {
+                      const next = isSelected ? '' : ev.id;
+                      setSelectedEvent(next);
+                      setStudents([]);
+                      setWindowBlocked(null);
+                    }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:12, flex:1, minWidth:0 }}>
+                      <div style={{ width:8, height:8, borderRadius:4, flexShrink:0,
+                        background: isSelected ? '#24588C' : 'rgba(66,176,230,0.3)' }}/>
+                      <div style={{ minWidth:0 }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
+                          <span style={{ fontWeight:600, fontSize:14, color:'#F1F5F9' }}>{ev.title}</span>
+                          <span style={{ fontSize:12, color:'#64748B' }}>{fmt} · {hr}</span>
+                          {ev.headquarterName && (
+                            <span style={{ fontSize:11, background:'rgba(66,176,230,0.1)', color:'#42B0E6',
+                              padding:'1px 7px', borderRadius:4, border:'1px solid rgba(66,176,230,0.2)' }}>
+                              📍 {ev.headquarterName}
+                            </span>
+                          )}
+                          {ev.categoryName && (
+                            <span style={{ fontSize:11, background:'rgba(106,182,87,0.1)', color:'#6AB657',
+                              padding:'1px 7px', borderRadius:4, border:'1px solid rgba(106,182,87,0.2)' }}>
+                              {ev.categoryName}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    {isSelected
+                      ? <ChevronUp size={16} style={{ color:'#42B0E6', flexShrink:0 }}/>
+                      : <ChevronDown size={16} style={{ color:'#64748B', flexShrink:0 }}/>}
+                  </div>
+
+                  {/* Expanded: load button */}
+                  {isSelected && (
+                    <div style={{ borderTop:'1px solid rgba(66,176,230,0.15)', padding:'10px 16px 14px', display:'flex', gap:10, alignItems:'center' }}>
+                      <button className="btn btn-primary btn-sm" onClick={fetchByEvent}>
+                        📋 Cargar Lista de Asistencia
+                      </button>
+                      <span style={{ fontSize:12, color:'#64748B' }}>{ev.title}</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Staff event selector */}
+        {mode === 'event' && !isAdmin && (
+          <div className="card">
+            <div className="form-group" style={{ marginBottom:0 }}>
+              <label>Evento del Mes</label>
+              <select className="form-control" value={selectedEvent}
+                onChange={e => setSelectedEvent(e.target.value)}>
+                <option value="">-- Seleccione un evento --</option>
+                {events.map(e => {
+                  const d = new Date(e.startTime);
+                  const fmt = d.toLocaleDateString('es', { weekday:'short', day:'2-digit', month:'short', timeZone:'UTC' });
+                  const hr  = d.toLocaleTimeString('es', { hour:'2-digit', minute:'2-digit', timeZone:'UTC' });
+                  return (
+                    <option key={e.id} value={e.id}>
+                      {fmt} {hr} — {e.title} {e.categoryName ? `(${e.categoryName})` : ''}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+            {events.length === 0 && (
+              <p style={{ fontSize:13, color:'var(--text-muted)', marginTop:8 }}>
+                No hay eventos este mes. Créalos desde el{' '}
+                <span onClick={() => navigate('/academy/calendario')}
+                  style={{ color:'var(--primary)', cursor:'pointer', textDecoration:'underline' }}>
+                  Calendario
+                </span>.
+              </p>
+            )}
+          </div>
+        )}
 
         {/* 15-min window blocked */}
         {windowBlocked && (
