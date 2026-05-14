@@ -62,6 +62,9 @@ export default function Asistencia() {
   const loadUpcomingEvents = async () => {
     try {
       const params = new URLSearchParams({ year: filterYear, month: filterMonth });
+      if (selectedSede) params.append('headquarterId', selectedSede);
+      if (selectedCategory) params.append('categoryId', selectedCategory);
+
       const { data } = await api.get(`/calendar/events?${params}`);
       const attendableTypes = [1, 2, 3];
       const filtered = data.filter(e => attendableTypes.includes(e.type) && !e.isVirtual);
@@ -71,7 +74,7 @@ export default function Asistencia() {
 
   useEffect(() => {
     loadUpcomingEvents();
-  }, [filterYear, filterMonth]);
+  }, [filterYear, filterMonth, selectedSede, selectedCategory]);
 
   // ── Date-mode fetch ───────────────────────────────────────────
   useEffect(() => {
@@ -228,7 +231,7 @@ export default function Asistencia() {
                     </select>
                   </div>
                   <div className="form-group" style={{ marginBottom:0 }}>
-                    <label style={{ fontSize:12 }}><Filter size={12}/> Sede</label>
+                    <label style={{ fontSize:12 }}><Filter size={12}/> Sede (T:{events.length} F:{filteredEvents.length})</label>
                     <select className="form-control text-sm" value={selectedSede}
                       onChange={e => setSelectedSede(e.target.value)}>
                       <option value="">Todas las Sedes</option>
