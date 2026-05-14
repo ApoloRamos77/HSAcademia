@@ -360,8 +360,7 @@ export default function FinanceDashboardTab() {
                 <RefreshCw size={12}/> actualización reciente
               </div>
             </div>
-
-
+          </div>
 
           {/* ── Metas Financieras ── */}
           <div className="card p-6">
