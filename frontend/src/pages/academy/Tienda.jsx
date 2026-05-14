@@ -267,6 +267,11 @@ export default function Tienda() {
     }
   });
 
+  // Reset page when searching
+  useEffect(() => {
+    setInventoryPage(1);
+  }, [searchProduct]);
+
   if (loading) return <AppLayout title="Tienda"><div className="text-center p-8"><span className="spinner" style={{borderColor: 'var(--primary)', borderTopColor: 'transparent'}}></span></div></AppLayout>;
 
   // Pagination for Inventory
@@ -274,34 +279,29 @@ export default function Tienda() {
   const totalInventoryPages = Math.ceil(filteredInventory.length / ITEMS_PER_PAGE) || 1;
   const currentInventoryPageData = filteredInventory.slice((inventoryPage - 1) * ITEMS_PER_PAGE, inventoryPage * ITEMS_PER_PAGE);
 
-  // Reset page when searching
-  useEffect(() => {
-    setInventoryPage(1);
-  }, [searchProduct]);
-
   return (
     <AppLayout title="Tienda y Ventas">
       <div className="fade-in">
         
         {/* Tabs Menu */}
-        <div className="flex gap-4 mb-6 border-b border-border/50 pb-2">
+        <div className="flex flex-wrap gap-2 mb-6 bg-bg-surface p-1 rounded-xl w-max max-w-full overflow-x-auto">
           <button 
-            className={`flex items-center gap-2 pb-2 px-1 border-b-2 transition-colors ${activeTab === 'dashboard' ? 'border-primary text-primary font-bold' : 'border-transparent text-text-muted hover:text-text-main'}`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab === 'dashboard' ? 'bg-primary text-white shadow-md' : 'text-text-muted hover:text-white hover:bg-white/5'}`}
             onClick={() => setActiveTab('dashboard')}
           >
-            <BarChart3 size={18} /> Dashboard
+            <BarChart3 size={16} /> Dashboard
           </button>
           <button 
-            className={`flex items-center gap-2 pb-2 px-1 border-b-2 transition-colors ${activeTab === 'inventory' ? 'border-primary text-primary font-bold' : 'border-transparent text-text-muted hover:text-text-main'}`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab === 'inventory' ? 'bg-primary text-white shadow-md' : 'text-text-muted hover:text-white hover:bg-white/5'}`}
             onClick={() => setActiveTab('inventory')}
           >
-            <Package size={18} /> Inventario Base
+            <Package size={16} /> Inventario Base
           </button>
           <button 
-            className={`flex items-center gap-2 pb-2 px-1 border-b-2 transition-colors ${activeTab === 'sales' ? 'border-primary text-primary font-bold' : 'border-transparent text-text-muted hover:text-text-main'}`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab === 'sales' ? 'bg-primary text-white shadow-md' : 'text-text-muted hover:text-white hover:bg-white/5'}`}
             onClick={() => setActiveTab('sales')}
           >
-            <ShoppingCart size={18} /> Historial de Ventas
+            <ShoppingCart size={16} /> Historial de Ventas
           </button>
         </div>
 

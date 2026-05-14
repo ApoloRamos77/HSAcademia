@@ -237,24 +237,24 @@ export default function Finanzas() {
       <div className="fade-in">
 
         {/* Tabs */}
-        <div className="flex gap-4 mb-6 border-b border-border/50 pb-2 overflow-x-auto whitespace-nowrap">
-          <button className={`flex items-center gap-2 pb-2 px-1 border-b-2 transition-colors shrink-0 ${activeTab==='dashboard'?'border-primary text-primary font-bold':'border-transparent text-text-muted hover:text-text-main'}`} onClick={()=>setActiveTab('dashboard')}>
-            <BarChart3 size={18}/> Resumen P&amp;L
+        <div className="flex flex-wrap gap-2 mb-6 bg-bg-surface p-1 rounded-xl w-max max-w-full overflow-x-auto">
+          <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='dashboard'?'bg-primary text-white shadow-md':'text-text-muted hover:text-white hover:bg-white/5'}`} onClick={()=>setActiveTab('dashboard')}>
+            <BarChart3 size={16}/> Resumen P&amp;L
           </button>
-          <button className={`flex items-center gap-2 pb-2 px-1 border-b-2 transition-colors shrink-0 ${activeTab==='debts'?'border-primary text-primary font-bold':'border-transparent text-text-muted hover:text-text-main'}`} onClick={()=>setActiveTab('debts')}>
-            <DollarSign size={18}/> Cobranzas
+          <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='debts'?'bg-primary text-white shadow-md':'text-text-muted hover:text-white hover:bg-white/5'}`} onClick={()=>setActiveTab('debts')}>
+            <DollarSign size={16}/> Cobranzas
           </button>
-          <button className={`flex items-center gap-2 pb-2 px-1 border-b-2 transition-colors shrink-0 ${activeTab==='expenses'?'border-primary text-primary font-bold':'border-transparent text-text-muted hover:text-text-main'}`} onClick={()=>setActiveTab('expenses')}>
-            <TrendingDown size={18}/> Egresos
+          <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='expenses'?'bg-primary text-white shadow-md':'text-text-muted hover:text-white hover:bg-white/5'}`} onClick={()=>setActiveTab('expenses')}>
+            <TrendingDown size={16}/> Egresos
           </button>
-          <button className={`flex items-center gap-2 pb-2 px-1 border-b-2 transition-colors shrink-0 ${activeTab==='petty'?'border-primary text-primary font-bold':'border-transparent text-text-muted hover:text-text-main'}`} onClick={()=>setActiveTab('petty')}>
-            <Archive size={18}/> Caja Chica
+          <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='petty'?'bg-primary text-white shadow-md':'text-text-muted hover:text-white hover:bg-white/5'}`} onClick={()=>setActiveTab('petty')}>
+            <Archive size={16}/> Caja Chica
           </button>
-          <button className={`flex items-center gap-2 pb-2 px-1 border-b-2 transition-colors shrink-0 ${activeTab==='staff'?'border-primary text-primary font-bold':'border-transparent text-text-muted hover:text-text-main'}`} onClick={()=>setActiveTab('staff')}>
-            <Users size={18}/> Nómina
+          <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='staff'?'bg-primary text-white shadow-md':'text-text-muted hover:text-white hover:bg-white/5'}`} onClick={()=>setActiveTab('staff')}>
+            <Users size={16}/> Nómina
           </button>
-          <button className={`flex items-center gap-2 pb-2 px-1 border-b-2 transition-colors shrink-0 ${activeTab==='config'?'border-primary text-primary font-bold':'border-transparent text-text-muted hover:text-text-main'}`} onClick={()=>setActiveTab('config')}>
-            <Settings size={18}/> Configuración
+          <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='config'?'bg-primary text-white shadow-md':'text-text-muted hover:text-white hover:bg-white/5'}`} onClick={()=>setActiveTab('config')}>
+            <Settings size={16}/> Configuración
           </button>
         </div>
 
