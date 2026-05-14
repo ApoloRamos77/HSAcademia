@@ -257,7 +257,7 @@ export default function FinanceDashboardTab() {
       ) : !summary ? null : (
         <>
           {/* ── KPI Cards ── */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="stats-grid" style={{gridTemplateColumns:'repeat(auto-fit, minmax(180px, 1fr))', marginBottom: 0}}>
             <div 
               className="stat-card cursor-pointer hover:-translate-y-1 transition-transform"
               onClick={() => openDetail('income', 'Detalle de Mensualidades')}
@@ -299,7 +299,7 @@ export default function FinanceDashboardTab() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+          <div className="stats-grid" style={{gridTemplateColumns:'repeat(auto-fit, minmax(240px, 1fr))', marginTop: 16}}>
             <div 
               className="stat-card cursor-pointer hover:-translate-y-1 transition-transform"
               onClick={() => openDetail('losses', 'Detalle de Pérdidas')}
