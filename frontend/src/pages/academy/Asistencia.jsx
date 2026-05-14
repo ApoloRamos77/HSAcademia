@@ -43,12 +43,15 @@ export default function Asistencia() {
   const [loadingStudents, setLoadingStudents] = useState(false);
   const [saving,          setSaving]          = useState(false);
 
+  const today = new Date();
+  const [filterYear, setFilterYear] = useState(today.getFullYear());
+  const [filterMonth, setFilterMonth] = useState(today.getMonth() + 1);
+
   // ── Load metadata ──────────────────────────────────────────────
   useEffect(() => {
     Promise.all([
       api.get('/academy-config/categories'),
       api.get('/academy-config/headquarters'),
-      loadUpcomingEvents(),
     ]).then(([catRes, sedeRes]) => {
       setCategorias(catRes.data);
       setSedes(sedeRes.data);
@@ -58,14 +61,17 @@ export default function Asistencia() {
 
   const loadUpcomingEvents = async () => {
     try {
-      const today = new Date();
-      const params = new URLSearchParams({ year: today.getFullYear(), month: today.getMonth() + 1 });
+      const params = new URLSearchParams({ year: filterYear, month: filterMonth });
       const { data } = await api.get(`/calendar/events?${params}`);
       const attendableTypes = [1, 2, 3];
       const filtered = data.filter(e => attendableTypes.includes(e.type) && !e.isVirtual);
       setEvents(filtered);
     } catch { /* silent */ }
   };
+
+  useEffect(() => {
+    loadUpcomingEvents();
+  }, [filterYear, filterMonth]);
 
   // ── Date-mode fetch ───────────────────────────────────────────
   useEffect(() => {
@@ -135,9 +141,9 @@ export default function Asistencia() {
 
   // ── Filter events ─────────────────────────────────────────────
   const filteredEvents = events.filter(e => {
-    const matchSede   = !selectedSede     || e.headquarterId === selectedSede;
-    const matchCat    = !selectedCategory || e.categoryId === selectedCategory
-                          || (e.categoryIds && e.categoryIds.includes(selectedCategory));
+    const matchSede   = !selectedSede     || e.headquarterId?.toString() === selectedSede.toString();
+    const matchCat    = !selectedCategory || e.categoryId?.toString() === selectedCategory.toString()
+                          || (e.categoryIds && e.categoryIds.some(id => id.toString() === selectedCategory.toString()));
     const matchSearch = !eventSearch || e.title.toLowerCase().includes(eventSearch.toLowerCase());
     return matchSede && matchCat && matchSearch;
   });
@@ -208,10 +214,22 @@ export default function Asistencia() {
 
               {/* Admin: filters for events */}
               {isAdmin && (
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12, padding:12, background:'var(--bg-dark)', borderRadius:8, border:'1px solid var(--border)' }}>
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(130px, 1fr))', gap:12, padding:12, background:'var(--bg-dark)', borderRadius:8, border:'1px solid var(--border)' }}>
+                  <div className="form-group" style={{ marginBottom:0 }}>
+                    <label style={{ fontSize:12 }}><Filter size={12}/> Mes</label>
+                    <select className="form-control text-sm" value={filterMonth} onChange={e => setFilterMonth(parseInt(e.target.value))}>
+                      {['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'].map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
+                    </select>
+                  </div>
+                  <div className="form-group" style={{ marginBottom:0 }}>
+                    <label style={{ fontSize:12 }}><Filter size={12}/> Año</label>
+                    <select className="form-control text-sm" value={filterYear} onChange={e => setFilterYear(parseInt(e.target.value))}>
+                      {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
+                    </select>
+                  </div>
                   <div className="form-group" style={{ marginBottom:0 }}>
                     <label style={{ fontSize:12 }}><Filter size={12}/> Sede</label>
-                    <select className="form-control" value={selectedSede}
+                    <select className="form-control text-sm" value={selectedSede}
                       onChange={e => setSelectedSede(e.target.value)}>
                       <option value="">Todas las Sedes</option>
                       {sedes.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -219,7 +237,7 @@ export default function Asistencia() {
                   </div>
                   <div className="form-group" style={{ marginBottom:0 }}>
                     <label style={{ fontSize:12 }}><Filter size={12}/> Categoría</label>
-                    <select className="form-control" value={selectedCategory}
+                    <select className="form-control text-sm" value={selectedCategory}
                       onChange={e => setSelectedCategory(e.target.value)}>
                       <option value="">Todas las Categorías</option>
                       {categorias.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -227,7 +245,7 @@ export default function Asistencia() {
                   </div>
                   <div className="form-group" style={{ marginBottom:0 }}>
                     <label style={{ fontSize:12 }}><Search size={12}/> Buscar Evento</label>
-                    <input className="form-control" placeholder="Nombre del evento..."
+                    <input className="form-control text-sm" placeholder="Nombre..."
                       value={eventSearch} onChange={e => setEventSearch(e.target.value)}/>
                   </div>
                 </div>
