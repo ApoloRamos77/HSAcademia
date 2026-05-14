@@ -68,8 +68,9 @@ export default function Asistencia() {
       const { data } = await api.get(`/calendar/events?${params}`);
       const attendableTypes = [1, 2, 3];
       const filtered = data.filter(e => attendableTypes.includes(e.type) && !e.isVirtual);
+      console.log('[Asistencia] Raw events from API:', data.length, '| Attendable:', filtered.length, '| Sample:', filtered[0]);
       setEvents(filtered);
-    } catch { /* silent */ }
+    } catch (err) { console.error('[Asistencia] Error loading events', err); }
   };
 
   useEffect(() => {
@@ -256,21 +257,21 @@ export default function Asistencia() {
 
               {/* Admin: expandable event list */}
               {isAdmin ? (
-                <div style={{ display:'flex', flexDirection:'column', gap:8, maxHeight:400, overflowY:'auto' }}>
+                <div style={{ display:'flex', flexDirection:'column', gap:6, maxHeight:420, overflowY:'auto', background:'var(--bg-dark)', borderRadius:8, padding:8, border:'1px solid var(--border)' }}>
                   {filteredEvents.length === 0 ? (
-                    <p style={{ fontSize:13, color:'var(--text-muted)', textAlign:'center', padding:16 }}>
-                      No hay eventos que coincidan con los filtros.
+                    <p style={{ fontSize:13, color:'var(--text-muted)', textAlign:'center', padding:24 }}>
+                      {events.length === 0 ? 'Cargando eventos...' : 'No hay eventos que coincidan con los filtros.'}
                     </p>
-                  ) : filteredEvents.map(ev => {
+                  ) : filteredEvents.map((ev, idx) => {
                     const d = new Date(ev.startTime);
                     const fmt = d.toLocaleDateString('es-PE', { weekday:'short', day:'2-digit', month:'short', timeZone:'UTC' });
                     const hr  = d.toLocaleTimeString('es-PE', { hour:'2-digit', minute:'2-digit', timeZone:'UTC' });
                     const isSelected = selectedEvent === ev.id;
                     return (
-                      <div key={ev.id} style={{
-                        border:`1px solid ${isSelected ? 'var(--primary)' : 'var(--border)'}`,
+                      <div key={ev.id || idx} style={{
+                        border:`1px solid ${isSelected ? 'var(--primary)' : 'rgba(255,255,255,0.08)'}`,
                         borderRadius:10, overflow:'hidden',
-                        background: isSelected ? 'rgba(var(--primary-rgb),0.05)' : 'var(--bg-surface)',
+                        background: isSelected ? 'rgba(99,102,241,0.12)' : 'rgba(255,255,255,0.04)',
                         transition:'all 0.15s'
                       }}>
                         <div
