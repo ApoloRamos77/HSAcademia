@@ -144,5 +144,10 @@ export const generateReceiptPDF = (data) => {
   doc.setFontSize(10);
   doc.text(`TOTAL: S/. ${parseFloat(data.total).toFixed(2)}`, 77.5, finalY + 36.5, { align: "center" });
 
-  doc.save(`Recibo_${receiptNum}.pdf`);
+  // Abrir en nueva pestaña del navegador (sin descargar ni abrir Acrobat)
+  const pdfBlob = doc.output('blob');
+  const blobUrl = URL.createObjectURL(pdfBlob);
+  const win = window.open(blobUrl, '_blank');
+  // Liberar la URL del blob cuando la ventana se cierre
+  if (win) win.addEventListener('unload', () => URL.revokeObjectURL(blobUrl));
 };

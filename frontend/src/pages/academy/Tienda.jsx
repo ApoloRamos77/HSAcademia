@@ -64,7 +64,7 @@ export default function Tienda() {
   const [loading, setLoading] = useState(true);
   const [searchProduct, setSearchProduct] = useState('');
   const [inventoryPage, setInventoryPage] = useState(1);
-  const [monthClosed, setMonthClosed] = useState(false); // ← mes contable cerrado
+  const [closedMonths, setClosedMonths] = useState(new Set()); // Set of "YYYY-M" strings
   const ITEMS_PER_PAGE = 10;
 
   // Confirm void dialog
@@ -108,18 +108,32 @@ export default function Tienda() {
     }
   };
 
-  // Consultar si el mes del filtro está cerrado
+  // Al cargar ventas, verificar qué meses están cerrados
   useEffect(() => {
-    const checkClosed = async () => {
-      try {
-        const res = await api.get(`/finances-premium/closings?month=${filterMonth}&year=${filterYear}`);
-        setMonthClosed(res.data?.status === 'Closed');
-      } catch {
-        setMonthClosed(false);
-      }
+    if (sales.length === 0) return;
+    const checkClosedMonths = async () => {
+      // Obtener pares únicos año-mes de las ventas cargadas
+      const uniqueMonths = [...new Set(sales.map(s => {
+        const d = new Date(s.saleDate);
+        return `${d.getFullYear()}-${d.getMonth() + 1}`;
+      }))];
+      const results = await Promise.allSettled(
+        uniqueMonths.map(key => {
+          const [y, m] = key.split('-');
+          return api.get(`/finances-premium/closings?month=${m}&year=${y}`)
+            .then(res => ({ key, closed: res.data?.status === 'Closed' }))
+            .catch(() => ({ key, closed: false }));
+        })
+      );
+      const closed = new Set(
+        results
+          .filter(r => r.status === 'fulfilled' && r.value.closed)
+          .map(r => r.value.key)
+      );
+      setClosedMonths(closed);
     };
-    checkClosed();
-  }, [filterYear, filterMonth]);
+    checkClosedMonths();
+  }, [sales]);
 
   const handleProductSubmit = async (e) => {
     e.preventDefault();
@@ -542,16 +556,14 @@ export default function Tienda() {
                           <button onClick={() => regenerateSaleReceipt(s)} className="btn btn-ghost btn-sm text-primary flex items-center gap-1" title="Volver a descargar recibo">
                             <Download size={14} /> PDF
                           </button>
-                          {/* Botón Anular — bloqueado si el mes está cerrado */}
+                          {/* Botón Anular — bloqueado si el mes de la venta está cerrado */}
                           {(() => {
                             const saleD = new Date(s.saleDate);
-                            const sMonth = saleD.getMonth() + 1;
-                            const sYear  = saleD.getFullYear();
-                            const isFiltered = sMonth === filterMonth && sYear === filterYear;
-                            const locked = isFiltered && monthClosed;
+                            const key = `${saleD.getFullYear()}-${saleD.getMonth() + 1}`;
+                            const locked = closedMonths.has(key);
                             return (
                               <button
-                                onClick={() => locked ? toast.error('El mes contable está cerrado. No se puede anular.') : handleVoidSale(s)}
+                                onClick={() => locked ? toast.error(`El mes contable está cerrado. No se puede anular.`) : handleVoidSale(s)}
                                 className={`btn btn-ghost btn-sm flex items-center gap-1 ${locked ? 'text-text-muted cursor-not-allowed' : 'text-danger'}`}
                                 title={locked ? 'Mes contable cerrado' : 'Anular Venta'}
                               >
