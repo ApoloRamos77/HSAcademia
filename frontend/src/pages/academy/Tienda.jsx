@@ -77,7 +77,7 @@ export default function Tienda() {
 
   const [showSaleModal, setShowSaleModal] = useState(false);
   const todayISO = () => new Date().toISOString().split('T')[0];
-  const initialSale = { productId: '', studentId: '', quantity: '1', isGift: false, customDiscount: '', paymentMethod: 'Cash', operationNumber: '', saleDate: todayISO(), paymentRecordId: '', monthlyAmountPaid: '' };
+  const initialSale = { productId: '', studentId: '', quantity: '1', isGift: false, customDiscount: '', paymentMethod: 'Cash', operationNumber: '', saleDate: todayISO(), paymentRecordId: '', monthlyAmountPaid: '', notes: '' };
   const [saleForm, setSaleForm] = useState(initialSale);
 
   const today = new Date();
@@ -139,7 +139,8 @@ export default function Tienda() {
         saleDate: saleForm.saleDate ? new Date(saleForm.saleDate + 'T12:00:00').toISOString() : null,
         paymentRecordId: saleForm.paymentRecordId || null,
         monthlyAmountPaid: saleForm.monthlyAmountPaid ? parseFloat(saleForm.monthlyAmountPaid) : null,
-        customDiscount: saleForm.customDiscount ? parseFloat(saleForm.customDiscount) : null
+        customDiscount: saleForm.customDiscount ? parseFloat(saleForm.customDiscount) : null,
+        notes: saleForm.notes || null
       };
       const res = await api.post('/store/sales', payload);
       toast.success(saleForm.isGift ? '🎁 Obsequio registrado' : 'Venta registrada con éxito');
@@ -418,10 +419,12 @@ export default function Tienda() {
                       </td>
                       <td>
                         <div className="flex gap-2 justify-center">
-                          <button className="btn btn-sm btn-outline" onClick={() => {
-                            setSaleForm({ ...initialSale, productId: p.id });
-                            setShowSaleModal(true);
-                          }}>Vender</button>
+                          {p.price > 0 && (
+                            <button className="btn btn-sm btn-outline" onClick={() => {
+                              setSaleForm({ ...initialSale, productId: p.id });
+                              setShowSaleModal(true);
+                            }}>Vender</button>
+                          )}
                           <button className="btn btn-sm btn-ghost text-primary" onClick={() => {
                             setProductForm({ name: p.name, description: p.description, productCategory: p.productCategory, costPrice: p.costPrice || '', price: p.price, stock: p.stock });
                             setEditingProductId(p.id);
@@ -504,7 +507,13 @@ export default function Tienda() {
                   {filteredSales.map(s => (
                     <tr key={s.id}>
                       <td>{new Date(s.saleDate).toLocaleDateString()} {new Date(s.saleDate).toLocaleTimeString()}</td>
-                      <td><div className="font-medium text-primary-100">{s.productName}</div><div className="text-xs text-text-muted">P.U: S/. {s.unitPrice.toFixed(2)} {s.discountAmount > 0 && !s.isGift && <span className="text-warning ml-1">(Desc: S/. {s.discountAmount.toFixed(2)})</span>}</div></td>
+                      <td>
+                        <div className="font-medium text-primary-100">{s.productName}</div>
+                        <div className="text-xs text-text-muted">
+                          P.U: S/. {s.unitPrice.toFixed(2)} {s.discountAmount > 0 && !s.isGift && <span className="text-warning ml-1">(Desc: S/. {s.discountAmount.toFixed(2)})</span>}
+                        </div>
+                        {s.notes && <div className="text-xs text-text-muted italic mt-1">{s.notes}</div>}
+                      </td>
                       <td>{s.studentName}</td>
                       <td>{s.quantity}</td>
                       <td>
@@ -595,7 +604,7 @@ export default function Tienda() {
                   <label className="form-label">Producto a Vender *</label>
                   <select required className="form-control" value={saleForm.productId} onChange={e => setSaleForm({...saleForm, productId: e.target.value})}>
                     <option value="">-- Seleccione un Producto --</option>
-                    {products.filter(p => p.stock > 0).map(p => (
+                    {products.filter(p => p.stock > 0 && p.price > 0).map(p => (
                       <option key={p.id} value={p.id}>{p.name} (Stock: {p.stock} | Precio: S/. {p.price.toFixed(2)})</option>
                     ))}
                   </select>
@@ -748,6 +757,17 @@ export default function Tienda() {
                     )}
                   </>
                 )}
+
+                <div className="form-group mt-2">
+                  <label className="form-label">Nota (Opcional)</label>
+                  <textarea 
+                    className="form-control" 
+                    rows="2" 
+                    placeholder="Observaciones adicionales..."
+                    value={saleForm.notes} 
+                    onChange={e => setSaleForm({...saleForm, notes: e.target.value})}
+                  ></textarea>
+                </div>
 
                 <div className="modal-footer mt-6">
                   <button type="button" onClick={() => setShowSaleModal(false)} className="btn btn-ghost text-danger">Cancelar</button>

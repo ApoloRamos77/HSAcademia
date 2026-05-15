@@ -144,8 +144,10 @@ public class FinancesService
 
         // ── STEP 1: Cleanup — soft-delete unpaid records that fall BEFORE ──
         //   each student's effective start month (PaymentStartDate ?? EnrollmentDate)
+        //   EXCEPCIÓN: nunca eliminar registros con pagos parciales registrados.
         var studentIds = students.Select(s => s.Id).ToList();
         var allUnpaidMonthly = await _context.PaymentRecords
+            .Include(p => p.Installments)
             .Where(p => p.AcademyId == academyId
                      && !p.IsPaid && !p.IsDeleted
                      && p.Type == PaymentType.MonthlyFee
@@ -156,6 +158,9 @@ public class FinancesService
         {
             var student = students.FirstOrDefault(s => s.Id == record.StudentId);
             if (student == null) continue;
+
+            // Nunca eliminar si tiene pagos parciales
+            if (record.Installments != null && record.Installments.Any()) continue;
 
             var effStart = (student.PaymentStartDate.HasValue
                 ? student.PaymentStartDate.Value
@@ -173,7 +178,9 @@ public class FinancesService
         }
 
         // ── STEP 1.5: Cleanup — soft-delete unpaid records FOR THE TARGET MONTH if the student is no longer eligible
+        //   EXCEPCIÓN: nunca eliminar registros con pagos parciales registrados.
         var unpaidInTargetMonth = await _context.PaymentRecords
+            .Include(p => p.Installments)
             .Where(p => p.AcademyId == academyId
                      && !p.IsPaid && !p.IsDeleted
                      && p.Type == PaymentType.MonthlyFee
@@ -182,6 +189,9 @@ public class FinancesService
 
         foreach (var record in unpaidInTargetMonth)
         {
+            // Nunca eliminar si tiene pagos parciales
+            if (record.Installments != null && record.Installments.Any()) continue;
+
             if (!studentIds.Contains(record.StudentId))
             {
                 record.IsDeleted = true;
@@ -211,27 +221,19 @@ public class FinancesService
                     p.Description == description &&
                     !p.IsDeleted);
 
-            // Paid → never overwrite (mes cerrado implícito)
+            // Pagado completamente → nunca sobrescribir (mes cerrado implícito)
             if (existingDebt != null && existingDebt.IsPaid) continue;
-
-            // Unpaid existing → soft-delete to regenerate
-            if (existingDebt != null)
-            {
-                existingDebt.IsDeleted = true;
-                existingDebt.DeletedAt = DateTime.UtcNow;
-                replacedCount++;
-            }
 
             var fullAmount = student.PreferentialFee ?? student.Category?.MonthlyFee ?? 0m;
             if (fullAmount <= 0) continue;
 
-            // ── Proration: only if student started THIS target month after day 1 ──
+            // ── Calcular monto nuevo (con prorrateo si aplica) ────────
             DateTime? startForProration = null;
             if (effStart.Year == year && effStart.Month == month && effStart.Day > 1)
                 startForProration = effStart;
 
-            DateTime? endForProration = (!student.IsActive && student.WithdrawalDate.HasValue && 
-                                          student.WithdrawalDate.Value.Year == year && 
+            DateTime? endForProration = (!student.IsActive && student.WithdrawalDate.HasValue &&
+                                          student.WithdrawalDate.Value.Year == year &&
                                           student.WithdrawalDate.Value.Month == month)
                 ? student.WithdrawalDate.Value
                 : null;
@@ -284,24 +286,66 @@ public class FinancesService
                 chargedAmount -= discountAmount;
             }
 
-            _context.PaymentRecords.Add(new PaymentRecord
+            // ── ¿Existe registro previo con pagos parciales? → preservarlo ──
+            bool hasPartialPayments = existingDebt != null &&
+                                      existingDebt.Installments != null &&
+                                      existingDebt.Installments.Any();
+
+            if (hasPartialPayments)
             {
-                AcademyId           = academyId,
-                StudentId           = student.Id,
-                Description         = description,
-                Amount              = chargedAmount,
-                AmountPaid          = 0m,
-                DiscountAmount      = discountAmount,
-                DueDate             = dueDate,
-                IsPaid              = chargedAmount == 0m,
-                PaidDate            = chargedAmount == 0m ? DateTime.UtcNow : null,
-                Type                = PaymentType.MonthlyFee,
-                IsProrated          = isProrated,
-                ProratedStartDate   = proratedStart,
-                ProratedTotalDays   = totalSessions,
-                ProratedDaysCharged = sessionsCharged
-            });
-            generatedCount++;
+                // Solo actualizamos el monto total; el AmountPaid ya registrado se conserva.
+                // El saldo pendiente (Amount - AmountPaid) se ajusta automáticamente.
+                existingDebt!.Amount              = chargedAmount;
+                existingDebt.DiscountAmount       = discountAmount;
+                existingDebt.DueDate              = dueDate;
+                existingDebt.IsProrated           = isProrated;
+                existingDebt.ProratedStartDate    = proratedStart;
+                existingDebt.ProratedTotalDays    = totalSessions;
+                existingDebt.ProratedDaysCharged  = sessionsCharged;
+
+                // Si el pago parcial ya cubre el nuevo total, marcar como pagado
+                if (existingDebt.AmountPaid >= chargedAmount - 0.01m && chargedAmount > 0)
+                {
+                    existingDebt.AmountPaid = chargedAmount;
+                    existingDebt.IsPaid     = true;
+                    existingDebt.PaidDate   = existingDebt.PaidDate ?? DateTime.UtcNow;
+                }
+                else
+                {
+                    existingDebt.IsPaid   = chargedAmount == 0m;
+                    existingDebt.PaidDate = chargedAmount == 0m ? DateTime.UtcNow : null;
+                }
+
+                replacedCount++; // contabilizamos como "actualizado"
+            }
+            else
+            {
+                // Sin pagos parciales: soft-delete del registro anterior (si existe) y crear nuevo
+                if (existingDebt != null)
+                {
+                    existingDebt.IsDeleted = true;
+                    existingDebt.DeletedAt = DateTime.UtcNow;
+                }
+
+                _context.PaymentRecords.Add(new PaymentRecord
+                {
+                    AcademyId           = academyId,
+                    StudentId           = student.Id,
+                    Description         = description,
+                    Amount              = chargedAmount,
+                    AmountPaid          = 0m,
+                    DiscountAmount      = discountAmount,
+                    DueDate             = dueDate,
+                    IsPaid              = chargedAmount == 0m,
+                    PaidDate            = chargedAmount == 0m ? DateTime.UtcNow : null,
+                    Type                = PaymentType.MonthlyFee,
+                    IsProrated          = isProrated,
+                    ProratedStartDate   = proratedStart,
+                    ProratedTotalDays   = totalSessions,
+                    ProratedDaysCharged = sessionsCharged
+                });
+                generatedCount++;
+            }
         }
 
         if (generatedCount > 0 || replacedCount > 0 || cleanedCount > 0)

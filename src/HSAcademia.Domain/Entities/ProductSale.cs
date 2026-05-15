@@ -21,6 +21,7 @@ public class ProductSale
     
     public bool IsGift { get; set; }
     public decimal DiscountAmount { get; set; }
+    public string? Notes { get; set; }
     
     public DateTime SaleDate { get; set; } = DateTime.UtcNow;
     

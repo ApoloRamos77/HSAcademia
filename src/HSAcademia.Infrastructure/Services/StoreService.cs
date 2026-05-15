@@ -118,7 +118,8 @@ public class StoreService
                 IsGift = s.IsGift,
                 DiscountAmount = s.DiscountAmount,
                 SaleDate = s.SaleDate,
-                ReceiptNumber = s.ReceiptNumber
+                ReceiptNumber = s.ReceiptNumber,
+                Notes = s.Notes
             })
             .ToListAsync();
     }
@@ -188,7 +189,8 @@ public class StoreService
             IsGift = dto.IsGift,
             DiscountAmount = discount,
             SaleDate = saleTimestamp,
-            ReceiptNumber = receiptNumber
+            ReceiptNumber = receiptNumber,
+            Notes = dto.Notes
         };
 
         _context.ProductSales.Add(sale);
@@ -297,6 +299,7 @@ public class StoreService
             DiscountAmount = sale.DiscountAmount,
             SaleDate = sale.SaleDate,
             ReceiptNumber = sale.ReceiptNumber,
+            Notes = sale.Notes,
             CombinedMonthlyDescription = combinedMonthlyDesc,
             CombinedMonthlyAmount = combinedMonthlyAmount
         };

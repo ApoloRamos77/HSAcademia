@@ -203,16 +203,28 @@ export default function Finanzas() {
   };
 
   const regenerateDebtReceipt = (d) => {
-    // Use the stored receipt number from the last installment (no new counter increment)
+    // Regenerate using the LAST installment's receipt number and its specific amount
     const lastInstallment = d.installments?.slice(-1)[0];
-    const receiptNumber = lastInstallment?.receiptNumber;
+    if (!lastInstallment) return;
     generateReceiptPDF({
-      receiptNumber,
+      receiptNumber: lastInstallment.receiptNumber,
       customerName: d.studentName,
       description: d.description,
       quantity: 1,
-      total: parseFloat(d.amountPaid || d.amount),
-      notes: 'Copia de Recibo - Mensualidad/Cobro'
+      total: parseFloat(lastInstallment.amountPaid),
+      notes: lastInstallment.notes || 'Copia de Recibo - Mensualidad/Cobro'
+    });
+  };
+
+  const regenerateInstallmentReceipt = (d, installment) => {
+    // Regenerate receipt for a specific installment (pago parcial)
+    generateReceiptPDF({
+      receiptNumber: installment.receiptNumber,
+      customerName: d.studentName,
+      description: `${d.description} (Cuota parcial)`,
+      quantity: 1,
+      total: parseFloat(installment.amountPaid),
+      notes: installment.notes || 'Recibo de pago parcial'
     });
   };
 
@@ -228,7 +240,8 @@ export default function Finanzas() {
 
   const overdueDebts   = debts.filter(d => !d.isPaid && d.status === 'Vencido');
   const inCourseDebts  = debts.filter(d => !d.isPaid && d.status === 'En Curso');
-  const totalPending   = debts.reduce((s, d) => s + (d.amount - d.amountPaid), 0);
+  // Solo sumar saldo pendiente de registros no pagados (evita incluir cobros ya cerrados cuando showAll=true)
+  const totalPending   = debts.filter(d => !d.isPaid).reduce((s, d) => s + Math.max(0, d.amount - d.amountPaid), 0);
 
   if (loading) return <AppLayout title="Finanzas"><div className="text-center p-8"><span className="spinner" style={{borderColor:'var(--primary)',borderTopColor:'transparent'}}></span></div></AppLayout>;
 
@@ -434,6 +447,16 @@ export default function Finanzas() {
                                         {i.operationNumber && <span className="text-text-muted text-xs">Op: {i.operationNumber}</span>}
                                         {i.notes && <span className="text-text-muted text-xs italic">{i.notes}</span>}
                                         {i.voucherUrl && <a href={i.voucherUrl} target="_blank" rel="noreferrer" className="text-primary-400 text-xs underline">Ver voucher</a>}
+                                        {i.receiptNumber && (
+                                          <button
+                                            onClick={() => regenerateInstallmentReceipt(d, i)}
+                                            className="btn btn-sm btn-ghost text-primary-400 flex items-center gap-1 ml-auto"
+                                            title={`Descargar recibo N° ${i.receiptNumber}`}
+                                          >
+                                            <Download size={12}/>
+                                            <span className="text-xs">N° {i.receiptNumber}</span>
+                                          </button>
+                                        )}
                                       </div>
                                     ))}
                                   </div>
@@ -499,8 +522,9 @@ export default function Finanzas() {
               <div className="bg-bg-dark p-4 rounded border border-border mb-4">
                 <ul className="text-sm text-text-muted list-disc pl-4 space-y-1">
                   <li>Respeta exoneraciones (Becados, Invitados).</li>
-                  <li><b className="text-warning">Reemplaza</b> cargos no pagados si ya existen para ese mes.</li>
-                  <li><b className="text-success">Nunca sobreescribe</b> un cobro ya pagado.</li>
+                  <li><b className="text-warning">Actualiza</b> el monto de cargos sin pagar si ya existen.</li>
+                  <li><b className="text-success">Nunca sobreescribe</b> un cobro ya pagado (mes cerrado).</li>
+                  <li><b className="text-success">Preserva pagos parciales</b>: si hay abonos registrados, solo ajusta el saldo pendiente.</li>
                   <li>Aplica montos preferenciales si existen.</li>
                   <li>Calcula <b>prorrateo automático</b> si el alumno inició después del día 1.</li>
                   <li>Estado <b>En Curso</b> = antes de vencer · <b>Vencido</b> = superó la fecha.</li>

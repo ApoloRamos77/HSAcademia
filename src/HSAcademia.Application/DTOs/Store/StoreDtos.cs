@@ -40,6 +40,7 @@ public class ProductSaleDto
     public decimal DiscountAmount { get; set; }
     public DateTime SaleDate { get; set; }
     public string? ReceiptNumber { get; set; }
+    public string? Notes { get; set; }
     
     /// <summary>Populated when a monthly fee was also paid in the same receipt.</summary>
     public string? CombinedMonthlyDescription { get; set; }
@@ -60,6 +61,7 @@ public class CreateProductSaleDto
     public string? PaymentMethod { get; set; }
     public string? OperationNumber { get; set; }
     public string? VoucherUrl { get; set; }
+    public string? Notes { get; set; }
     
     public decimal? CustomDiscount { get; set; }
 
