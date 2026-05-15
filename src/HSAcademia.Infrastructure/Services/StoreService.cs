@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using HSAcademia.Application.DTOs.Store;
 using HSAcademia.Domain.Entities;
+using HSAcademia.Domain.Enums;
 using HSAcademia.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using static HSAcademia.Domain.Entities.PaymentMethod;
@@ -131,6 +132,11 @@ public class StoreService
             .FirstOrDefaultAsync(s => s.Id == saleId && s.AcademyId == academyId && !s.IsDeleted);
 
         if (sale == null) throw new Exception("Venta no encontrada o ya fue anulada.");
+
+        // Verificar si el mes contable está cerrado
+        var isClosed = await _context.MonthlyClosings
+            .AnyAsync(c => c.AcademyId == academyId && c.Month == sale.SaleDate.Month && c.Year == sale.SaleDate.Year && c.Status == MonthlyClosingStatus.Closed);
+        if (isClosed) throw new Exception($"No se puede anular la venta porque el mes contable ({sale.SaleDate:MMMM yyyy}) está cerrado.");
 
         // Soft delete the sale
         sale.IsDeleted = true;

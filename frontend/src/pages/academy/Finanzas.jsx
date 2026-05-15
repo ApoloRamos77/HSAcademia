@@ -4,7 +4,7 @@ import AppLayout from '../../components/AppLayout';
 import {
   DollarSign, Settings, Play, AlertTriangle, CheckCircle, Search,
   Calendar, FileText, RefreshCw, Ban, CreditCard, ChevronDown, ChevronUp, X, CalendarPlus, Download,
-  TrendingDown, BarChart3, Archive, Users
+  TrendingDown, BarChart3, Archive, Users, Lock
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { generateReceiptPDF } from '../../utils/pdfGenerator';
@@ -60,6 +60,9 @@ export default function Finanzas() {
   const [selected, setSelected] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
 
+  // Estado de mes contable cerrado
+  const [monthClosed, setMonthClosed] = useState(false);
+
   // Pay form
   const [payForm, setPayForm] = useState({ amountPaid: '', method: 'Cash', operationNumber: '', voucherUrl: '', notes: '', discount: '' });
   // Recalc form
@@ -80,6 +83,19 @@ export default function Finanzas() {
   }, [showAll, filterYear, filterMonth]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Verificar si el mes filtrado está cerrado
+  useEffect(() => {
+    const checkClosed = async () => {
+      try {
+        const res = await api.get(`/finances-premium/closings?month=${filterMonth}&year=${filterYear}`);
+        setMonthClosed(res.data?.status === 'Closed');
+      } catch {
+        setMonthClosed(false);
+      }
+    };
+    checkClosed();
+  }, [filterYear, filterMonth]);
 
   const handleConfigSubmit = async (e) => {
     e.preventDefault();
@@ -274,6 +290,13 @@ export default function Finanzas() {
         {/* DEBTS TAB */}
         {activeTab === 'debts' && (
           <div className="fade-in">
+            {/* Banner: mes cerrado */}
+            {monthClosed && (
+              <div className="flex items-center gap-3 mb-5 p-3 rounded-lg border border-warning/40 bg-warning/10 text-warning text-sm font-medium">
+                <Lock size={16} className="shrink-0"/>
+                <span>El mes <b>{['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][filterMonth-1]} {filterYear}</b> está contablemente cerrado. No se pueden registrar ni modificar cobros en este período.</span>
+              </div>
+            )}
             {/* Stats */}
             <div className="stats-grid" style={{ marginBottom: 24 }}>
               <div className="stat-card" style={{ borderTop: '2px solid var(--danger)' }}>
@@ -400,17 +423,23 @@ export default function Finanzas() {
                               <td className="text-right">
                                 <div className="flex items-center justify-end gap-1">
                                   {!d.isPaid && (
-                                    <>
-                                      <button onClick={()=>openPay(d)} className="btn btn-sm btn-success flex items-center gap-1" title="Registrar Pago">
-                                        <CreditCard size={13}/> Cobrar
-                                      </button>
-                                      <button onClick={()=>openRecalc(d)} className="btn btn-sm btn-ghost text-warning flex items-center gap-1" title="Recalcular">
-                                        <RefreshCw size={13}/>
-                                      </button>
-                                      <button onClick={()=>openExclude(d)} className="btn btn-sm btn-ghost text-text-muted flex items-center gap-1" title="Exonerar">
-                                        <Ban size={13}/>
-                                      </button>
-                                    </>
+                                    monthClosed ? (
+                                      <span className="flex items-center gap-1 text-xs text-text-muted px-2" title="Mes contable cerrado">
+                                        <Lock size={12}/> Cerrado
+                                      </span>
+                                    ) : (
+                                      <>
+                                        <button onClick={()=>openPay(d)} className="btn btn-sm btn-success flex items-center gap-1" title="Registrar Pago">
+                                          <CreditCard size={13}/> Cobrar
+                                        </button>
+                                        <button onClick={()=>openRecalc(d)} className="btn btn-sm btn-ghost text-warning flex items-center gap-1" title="Recalcular">
+                                          <RefreshCw size={13}/>
+                                        </button>
+                                        <button onClick={()=>openExclude(d)} className="btn btn-sm btn-ghost text-text-muted flex items-center gap-1" title="Exonerar">
+                                          <Ban size={13}/>
+                                        </button>
+                                      </>
+                                    )
                                   )}
                                   {d.isPaid && (
                                     <>

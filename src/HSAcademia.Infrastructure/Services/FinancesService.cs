@@ -20,6 +20,18 @@ public class FinancesService
     }
 
     // ─────────────────────────────────────────────────────────────
+    // Helper: verificar si el mes contable está cerrado
+    // ─────────────────────────────────────────────────────────────
+    private async Task<bool> IsMonthClosedAsync(Guid academyId, int year, int month)
+    {
+        return await _context.MonthlyClosings
+            .AnyAsync(c => c.AcademyId == academyId
+                        && c.Year  == year
+                        && c.Month == month
+                        && c.Status == MonthlyClosingStatus.Closed);
+    }
+
+    // ─────────────────────────────────────────────────────────────
     // Configuration
     // ─────────────────────────────────────────────────────────────
     public async Task<FinancialConfigDto> GetConfigAsync(Guid academyId)
@@ -492,6 +504,10 @@ public class FinancesService
             .FirstOrDefaultAsync(p => p.Id == dto.PaymentRecordId && p.AcademyId == academyId)
             ?? throw new Exception("Registro de pago no encontrado.");
 
+        // Verificar si el mes contable está cerrado
+        if (await IsMonthClosedAsync(academyId, record.DueDate.Year, record.DueDate.Month))
+            throw new Exception($"No se puede registrar el cobro porque el mes contable ({record.DueDate:MMMM yyyy}) está cerrado.");
+
         if (record.IsPaid)
             throw new Exception("Este cobro ya está completamente pagado.");
         if (dto.AmountPaid <= 0)
@@ -544,6 +560,10 @@ public class FinancesService
             .Include(p => p.Installments)
             .FirstOrDefaultAsync(p => p.Id == dto.PaymentRecordId && p.AcademyId == academyId)
             ?? throw new Exception("Registro de pago no encontrado.");
+
+        // Verificar si el mes contable está cerrado
+        if (await IsMonthClosedAsync(academyId, record.DueDate.Year, record.DueDate.Month))
+            throw new Exception($"No se puede recalcular porque el mes contable ({record.DueDate:MMMM yyyy}) está cerrado.");
 
         if (record.IsPaid)
             throw new Exception("No se puede recalcular un pago ya completado.");
@@ -671,6 +691,10 @@ public class FinancesService
             .Include(p => p.Installments)
             .FirstOrDefaultAsync(p => p.Id == dto.PaymentRecordId && p.AcademyId == academyId)
             ?? throw new Exception("Registro de pago no encontrado.");
+
+        // Verificar si el mes contable está cerrado
+        if (await IsMonthClosedAsync(academyId, record.DueDate.Year, record.DueDate.Month))
+            throw new Exception($"No se puede exonerar porque el mes contable ({record.DueDate:MMMM yyyy}) está cerrado.");
 
         if (!Enum.TryParse<ExclusionType>(dto.ExclusionType, true, out var excType))
             excType = ExclusionType.FreeClass;

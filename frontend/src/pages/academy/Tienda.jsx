@@ -64,6 +64,7 @@ export default function Tienda() {
   const [loading, setLoading] = useState(true);
   const [searchProduct, setSearchProduct] = useState('');
   const [inventoryPage, setInventoryPage] = useState(1);
+  const [monthClosed, setMonthClosed] = useState(false); // ← mes contable cerrado
   const ITEMS_PER_PAGE = 10;
 
   // Confirm void dialog
@@ -106,6 +107,19 @@ export default function Tienda() {
       setLoading(false);
     }
   };
+
+  // Consultar si el mes del filtro está cerrado
+  useEffect(() => {
+    const checkClosed = async () => {
+      try {
+        const res = await api.get(`/finances-premium/closings?month=${filterMonth}&year=${filterYear}`);
+        setMonthClosed(res.data?.status === 'Closed');
+      } catch {
+        setMonthClosed(false);
+      }
+    };
+    checkClosed();
+  }, [filterYear, filterMonth]);
 
   const handleProductSubmit = async (e) => {
     e.preventDefault();
@@ -528,11 +542,23 @@ export default function Tienda() {
                           <button onClick={() => regenerateSaleReceipt(s)} className="btn btn-ghost btn-sm text-primary flex items-center gap-1" title="Volver a descargar recibo">
                             <Download size={14} /> PDF
                           </button>
-                          {isCurrentMonth(s.saleDate) && (
-                            <button onClick={() => handleVoidSale(s)} className="btn btn-ghost btn-sm text-danger flex items-center gap-1" title="Anular Venta">
-                              <Trash2 size={14} /> Anular
-                            </button>
-                          )}
+                          {/* Botón Anular — bloqueado si el mes está cerrado */}
+                          {(() => {
+                            const saleD = new Date(s.saleDate);
+                            const sMonth = saleD.getMonth() + 1;
+                            const sYear  = saleD.getFullYear();
+                            const isFiltered = sMonth === filterMonth && sYear === filterYear;
+                            const locked = isFiltered && monthClosed;
+                            return (
+                              <button
+                                onClick={() => locked ? toast.error('El mes contable está cerrado. No se puede anular.') : handleVoidSale(s)}
+                                className={`btn btn-ghost btn-sm flex items-center gap-1 ${locked ? 'text-text-muted cursor-not-allowed' : 'text-danger'}`}
+                                title={locked ? 'Mes contable cerrado' : 'Anular Venta'}
+                              >
+                                <Trash2 size={14} /> Anular
+                              </button>
+                            );
+                          })()}
                         </div>
                       </td>
                     </tr>
