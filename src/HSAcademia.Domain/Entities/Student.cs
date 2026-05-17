@@ -21,7 +21,7 @@ public class Student
     public string? DocumentNumber { get; set; }
     public Guid? UserId { get; set; }
     public virtual User? User { get; set; }
-    public DateTime DateOfBirth { get; set; }
+    public DateTime? DateOfBirth { get; set; }
     
     public Guid HeadquarterId { get; set; }
     public virtual Headquarter Headquarter { get; set; } = null!;

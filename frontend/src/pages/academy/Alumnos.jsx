@@ -104,18 +104,21 @@ export default function Alumnos() {
 
   const currentAge = calculateAge(formData.dateOfBirth);
   
-  // Filter categories based on headquarter and age
-  const availableCategories = categorias.filter(c => {
-    const matchHq = formData.headquarterId ? c.headquarterId === formData.headquarterId : true;
-    let matchDate = true;
-    if (formData.dateOfBirth && c.startDateOfBirth && c.endDateOfBirth) {
-      const dob = new Date(formData.dateOfBirth);
+  const availableCategories = categorias.filter(c => 
+    formData.headquarterId ? c.headquarterId === formData.headquarterId : true
+  );
+
+  const suggestedCategoryId = useMemo(() => {
+    if (!formData.dateOfBirth) return null;
+    const dob = new Date(formData.dateOfBirth);
+    const suggested = availableCategories.find(c => {
+      if (!c.startDateOfBirth || !c.endDateOfBirth) return false;
       const start = new Date(c.startDateOfBirth);
       const end = new Date(c.endDateOfBirth);
-      matchDate = dob >= start && dob <= end;
-    }
-    return matchHq && matchDate;
-  });
+      return dob >= start && dob <= end;
+    });
+    return suggested ? suggested.id : null;
+  }, [formData.dateOfBirth, availableCategories]);
 
   const filteredAlumnos = alumnos.filter(a => {
     const q = search.toLowerCase();
@@ -512,8 +515,10 @@ export default function Alumnos() {
                         <input type="text" className="form-control" value={formData.documentNumber} onChange={e => setFormData({...formData, documentNumber: e.target.value})} />
                       </div>
                       <div className="form-group">
-                        <label className="form-label">Fecha de Nacimiento *</label>
-                        <input required type="date" min="1900-01-01" max="2100-12-31" className="form-control" value={formData.dateOfBirth} onChange={e => setFormData({...formData, dateOfBirth: e.target.value})} />
+                        <label className="form-label flex justify-between items-center">
+                          <span>Fecha de Nacimiento <span className="text-text-muted text-xs font-normal">(Opcional)</span></span>
+                        </label>
+                        <input type="date" min="1900-01-01" max="2100-12-31" className="form-control" value={formData.dateOfBirth} onChange={e => setFormData({...formData, dateOfBirth: e.target.value})} />
                         {currentAge !== null && (
                           <span className="text-xs text-primary-400 mt-1 inline-block">Edad calculada: {currentAge} años</span>
                         )}
@@ -598,15 +603,20 @@ export default function Alumnos() {
                     </div>
 
                     <div className="form-group bg-bg-dark p-4 rounded-lg border border-border/50">
-                      <label className="form-label text-warning mb-2">Sugerencia Automática de Categoría *</label>
-                      {(!formData.dateOfBirth || !formData.headquarterId) ? (
-                        <p className="text-sm text-text-muted italic">Complete la fecha de nacimiento y sede para ver categorías disponibles.</p>
+                      <label className="form-label text-warning mb-2">Asignación de Categoría *</label>
+                      {!formData.headquarterId ? (
+                        <p className="text-sm text-text-muted italic">Seleccione una sede para ver las categorías disponibles.</p>
                       ) : availableCategories.length === 0 ? (
-                        <p className="text-sm text-danger italic">No hay categorías disponibles para esta edad en la sede seleccionada.</p>
+                        <p className="text-sm text-danger italic">No hay categorías disponibles en la sede seleccionada.</p>
                       ) : (
                         <select required className="form-control border-warning/50 focus:border-warning focus:ring-warning/20" value={formData.categoryId} onChange={e => setFormData({...formData, categoryId: e.target.value})}>
-                          <option value="">-- Asigne la Categoría --</option>
-                          {availableCategories.map(c => <option key={c.id} value={c.id}>{c.name} ({c.startDateOfBirth?.split('T')[0]} a {c.endDateOfBirth?.split('T')[0]})</option>)}
+                          <option value="">-- Seleccione una Categoría --</option>
+                          {availableCategories.map(c => (
+                            <option key={c.id} value={c.id}>
+                              {c.name} {c.id === suggestedCategoryId ? '(Sugerida por edad)' : ''} 
+                              {c.startDateOfBirth ? ` (${c.startDateOfBirth.split('T')[0]} a ${c.endDateOfBirth.split('T')[0]})` : ''}
+                            </option>
+                          ))}
                         </select>
                       )}
                     </div>

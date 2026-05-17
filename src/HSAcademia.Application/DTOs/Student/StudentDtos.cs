@@ -10,7 +10,7 @@ public class StudentDto
     public string? Email { get; set; }
     public string? Phone { get; set; }  // Celular del alumno
     public string? DocumentNumber { get; set; }
-    public DateTime DateOfBirth { get; set; }
+    public DateTime? DateOfBirth { get; set; }
     public int Age { get; set; }
     
     public Guid HeadquarterId { get; set; }
@@ -41,7 +41,7 @@ public class CreateStudentDto
     public string? Email { get; set; }
     public string? Phone { get; set; }  // Celular del alumno (obligatorio si no hay apoderado)
     public string? DocumentNumber { get; set; }
-    public DateTime DateOfBirth { get; set; }
+    public DateTime? DateOfBirth { get; set; }
     
     public Guid HeadquarterId { get; set; }
     public Guid CategoryId { get; set; }
@@ -93,7 +93,7 @@ public class MobileStudentProfileDto
     public string LastName { get; set; } = string.Empty;
     public string? Email { get; set; }
     public string? DocumentNumber { get; set; }
-    public DateTime DateOfBirth { get; set; }
+    public DateTime? DateOfBirth { get; set; }
     public int Age { get; set; }
     public DateTime EnrollmentDate { get; set; }
 

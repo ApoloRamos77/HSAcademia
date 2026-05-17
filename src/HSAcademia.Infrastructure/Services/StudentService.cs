@@ -56,7 +56,9 @@ public class StudentService
             DocumentNumber = s.DocumentNumber,
             Phone = s.Phone,
             DateOfBirth = s.DateOfBirth,
-            Age = s.DateOfBirth > today.AddYears(- (today.Year - s.DateOfBirth.Year)) ? (today.Year - s.DateOfBirth.Year) - 1 : (today.Year - s.DateOfBirth.Year),
+            Age = s.DateOfBirth.HasValue 
+                ? (s.DateOfBirth.Value > today.AddYears(- (today.Year - s.DateOfBirth.Value.Year)) ? (today.Year - s.DateOfBirth.Value.Year) - 1 : (today.Year - s.DateOfBirth.Value.Year))
+                : 0,
             HeadquarterId = s.HeadquarterId,
             HeadquarterName = s.Headquarter.Name,
             CategoryId = s.CategoryId,
@@ -124,7 +126,7 @@ public class StudentService
             AcademyId = academyId,
             FirstName = dto.FirstName,
             LastName = dto.LastName,
-            DateOfBirth = dto.DateOfBirth.ToUniversalTime(),
+            DateOfBirth = dto.DateOfBirth?.ToUniversalTime(),
             DocumentNumber = dto.DocumentNumber,
             Phone = dto.Phone,
             HeadquarterId = dto.HeadquarterId,
@@ -235,8 +237,12 @@ public class StudentService
         if (student == null) return null;
 
         var today = DateTime.UtcNow;
-        int age = today.Year - student.DateOfBirth.Year;
-        if (student.DateOfBirth.Date > today.AddYears(-age)) age--;
+        int age = 0;
+        if (student.DateOfBirth.HasValue)
+        {
+            age = today.Year - student.DateOfBirth.Value.Year;
+            if (student.DateOfBirth.Value.Date > today.AddYears(-age)) age--;
+        }
 
         return new MobileStudentProfileDto
         {
@@ -284,7 +290,7 @@ public class StudentService
         student.FirstName = dto.FirstName;
         student.LastName = dto.LastName;
         student.DocumentNumber = dto.DocumentNumber;
-        student.DateOfBirth = dto.DateOfBirth.ToUniversalTime();
+        student.DateOfBirth = dto.DateOfBirth?.ToUniversalTime();
         student.HeadquarterId = dto.HeadquarterId;
         student.CategoryId = dto.CategoryId;
         student.IsActive = dto.IsActive;
@@ -418,7 +424,7 @@ public class StudentService
             DocumentNumber = s.DocumentNumber,
             Phone = s.Phone,
             DateOfBirth = s.DateOfBirth,
-            Age = today.Year - s.DateOfBirth.Year - (s.DateOfBirth.Date > today.AddYears(-(today.Year - s.DateOfBirth.Year)) ? 1 : 0),
+            Age = s.DateOfBirth.HasValue ? today.Year - s.DateOfBirth.Value.Year - (s.DateOfBirth.Value.Date > today.AddYears(-(today.Year - s.DateOfBirth.Value.Year)) ? 1 : 0) : 0,
             HeadquarterId = s.HeadquarterId,
             HeadquarterName = s.Headquarter?.Name ?? "",
             CategoryId = s.CategoryId,
