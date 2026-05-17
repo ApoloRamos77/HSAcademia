@@ -186,8 +186,8 @@ export default function FinanceDashboardTab() {
         resData = res.data;
       } else if (type === 'losses') {
         const res = await api.get(`/finances/debts/all?year=${year}&month=${month}`);
-        // Filter those with discount
-        resData = res.data.filter(d => d.discount > 0);
+        // Filter those with discount amount
+        resData = res.data.filter(d => d.discountAmount > 0);
       }
       setDetailModal(prev => ({ ...prev, data: resData, loading: false }));
     } catch {
@@ -261,41 +261,45 @@ export default function FinanceDashboardTab() {
             <div 
               className="stat-card cursor-pointer hover:-translate-y-1 transition-transform"
               onClick={() => openDetail('income', 'Detalle de Mensualidades')}
+              style={{ borderTop: '2px solid #84cc16' }}
             >
               <div className="stat-label">Mensualidades</div>
-              <div className="stat-value text-success text-3xl font-bold">S/. {summary.totalIncome.toFixed(2)}</div>
+              <div className="stat-value text-3xl font-bold" style={{ color: '#84cc16' }}>S/. {summary.totalIncome.toFixed(2)}</div>
               <div className="text-sm text-text-muted mt-1">Cobrado en {MONTHS[month-1]}</div>
-              <div className="stat-icon text-success"><TrendingUp size={32}/></div>
+              <div className="stat-icon" style={{ color: '#84cc16' }}><TrendingUp size={32}/></div>
             </div>
 
             <div 
               className="stat-card cursor-pointer hover:-translate-y-1 transition-transform"
               onClick={() => openDetail('store', 'Detalle de Tienda')}
+              style={{ borderTop: '2px solid #84cc16' }}
             >
               <div className="stat-label">Ventas Tienda</div>
-              <div className="stat-value text-teal-400 text-3xl font-bold">S/. {(summary.totalStoreRevenue || 0).toFixed(2)}</div>
+              <div className="stat-value text-3xl font-bold" style={{ color: '#84cc16' }}>S/. {(summary.totalStoreRevenue || 0).toFixed(2)}</div>
               <div className="text-sm text-text-muted mt-1">Ingresos extra</div>
-              <div className="stat-icon text-teal-400"><DollarSign size={32}/></div>
+              <div className="stat-icon" style={{ color: '#84cc16' }}><DollarSign size={32}/></div>
             </div>
 
             <div 
               className="stat-card cursor-pointer hover:-translate-y-1 transition-transform"
               onClick={() => openDetail('expenses', 'Detalle de Egresos')}
+              style={{ borderTop: '2px solid #f97316' }}
             >
               <div className="stat-label">Egresos</div>
-              <div className="stat-value text-danger text-3xl font-bold">S/. {summary.totalExpenses.toFixed(2)}</div>
+              <div className="stat-value text-3xl font-bold" style={{ color: '#f97316' }}>S/. {summary.totalExpenses.toFixed(2)}</div>
               <div className="text-sm text-text-muted mt-1">Gastos del período</div>
-              <div className="stat-icon text-danger"><TrendingDown size={32}/></div>
+              <div className="stat-icon" style={{ color: '#f97316' }}><TrendingDown size={32}/></div>
             </div>
 
             <div 
               className="stat-card cursor-pointer hover:-translate-y-1 transition-transform"
               onClick={() => openDetail('staff', 'Detalle de Nómina')}
+              style={{ borderTop: '2px solid #f97316' }}
             >
               <div className="stat-label">Nómina</div>
-              <div className="stat-value text-warning text-3xl font-bold">S/. {summary.totalStaffPayments.toFixed(2)}</div>
+              <div className="stat-value text-3xl font-bold" style={{ color: '#f97316' }}>S/. {summary.totalStaffPayments.toFixed(2)}</div>
               <div className="text-sm text-text-muted mt-1">Pagos confirmados</div>
-              <div className="stat-icon text-warning"><Users size={32}/></div>
+              <div className="stat-icon" style={{ color: '#f97316' }}><Users size={32}/></div>
             </div>
           </div>
 
@@ -303,11 +307,12 @@ export default function FinanceDashboardTab() {
             <div 
               className="stat-card cursor-pointer hover:-translate-y-1 transition-transform"
               onClick={() => openDetail('losses', 'Detalle de Pérdidas')}
+              style={{ borderTop: '2px solid #ef4444' }}
             >
               <div className="stat-label">Pérdidas y Descuentos</div>
-              <div className="stat-value text-orange-400 text-3xl font-bold">S/. {((summary.totalDiscounts || 0) + (summary.totalGiftCost || 0)).toFixed(2)}</div>
+              <div className="stat-value text-3xl font-bold" style={{ color: '#ef4444' }}>S/. {((summary.totalDiscounts || 0) + (summary.totalGiftCost || 0)).toFixed(2)}</div>
               <div className="text-sm text-text-muted mt-1">Becas: S/. {(summary.totalDiscounts || 0).toFixed(2)}</div>
-              <div className="stat-icon text-orange-400"><ArrowDownRight size={32}/></div>
+              <div className="stat-icon" style={{ color: '#ef4444' }}><ArrowDownRight size={32}/></div>
             </div>
 
             <div className="stat-card">
@@ -610,7 +615,7 @@ export default function FinanceDashboardTab() {
                         <><th>Staff</th><th>Total Pagado</th><th>Estado</th></>
                       )}
                       {detailModal.type === 'losses' && (
-                        <><th>Alumno</th><th>Mes</th><th>Descuento</th></>
+                        <><th>Alumno</th><th>Descripción</th><th>Período</th><th>Descuento</th></>
                       )}
                     </tr>
                   </thead>
@@ -635,9 +640,12 @@ export default function FinanceDashboardTab() {
                         {detailModal.type === 'expenses' && (
                           <>
                             <td>{new Date(item.date).toLocaleDateString()}</td>
-                            <td>{EXPENSE_LABELS[item.category] || item.category}</td>
-                            <td>{item.concept}</td>
-                            <td className="text-danger font-bold">S/. {item.amount.toFixed(2)}</td>
+                            <td>{EXPENSE_LABELS[item.type] || item.type}</td>
+                            <td>
+                              <div className="font-medium">{item.description}</div>
+                              {item.supplier && <div className="text-xs text-text-muted">{item.supplier}</div>}
+                            </td>
+                            <td className="font-bold" style={{ color: '#f97316' }}>S/. {item.amount.toFixed(2)}</td>
                           </>
                         )}
                         {detailModal.type === 'staff' && (
@@ -654,8 +662,9 @@ export default function FinanceDashboardTab() {
                         {detailModal.type === 'losses' && (
                           <>
                             <td>{item.studentName}</td>
-                            <td>{MONTHS[item.month - 1]} {item.year}</td>
-                            <td className="text-orange-400 font-bold">S/. {item.discount.toFixed(2)}</td>
+                            <td>{item.description}</td>
+                            <td>{new Date(item.dueDate).toLocaleDateString('es-PE', { month: 'long', year: 'numeric' })}</td>
+                            <td className="font-bold text-red-400">S/. {item.discountAmount.toFixed(2)}</td>
                           </>
                         )}
                       </tr>
