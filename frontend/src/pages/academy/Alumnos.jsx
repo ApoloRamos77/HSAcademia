@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import api from '../../api/axios';
 import AppLayout from '../../components/AppLayout';
 import { PlusCircle, Search, Users, Activity, FileText, Calendar, MapPin, UserPlus, X, Filter } from 'lucide-react';
