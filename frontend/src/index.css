@@ -340,30 +340,29 @@ select.form-control { cursor: pointer; }
 .login-page {
   min-height: 100vh; display: flex; align-items: center; justify-content: center;
   background:
-    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(62,177,229,0.2) 0%, transparent 60%),
-    radial-gradient(ellipse 50% 40% at 90% 90%, rgba(118,184,88,0.15) 0%, transparent 50%),
-    linear-gradient(160deg, #E8F2F7 0%, #F8FAFC 50%, #FFFFFF 100%);
+    radial-gradient(circle at 15% 85%, rgba(118,184,88,0.4) 0%, transparent 50%),
+    radial-gradient(circle at 85% 15%, rgba(62,177,229,0.4) 0%, transparent 50%),
+    linear-gradient(135deg, var(--primary-dark) 0%, #153A61 100%);
   padding: 24px;
 }
 .login-card {
   width: 100%; max-width: 440px;
-  background: rgba(255,255,255,0.95);
-  border: 1px solid var(--border-strong);
+  background: #FFFFFF;
+  border: 1px solid rgba(255,255,255,0.8);
   border-radius: 28px; padding: 40px 36px;
-  box-shadow: 0 32px 80px rgba(37,88,140,0.15), var(--glow-blue);
-  backdrop-filter: blur(12px);
+  box-shadow: 0 32px 80px rgba(0,0,0,0.3), 0 0 40px rgba(62,177,229,0.15);
   position: relative; overflow: hidden;
 }
 .login-card::before {
   content: '';
-  position: absolute; top: 0; left: 0; right: 0; height: 4px;
+  position: absolute; top: 0; left: 0; right: 0; height: 5px;
   background: linear-gradient(90deg, var(--primary), var(--accent));
 }
 .login-logo { text-align: center; margin-bottom: 28px; }
 .login-logo img {
   width: 90px; height: 90px; border-radius: 50%;
   border: 3px solid var(--primary);
-  box-shadow: 0 0 32px rgba(62,177,229,0.3);
+  box-shadow: 0 8px 24px rgba(36,88,140,0.15);
   margin-bottom: 14px; object-fit: cover;
   background: #fff;
 }
