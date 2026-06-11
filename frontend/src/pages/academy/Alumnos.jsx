@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import api from '../../api/axios';
 import AppLayout from '../../components/AppLayout';
-import { PlusCircle, Search, Users, Activity, FileText, Calendar, MapPin, UserPlus, X, Filter } from 'lucide-react';
+import { PlusCircle, Search, Users, Activity, FileText, Calendar, MapPin, UserPlus, X, Filter, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import { Apple, Activity as ActivityIcon } from 'lucide-react';
@@ -140,6 +140,52 @@ export default function Alumnos() {
   const currentAlumnos = filteredAlumnos.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(filteredAlumnos.length / itemsPerPage);
 
+  const handleExportCSV = () => {
+    const headers = [
+      "Nombres",
+      "Apellidos",
+      "DNI",
+      "Edad",
+      "Fecha de Nacimiento",
+      "Celular",
+      "Correo",
+      "Sede",
+      "Categoría",
+      "Estado",
+      "Apoderado",
+      "Celular Apoderado"
+    ];
+
+    const csvData = filteredAlumnos.map(a => [
+      a.firstName || '',
+      a.lastName || '',
+      a.documentNumber || '',
+      a.age || '',
+      a.dateOfBirth ? a.dateOfBirth.split('T')[0] : '',
+      a.phone || '',
+      a.email || '',
+      a.headquarterName || '',
+      a.categoryName || '',
+      a.isActive ? 'Activo' : 'Inactivo',
+      a.guardianName || '',
+      a.guardianPhone || ''
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...csvData.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", "alumnos_export.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -269,11 +315,16 @@ export default function Alumnos() {
               </h3>
               <p className="text-muted mt-1">Registra alumnos, apoderados y su ficha médica/nutricional.</p>
             </div>
-            {user?.role !== 'Staff' && (
-              <button onClick={() => { setFormData(initialForm); setEditingId(null); setCurrentStep(1); setShowModal(true); }} className="btn btn-primary">
-                <PlusCircle size={16} /> Registrar Alumno
+            <div className="flex gap-2">
+              <button onClick={handleExportCSV} className="btn btn-outline flex items-center gap-2">
+                <Download size={16} /> Exportar
               </button>
-            )}
+              {user?.role !== 'Staff' && (
+                <button onClick={() => { setFormData(initialForm); setEditingId(null); setCurrentStep(1); setShowModal(true); }} className="btn btn-primary flex items-center gap-2">
+                  <PlusCircle size={16} /> Registrar Alumno
+                </button>
+              )}
+            </div>
           </div>
 
           {/* ── Filter Bar ── */}
