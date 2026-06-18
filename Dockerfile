@@ -23,8 +23,8 @@ COPY --from=build /app/publish .
 
 # Variables de Entorno por defecto (pueden sobreescribirse al hacer docker run)
 ENV ASPNETCORE_ENVIRONMENT=Production
-ENV ASPNETCORE_URLS=http://+:8080
+ENV ASPNETCORE_URLS=http://+:8082
 
-EXPOSE 8080
+EXPOSE 8082
 
 ENTRYPOINT ["dotnet", "HSAcademia.API.dll"]
