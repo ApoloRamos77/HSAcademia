@@ -2,7 +2,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
-import Landing from './pages/public/Landing';
+import LandingProduct from './pages/public/LandingProduct';
+import LandingAcademy from './pages/public/LandingAcademy';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import SuperAdminDashboard from './pages/superadmin/Dashboard';
@@ -138,7 +139,8 @@ export default function App() {
             </ProtectedRoute>
           } />
 
-          <Route path="/" element={<Landing />} />
+          <Route path="/" element={<LandingProduct />} />
+          <Route path="/a/:tenantId" element={<LandingAcademy />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
