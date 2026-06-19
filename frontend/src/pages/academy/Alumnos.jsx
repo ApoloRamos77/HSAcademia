@@ -512,15 +512,15 @@ export default function Alumnos() {
               <div className="flex justify-between items-center mb-6 border-b border-border pb-4">
                 <h3 className="modal-title m-0 text-lg font-bold">{user?.role === 'Staff' ? 'Detalles del Alumno' : (editingId ? 'Editar Alumno' : 'Registrar Nuevo Alumno')}</h3>
                 <div className="flex items-center gap-4">
-                  {/* Pestañas (Tabs) */}
-                  <div className="flex gap-1 bg-bg-surface p-1 rounded-lg border border-border/50">
-                    <button type="button" onClick={() => setCurrentStep(1)} className={`px-4 py-1.5 rounded-md text-sm transition-all ${currentStep === 1 ? 'bg-primary text-bg-dark font-bold shadow' : 'text-text-muted hover:text-text-main'}`}>1. Alumno</button>
-                    <button type="button" onClick={() => setCurrentStep(2)} className={`px-4 py-1.5 rounded-md text-sm transition-all ${currentStep === 2 ? 'bg-primary text-bg-dark font-bold shadow' : 'text-text-muted hover:text-text-main'}`}>2. Apoderado</button>
-                    <button type="button" onClick={() => setCurrentStep(3)} className={`px-4 py-1.5 rounded-md text-sm transition-all ${currentStep === 3 ? 'bg-primary text-bg-dark font-bold shadow' : 'text-text-muted hover:text-text-main'}`}>3. Ficha Médica</button>
+                  {/* Pestañas (Tabs) con estilo elegante */}
+                  <div className="flex bg-bg-surface p-1.5 rounded-xl border border-border shadow-sm">
+                    <button type="button" onClick={() => setCurrentStep(1)} className={`px-6 py-2 rounded-lg text-sm transition-all duration-300 ${currentStep === 1 ? 'bg-white text-primary-dark font-bold shadow-sm border border-border/50' : 'text-text-muted hover:text-primary-dark font-medium border border-transparent hover:bg-white/50'}`}>1. Alumno</button>
+                    <button type="button" onClick={() => setCurrentStep(2)} className={`px-6 py-2 rounded-lg text-sm transition-all duration-300 ${currentStep === 2 ? 'bg-white text-primary-dark font-bold shadow-sm border border-border/50' : 'text-text-muted hover:text-primary-dark font-medium border border-transparent hover:bg-white/50'}`}>2. Apoderado</button>
+                    <button type="button" onClick={() => setCurrentStep(3)} className={`px-6 py-2 rounded-lg text-sm transition-all duration-300 ${currentStep === 3 ? 'bg-white text-primary-dark font-bold shadow-sm border border-border/50' : 'text-text-muted hover:text-primary-dark font-medium border border-transparent hover:bg-white/50'}`}>3. Ficha Médica</button>
                   </div>
                   {/* Botón Guardar Principal */}
                   {user?.role !== 'Staff' && (
-                    <button type="button" onClick={handleSave} className="btn btn-primary py-1.5 px-4 flex items-center gap-2 shadow-md">
+                    <button type="button" onClick={handleSave} className="btn btn-primary py-2 px-5 flex items-center gap-2 shadow-md hover:shadow-lg transition-all rounded-xl">
                       <FileText size={16} /> Guardar
                     </button>
                   )}
@@ -766,15 +766,15 @@ export default function Alumnos() {
                 )}
                 </fieldset>
                 
-                <div className="modal-footer mt-6 flex justify-between items-center border-t border-border pt-4">
-                  <button type="button" onClick={() => setShowModal(false)} className="btn btn-ghost text-danger">Cancelar</button>
+                <div className="modal-footer mt-6 flex justify-between items-center border-t border-border pt-5">
+                  <button type="button" onClick={() => setShowModal(false)} className="btn btn-ghost text-danger hover:bg-danger/10 border-transparent hover:border-danger/20 rounded-xl px-5 py-2 font-medium transition-all">Cancelar</button>
                   
-                  <div className="flex gap-2">
+                  <div className="flex gap-3">
                     {currentStep > 1 && (
-                      <button type="button" onClick={() => setCurrentStep(currentStep - 1)} className="btn btn-outline">Atrás</button>
+                      <button type="button" onClick={() => setCurrentStep(currentStep - 1)} className="btn bg-white border border-border text-text-secondary hover:border-primary-light hover:text-primary-dark transition-all rounded-xl px-6 py-2 shadow-sm font-medium">Atrás</button>
                     )}
                     {currentStep < 3 && (
-                      <button type="button" onClick={() => setCurrentStep(currentStep + 1)} className="btn btn-outline">Siguiente Pestaña</button>
+                      <button type="button" onClick={() => setCurrentStep(currentStep + 1)} className="btn bg-primary-light/40 border border-primary-light/50 text-primary-dark hover:bg-primary-light hover:text-primary-dark transition-all rounded-xl px-6 py-2 shadow-sm font-bold">Siguiente Pestaña</button>
                     )}
                   </div>
                 </div>
