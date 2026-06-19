@@ -1,13 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import AppLayout from '../../components/AppLayout';
-import { Users, Mail, Phone, Search } from 'lucide-react';
+import { Users, Mail, Phone, Search, Edit2, User } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function Padres() {
   const [padres, setPadres] = useState([]);
+  const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showStudentsModal, setShowStudentsModal] = useState(false);
+  const [editingPadre, setEditingPadre] = useState(null);
+  const [selectedStudents, setSelectedStudents] = useState([]);
+  const [formData, setFormData] = useState({ firstName: '', lastName: '', email: '', phone: '' });
 
   useEffect(() => {
     fetchData();
@@ -16,9 +23,12 @@ export default function Padres() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const { data } = await api.get('/academy-config/users');
-      // Filtramos solo los Apoderados (Guardians)
-      setPadres(data.filter(u => u.systemRole === 'Guardian'));
+      const [uRes, sRes] = await Promise.all([
+        api.get('/academy-config/users'),
+        api.get('/students')
+      ]);
+      setPadres(uRes.data.filter(u => u.systemRole === 'Guardian'));
+      setStudents(sRes.data || []);
     } catch (err) {
       toast.error('Error al cargar apoderados');
     } finally {
@@ -30,6 +40,41 @@ export default function Padres() {
     (p.firstName + ' ' + p.lastName).toLowerCase().includes(search.toLowerCase()) ||
     (p.email || '').toLowerCase().includes(search.toLowerCase())
   );
+
+  const handleEdit = (p) => {
+    setEditingPadre(p);
+    setFormData({
+      firstName: p.firstName, lastName: p.lastName,
+      email: p.email || '', phone: p.phone || ''
+    });
+    setShowEditModal(true);
+  };
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    try {
+      const payload = {
+        ...editingPadre,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        phone: formData.phone
+      };
+      await api.put(`/academy-config/users/${editingPadre.id}`, payload);
+      toast.success('Apoderado actualizado correctamente');
+      setShowEditModal(false);
+      fetchData(); // Recargar para obtener datos actualizados
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Error al actualizar apoderado');
+    }
+  };
+
+  const handleViewStudents = (p) => {
+    const associated = students.filter(s => s.guardianId === p.id);
+    setSelectedStudents(associated);
+    setEditingPadre(p);
+    setShowStudentsModal(true);
+  };
 
   if (loading) return <AppLayout title="Apoderados"><div className="text-center p-8"><span className="spinner" style={{borderColor: 'var(--primary)', borderTopColor: 'transparent'}}></span></div></AppLayout>;
 
@@ -61,39 +106,134 @@ export default function Padres() {
               No se encontraron apoderados registrados.
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filtered.map(p => (
-                <div key={p.id} className="card p-5 bg-bg-dark hover:bg-bg-surface border border-border/50 transition-colors">
-                  <div className="flex gap-4 items-start">
-                    <div className="w-12 h-12 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold text-xl shrink-0 border border-indigo-500/30">
-                      {p.firstName[0]}{p.lastName[0]}
-                    </div>
-                    <div className="flex-1 overflow-hidden">
-                      <h3 className="font-bold text-white text-lg truncate" title={`${p.firstName} ${p.lastName}`}>
-                        {p.firstName} {p.lastName}
-                      </h3>
-                      <span className="badge mt-1 inline-block bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                        Apoderado
-                      </span>
-                      
-                      <div className="flex flex-col gap-2 mt-4 text-sm text-text-secondary">
-                        <div className="flex items-center gap-2 truncate">
-                          <Mail size={14} className="text-primary-400 shrink-0"/> 
-                          <span className="truncate">{p.email || 'Sin correo'}</span>
-                        </div>
-                        <div className="flex items-center gap-2 truncate">
-                          <Phone size={14} className="text-primary-400 shrink-0"/> 
-                          <span>{p.phone || 'Sin teléfono'}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
+            <div className="table-container">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Apoderado</th>
+                    <th>Contacto</th>
+                    <th>Alumnos a cargo</th>
+                    <th className="text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map(p => {
+                    const linkedStudentsCount = students.filter(s => s.guardianId === p.id).length;
+                    return (
+                      <tr key={p.id}>
+                        <td>
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-indigo-500/10 text-indigo-500 flex items-center justify-center font-bold text-sm shrink-0 border border-indigo-500/20">
+                              {p.firstName[0]}{p.lastName[0]}
+                            </div>
+                            <div>
+                              <div className="font-bold text-text-primary text-sm">{p.firstName} {p.lastName}</div>
+                              <div className="text-xs mt-0.5">
+                                <span className="badge inline-block bg-indigo-500/10 text-indigo-500">
+                                  Apoderado
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="text-sm text-text-secondary flex flex-col gap-1">
+                            <div className="flex items-center gap-1.5"><Mail size={13} className="text-primary"/> <span className="truncate max-w-[200px]">{p.email || 'Sin correo'}</span></div>
+                            <div className="flex items-center gap-1.5"><Phone size={13} className="text-primary"/> {p.phone || 'Sin teléfono'}</div>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="text-sm text-text-secondary">
+                            <span className="badge badge-muted flex items-center gap-1 w-fit">
+                              <User size={12} /> {linkedStudentsCount} {linkedStudentsCount === 1 ? 'Alumno' : 'Alumnos'}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="text-right align-middle">
+                          <button onClick={() => handleViewStudents(p)} className="btn btn-ghost btn-sm mr-2" title="Ver Alumnos Vinculados">
+                            <Users size={16} />
+                          </button>
+                          <button onClick={() => handleEdit(p)} className="btn btn-ghost btn-sm" title="Editar Apoderado">
+                            <Edit2 size={16} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
       </div>
+
+      {showEditModal && (
+        <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+            <h3 className="modal-title">Editar Apoderado</h3>
+            <form onSubmit={handleSave}>
+              <div className="form-group">
+                <label className="form-label">Nombre *</label>
+                <input required type="text" className="form-control" value={formData.firstName} onChange={e => setFormData({...formData, firstName: e.target.value})} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Apellido *</label>
+                <input required type="text" className="form-control" value={formData.lastName} onChange={e => setFormData({...formData, lastName: e.target.value})} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Correo Electrónico</label>
+                <input type="email" className="form-control" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Celular / Teléfono</label>
+                <input type="text" className="form-control" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
+              </div>
+              
+              <div className="modal-footer mt-6 flex justify-between items-center border-t border-border pt-5">
+                <button type="button" onClick={() => setShowEditModal(false)} className="btn btn-ghost text-danger hover:bg-danger/10 border-transparent hover:border-danger/20 rounded-xl px-5 py-2 font-medium transition-all">Cancelar</button>
+                <button type="submit" className="btn btn-primary px-6" style={{ height: '44px', borderRadius: '10px' }}>Guardar Cambios</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showStudentsModal && (
+        <div className="modal-overlay" onClick={() => setShowStudentsModal(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px' }}>
+            <h3 className="modal-title mb-2">Alumnos Vinculados</h3>
+            <p className="text-sm text-text-muted mb-6">
+              Alumnos registrados a cargo de <strong>{editingPadre?.firstName} {editingPadre?.lastName}</strong>.
+            </p>
+            
+            {selectedStudents.length === 0 ? (
+              <div className="text-center p-6 bg-bg-surface rounded-lg text-text-muted">
+                No hay alumnos vinculados a este apoderado.
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+                {selectedStudents.map(s => (
+                  <div key={s.id} className="flex items-center gap-4 p-4 bg-bg-surface rounded-xl border border-border">
+                    <div className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-lg border border-primary/20">
+                      {s.firstName[0]}{s.lastName[0]}
+                    </div>
+                    <div>
+                      <div className="font-bold text-base text-text-primary">{s.firstName} {s.lastName}</div>
+                      <div className="text-sm text-text-muted mt-1">
+                        Sede: {s.headquarterName} · Categoría: {s.categoryName}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            <div className="modal-footer mt-6 flex justify-end border-t border-border pt-5">
+              <button type="button" onClick={() => setShowStudentsModal(false)} className="btn btn-ghost hover:bg-bg-surface rounded-xl px-6 py-2 transition-all">Cerrar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 }

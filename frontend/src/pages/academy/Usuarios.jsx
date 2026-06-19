@@ -152,54 +152,64 @@ export default function Usuarios() {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {usuarios.map(user => (
-              <div key={user.id} className="card p-5" style={{ background: 'var(--bg-surface)' }}>
-                <div className="flex gap-4 items-start">
-                  <div className="w-12 h-12 rounded-full bg-primary-500/20 text-primary-400 flex items-center justify-center font-bold text-xl shrink-0 border border-primary/30">
-                    {user.firstName[0]}{user.lastName[0]}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h3 className="font-bold text-lg">{user.firstName} {user.lastName}</h3>
-                        <span className={`badge mt-1 inline-block ${user.systemRole === 'AcademyAdmin' ? 'bg-primary/20 text-primary-100' : 'badge-muted'}`}>
-                          {user.systemRole === 'AcademyAdmin' ? 'Admin' : 'Staff'}
-                        </span>
-                      </div>
-                      <div className="flex flex-col items-end gap-2">
-                        <span className={`badge ${user.status === 'Active' ? 'badge-success' : 'badge-danger'}`}>
-                          {user.status}
-                        </span>
-                        <button onClick={() => handleEdit(user)} className="btn btn-ghost btn-sm" title="Editar"><Edit2 size={14}/></button>
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-3 mt-4 text-sm text-text-secondary">
-                      <div className="flex items-center gap-2"><Mail size={14} className="text-primary-400"/> <span className="truncate">{user.email}</span></div>
-                      <div className="flex items-center gap-2"><Phone size={14} className="text-primary-400"/> {user.phone || '-'}</div>
-                      <div className="flex items-center gap-2"><Shield size={14} className="text-warning"/> {user.academyRoleName || 'Sin Cargo'}</div>
-                      <div className="flex items-center gap-2"><MapPin size={14} className="text-success"/> {user.headquarterName || 'Todas las Sedes'}</div>
-                    </div>
-                    <div className="mt-2 pt-2 border-t border-border/50 text-xs flex gap-3 text-text-muted">
-                      <span className="font-semibold">{user.paymentType === 1 ? '⏱ Por Sesión' : '📅 Mensual'}</span>
-                      <span>Tarifa: S/. {(user.paymentRate || 0).toFixed(2)}</span>
-                    </div>
-                    
-                    {user.categoryNames?.length > 0 && (
-                      <div className="mt-3 pt-3 border-t border-border/50 text-xs text-text-muted">
-                        <span className="font-semibold text-text-secondary mb-1 block">Categorías asignadas:</span>
-                        <div className="flex flex-wrap gap-1">
-                          {user.categoryNames.map((name, i) => (
-                            <span key={i} className="px-2 py-0.5 bg-border rounded-md">{name}</span>
-                          ))}
+          <div className="table-container">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Personal</th>
+                  <th>Contacto</th>
+                  <th>Asignación</th>
+                  <th>Condición</th>
+                  <th className="text-right">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {usuarios.map(user => (
+                  <tr key={user.id}>
+                    <td>
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-primary-light/20 text-primary-dark flex items-center justify-center font-bold text-sm shrink-0 border border-primary/30">
+                          {user.firstName[0]}{user.lastName[0]}
+                        </div>
+                        <div>
+                          <div className="font-bold text-text-primary text-sm">{user.firstName} {user.lastName}</div>
+                          <div className="text-xs mt-0.5">
+                            <span className={`badge inline-block ${user.systemRole === 'AcademyAdmin' ? 'badge-info' : 'badge-muted'}`}>
+                              {user.systemRole === 'AcademyAdmin' ? 'Admin' : 'Staff'}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
+                    </td>
+                    <td>
+                      <div className="text-sm text-text-secondary flex flex-col gap-1">
+                        <div className="flex items-center gap-1.5"><Mail size={13} className="text-primary"/> <span className="truncate max-w-[150px]">{user.email}</span></div>
+                        <div className="flex items-center gap-1.5"><Phone size={13} className="text-primary"/> {user.phone || '-'}</div>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="text-sm text-text-secondary flex flex-col gap-1">
+                        <div className="flex items-center gap-1.5"><Shield size={13} className="text-warning"/> {user.academyRoleName || 'Sin Cargo'}</div>
+                        <div className="flex items-center gap-1.5"><MapPin size={13} className="text-success"/> <span className="truncate max-w-[150px]">{user.headquarterName || 'Todas las Sedes'}</span></div>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="flex flex-col gap-1 items-start">
+                        <span className={`badge ${user.status === 'Active' ? 'badge-success' : 'badge-danger'}`}>
+                          {user.status === 'Active' ? 'Activo' : user.status}
+                        </span>
+                        <span className="text-xs text-text-muted font-medium">
+                          {user.paymentType === 1 ? '⏱ Por Sesión' : '📅 Mensual'}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="text-right align-middle">
+                      <button onClick={() => handleEdit(user)} className="btn btn-ghost btn-sm" title="Editar"><Edit2 size={16}/></button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
 

@@ -520,7 +520,7 @@ export default function Alumnos() {
                   </div>
                   {/* Botón Guardar Principal */}
                   {user?.role !== 'Staff' && (
-                    <button type="button" onClick={handleSave} className="btn btn-primary shadow-md hover:shadow-lg transition-all rounded-xl">
+                    <button type="button" onClick={handleSave} className="btn btn-success px-6" style={{ height: '44px', borderRadius: '10px' }}>
                       <FileText size={16} /> Guardar
                     </button>
                   )}
