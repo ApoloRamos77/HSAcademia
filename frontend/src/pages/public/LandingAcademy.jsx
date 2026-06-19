@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ChevronRight, Calendar, Trophy, ShoppingBag, Phone, Mail, MapPin, Send, MessageCircle } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 import { getTenantData } from '../../utils/tenantConfig';
 import './LandingAcademy.css';
 
 export default function LandingAcademy() {
   const navigate = useNavigate();
   const { tenantId } = useParams();
+  const { user } = useAuth();
   const [scrolled, setScrolled] = useState(false);
   const [tenantData, setTenantData] = useState(null);
 
@@ -50,9 +52,18 @@ export default function LandingAcademy() {
           </div>
 
           <div className="la-nav-actions">
-            <button className="la-btn-login" onClick={() => navigate('/login')}>
-              Portal Alumnos
-            </button>
+            {user ? (
+              <button 
+                className="la-btn-login" 
+                onClick={() => navigate((user.role === 'AcademyAdmin' || user.role === 'Staff') ? '/dashboard' : '/student/dashboard')}
+              >
+                {(user.role === 'AcademyAdmin' || user.role === 'Staff') ? 'Administración' : 'Ir a mi Panel'}
+              </button>
+            ) : (
+              <button className="la-btn-login" onClick={() => navigate('/login')}>
+                Iniciar Sesión
+              </button>
+            )}
           </div>
         </div>
       </nav>
