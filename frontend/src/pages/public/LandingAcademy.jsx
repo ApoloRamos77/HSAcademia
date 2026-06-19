@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ChevronRight, Calendar, Trophy, ShoppingBag, Phone, Mail, MapPin, Send, MessageCircle } from 'lucide-react';
+import { ChevronRight, Phone, Mail, MapPin, Send, MessageCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { getTenantData } from '../../utils/tenantConfig';
 import './LandingAcademy.css';
@@ -13,9 +13,8 @@ export default function LandingAcademy() {
   const [tenantData, setTenantData] = useState(null);
 
   useEffect(() => {
-    // In a real app, you would fetch from API here.
-    // For now, we use the mock config.
-    const data = getTenantData(tenantId || 'adhsoft-sport');
+    // In a real app, this might be an API call.
+    const data = getTenantData(tenantId);
     setTenantData(data);
   }, [tenantId]);
 
@@ -26,18 +25,21 @@ export default function LandingAcademy() {
   }, []);
 
   if (!tenantData) {
-    return <div className="la-not-found">Academia no encontrada</div>;
+    return <div className="la-not-found">Cargando...</div>;
   }
 
-  // Inject CSS variables for the tenant
+  // Inject CSS variables for the 5-color theme structure
   const tenantStyles = {
-    '--la-primary': tenantData.theme.primaryColor,
-    '--la-secondary': tenantData.theme.secondaryColor,
+    '--la-primary': tenantData.theme.primary,
+    '--la-secondary': tenantData.theme.secondary,
+    '--la-accent': tenantData.theme.accent,
+    '--la-text-light': tenantData.theme.textLight,
+    '--la-text-dark': tenantData.theme.textDark,
   };
 
   return (
     <div className="landing-academy" style={tenantStyles}>
-      {/* Navbar */}
+      {/* Navbar Premium */}
       <nav className={`la-nav ${scrolled ? 'nav-scrolled' : ''}`}>
         <div className="la-nav-container">
           <div className="la-brand">
@@ -46,9 +48,11 @@ export default function LandingAcademy() {
           </div>
           
           <div className="la-nav-links">
-            <a href="#inicio">Inicio</a>
-            <a href="#entrenamiento">Entrenamiento</a>
-            <a href="#contacto">Contacto</a>
+            <a href="#inicio">INICIO</a>
+            <a href="#entrenamiento">ENTRENAMIENTO</a>
+            <a href="#torneos">TORNEOS</a>
+            <a href="#productos">PRODUCTOS</a>
+            <a href="#contacto">CONTÁCTENOS</a>
           </div>
 
           <div className="la-nav-actions">
@@ -75,16 +79,15 @@ export default function LandingAcademy() {
         </a>
       )}
 
-      {/* Hero Section */}
+      {/* Hero Section Centered */}
       <section id="inicio" className="la-hero-section">
         <div className="la-hero-overlay"></div>
         <div className="la-hero-content">
-          <span className="la-hero-badge">¡Únete hoy!</span>
-          <h1 className="la-hero-title">{tenantData.name.toUpperCase()}</h1>
-          <p className="la-hero-subtitle">{tenantData.slogan}</p>
+          <span className="la-hero-badge">{tenantData.badge || 'BIENVENIDO A LA ÉLITE'}</span>
+          <h1 className="la-hero-title" dangerouslySetInnerHTML={{ __html: tenantData.slogan.replace(' ADHSOFT SPORT', '<br/>ADHSOFT SPORT') }} />
           <p className="la-hero-desc">{tenantData.description}</p>
           <div className="la-hero-buttons">
-            <button className="la-btn-primary-large" onClick={() => navigate('/registro')}>
+            <button className="la-btn-primary-large glowing" onClick={() => navigate('/registro')}>
               Inscríbete Ahora <ChevronRight size={18} />
             </button>
             <a href="#entrenamiento" className="la-btn-ghost-large">
@@ -94,7 +97,7 @@ export default function LandingAcademy() {
         </div>
       </section>
 
-      {/* Entrenamiento / Categories Section */}
+      {/* Entrenamiento Section */}
       <section id="entrenamiento" className="la-training-section">
         <div className="la-section-header">
           <h2 className="la-section-title">NUESTROS PROGRAMAS</h2>
