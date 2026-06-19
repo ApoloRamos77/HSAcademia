@@ -513,14 +513,14 @@ export default function Alumnos() {
                 <h3 className="modal-title m-0 text-lg font-bold">{user?.role === 'Staff' ? 'Detalles del Alumno' : (editingId ? 'Editar Alumno' : 'Registrar Nuevo Alumno')}</h3>
                 <div className="flex items-center gap-4">
                   {/* Pestañas (Tabs) con estilo elegante */}
-                  <div className="flex bg-bg-surface p-1.5 rounded-xl border border-border shadow-sm">
-                    <button type="button" onClick={() => setCurrentStep(1)} className={`px-6 py-2 rounded-lg text-sm transition-all duration-300 ${currentStep === 1 ? 'bg-white text-primary-dark font-bold shadow-sm border border-border/50' : 'text-text-muted hover:text-primary-dark font-medium border border-transparent hover:bg-white/50'}`}>1. Alumno</button>
-                    <button type="button" onClick={() => setCurrentStep(2)} className={`px-6 py-2 rounded-lg text-sm transition-all duration-300 ${currentStep === 2 ? 'bg-white text-primary-dark font-bold shadow-sm border border-border/50' : 'text-text-muted hover:text-primary-dark font-medium border border-transparent hover:bg-white/50'}`}>2. Apoderado</button>
-                    <button type="button" onClick={() => setCurrentStep(3)} className={`px-6 py-2 rounded-lg text-sm transition-all duration-300 ${currentStep === 3 ? 'bg-white text-primary-dark font-bold shadow-sm border border-border/50' : 'text-text-muted hover:text-primary-dark font-medium border border-transparent hover:bg-white/50'}`}>3. Ficha Médica</button>
+                  <div className="tabs m-0">
+                    <button type="button" onClick={() => setCurrentStep(1)} className={`tab-pill ${currentStep === 1 ? 'active' : ''}`}>1. Alumno</button>
+                    <button type="button" onClick={() => setCurrentStep(2)} className={`tab-pill ${currentStep === 2 ? 'active' : ''}`}>2. Apoderado</button>
+                    <button type="button" onClick={() => setCurrentStep(3)} className={`tab-pill ${currentStep === 3 ? 'active' : ''}`}>3. Ficha Médica</button>
                   </div>
                   {/* Botón Guardar Principal */}
                   {user?.role !== 'Staff' && (
-                    <button type="button" onClick={handleSave} className="btn btn-primary py-2 px-5 flex items-center gap-2 shadow-md hover:shadow-lg transition-all rounded-xl">
+                    <button type="button" onClick={handleSave} className="btn btn-primary shadow-md hover:shadow-lg transition-all rounded-xl">
                       <FileText size={16} /> Guardar
                     </button>
                   )}
