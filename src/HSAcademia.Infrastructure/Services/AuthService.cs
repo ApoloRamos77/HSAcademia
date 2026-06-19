@@ -25,10 +25,29 @@ public class AuthService
             .Include(u => u.Academy)
             .Include(u => u.AcademyRole)
             .IgnoreQueryFilters()
-            .FirstOrDefaultAsync(u => u.Email.ToLower() == query || u.Phone == query);
+            .FirstOrDefaultAsync(u => u.Email.ToLower() == query || u.Phone == query || u.DocumentNumber == query);
 
         if (user == null || user.IsDeleted)
             return Result<LoginResponseDto>.Failure("Credenciales incorrectas.");
+
+        // Validar el rol seleccionado (opcional)
+        if (!string.IsNullOrEmpty(dto.Role))
+        {
+            bool roleMatches = false;
+            var reqRole = dto.Role.ToUpper();
+            
+            if (reqRole == "STAFF" && (user.Role == UserRole.AcademyAdmin || user.Role == UserRole.Staff))
+                roleMatches = true;
+            else if (reqRole == "ALUMNO" && user.Role == UserRole.Student)
+                roleMatches = true;
+            else if (reqRole == "APODERADO" && user.Role == UserRole.Guardian)
+                roleMatches = true;
+            else if (reqRole == "SUPERADMIN" && user.Role == UserRole.SuperAdmin)
+                roleMatches = true;
+
+            if (!roleMatches)
+                return Result<LoginResponseDto>.Failure($"No tienes permisos para ingresar con el rol de {dto.Role}.");
+        }
 
         if (!BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash))
             return Result<LoginResponseDto>.Failure("Credenciales incorrectas.");

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
-import { Mail, Lock, Eye, EyeOff, Search, ChevronDown, Check, ShieldAlert } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, ShieldAlert, Users, GraduationCap, User } from 'lucide-react';
 import './LoginPage.css';
 
 /* ────────────────────────────────────────────
@@ -25,47 +25,11 @@ export default function LoginPage() {
   // Derived state
   const isSuperAdmin = emailOrPhone.toLowerCase().includes(SUPERADMIN_HINT_EMAIL);
 
-  // Academy picker state
-  const [academies, setAcademies] = useState([]);
-  const [academySearch, setAcademySearch] = useState('');
-  const [selectedAcademy, setSelectedAcademy] = useState(null);
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [loadingAcademies, setLoadingAcademies] = useState(false);
-  const dropdownRef = useRef(null);
-  const searchTimeout = useRef(null);
+  // Role selector state
+  const [selectedRole, setSelectedRole] = useState(null);
 
-  // Close dropdown on outside click
-  useEffect(() => {
-    const handler = e => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target))
-        setShowDropdown(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  const fetchAcademies = useCallback(async (q = '') => {
-    try {
-      setLoadingAcademies(true);
-      const res = await api.get(`/auth/academies${q ? `?search=${encodeURIComponent(q)}` : ''}`);
-      setAcademies(res.data || []);
-    } catch {
-      setAcademies([]);
-    } finally {
-      setLoadingAcademies(false);
-    }
-  }, []);
-
-  // Fetch initial academies
-  useEffect(() => {
-    fetchAcademies('');
-  }, [fetchAcademies]);
-
-  const handleAcademySearch = v => {
-    setAcademySearch(v);
-    setSelectedAcademy(null);
-    clearTimeout(searchTimeout.current);
-    searchTimeout.current = setTimeout(() => fetchAcademies(v), 300);
+  const toggleRole = (role) => {
+    setSelectedRole(prev => prev === role ? null : role);
   };
 
   const handleSubmit = async e => {
@@ -77,22 +41,19 @@ export default function LoginPage() {
       return;
     }
 
-    if (!isSuperAdmin && !selectedAcademy) {
-      setError('Por favor selecciona una academia.');
-      return;
-    }
-
     setLoading(true);
     try {
-      if (selectedAcademy) {
-        localStorage.setItem('tenantId', selectedAcademy.tenantId);
-        api.defaults.headers.common['X-Tenant-Id'] = selectedAcademy.tenantId;
-      } else {
-        localStorage.removeItem('tenantId');
-        delete api.defaults.headers.common['X-Tenant-Id'];
-      }
+      // Limpiamos tenantId previo por si acaso
+      localStorage.removeItem('tenantId');
+      delete api.defaults.headers.common['X-Tenant-Id'];
 
-      const user = await login(emailOrPhone, password);
+      const user = await login(emailOrPhone, password, selectedRole);
+
+      // Si el backend retorna un tenantId luego del login, lo asignamos
+      if (user && user.tenantId) {
+        localStorage.setItem('tenantId', user.tenantId);
+        api.defaults.headers.common['X-Tenant-Id'] = user.tenantId;
+      }
       if (user.requirePasswordChange) {
         sessionStorage.setItem('_lp', password);
         navigate('/cambiar-password');
@@ -101,8 +62,8 @@ export default function LoginPage() {
         if (user.role === 'SuperAdmin') {
           navigate('/super-admin/dashboard');
         } else {
-          // Normal users get redirected to the Academy Landing Page
-          navigate(`/a/${selectedAcademy.tenantId}`);
+          // Normal users get redirected to the Academy Landing Page or their Dashboard
+          navigate(user.tenantId ? `/a/${user.tenantId}` : '/dashboard');
         }
       }
     } catch (err) {
@@ -183,54 +144,35 @@ export default function LoginPage() {
                 </div>
               </div>
             ) : (
-              /* ── ACADEMY SELECTOR ── */
-              <div className="form-group" ref={dropdownRef}>
-                <label>Selecciona tu Academia</label>
-                <div 
-                  className={`input-with-icon academy-select ${showDropdown ? 'focused' : ''}`}
-                  onClick={() => { setShowDropdown(true); if (academies.length === 0) fetchAcademies(); }}
-                >
-                  <Search size={18} className="input-icon" />
-                  <input
-                    type="text"
-                    placeholder="Busca el nombre de tu academia..."
-                    value={selectedAcademy ? selectedAcademy.name : academySearch}
-                    onChange={e => handleAcademySearch(e.target.value)}
-                    onFocus={() => { setShowDropdown(true); if (academies.length === 0) fetchAcademies(); }}
-                  />
-                  {selectedAcademy ? (
-                    <Check size={18} className="icon-success" />
-                  ) : (
-                    <ChevronDown size={18} className="input-icon-right" />
-                  )}
+              /* ── ROLE SELECTOR ── */
+              <div className="form-group">
+                <label>Selecciona tu Rol (Opcional)</label>
+                <div className="role-selector-container">
+                  <button 
+                    type="button" 
+                    className={`role-btn ${selectedRole === 'STAFF' ? 'active' : ''}`}
+                    onClick={() => toggleRole('STAFF')}
+                  >
+                    <Users size={20} />
+                    <span>Staff</span>
+                  </button>
+                  <button 
+                    type="button" 
+                    className={`role-btn ${selectedRole === 'ALUMNO' ? 'active' : ''}`}
+                    onClick={() => toggleRole('ALUMNO')}
+                  >
+                    <GraduationCap size={20} />
+                    <span>Alumno</span>
+                  </button>
+                  <button 
+                    type="button" 
+                    className={`role-btn ${selectedRole === 'APODERADO' ? 'active' : ''}`}
+                    onClick={() => toggleRole('APODERADO')}
+                  >
+                    <User size={20} />
+                    <span>Apoderado</span>
+                  </button>
                 </div>
-
-                {/* Dropdown */}
-                {showDropdown && (
-                  <div className="academy-dropdown">
-                    {loadingAcademies && (
-                      <div className="dropdown-message">Buscando academias...</div>
-                    )}
-                    {!loadingAcademies && academies.length === 0 && (
-                      <div className="dropdown-message">No se encontraron resultados</div>
-                    )}
-                    {academies.map(ac => (
-                      <div 
-                        key={ac.id}
-                        className={`dropdown-item ${selectedAcademy?.id === ac.id ? 'active' : ''}`}
-                        onMouseDown={() => { setSelectedAcademy(ac); setAcademySearch(ac.name); setShowDropdown(false); }}
-                      >
-                        <div className="dropdown-item-content">
-                          <strong>{ac.name}</strong>
-                          {(ac.city || ac.sport) && (
-                            <span>{[ac.city, ac.sport].filter(Boolean).join(' · ')}</span>
-                          )}
-                        </div>
-                        {selectedAcademy?.id === ac.id && <Check size={16} className="icon-success" />}
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
             )}
 

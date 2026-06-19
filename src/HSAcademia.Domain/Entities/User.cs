@@ -14,6 +14,7 @@ public class User
     public string Email { get; set; } = string.Empty;
     public string PasswordHash { get; set; } = string.Empty;
     public string? Phone { get; set; }
+    public string? DocumentNumber { get; set; }
     public string? AvatarUrl { get; set; }
     public UserRole Role { get; set; } = UserRole.AcademyAdmin;
     public UserStatus Status { get; set; } = UserStatus.Active;
