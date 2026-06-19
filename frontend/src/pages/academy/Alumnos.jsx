@@ -186,21 +186,14 @@ export default function Alumnos() {
     document.body.removeChild(link);
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSave = async (e) => {
+    if (e) e.preventDefault();
     
-    if (currentStep === 1) {
-      setCurrentStep(currentStep + 1);
+    // Validación manual de campos obligatorios en el Paso 1
+    if (!formData.firstName || !formData.lastName || !formData.headquarterId || !formData.enrollmentDate || !formData.categoryId) {
+      toast.error('Por favor complete todos los campos obligatorios del Alumno (*)');
+      setCurrentStep(1); // Mover a la primera pestaña para mostrar qué falta
       return;
-    }
-    
-    if (currentStep === 2) {
-      setCurrentStep(currentStep + 1);
-      return;
-    }
-
-    if (currentStep === 3) {
-      // No validation needed
     }
 
     try {
@@ -517,15 +510,24 @@ export default function Alumnos() {
           <div className="modal-overlay" onClick={() => setShowModal(false)}>
             <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '700px' }}>
               <div className="flex justify-between items-center mb-6 border-b border-border pb-4">
-                <h3 className="modal-title m-0">{user?.role === 'Staff' ? 'Detalles del Alumno' : (editingId ? 'Editar Alumno' : 'Registrar Nuevo Alumno')}</h3>
-                <div className="flex items-center gap-2 text-sm">
-                  <span className={`px-2 py-1 rounded ${currentStep === 1 ? 'bg-primary text-bg-dark font-bold' : 'bg-bg-surface text-text-muted'}`}>1. Alumno</span>
-                  <span className={`px-2 py-1 rounded ${currentStep === 2 ? 'bg-primary text-bg-dark font-bold' : 'bg-bg-surface text-text-muted'}`}>2. Apoderado</span>
-                  <span className={`px-2 py-1 rounded ${currentStep === 3 ? 'bg-primary text-bg-dark font-bold' : 'bg-bg-surface text-text-muted'}`}>3. Ficha Médica</span>
+                <h3 className="modal-title m-0 text-lg font-bold">{user?.role === 'Staff' ? 'Detalles del Alumno' : (editingId ? 'Editar Alumno' : 'Registrar Nuevo Alumno')}</h3>
+                <div className="flex items-center gap-4">
+                  {/* Pestañas (Tabs) */}
+                  <div className="flex gap-1 bg-bg-surface p-1 rounded-lg border border-border/50">
+                    <button type="button" onClick={() => setCurrentStep(1)} className={`px-4 py-1.5 rounded-md text-sm transition-all ${currentStep === 1 ? 'bg-primary text-bg-dark font-bold shadow' : 'text-text-muted hover:text-text-main'}`}>1. Alumno</button>
+                    <button type="button" onClick={() => setCurrentStep(2)} className={`px-4 py-1.5 rounded-md text-sm transition-all ${currentStep === 2 ? 'bg-primary text-bg-dark font-bold shadow' : 'text-text-muted hover:text-text-main'}`}>2. Apoderado</button>
+                    <button type="button" onClick={() => setCurrentStep(3)} className={`px-4 py-1.5 rounded-md text-sm transition-all ${currentStep === 3 ? 'bg-primary text-bg-dark font-bold shadow' : 'text-text-muted hover:text-text-main'}`}>3. Ficha Médica</button>
+                  </div>
+                  {/* Botón Guardar Principal */}
+                  {user?.role !== 'Staff' && (
+                    <button type="button" onClick={handleSave} className="btn btn-primary py-1.5 px-4 flex items-center gap-2 shadow-md">
+                      <FileText size={16} /> Guardar
+                    </button>
+                  )}
                 </div>
               </div>
               
-              <form onSubmit={handleSubmit}>
+              <form onSubmit={handleSave}>
                 <fieldset disabled={user?.role === 'Staff'} style={{ border: 'none', padding: 0, margin: 0 }}>
                 {/* STEP 1: ALUMNO */}
                 {currentStep === 1 && (
@@ -764,20 +766,17 @@ export default function Alumnos() {
                 )}
                 </fieldset>
                 
-                <div className="modal-footer mt-6 flex justify-between">
-                  {currentStep > 1 ? (
-                    <button type="button" onClick={() => setCurrentStep(currentStep - 1)} className="btn btn-ghost">Atrás</button>
-                  ) : (
-                    <button type="button" onClick={() => setShowModal(false)} className="btn btn-ghost text-danger">Cancelar</button>
-                  )}
+                <div className="modal-footer mt-6 flex justify-between items-center border-t border-border pt-4">
+                  <button type="button" onClick={() => setShowModal(false)} className="btn btn-ghost text-danger">Cancelar</button>
                   
-                  {currentStep < 3 ? (
-                    <button type="submit" className="btn btn-primary">Siguiente Paso</button>
-                  ) : (
-                    user?.role !== 'Staff' && (
-                      <button type="submit" className="btn btn-primary">Finalizar y Guardar</button>
-                    )
-                  )}
+                  <div className="flex gap-2">
+                    {currentStep > 1 && (
+                      <button type="button" onClick={() => setCurrentStep(currentStep - 1)} className="btn btn-outline">Atrás</button>
+                    )}
+                    {currentStep < 3 && (
+                      <button type="button" onClick={() => setCurrentStep(currentStep + 1)} className="btn btn-outline">Siguiente Pestaña</button>
+                    )}
+                  </div>
                 </div>
               </form>
             </div>
