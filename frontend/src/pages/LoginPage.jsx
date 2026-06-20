@@ -71,6 +71,8 @@ export default function LoginPage() {
         toast.success(`¡Bienvenido, ${user.fullName}!`);
         if (user.role === 'SuperAdmin') {
           navigate('/super-admin/dashboard');
+        } else if (user.role === 'Student' || user.role === 'Guardian') {
+          navigate('/student/dashboard');
         } else {
           // Normal users get redirected to the Academy Landing Page or their Dashboard
           navigate(user.tenantId ? `/a/${user.tenantId}` : '/dashboard');
