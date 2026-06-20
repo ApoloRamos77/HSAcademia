@@ -13,7 +13,7 @@ import './LoginPage.css';
 const SUPERADMIN_HINT_EMAIL = '@adhsoft';
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, logout } = useAuth();
   const navigate = useNavigate();
 
   const [emailOrPhone, setEmailOrPhone] = useState('');
@@ -49,11 +49,21 @@ export default function LoginPage() {
 
       const user = await login(emailOrPhone, password, selectedRole);
 
+      // Validación: Si no seleccionó rol, y NO es SuperAdmin ni AcademyAdmin,
+      // obligar a que seleccione su rol.
+      if (!selectedRole && user.role !== 'SuperAdmin' && user.role !== 'AcademyAdmin') {
+        logout(); // Revertimos el inicio de sesión
+        setError('Por favor selecciona tu rol para iniciar sesión.');
+        setLoading(false);
+        return;
+      }
+
       // Si el backend retorna un tenantId luego del login, lo asignamos
       if (user && user.tenantId) {
         localStorage.setItem('tenantId', user.tenantId);
         api.defaults.headers.common['X-Tenant-Id'] = user.tenantId;
       }
+      
       if (user.requirePasswordChange) {
         sessionStorage.setItem('_lp', password);
         navigate('/cambiar-password');
