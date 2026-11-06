@@ -33,7 +33,7 @@ export default function RegisterPage() {
         <h2 style={{ marginBottom: 12 }}>¡Solicitud enviada!</h2>
         <p className="text-muted" style={{ lineHeight: 1.6 }}>
           Hemos recibido su solicitud de registro para <strong>{form.academyName}</strong>.<br />
-          El equipo de ADHSOFT SPORT la revisará pronto y le notificará por correo.
+          El equipo de Clubio la revisará pronto y le notificará por correo.
         </p>
         <a href="/login" className="btn btn-primary" style={{ marginTop: 24, justifyContent: 'center' }}>
           Volver al inicio de sesión
@@ -46,7 +46,7 @@ export default function RegisterPage() {
     <div className="login-page" style={{ padding: '40px 20px' }}>
       <div className="card" style={{ maxWidth: 640, width: '100%' }}>
         <div className="login-logo">
-          <h1>ADHSOFT SPORT</h1>
+          <h1>Clubio</h1>
           <p>Solicitud de Registro de Academia</p>
         </div>
 

@@ -85,6 +85,6 @@ public class PublicController : ControllerBase
         var result = await _service.SubmitRegistrationRequestAsync(dto);
         if (!result.IsSuccess) return BadRequest(new { message = result.Error });
 
-        return Ok(new { message = "Solicitud enviada exitosamente. El equipo de ADHSOFT SPORT la revisará en breve.", requestId = result.Value });
+        return Ok(new { message = "Solicitud enviada exitosamente. El equipo de Clubio la revisará en breve.", requestId = result.Value });
     }
 }

@@ -168,7 +168,7 @@ if (swaggerEnabled)
     {
         c.SwaggerDoc("v1", new OpenApiInfo
         {
-            Title = "ADHSOFT SPORT API",
+            Title = "Clubio API",
             Version = "v1",
             Description = "Plataforma de Gestión Deportiva Multi-Academia"
         });
@@ -280,7 +280,7 @@ if (swaggerEnabled)
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "ADHSOFT SPORT API v1");
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Clubio API v1");
         c.RoutePrefix = "swagger";
     });
 }

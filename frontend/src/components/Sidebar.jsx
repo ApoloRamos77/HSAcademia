@@ -30,9 +30,9 @@ export default function Sidebar({ isOpen, onClose }) {
 
       {/* ── LOGO ── */}
       <div className="sidebar-logo">
-        <img src="/logo.png" alt="ADHSOFT SPORT" />
+        <img src="/logo.png" alt="Clubio" />
         <div className="sidebar-logo-text">
-          <h1>ADHSOFT SPORT</h1>
+          <h1>Clubio</h1>
           <span>Gestión Deportiva</span>
         </div>
       </div>

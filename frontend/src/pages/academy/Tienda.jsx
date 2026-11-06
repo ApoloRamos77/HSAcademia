@@ -206,6 +206,7 @@ export default function Tienda() {
 
       generateReceiptPDF({
         receiptNumber: res.data?.receiptNumber,
+        date: res.data?.saleDate,
         customerName: student ? `${student.firstName} ${student.lastName}` : 'Público General',
         items: items,
         total: combinedTotal,
@@ -241,6 +242,7 @@ export default function Tienda() {
 
     generateReceiptPDF({
       receiptNumber: s.receiptNumber,
+      date: s.saleDate,
       customerName: s.studentName || 'Público General',
       items: items,
       total: combinedTotal,

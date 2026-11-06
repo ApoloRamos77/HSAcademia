@@ -109,7 +109,7 @@ export default function LandingAcademy() {
         <div className="la-hero-overlay"></div>
         <div className="la-hero-content">
           <span className="la-hero-badge">{tenantData.badge || 'BIENVENIDO A LA ÉLITE'}</span>
-          <h1 className="la-hero-title" dangerouslySetInnerHTML={{ __html: tenantData.slogan.replace(' ADHSOFT SPORT', '<br/>ADHSOFT SPORT') }} />
+          <h1 className="la-hero-title" dangerouslySetInnerHTML={{ __html: tenantData.slogan.replace(' DE TU ', ' DE TU<br/>') }} />
           <p className="la-hero-desc">{tenantData.description}</p>
           <div className="la-hero-buttons">
             <button className="la-btn-primary-large glowing" onClick={() => navigate('/registro')}>
