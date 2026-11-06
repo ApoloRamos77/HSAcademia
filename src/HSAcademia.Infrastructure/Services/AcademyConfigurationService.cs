@@ -13,10 +13,12 @@ namespace HSAcademia.Infrastructure.Services;
 public class AcademyConfigurationService
 {
     private readonly AppDbContext _context;
+    private readonly AuditService _audit;
 
-    public AcademyConfigurationService(AppDbContext context)
+    public AcademyConfigurationService(AppDbContext context, AuditService audit)
     {
         _context = context;
+        _audit = audit;
     }
 
     // ==========================================
@@ -109,13 +111,22 @@ public class AcademyConfigurationService
                 Name = c.Name,
                 StartDateOfBirth = c.StartDateOfBirth,
                 EndDateOfBirth = c.EndDateOfBirth,
+                MonthlyFee = c.MonthlyFee,
                 IsActive = c.IsActive
             })
             .ToListAsync();
     }
 
+    private static void ValidateCategory(CreateCategoryDto dto)
+    {
+        if (string.IsNullOrWhiteSpace(dto.Name)) throw new Exception("El nombre de la categoría es obligatorio.");
+        if (dto.MonthlyFee.HasValue && dto.MonthlyFee.Value < 0) throw new Exception("La mensualidad no puede ser negativa.");
+        if (dto.EndDateOfBirth < dto.StartDateOfBirth) throw new Exception("La fecha de nacimiento final debe ser posterior a la inicial.");
+    }
+
     public async Task<CategoryDto> CreateCategoryAsync(Guid academyId, CreateCategoryDto dto)
     {
+        ValidateCategory(dto);
         var hq = await _context.Headquarters.FirstOrDefaultAsync(h => h.Id == dto.HeadquarterId && h.AcademyId == academyId);
         if (hq == null) throw new Exception("Sede no encontrada.");
 
@@ -125,15 +136,17 @@ public class AcademyConfigurationService
             HeadquarterId = dto.HeadquarterId,
             Name = dto.Name,
             StartDateOfBirth = dto.StartDateOfBirth.ToUniversalTime(),
-            EndDateOfBirth = dto.EndDateOfBirth.ToUniversalTime()
+            EndDateOfBirth = dto.EndDateOfBirth.ToUniversalTime(),
+            MonthlyFee = dto.MonthlyFee ?? 0m
         };
         _context.Categories.Add(category);
         await _context.SaveChangesAsync();
-        return new CategoryDto { Id = category.Id, HeadquarterId = category.HeadquarterId, HeadquarterName = hq.Name, Name = category.Name, StartDateOfBirth = category.StartDateOfBirth, EndDateOfBirth = category.EndDateOfBirth, IsActive = category.IsActive };
+        return new CategoryDto { Id = category.Id, HeadquarterId = category.HeadquarterId, HeadquarterName = hq.Name, Name = category.Name, StartDateOfBirth = category.StartDateOfBirth, EndDateOfBirth = category.EndDateOfBirth, MonthlyFee = category.MonthlyFee, IsActive = category.IsActive };
     }
 
     public async Task<CategoryDto> UpdateCategoryAsync(Guid academyId, Guid id, CreateCategoryDto dto)
     {
+        ValidateCategory(dto);
         var category = await _context.Categories.Include(c => c.Headquarter).FirstOrDefaultAsync(c => c.Id == id && c.AcademyId == academyId);
         if (category == null) throw new Exception("Categoría no encontrada.");
         var hq = await _context.Headquarters.FirstOrDefaultAsync(h => h.Id == dto.HeadquarterId && h.AcademyId == academyId);
@@ -143,8 +156,9 @@ public class AcademyConfigurationService
         category.Name = dto.Name;
         category.StartDateOfBirth = dto.StartDateOfBirth.ToUniversalTime();
         category.EndDateOfBirth = dto.EndDateOfBirth.ToUniversalTime();
+        if (dto.MonthlyFee.HasValue) category.MonthlyFee = dto.MonthlyFee.Value;
         await _context.SaveChangesAsync();
-        return new CategoryDto { Id = category.Id, HeadquarterId = category.HeadquarterId, HeadquarterName = hq.Name, Name = category.Name, StartDateOfBirth = category.StartDateOfBirth, EndDateOfBirth = category.EndDateOfBirth, IsActive = category.IsActive };
+        return new CategoryDto { Id = category.Id, HeadquarterId = category.HeadquarterId, HeadquarterName = hq.Name, Name = category.Name, StartDateOfBirth = category.StartDateOfBirth, EndDateOfBirth = category.EndDateOfBirth, MonthlyFee = category.MonthlyFee, IsActive = category.IsActive };
     }
 
     // ==========================================
@@ -208,20 +222,55 @@ public class AcademyConfigurationService
             .ToListAsync();
     }
 
+    /// <summary>Roles que un administrador de academia puede asignar. Nunca SuperAdmin.</summary>
+    private static readonly UserRole[] AssignableRoles = { UserRole.AcademyAdmin, UserRole.Staff, UserRole.Guardian, UserRole.Student };
+
+    private static UserRole ParseAssignableRole(string? value, UserRole fallback)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return fallback;
+        // Solo nombres (no números) y solo roles permitidos para una academia.
+        if (int.TryParse(value, out _) || !Enum.TryParse<UserRole>(value, true, out var role) || !AssignableRoles.Contains(role))
+            throw new Exception("Rol de sistema no válido.");
+        return role;
+    }
+
+    private Task<bool> EmailInUseAsync(string email, Guid? exceptUserId = null)
+    {
+        var normalized = email.Trim().ToLower();
+        // IgnoreQueryFilters: el índice único de email también incluye usuarios eliminados.
+        return _context.Users.IgnoreQueryFilters()
+            .AnyAsync(u => u.Email.ToLower() == normalized && (exceptUserId == null || u.Id != exceptUserId));
+    }
+
+    private async Task ValidateUserReferencesAsync(Guid academyId, Guid? academyRoleId, Guid? headquarterId)
+    {
+        if (academyRoleId.HasValue && !await _context.AcademyRoles.AnyAsync(r => r.Id == academyRoleId && r.AcademyId == academyId))
+            throw new Exception("El cargo seleccionado no es válido.");
+        if (headquarterId.HasValue && !await _context.Headquarters.AnyAsync(h => h.Id == headquarterId && h.AcademyId == academyId))
+            throw new Exception("La sede seleccionada no es válida.");
+    }
+
     public async Task<AcademyUserDto> CreateUserAsync(Guid academyId, CreateAcademyUserDto dto)
     {
-        if (await _context.Users.AnyAsync(u => u.Email == dto.Email))
+        if (string.IsNullOrWhiteSpace(dto.Email)) throw new Exception("El correo es obligatorio.");
+        if (await EmailInUseAsync(dto.Email))
             throw new Exception("El correo ya está en uso.");
 
-        if (!Enum.TryParse<UserRole>(dto.SystemRole, out var sysRole)) sysRole = UserRole.Staff;
+        var sysRole = ParseAssignableRole(dto.SystemRole, UserRole.Staff);
+        await ValidateUserReferencesAsync(academyId, dto.AcademyRoleId, dto.HeadquarterId);
+
+        if (string.IsNullOrWhiteSpace(dto.Password) || dto.Password.Length < 6)
+            throw new Exception("La contraseña inicial debe tener al menos 6 caracteres.");
 
         var user = new User
         {
             AcademyId = academyId,
             FirstName = dto.FirstName,
             LastName = dto.LastName,
-            Email = dto.Email,
+            Email = dto.Email.Trim().ToLower(),
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
+            // La contraseña la definió el administrador: el usuario debe cambiarla al ingresar.
+            MustChangePassword = true,
             Phone = dto.Phone,
             Role = sysRole,
             AcademyRoleId = dto.AcademyRoleId,
@@ -251,16 +300,21 @@ public class AcademyConfigurationService
             .Include(u => u.AssignedCategories)
             .FirstOrDefaultAsync(u => u.Id == id && u.AcademyId == academyId);
         if (user == null) throw new Exception("Usuario no encontrado.");
-        if (user.Email != dto.Email && await _context.Users.AnyAsync(u => u.Email == dto.Email))
+        if (string.IsNullOrWhiteSpace(dto.Email)) throw new Exception("El correo es obligatorio.");
+        if (await EmailInUseAsync(dto.Email, user.Id))
             throw new Exception("El correo ya está en uso por otro usuario.");
 
-        if (!Enum.TryParse<UserRole>(dto.SystemRole, out var sysRole)) sysRole = UserRole.Staff;
+        var sysRole = ParseAssignableRole(dto.SystemRole, user.Role);
+        await ValidateUserReferencesAsync(academyId, dto.AcademyRoleId, dto.HeadquarterId);
 
         user.FirstName = dto.FirstName;
         user.LastName = dto.LastName;
-        user.Email = dto.Email;
+        user.Email = dto.Email.Trim().ToLower();
         if (!string.IsNullOrEmpty(dto.Password))
+        {
             user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password);
+            user.MustChangePassword = true;
+        }
         user.Phone = dto.Phone;
         user.Role = sysRole;
         user.AcademyRoleId = dto.AcademyRoleId;
@@ -287,14 +341,15 @@ public class AcademyConfigurationService
         return new AcademyUserDto { Id = user.Id, FirstName = user.FirstName, LastName = user.LastName, Email = user.Email };
     }
 
-    public async Task<bool> ResetUserPasswordAsync(Guid academyId, Guid id, string newPassword = "123456")
+    /// <summary>Genera una contraseña temporal aleatoria, obliga a cambiarla y la devuelve para entregarla al usuario.</summary>
+    public async Task<string> ResetUserPasswordAsync(Guid academyId, Guid id)
     {
         var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == id && u.AcademyId == academyId);
         if (user == null) throw new Exception("Usuario no encontrado.");
-        
-        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
-        
+
+        var temp = AuthService.AssignTemporaryPassword(user);
+        _audit.Add(academyId, "users.password.reset", "User", user.Id, new { user.Email });
         await _context.SaveChangesAsync();
-        return true;
+        return temp;
     }
 }

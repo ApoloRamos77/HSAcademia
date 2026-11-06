@@ -2,6 +2,8 @@ using HSAcademia.Application.DTOs.Calendar;
 using HSAcademia.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using HSAcademia.API.Authorization;
+using HSAcademia.Infrastructure.Services;
 using System.Security.Claims;
 
 namespace HSAcademia.API.Controllers;
@@ -35,7 +37,6 @@ public class CalendarController : ControllerBase
     /// Returns all real events + virtual birthday events for the given month.
     /// </summary>
     [HttpGet("events")]
-    [AllowAnonymous]
     public async Task<IActionResult> GetEvents(
         [FromQuery] int year,
         [FromQuery] int month,
@@ -48,7 +49,7 @@ public class CalendarController : ControllerBase
 
         var academyId = GetAcademyId();
         
-        var userIdStr = User.FindFirst("userId")?.Value;
+        var userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         var userId = Guid.TryParse(userIdStr, out var uId) ? uId : (Guid?)null;
         var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "";
 
@@ -73,6 +74,8 @@ public class CalendarController : ControllerBase
     /// Creates a new event. Returns 409 Conflict if a scheduling conflict is detected.
     /// </summary>
     [HttpPost("events")]
+    [Authorize(Roles = "AcademyAdmin,Staff")]
+    [RequirePermission(Permissions.ManageEvents)]
     public async Task<IActionResult> CreateEvent([FromBody] CreateEventDto dto)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -92,6 +95,8 @@ public class CalendarController : ControllerBase
     /// DELETE /api/calendar/events/{id}
     /// </summary>
     [HttpDelete("events/{id:guid}")]
+    [Authorize(Roles = "AcademyAdmin,Staff")]
+    [RequirePermission(Permissions.ManageEvents)]
     public async Task<IActionResult> DeleteEvent(Guid id)
     {
         try
@@ -110,6 +115,8 @@ public class CalendarController : ControllerBase
     /// PUT /api/calendar/events/{id}
     /// </summary>
     [HttpPut("events/{id:guid}")]
+    [Authorize(Roles = "AcademyAdmin,Staff")]
+    [RequirePermission(Permissions.ManageEvents)]
     public async Task<IActionResult> UpdateEvent(Guid id, [FromBody] UpdateEventDto dto)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -157,6 +164,8 @@ public class CalendarController : ControllerBase
     /// POST /api/calendar/tournaments
     /// </summary>
     [HttpPost("tournaments")]
+    [Authorize(Roles = "AcademyAdmin,Staff")]
+    [RequirePermission(Permissions.ManageEvents)]
     public async Task<IActionResult> CreateTournament([FromBody] CreateTournamentDto dto)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -166,6 +175,8 @@ public class CalendarController : ControllerBase
     }
 
     [HttpPut("tournaments/{id:guid}")]
+    [Authorize(Roles = "AcademyAdmin,Staff")]
+    [RequirePermission(Permissions.ManageEvents)]
     public async Task<IActionResult> UpdateTournament(Guid id, [FromBody] UpdateTournamentDto dto)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -179,6 +190,8 @@ public class CalendarController : ControllerBase
     }
 
     [HttpDelete("tournaments/{id:guid}")]
+    [Authorize(Roles = "AcademyAdmin,Staff")]
+    [RequirePermission(Permissions.ManageEvents)]
     public async Task<IActionResult> DeleteTournament(Guid id)
     {
         try
@@ -194,6 +207,7 @@ public class CalendarController : ControllerBase
     // EVENT CALLS (Convocatorias)
     // ─────────────────────────────────────────────────────────────
     [HttpGet("events/{eventId:guid}/calls")]
+    [Authorize(Roles = "AcademyAdmin,Staff")]
     public async Task<IActionResult> GetEventCalls(Guid eventId)
     {
         var academyId = GetAcademyId();
@@ -202,6 +216,8 @@ public class CalendarController : ControllerBase
     }
 
     [HttpPost("events/{eventId:guid}/calls/auto-generate")]
+    [Authorize(Roles = "AcademyAdmin,Staff")]
+    [RequirePermission(Permissions.ManageEvents)]
     public async Task<IActionResult> AutoGenerateEventCalls(Guid eventId)
     {
         try
@@ -217,11 +233,14 @@ public class CalendarController : ControllerBase
     // Phase 3 — Mobile App endpoints
     // ─────────────────────────────────────────────────────────────
     [HttpGet("mobile/events/{eventId:guid}/my-call")]
-    public async Task<IActionResult> GetMyEventCall(Guid eventId, [FromQuery] Guid studentId)
+    public async Task<IActionResult> GetMyEventCall(Guid eventId, [FromQuery] Guid studentId, [FromServices] AccessControlService access)
     {
         try
         {
             var academyId = GetAcademyId();
+            if (User.IsEndUser() && !await access.UserOwnsStudentAsync(academyId, User.GetUserId(), studentId))
+                return StatusCode(StatusCodes.Status403Forbidden, new { message = "No tienes acceso a la información de este alumno." });
+
             var call = await _calendarService.GetMyEventCallAsync(academyId, eventId, studentId);
             if (call == null) return NoContent();
             return Ok(call);
@@ -245,7 +264,7 @@ public class CalendarController : ControllerBase
         try
         {
             var academyId = GetAcademyId();
-            var userIdStr = User.FindFirst("userId")?.Value;
+            var userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
             var userId = Guid.TryParse(userIdStr, out var uId) ? uId : (Guid?)null;
             var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "";
 
@@ -270,7 +289,7 @@ public class CalendarController : ControllerBase
         try
         {
             var academyId = GetAcademyId();
-            var userIdStr = User.FindFirst("userId")?.Value;
+            var userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
             var userId = Guid.TryParse(userIdStr, out var uId) ? uId : (Guid?)null;
             var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "";
 
@@ -284,11 +303,15 @@ public class CalendarController : ControllerBase
     }
 
     [HttpPut("mobile/calls/{callId:guid}/confirm")]
-    public async Task<IActionResult> ConfirmEventCall(Guid callId, [FromBody] UpdateEventCallDto dto)
+    public async Task<IActionResult> ConfirmEventCall(Guid callId, [FromBody] UpdateEventCallDto dto, [FromServices] AccessControlService access)
     {
         try
         {
             var academyId = GetAcademyId();
+            // Un apoderado/alumno solo puede confirmar convocatorias de sus propios alumnos.
+            if (User.IsEndUser() && !await access.UserOwnsEventCallAsync(academyId, User.GetUserId(), callId))
+                return StatusCode(StatusCodes.Status403Forbidden, new { message = "No puedes responder esta convocatoria." });
+
             var updated = await _calendarService.UpdateEventCallStatusAsync(academyId, callId, dto.IsConfirmed);
             return Ok(updated);
         }

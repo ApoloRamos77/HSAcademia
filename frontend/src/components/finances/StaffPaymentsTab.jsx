@@ -91,7 +91,7 @@ export default function StaffPaymentsTab() {
     <div className="fade-in space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card/40 backdrop-blur-md border border-border/50 p-4 rounded-xl">
-        <h3 className="text-xl font-bold text-white flex items-center gap-2">
+        <h3 className="text-xl font-bold text-text-primary flex items-center gap-2">
           <Users className="text-primary" size={20}/> Nómina del Personal
         </h3>
         <div className="flex flex-wrap items-center gap-3">
@@ -145,13 +145,13 @@ export default function StaffPaymentsTab() {
                 payments.map(p => (
                   <tr key={p.id} className="hover:bg-white/5 transition-colors">
                     <td>
-                      <p className="font-bold text-white">{p.staffName}</p>
+                      <p className="font-bold text-text-primary">{p.staffName}</p>
                       {p.notes && <p className="text-xs text-text-muted mt-0.5 italic">{p.notes}</p>}
                     </td>
                     <td className="text-text-main">S/. {p.baseAmount.toFixed(2)}</td>
                     <td className="text-success">+ S/. {p.bonuses.toFixed(2)}</td>
                     <td className="text-danger">- S/. {p.deductions.toFixed(2)}</td>
-                    <td className="font-bold text-white">S/. {p.totalPaid.toFixed(2)}</td>
+                    <td className="font-bold text-text-primary">S/. {p.totalPaid.toFixed(2)}</td>
                     <td>
                       {p.status === 1
                         ? <span className="badge badge-success flex items-center gap-1 w-max"><CheckCircle size={11}/> Pagado</span>

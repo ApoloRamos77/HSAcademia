@@ -54,6 +54,10 @@ public class PaymentRecord
 
     public DateTime DueDate { get; set; }
 
+    /// <summary>Periodo de la mensualidad (año/mes). Identifica la deuda sin depender del texto de Description.</summary>
+    public int? PeriodYear { get; set; }
+    public int? PeriodMonth { get; set; }
+
     public bool IsPaid { get; set; } = false;
     public DateTime? PaidDate { get; set; }
 

@@ -24,6 +24,13 @@ public class EventDto
     public string? TournamentName { get; set; }
     public string? OpponentTeam { get; set; }
 
+    /// <summary>Serie de horario recurrente (null = evento suelto).</summary>
+    public Guid? SeriesId { get; set; }
+    public int? GoalsFor { get; set; }
+    public int? GoalsAgainst { get; set; }
+    public string? MatchNotes { get; set; }
+    public bool AttendanceClosed { get; set; }
+
     /// <summary>
     /// Virtual birthday events generated on-the-fly are not persisted in DB.
     /// </summary>

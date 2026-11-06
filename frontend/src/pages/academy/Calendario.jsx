@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import MatchResultModal from '../../components/MatchResultModal';
 
 // ─────────────────────────── helpers ────────────────────────────
 const EVENT_TYPES = [
@@ -62,6 +63,8 @@ export default function Calendario() {
     tournamentId: '', opponentTeam: ''
   });
   const [recurringEnabled, setRecurringEnabled] = useState(false);
+  const [matchEventId, setMatchEventId] = useState(null);
+  const [confirmSeriesId, setConfirmSeriesId] = useState(null);
   const [recurringDays, setRecurringDays]       = useState([]); // 0=Dom..6=Sáb
   const [recurringStart, setRecurringStart]     = useState(''); // HH:mm
   const [recurringEnd, setRecurringEnd]         = useState(''); // HH:mm
@@ -167,28 +170,27 @@ export default function Calendario() {
         if (!form.title || !recurringStart || !recurringEnd || recurringDays.length === 0) {
           toast.error('Completa título, horario y selecciona al menos un día'); setSaving(false); return;
         }
-        // Build all matching dates in the selected month
-        const daysInMonth = new Date(recurringYear, recurringMonth, 0).getDate();
-        let created = 0;
-        for (let day = 1; day <= daysInMonth; day++) {
-          const d = new Date(Date.UTC(recurringYear, recurringMonth - 1, day));
-          if (!recurringDays.includes(d.getUTCDay())) continue;
-          const dateStr = `${recurringYear}-${String(recurringMonth).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-          const body = {
-            title: form.title,
-            description: form.description || null,
-            type: 1,
-            startTime: `${dateStr}T${recurringStart}:00.000Z`,
-            endTime:   `${dateStr}T${recurringEnd}:00.000Z`,
-            headquarterId: form.headquarterId || null,
-            categoryIds:   form.categoryIds.length > 0 ? form.categoryIds : [],
-            categoryId:    form.categoryIds.length > 0 ? form.categoryIds[0] : null,
-            teacherId:     form.teacherId     || null,
-          };
-          try { await api.post('/calendar/events', body); created++; }
-          catch { /* skip conflicts */ }
+        // Serie en el servidor: valida choques de horario y devuelve qué días se omitieron y por qué.
+        const mm = String(recurringMonth).padStart(2, '0');
+        const lastDay = new Date(recurringYear, recurringMonth, 0).getDate();
+        const { data } = await api.post('/sports/schedules', {
+          title: form.title,
+          description: form.description || null,
+          headquarterId: form.headquarterId || null,
+          categoryIds: form.categoryIds,
+          teacherId: form.teacherId || null,
+          daysOfWeek: recurringDays,
+          startTime: recurringStart,
+          endTime: recurringEnd,
+          fromDate: `${recurringYear}-${mm}-01`,
+          toDate: `${recurringYear}-${mm}-${String(lastDay).padStart(2, '0')}`,
+        });
+        toast.success(`${data.created} entrenamientos creados para ${MONTH_NAMES_FULL[recurringMonth-1]} ${recurringYear}`);
+        const conflicts = data.skipped.filter(s => s.reason !== 'Fecha pasada');
+        if (conflicts.length > 0) {
+          const detail = conflicts.slice(0, 4).map(s => `${s.date.slice(8, 10)}/${mm}: ${s.reason}`).join('\n');
+          toast(`${conflicts.length} día(s) omitidos por choque de horario:\n${detail}${conflicts.length > 4 ? '\n…' : ''}`, { icon: '⚠️', duration: 8000 });
         }
-        toast.success(`${created} entrenamientos creados para ${MONTH_NAMES_FULL[recurringMonth-1]} ${recurringYear}`);
       } else {
         // ── SINGLE event ──
         if (!form.title || !form.startTime || !form.endTime) {
@@ -450,6 +452,22 @@ export default function Calendario() {
                             onClick={() => { setSelectedDay(null); openCalls(e.id); }}
                             title="Convocatorias"
                           ><Send size={14}/></button>
+                        )}
+                        {(e.type === 2 || e.type === 3) && (
+                          <button
+                            className="btn-icon"
+                            style={{ color:'#d97706' }}
+                            onClick={() => { setSelectedDay(null); setMatchEventId(e.id); }}
+                            title="Resultado y estadísticas"
+                          ><Trophy size={14}/></button>
+                        )}
+                        {e.seriesId && (
+                          <button
+                            className="btn-icon"
+                            style={{ color:'#ef4444' }}
+                            onClick={() => setConfirmSeriesId(e.seriesId)}
+                            title="Eliminar los próximos entrenamientos de esta serie"
+                          ><Trash2 size={14}/></button>
                         )}
                         <button
                           className="btn-icon"
@@ -774,6 +792,26 @@ export default function Calendario() {
         confirmClass="btn-warning"
         onConfirm={confirmBulkShift}
         onCancel={() => setConfirmBulkDays(null)}
+      />
+      {matchEventId && (
+        <MatchResultModal eventId={matchEventId} onClose={() => setMatchEventId(null)} onSaved={fetchEvents} />
+      )}
+      <ConfirmDialog
+        isOpen={!!confirmSeriesId}
+        title="Eliminar serie de entrenamientos"
+        message="¿Eliminar los PRÓXIMOS entrenamientos de esta serie?"
+        detail="Se conservan los entrenamientos pasados y los que ya tienen asistencia registrada."
+        confirmLabel="Sí, eliminar serie"
+        onConfirm={async () => {
+          try {
+            const { data } = await api.delete(`/sports/schedules/${confirmSeriesId}`);
+            toast.success(data.message);
+            setSelectedDay(null);
+            fetchEvents();
+          } catch (err) { toast.error(err.response?.data?.message || 'No se pudo eliminar la serie.'); }
+          finally { setConfirmSeriesId(null); }
+        }}
+        onCancel={() => setConfirmSeriesId(null)}
       />
       <ConfirmDialog
         isOpen={confirmAutoGen}

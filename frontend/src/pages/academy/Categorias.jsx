@@ -11,7 +11,7 @@ export default function Categorias() {
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [filterSede, setFilterSede] = useState('');
-  const [formData, setFormData] = useState({ headquarterId: '', name: '', startDateOfBirth: '', endDateOfBirth: '' });
+  const [formData, setFormData] = useState({ headquarterId: '', name: '', startDateOfBirth: '', endDateOfBirth: '', monthlyFee: '' });
 
   useEffect(() => {
     fetchData();
@@ -40,7 +40,8 @@ export default function Categorias() {
       headquarterId: categoria.headquarterId, 
       name: categoria.name, 
       startDateOfBirth: categoria.startDateOfBirth ? categoria.startDateOfBirth.split('T')[0] : '', 
-      endDateOfBirth: categoria.endDateOfBirth ? categoria.endDateOfBirth.split('T')[0] : '' 
+      endDateOfBirth: categoria.endDateOfBirth ? categoria.endDateOfBirth.split('T')[0] : '',
+      monthlyFee: categoria.monthlyFee ?? ''
     });
     setEditingId(categoria.id);
     setShowModal(true);
@@ -52,17 +53,18 @@ export default function Categorias() {
       return toast.error('La fecha de inicio no puede ser mayor a la fecha de fin.');
     }
     
+    const payload = { ...formData, monthlyFee: formData.monthlyFee === '' ? null : parseFloat(formData.monthlyFee) };
     try {
       if (editingId) {
-        await api.put(`/academy-config/categories/${editingId}`, formData);
+        await api.put(`/academy-config/categories/${editingId}`, payload);
         toast.success('Categoría actualizada');
       } else {
-        await api.post('/academy-config/categories', formData);
+        await api.post('/academy-config/categories', payload);
         toast.success('Categoría creada');
       }
       setShowModal(false);
       setEditingId(null);
-      setFormData({ headquarterId: sedes.length > 0 ? sedes[0].id : '', name: '', startDateOfBirth: '', endDateOfBirth: '' });
+      setFormData({ headquarterId: sedes.length > 0 ? sedes[0].id : '', name: '', startDateOfBirth: '', endDateOfBirth: '', monthlyFee: '' });
       fetchData();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Error al guardar categoría.');
@@ -88,7 +90,7 @@ export default function Categorias() {
               </h3>
               <p className="text-muted mt-1">Configura los grupos de entrenamiento por edades.</p>
             </div>
-            <button onClick={() => { setEditingId(null); setFormData({ headquarterId: sedes.length > 0 ? sedes[0].id : '', name: '', startDateOfBirth: '', endDateOfBirth: '' }); setShowModal(true); }} className="btn btn-primary">
+            <button onClick={() => { setEditingId(null); setFormData({ headquarterId: sedes.length > 0 ? sedes[0].id : '', name: '', startDateOfBirth: '', endDateOfBirth: '', monthlyFee: '' }); setShowModal(true); }} className="btn btn-primary">
               <PlusCircle size={16} /> Nueva Categoría
             </button>
           </div>
@@ -129,6 +131,11 @@ export default function Categorias() {
                   </div>
                 </div>
 
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                  <span className="text-xs text-text-muted">Mensualidad</span>
+                  <span style={{ fontWeight: 700, fontSize: 18 }}>{Number(cat.monthlyFee) > 0 ? `S/ ${Number(cat.monthlyFee).toFixed(2)}` : "Sin tarifa"}</span>
+                </div>
+
                 <div className="flex justify-end gap-2 border-t border-border pt-4">
                   <button onClick={() => handleEdit(cat)} className="btn btn-ghost btn-sm" title="Editar"><Edit2 size={14}/></button>
                 </div>
@@ -166,6 +173,12 @@ export default function Categorias() {
                   </div>
                 </div>
                 
+                <div className="form-group">
+                  <label className="form-label">Mensualidad (S/) *</label>
+                  <input required type="number" min="0" step="0.01" className="form-control" placeholder="Ej. 120.00" value={formData.monthlyFee} onChange={e => setFormData({...formData, monthlyFee: e.target.value})} />
+                  <small className="text-xs text-text-muted">Monto base que se cobra cada mes a los alumnos de la categoría (salvo tarifa preferencial o beca).</small>
+                </div>
+
                 <div className="modal-footer">
                   <button type="button" onClick={() => setShowModal(false)} className="btn btn-ghost">Cancelar</button>
                   <button type="submit" className="btn btn-primary">{editingId ? 'Guardar Cambios' : 'Crear Categoría'}</button>

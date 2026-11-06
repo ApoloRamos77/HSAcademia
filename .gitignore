@@ -484,3 +484,7 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# Archivos subidos por usuarios (comprobantes de pago): nunca al repositorio.
+# En producción deben ir en un volumen persistente (Uploads:Path).
+**/wwwroot/uploads/

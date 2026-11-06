@@ -162,10 +162,14 @@ public class AcademyConfigurationController : ControllerBase
     {
         var academyId = GetAcademyId();
         if (academyId == Guid.Empty) return Unauthorized();
-        try 
-        { 
-            await _service.ResetUserPasswordAsync(academyId, id, "123456"); 
-            return Ok(new { message = "Contraseña reseteada correctamente." });
+        try
+        {
+            var temporaryPassword = await _service.ResetUserPasswordAsync(academyId, id);
+            return Ok(new
+            {
+                message = "Contraseña reseteada. Entrega la contraseña temporal al usuario: deberá cambiarla al ingresar.",
+                temporaryPassword
+            });
         }
         catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
     }

@@ -454,6 +454,11 @@ public class CalendarService : ICalendarService
         TournamentId   = e.TournamentId,
         TournamentName = e.Tournament?.Name,
         OpponentTeam   = e.OpponentTeam,
+        SeriesId       = e.SeriesId,
+        GoalsFor       = e.GoalsFor,
+        GoalsAgainst   = e.GoalsAgainst,
+        MatchNotes     = e.MatchNotes,
+        AttendanceClosed = e.AttendanceClosed,
         IsVirtual      = false
     };
 
@@ -556,7 +561,7 @@ public class CalendarService : ICalendarService
         Guid? userId = null,
         string userRole = "")
     {
-        var now  = DateTime.UtcNow;
+        var now  = AcademyClock.WallNow; // eventos en hora de pared
         var from = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc).AddMonths(-6);
         var to   = from.AddMonths(12); // cover -6 to +6 months
 
@@ -667,7 +672,7 @@ public class CalendarService : ICalendarService
         Guid? userId = null,
         string userRole = "")
     {
-        var now = DateTime.UtcNow;
+        var now = AcademyClock.WallNow; // eventos en hora de pared
 
         var query = _db.Events
             .Include(e => e.Headquarter)

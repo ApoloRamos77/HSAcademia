@@ -4,6 +4,7 @@ using HSAcademia.Infrastructure.Services;
 using HSAcademia.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 
 namespace HSAcademia.API.Controllers;
@@ -23,6 +24,7 @@ public class AuthController : ControllerBase
 
     /// <summary>Login para todos los roles (SuperAdmin, AcademyAdmin, Staff)</summary>
     [HttpPost("login")]
+    [EnableRateLimiting("login")]
     public async Task<IActionResult> Login([FromBody] LoginRequestDto dto)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -36,6 +38,7 @@ public class AuthController : ControllerBase
     /// <summary>Lista pública de academias activas para el selector del login móvil</summary>
     [AllowAnonymous]
     [HttpGet("academies")]
+    [EnableRateLimiting("public")]
     public async Task<IActionResult> GetPublicAcademies([FromQuery] string? search = null)
     {
         var query = _db.Academies.IgnoreQueryFilters()
@@ -62,6 +65,7 @@ public class AuthController : ControllerBase
 
     [Authorize]
     [HttpPost("change-password")]
+    [EnableRateLimiting("login")]
     public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequestDto dto)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);

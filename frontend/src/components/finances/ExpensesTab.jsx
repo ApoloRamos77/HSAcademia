@@ -3,6 +3,7 @@ import axios from '../../api/axios';
 import { TrendingDown, Plus, FileText, Filter, Calendar, Tag, DollarSign, Trash2, X, Edit } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ConfirmDialog from '../ConfirmDialog';
+import { todayISO, toLocalISODate } from '../../utils/dates';
 
 const EXPENSE_TYPES = {
   1: { label: 'Operativo', color: 'bg-blue-500/20 text-blue-400' },
@@ -28,7 +29,7 @@ export default function ExpensesTab() {
   const [formData, setFormData] = useState({
     type: 1,
     amount: '',
-    date: new Date().toISOString().split('T')[0],
+    date: todayISO(),
     description: '',
     supplier: '',
     voucherUrl: '',
@@ -128,7 +129,7 @@ export default function ExpensesTab() {
 
       setIsModalOpen(false);
       setEditingExpenseId(null);
-      setFormData({ type: 1, amount: '', date: new Date().toISOString().split('T')[0], description: '', supplier: '', voucherUrl: '', products: [] });
+      setFormData({ type: 1, amount: '', date: todayISO(), description: '', supplier: '', voucherUrl: '', products: [] });
       setProductForm({ productId: null, name: '', productCategory: '', quantity: '', unitCost: '', salePrice: '', description: '' });
       fetchExpenses();
       fetchStoreProducts();
@@ -141,7 +142,7 @@ export default function ExpensesTab() {
     setFormData({
       type: expense.type,
       amount: expense.amount,
-      date: new Date(expense.date).toISOString().split('T')[0],
+      date: toLocalISODate(expense.date),
       description: expense.description,
       supplier: expense.supplier || '',
       voucherUrl: expense.voucherUrl || '',
@@ -224,7 +225,7 @@ export default function ExpensesTab() {
             <TrendingDown size={64} />
           </div>
           <p className="text-red-400 font-medium mb-1">Egresos Totales (Mes)</p>
-          <h2 className="text-4xl font-bold text-white tracking-tight">
+          <h2 className="text-4xl font-bold text-text-primary tracking-tight">
             S/. {totalExpenses.toLocaleString('en-US', { minimumFractionDigits: 2 })}
           </h2>
           <p className="text-xs text-text-muted mt-2 flex items-center gap-1">
@@ -237,7 +238,7 @@ export default function ExpensesTab() {
 
       {/* Header y Filtros */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card/40 backdrop-blur-md border border-border/50 p-4 rounded-xl">
-        <h3 className="text-xl font-bold text-white flex items-center gap-2">
+        <h3 className="text-xl font-bold text-text-primary flex items-center gap-2">
           <FileText className="text-primary" /> Historial de Egresos
         </h3>
         <div className="flex flex-wrap items-center gap-3">
@@ -249,7 +250,7 @@ export default function ExpensesTab() {
           </select>
           <button
             onClick={() => {
-              setFormData({ type: 1, amount: '', date: new Date().toISOString().split('T')[0], description: '', supplier: '', voucherUrl: '', products: [] });
+              setFormData({ type: 1, amount: '', date: todayISO(), description: '', supplier: '', voucherUrl: '', products: [] });
               setProductForm({ productId: null, name: '', productCategory: '', quantity: '', unitCost: '', salePrice: '', description: '' });
               setEditingExpenseId(null);
               setIsModalOpen(true);
@@ -287,7 +288,7 @@ export default function ExpensesTab() {
                       {new Date(e.date).toLocaleDateString('es-ES')}
                     </td>
                     <td className="p-4">
-                      <p className="text-white font-medium">{e.description}</p>
+                      <p className="text-text-primary font-medium">{e.description}</p>
                       {e.voucherUrl && (
                         <a href={e.voucherUrl} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1 mt-1">
                           <FileText size={12} /> Ver Comprobante
@@ -300,7 +301,7 @@ export default function ExpensesTab() {
                       </span>
                     </td>
                     <td className="p-4 text-right">
-                      <span className="text-white font-bold bg-white/5 px-3 py-1.5 rounded-lg border border-white/10">
+                      <span className="text-text-primary font-bold bg-bg-surface px-3 py-1.5 rounded-lg border border-border">
                         S/. {e.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                       </span>
                     </td>
@@ -337,7 +338,7 @@ export default function ExpensesTab() {
                             {e.products.map(p => (
                               <div key={p.productId} className="flex justify-between items-center bg-card/40 p-2 rounded border border-border/50 text-sm">
                                 <div>
-                                  <span className="font-bold text-white">{p.name}</span>
+                                  <span className="font-bold text-text-primary">{p.name}</span>
                                   <span className="text-xs text-text-muted ml-2">({p.quantity} unid.)</span>
                                 </div>
                                 <span className="font-medium text-warning">S/. {p.unitCost?.toFixed(2) || '0.00'} c/u</span>
@@ -431,7 +432,7 @@ export default function ExpensesTab() {
                       {formData.products.map((p, i) => (
                         <div key={i} className="flex justify-between items-center bg-card/60 p-2 rounded border border-border/50 text-sm">
                           <div>
-                            <span className="font-bold text-white">{p.name}</span>
+                            <span className="font-bold text-text-primary">{p.name}</span>
                             <span className="text-xs text-text-muted ml-2">({p.quantity} x S/. {p.unitCost.toFixed(2)})</span>
                           </div>
                           <div className="flex items-center gap-3">
@@ -466,7 +467,7 @@ export default function ExpensesTab() {
                                   key={p.id}
                                   type="button"
                                   onClick={() => handleSelectProduct(p)}
-                                  className="block w-full text-left px-4 py-2.5 text-sm text-white hover:bg-white/10 border-b border-border/50 last:border-0 transition-colors"
+                                  className="block w-full text-left px-4 py-2.5 text-sm text-text-primary hover:bg-bg-surface border-b border-border/50 last:border-0 transition-colors"
                                 >
                                   <div className="font-bold">{p.name}</div>
                                   <div className="text-xs text-text-muted flex justify-between mt-0.5">

@@ -2,6 +2,8 @@ using HSAcademia.Application.DTOs.Attendance;
 using HSAcademia.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using HSAcademia.API.Authorization;
+using HSAcademia.Infrastructure.Services;
 
 namespace HSAcademia.API.Controllers;
 
@@ -29,15 +31,16 @@ public class AttendanceController : ControllerBase
         return Guid.TryParse(idStr, out var id) ? id : null;
     }
 
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    // Phase 1 â€” Date-based roll call
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─────────────────────────────────────────────────────────────
+    // Phase 1 — Date-based roll call
+    // ─────────────────────────────────────────────────────────────
 
     /// <summary>
     /// GET /api/attendance/category/{categoryId}?date=2026-04-24
     /// Returns all students in the category with their attendance status for the given date.
     /// </summary>
     [HttpGet("category/{categoryId}")]
+    [Authorize(Roles = "AcademyAdmin,Staff")]
     public async Task<IActionResult> GetAttendanceByCategory(Guid categoryId, [FromQuery] DateTime date)
     {
         var academyId = GetAcademyId();
@@ -55,6 +58,7 @@ public class AttendanceController : ControllerBase
     /// Saves bulk attendance for a date (no event required).
     /// </summary>
     [HttpPost("category/{categoryId}")]
+    [Authorize(Roles = "AcademyAdmin,Staff")]
     public async Task<IActionResult> MarkAttendance(Guid categoryId, [FromBody] MarkAttendanceDto dto)
     {
         var academyId = GetAcademyId();
@@ -67,9 +71,9 @@ public class AttendanceController : ControllerBase
         catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
     }
 
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    // Phase 2 â€” Event-linked roll call (15-minute window rule)
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─────────────────────────────────────────────────────────────
+    // Phase 2 — Event-linked roll call (15-minute window rule)
+    // ─────────────────────────────────────────────────────────────
 
     /// <summary>
     /// GET /api/attendance/event/{eventId}
@@ -77,6 +81,7 @@ public class AttendanceController : ControllerBase
     /// Returns 409 Conflict if the 15-minute window hasn't opened yet.
     /// </summary>
     [HttpGet("event/{eventId}")]
+    [Authorize(Roles = "AcademyAdmin,Staff")]
     public async Task<IActionResult> GetAttendanceByEvent(Guid eventId)
     {
         var academyId = GetAcademyId();
@@ -99,6 +104,7 @@ public class AttendanceController : ControllerBase
     /// Returns 409 Conflict if the 15-minute window hasn't opened.
     /// </summary>
     [HttpPost("event")]
+    [Authorize(Roles = "AcademyAdmin,Staff")]
     public async Task<IActionResult> MarkAttendanceByEvent([FromBody] MarkAttendanceByEventDto dto)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -116,9 +122,9 @@ public class AttendanceController : ControllerBase
         catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
     }
 
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    // Phase 2 â€” Analytics: monthly attendance metrics
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─────────────────────────────────────────────────────────────
+    // Phase 2 — Analytics: monthly attendance metrics
+    // ─────────────────────────────────────────────────────────────
 
     /// <summary>
     /// GET /api/attendance/metrics/category/{categoryId}?year=2026&amp;month=4
@@ -126,13 +132,14 @@ public class AttendanceController : ControllerBase
     /// IsAlert = true when percentage &lt; 70%.
     /// </summary>
     [HttpGet("metrics/category/{categoryId}")]
+    [Authorize(Roles = "AcademyAdmin,Staff")]
     public async Task<IActionResult> GetMonthlyMetrics(
         Guid categoryId,
         [FromQuery] int year,
         [FromQuery] int month)
     {
         if (year < 2000 || year > 2100 || month < 1 || month > 12)
-            return BadRequest(new { message = "AÃ±o o mes invÃ¡lidos." });
+            return BadRequest(new { message = "Año o mes inválidos." });
 
         var academyId = GetAcademyId();
         if (academyId == Guid.Empty) return Unauthorized();
@@ -145,16 +152,17 @@ public class AttendanceController : ControllerBase
         catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
     }
 
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    // Phase 3 â€” Mobile App endpoints
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─────────────────────────────────────────────────────────────
+    // Phase 3 — Mobile App endpoints
+    // ─────────────────────────────────────────────────────────────
 
     /// <summary>
     /// POST /api/attendance/scan
-    /// Coach scans a student QR â†’ registers attendance as Present for today.
+    /// Coach scans a student QR → registers attendance as Present for today.
     /// Returns 409 if already marked today, 404 if student not found.
     /// </summary>
     [HttpPost("scan")]
+    [Authorize(Roles = "AcademyAdmin,Staff")]
     public async Task<IActionResult> ScanQr([FromBody] QrScanDto dto)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -167,7 +175,7 @@ public class AttendanceController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
-            // Already scanned today â†’ 409 Conflict
+            // Already scanned today → 409 Conflict
             return Conflict(new { message = ex.Message });
         }
         catch (KeyNotFoundException ex)
@@ -186,11 +194,22 @@ public class AttendanceController : ControllerBase
     /// Resolves studentId from the JWT "studentId" claim.
     /// </summary>
     [HttpGet("my-history")]
-    public async Task<IActionResult> GetMyHistory([FromQuery] int months = 60, [FromQuery] Guid? studentId = null)
+    public async Task<IActionResult> GetMyHistory(
+        [FromServices] AccessControlService access,
+        [FromQuery] int months = 60,
+        [FromQuery] Guid? studentId = null)
     {
         months = Math.Clamp(months, 1, 60);
         var academyId = GetAcademyId();
         if (academyId == Guid.Empty) return Unauthorized();
+
+        // Alumno/Apoderado solo puede consultar a sus propios alumnos (evita IDOR por ?studentId=).
+        if (studentId.HasValue && User.IsEndUser() &&
+            !await access.UserOwnsStudentAsync(academyId, User.GetUserId(), studentId.Value))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "No tienes acceso a la información de este alumno." });
+        }
 
         // Primary: provided via query (e.g. Guardian viewing specific student)
         var targetStudentId = studentId;
@@ -230,6 +249,7 @@ public class AttendanceController : ControllerBase
     /// Used by the mobile dashboard widget.
     /// </summary>
     [HttpGet("my-summary")]
+    [Authorize(Roles = "Student,Guardian")]
     public async Task<IActionResult> GetMySummary()
     {
         var academyId = GetAcademyId();
@@ -237,7 +257,7 @@ public class AttendanceController : ControllerBase
 
         var studentId = GetStudentId();
         if (studentId is null)
-            return BadRequest(new { message = "El token no contiene un studentId vÃ¡lido." });
+            return BadRequest(new { message = "El token no contiene un studentId válido." });
 
         try
         {
@@ -264,7 +284,7 @@ public class AttendanceController : ControllerBase
         var userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         if (!Guid.TryParse(userIdStr, out var userId))
             return Unauthorized(new { message = "Token inválido." });
-        var targetDate = date?.Date ?? DateTime.UtcNow.Date;
+        var targetDate = date?.Date ?? AcademyClock.Today;
         try
         {
             var result = await _attendanceService.GetMyStudentsAttendanceAsync(

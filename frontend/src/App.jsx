@@ -24,6 +24,8 @@ import Calendario from './pages/academy/Calendario';
 import Tienda from './pages/academy/Tienda';
 import Finanzas from './pages/academy/Finanzas';
 import Torneos from './pages/academy/Torneos';
+import Comunicados from './pages/academy/Comunicados';
+import Reportes from './pages/academy/Reportes';
 import StudentDashboard from './pages/student/Dashboard';
 import ChangePasswordPage from './pages/ChangePasswordPage';
 import SessionTimeout from './components/SessionTimeout';
@@ -124,6 +126,16 @@ export default function App() {
           <Route path="/academy/tienda" element={
             <ProtectedRoute roles={['AcademyAdmin', 'Staff']} permissions={['manage_store']}>
               <Tienda />
+            </ProtectedRoute>
+          } />
+          <Route path="/academy/reportes" element={
+            <ProtectedRoute roles={['AcademyAdmin', 'Staff']}>
+              <Reportes />
+            </ProtectedRoute>
+          } />
+          <Route path="/academy/comunicados" element={
+            <ProtectedRoute roles={['AcademyAdmin', 'Staff']}>
+              <Comunicados />
             </ProtectedRoute>
           } />
           <Route path="/academy/finanzas" element={

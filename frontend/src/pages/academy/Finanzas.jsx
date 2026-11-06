@@ -12,6 +12,8 @@ import ExpensesTab from '../../components/finances/ExpensesTab';
 import PettyCashTab from '../../components/finances/PettyCashTab';
 import StaffPaymentsTab from '../../components/finances/StaffPaymentsTab';
 import FinanceDashboardTab from '../../components/finances/FinanceDashboardTab';
+import PaymentProofsTab from '../../components/finances/PaymentProofsTab';
+import { Inbox } from 'lucide-react';
 
 const PAYMENT_METHODS = [
   { value: 'Cash', label: '💵 Efectivo' },
@@ -38,6 +40,11 @@ const statusBadge = (d) => {
 
 export default function Finanzas() {
   const [activeTab, setActiveTab] = useState('debts');
+  const [pendingProofs, setPendingProofs] = useState(0);
+  const refreshPendingProofs = useCallback(() => {
+    api.get('/finances/proofs/pending-count').then(r => setPendingProofs(r.data.count)).catch(() => {});
+  }, []);
+  useEffect(() => { refreshPendingProofs(); }, [refreshPendingProofs]);
   const [showAll, setShowAll] = useState(false);
   const [config, setConfig] = useState({ defaultPaymentDay: 5 });
   const [debts, setDebts] = useState([]);
@@ -267,22 +274,26 @@ export default function Finanzas() {
 
         {/* Tabs */}
         <div className="flex flex-wrap gap-2 mb-6 bg-bg-surface p-1 rounded-xl w-max max-w-full overflow-x-auto">
-          <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='dashboard'?'bg-primary text-white shadow-md':'text-text-muted hover:text-white hover:bg-white/5'}`} onClick={()=>setActiveTab('dashboard')}>
+          <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='dashboard'?'bg-primary text-white shadow-md':'text-text-muted hover:text-text-primary hover:bg-white'}`} onClick={()=>setActiveTab('dashboard')}>
             <BarChart3 size={16}/> Resumen P&amp;L
           </button>
-          <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='debts'?'bg-primary text-white shadow-md':'text-text-muted hover:text-white hover:bg-white/5'}`} onClick={()=>setActiveTab('debts')}>
+          <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='debts'?'bg-primary text-white shadow-md':'text-text-muted hover:text-text-primary hover:bg-white'}`} onClick={()=>setActiveTab('debts')}>
             <DollarSign size={16}/> Cobranzas
           </button>
-          <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='expenses'?'bg-primary text-white shadow-md':'text-text-muted hover:text-white hover:bg-white/5'}`} onClick={()=>setActiveTab('expenses')}>
+          <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='proofs'?'bg-primary text-white shadow-md':'text-text-muted hover:text-text-primary hover:bg-white'}`} onClick={()=>setActiveTab('proofs')}>
+            <Inbox size={16}/> Comprobantes
+            {pendingProofs > 0 && <span className="badge badge-danger" style={{ marginLeft: 4 }}>{pendingProofs}</span>}
+          </button>
+          <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='expenses'?'bg-primary text-white shadow-md':'text-text-muted hover:text-text-primary hover:bg-white'}`} onClick={()=>setActiveTab('expenses')}>
             <TrendingDown size={16}/> Egresos
           </button>
-          <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='petty'?'bg-primary text-white shadow-md':'text-text-muted hover:text-white hover:bg-white/5'}`} onClick={()=>setActiveTab('petty')}>
+          <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='petty'?'bg-primary text-white shadow-md':'text-text-muted hover:text-text-primary hover:bg-white'}`} onClick={()=>setActiveTab('petty')}>
             <Archive size={16}/> Caja Chica
           </button>
-          <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='staff'?'bg-primary text-white shadow-md':'text-text-muted hover:text-white hover:bg-white/5'}`} onClick={()=>setActiveTab('staff')}>
+          <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='staff'?'bg-primary text-white shadow-md':'text-text-muted hover:text-text-primary hover:bg-white'}`} onClick={()=>setActiveTab('staff')}>
             <Users size={16}/> Nómina
           </button>
-          <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='config'?'bg-primary text-white shadow-md':'text-text-muted hover:text-white hover:bg-white/5'}`} onClick={()=>setActiveTab('config')}>
+          <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='config'?'bg-primary text-white shadow-md':'text-text-muted hover:text-text-primary hover:bg-white'}`} onClick={()=>setActiveTab('config')}>
             <Settings size={16}/> Configuración
           </button>
         </div>
@@ -397,7 +408,7 @@ export default function Finanzas() {
                           <React.Fragment key={d.id}>
                             <tr className={`${d.status==='Vencido'&&!d.isPaid?'bg-danger/5':''} cursor-pointer`}>
                               <td>{statusBadge(d)}</td>
-                              <td className="font-medium text-white pl-6">
+                              <td className="font-medium text-text-primary pl-6">
                                 ↳ {d.categoryName ? d.categoryName : 'Concepto individual'}
                                 {d.isProrated && <span className="ml-1 text-xs text-warning bg-warning/10 px-1 rounded">Prorr.</span>}
                                 {d.exclusionType !== 'None' && <span className="ml-1 text-xs text-success bg-success/10 px-1 rounded">Exon.</span>}
@@ -568,6 +579,10 @@ export default function Finanzas() {
         )}
 
         {/* EXPENSES TAB */}
+        {activeTab === 'proofs' && (
+          <PaymentProofsTab onChanged={() => { refreshPendingProofs(); fetchData(); }} />
+        )}
+
         {activeTab === 'expenses' && (
           <ExpensesTab />
         )}
@@ -597,10 +612,10 @@ export default function Finanzas() {
               <button onClick={()=>setModal(null)} className="btn btn-ghost btn-sm"><X size={16}/></button>
             </div>
             <div className="bg-bg-dark p-3 rounded border border-border mb-4 text-sm">
-              <p className="font-bold text-white">{selected.studentName}</p>
+              <p className="font-bold text-text-primary">{selected.studentName}</p>
               <p className="text-text-muted">{selected.description}</p>
               <div className="flex gap-4 mt-2">
-                <span>Total: <b className="text-white">S/. {selected.amount.toFixed(2)}</b></span>
+                <span>Total: <b className="text-text-primary">S/. {selected.amount.toFixed(2)}</b></span>
                 <span>Pagado: <b className="text-success">S/. {selected.amountPaid.toFixed(2)}</b></span>
                 <span>Pendiente: <b className="text-danger">S/. {selected.amountPending.toFixed(2)}</b></span>
               </div>
@@ -681,8 +696,8 @@ export default function Finanzas() {
               <button onClick={()=>setModal(null)} className="btn btn-ghost btn-sm"><X size={16}/></button>
             </div>
             <div className="bg-bg-dark p-3 rounded border border-border mb-4 text-sm">
-              <p className="font-bold text-white">{selected.studentName} — {selected.description}</p>
-              <p className="text-text-muted">Monto actual: <b className="text-white">S/. {selected.amount.toFixed(2)}</b></p>
+              <p className="font-bold text-text-primary">{selected.studentName} — {selected.description}</p>
+              <p className="text-text-muted">Monto actual: <b className="text-text-primary">S/. {selected.amount.toFixed(2)}</b></p>
             </div>
             <form onSubmit={handleRecalc}>
               <div className="form-group">

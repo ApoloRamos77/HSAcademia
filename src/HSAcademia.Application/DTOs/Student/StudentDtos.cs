@@ -32,6 +32,18 @@ public class StudentDto
     public bool IsGuest { get; set; }
     public bool IsScholarship { get; set; }
     public decimal? ScholarshipPercentage { get; set; }
+
+    /// <summary>Solo al crear/actualizar: accesos generados (se muestran una única vez al administrador).</summary>
+    public List<GeneratedCredentialDto>? GeneratedCredentials { get; set; }
+}
+
+/// <summary>Credencial temporal recién creada para un alumno o apoderado.</summary>
+public class GeneratedCredentialDto
+{
+    public string Role { get; set; } = string.Empty;      // "Apoderado" | "Alumno"
+    public string FullName { get; set; } = string.Empty;
+    public string Login { get; set; } = string.Empty;     // email
+    public string TemporaryPassword { get; set; } = string.Empty;
 }
 
 public class CreateStudentDto

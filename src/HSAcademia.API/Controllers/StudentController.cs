@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using HSAcademia.API.Authorization;
 using HSAcademia.Application.DTOs.Student;
 using HSAcademia.Infrastructure.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -20,79 +21,76 @@ public class StudentController : ControllerBase
         _studentService = studentService;
     }
 
-    private Guid GetAcademyId()
-    {
-        var idStr = User.FindFirst("academyId")?.Value;
-        return Guid.TryParse(idStr, out var id) ? id : Guid.Empty;
-    }
-
+    /// <summary>Listado de alumnos. Lo usan los módulos Alumnos, Apoderados, Tienda y Finanzas.</summary>
     [HttpGet]
+    [RequirePermission(Permissions.ViewStudents, Permissions.ManageStore, Permissions.ManageFinances, Permissions.ManageAttendance)]
     public async Task<IActionResult> GetStudents()
     {
-        var academyId = GetAcademyId();
+        var academyId = User.GetAcademyId();
         if (academyId == Guid.Empty) return Unauthorized();
 
-        var userIdStr = User.FindFirst("userId")?.Value;
-        var userId = Guid.TryParse(userIdStr, out var uId) ? uId : (Guid?)null;
-        var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "";
-
-        return Ok(await _studentService.GetStudentsAsync(academyId, userId, userRole));
+        var userId = User.GetUserId();
+        return Ok(await _studentService.GetStudentsAsync(
+            academyId, userId == Guid.Empty ? null : userId, User.GetRole()));
     }
 
     [HttpPost]
+    [RequirePermission(Permissions.ViewStudents)]
     public async Task<IActionResult> CreateStudent([FromBody] CreateStudentDto dto)
     {
-        var academyId = GetAcademyId();
+        var academyId = User.GetAcademyId();
         if (academyId == Guid.Empty) return Unauthorized();
-        try 
-        { 
-            return Ok(await _studentService.CreateStudentAsync(academyId, dto)); 
+        try
+        {
+            return Ok(await _studentService.CreateStudentAsync(academyId, dto));
         }
-        catch (Exception ex) 
-        { 
-            return BadRequest(new { message = ex.Message }); 
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
         }
     }
 
     [HttpPut("{id}")]
+    [RequirePermission(Permissions.ViewStudents)]
     public async Task<IActionResult> UpdateStudent(Guid id, [FromBody] CreateStudentDto dto)
     {
-        var academyId = GetAcademyId();
+        var academyId = User.GetAcademyId();
         if (academyId == Guid.Empty) return Unauthorized();
-        try 
-        { 
-            return Ok(await _studentService.UpdateStudentAsync(academyId, id, dto)); 
+        try
+        {
+            return Ok(await _studentService.UpdateStudentAsync(academyId, id, dto));
         }
-        catch (Exception ex) 
-        { 
-            return BadRequest(new { message = ex.Message }); 
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
         }
     }
 
     [HttpGet("{id}/medical-record")]
+    [RequirePermission(Permissions.ViewStudents)]
     public async Task<IActionResult> GetMedicalRecord(Guid id)
     {
-        var academyId = GetAcademyId();
+        var academyId = User.GetAcademyId();
         if (academyId == Guid.Empty) return Unauthorized();
         return Ok(await _studentService.GetStudentMedicalRecordAsync(academyId, id));
     }
 
     [HttpGet("{id}/nutrition-records")]
+    [RequirePermission(Permissions.ViewStudents)]
     public async Task<IActionResult> GetNutritionRecords(Guid id)
     {
-        var academyId = GetAcademyId();
+        var academyId = User.GetAcademyId();
         if (academyId == Guid.Empty) return Unauthorized();
         return Ok(await _studentService.GetStudentNutritionRecordsAsync(academyId, id));
     }
 
     [HttpPost("{id}/nutrition-records")]
+    [RequirePermission(Permissions.ViewStudents)]
     public async Task<IActionResult> AddNutritionRecord(Guid id, [FromBody] CreateStudentNutritionRecordDto dto)
     {
-        var academyId = GetAcademyId();
-        if (academyId == Guid.Empty) return Unauthorized();
-
-        var userIdStr = User.FindFirst("userId")?.Value;
-        if (!Guid.TryParse(userIdStr, out var userId)) return Unauthorized();
+        var academyId = User.GetAcademyId();
+        var userId = User.GetUserId();
+        if (academyId == Guid.Empty || userId == Guid.Empty) return Unauthorized();
 
         try
         {
@@ -106,9 +104,10 @@ public class StudentController : ControllerBase
     }
 
     [HttpGet("{id}/financial-history")]
+    [RequirePermission(Permissions.ViewStudents, Permissions.ManageFinances)]
     public async Task<IActionResult> GetFinancialHistory(Guid id, [FromServices] FinancesService financesService, [FromServices] StoreService storeService, [FromQuery] int? year, [FromQuery] int? month)
     {
-        var academyId = GetAcademyId();
+        var academyId = User.GetAcademyId();
         if (academyId == Guid.Empty) return Unauthorized();
 
         var debts = await financesService.GetAllDebtsAsync(academyId, year, month);
@@ -117,7 +116,8 @@ public class StudentController : ControllerBase
         var sales = await storeService.GetSalesAsync(academyId);
         var studentSales = sales.Where(s => s.StudentId == id).ToList();
 
-        if (year.HasValue && month.HasValue) {
+        if (year.HasValue && month.HasValue)
+        {
             studentSales = studentSales.Where(s => s.SaleDate.Year == year && s.SaleDate.Month == month).ToList();
         }
 

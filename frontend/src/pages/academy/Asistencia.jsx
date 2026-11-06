@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
+import { todayISO } from '../../utils/dates';
 
 const STATUS_BUTTONS = [
   { value: 1, label: 'Presente',    icon: UserCheck,  color: '#10b981' },
@@ -29,7 +30,7 @@ export default function Asistencia() {
   const [sedes,            setSedes]            = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedSede,     setSelectedSede]     = useState('');
-  const [date,             setDate]             = useState(new Date().toISOString().split('T')[0]);
+  const [date,             setDate]             = useState(todayISO());
   const [eventSearch,      setEventSearch]      = useState('');
 
   // Event-mode

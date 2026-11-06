@@ -22,6 +22,8 @@ public class User
     public DateTime? SuspendedAt { get; set; }
     public string? PasswordResetToken { get; set; }
     public DateTime? PasswordResetExpiry { get; set; }
+    /// <summary>Obliga a cambiar la contraseña en el próximo inicio de sesión (contraseñas temporales).</summary>
+    public bool MustChangePassword { get; set; } = false;
     public DateTime? LastLoginAt { get; set; }
     public DateTime? BirthDate { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

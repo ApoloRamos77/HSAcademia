@@ -1,0 +1,47 @@
+/*
+ * Tailwind CSS v4 — SOLO tema + utilidades (sin "preflight").
+ * Los estilos propios de index.css (.card, .btn, .modal, ...) no están en capas, por lo que
+ * tienen prioridad sobre las utilidades en caso de conflicto: el diseño actual se conserva
+ * y las clases utilitarias (text-sm, grid, gap-4, ...) que antes no tenían efecto ahora funcionan.
+ *
+ * Los colores apuntan a las variables de marca definidas en index.css (:root).
+ */
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+@theme inline {
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  /* Marca */
+  --color-primary: var(--primary);
+  --color-primary-dark: var(--primary-dark);
+  --color-primary-light: var(--primary-light);
+  --color-primary-500: var(--primary);
+  --color-primary-400: var(--primary);
+  /* Herencia del antiguo tema oscuro: "primary-100" se usaba para títulos → se mapea a un tono legible */
+  --color-primary-100: var(--primary-dark);
+  --color-accent: var(--accent);
+  --color-accent-dark: var(--accent-dark);
+
+  /* Estados */
+  --color-success: var(--success);
+  --color-success-dark: var(--accent-dark);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-danger-dark: var(--danger-dark);
+
+  /* Superficies */
+  --color-bg-dark: var(--bg-dark);
+  --color-background: var(--bg-dark);
+  --color-bg-surface: var(--bg-surface);
+  --color-card: var(--bg-card);
+  --color-border: var(--border);
+
+  /* Texto */
+  --color-text-primary: var(--text-primary);
+  --color-text-main: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-muted: var(--text-muted);
+}

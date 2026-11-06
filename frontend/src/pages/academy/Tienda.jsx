@@ -4,6 +4,7 @@ import AppLayout from '../../components/AppLayout';
 import { Package, ShoppingCart, PlusCircle, DollarSign, Tag, TrendingUp, AlertCircle, ShoppingBag, BarChart3, Download, Trash2, X, AlertTriangle, ChevronDown } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { generateReceiptPDF } from '../../utils/pdfGenerator';
+import { todayISO } from '../../utils/dates';
 
 function SearchableStudentSelect({ students, value, onChange }) {
   const [search, setSearch] = useState('');
@@ -77,7 +78,6 @@ export default function Tienda() {
   const [productForm, setProductForm] = useState(initialProduct);
 
   const [showSaleModal, setShowSaleModal] = useState(false);
-  const todayISO = () => new Date().toISOString().split('T')[0];
   const initialSale = { productId: '', studentId: '', quantity: '1', isGift: false, customDiscount: '', paymentMethod: 'Cash', operationNumber: '', saleDate: todayISO(), paymentRecordId: '', monthlyAmountPaid: '', notes: '' };
   const [saleForm, setSaleForm] = useState(initialSale);
 
@@ -315,19 +315,19 @@ export default function Tienda() {
         {/* Tabs Menu */}
         <div className="flex flex-wrap gap-2 mb-6 bg-bg-surface p-1 rounded-xl w-max max-w-full overflow-x-auto">
           <button 
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab === 'dashboard' ? 'bg-primary text-white shadow-md' : 'text-text-muted hover:text-white hover:bg-white/5'}`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab === 'dashboard' ? 'bg-primary text-white shadow-md' : 'text-text-muted hover:text-text-primary hover:bg-bg-surface'}`}
             onClick={() => setActiveTab('dashboard')}
           >
             <BarChart3 size={16} /> Dashboard
           </button>
           <button 
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab === 'inventory' ? 'bg-primary text-white shadow-md' : 'text-text-muted hover:text-white hover:bg-white/5'}`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab === 'inventory' ? 'bg-primary text-white shadow-md' : 'text-text-muted hover:text-text-primary hover:bg-bg-surface'}`}
             onClick={() => setActiveTab('inventory')}
           >
             <Package size={16} /> Inventario Base
           </button>
           <button 
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab === 'sales' ? 'bg-primary text-white shadow-md' : 'text-text-muted hover:text-white hover:bg-white/5'}`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab === 'sales' ? 'bg-primary text-white shadow-md' : 'text-text-muted hover:text-text-primary hover:bg-bg-surface'}`}
             onClick={() => setActiveTab('sales')}
           >
             <ShoppingCart size={16} /> Historial de Ventas
@@ -839,7 +839,7 @@ export default function Tienda() {
               <div>
                 <p className="text-text-main font-medium mb-1">¿Estás seguro de que deseas anular esta venta?</p>
                 <p className="text-sm text-text-muted">
-                  Producto: <span className="font-bold text-white">&ldquo;{confirmVoid.productName}&rdquo;</span>
+                  Producto: <span className="font-bold text-text-primary">&ldquo;{confirmVoid.productName}&rdquo;</span>
                 </p>
                 <p className="text-xs text-text-muted mt-2">
                   Se restaurará el stock automáticamente. Esta acción no se puede deshacer.

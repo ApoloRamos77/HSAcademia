@@ -17,6 +17,7 @@ public class EmailService : IEmailService
     public async Task SendWelcomeEmailAsync(string toEmail, string academyName, string adminName, string tempPassword)
     {
         var subject = $"¡Bienvenido a ADHSOFT SPORT! - Academia {academyName} aprobada";
+        var portalUrl = _config["App:FrontendUrl"] ?? "#";
         var body = $@"
 <html><body style='font-family:Arial,sans-serif;color:#333;'>
   <div style='max-width:600px;margin:auto;padding:30px;border:1px solid #e0e0e0;border-radius:8px;'>
@@ -28,7 +29,7 @@ public class EmailService : IEmailService
       <li><strong>Contraseña temporal:</strong> <code style='background:#f4f4f4;padding:4px 8px;border-radius:4px;'>{tempPassword}</code></li>
     </ul>
     <p style='color:#e53e3e;'><strong>⚠️ Por seguridad, cambie su contraseña al primer inicio de sesión.</strong></p>
-    <p>Acceda a la plataforma en: <a href='http://localhost:3000'>ADHSOFT SPORT Portal</a></p>
+    <p>Acceda a la plataforma en: <a href='{portalUrl}'>ADHSOFT SPORT Portal</a></p>
     <hr style='border:none;border-top:1px solid #e0e0e0;margin:20px 0;'/>
     <p style='color:#888;font-size:12px;'>ADHSOFT SPORT - Plataforma de Gestión Deportiva</p>
   </div>

@@ -5,6 +5,7 @@ using HSAcademia.Application.DTOs.Finances;
 using HSAcademia.Infrastructure.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using HSAcademia.API.Authorization;
 
 namespace HSAcademia.API.Controllers;
 
@@ -29,6 +30,7 @@ public class FinancesController : ControllerBase
     // ── Config ────────────────────────────────────────────────────
     [HttpGet("config")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
+    [RequirePermission(Permissions.ManageFinances)]
     public async Task<IActionResult> GetConfig()
     {
         var academyId = GetAcademyId();
@@ -38,6 +40,7 @@ public class FinancesController : ControllerBase
 
     [HttpPut("config")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
+    [RequirePermission(Permissions.ManageFinances)]
     public async Task<IActionResult> UpdateConfig([FromBody] UpdateFinancialConfigDto dto)
     {
         var academyId = GetAcademyId();
@@ -45,19 +48,10 @@ public class FinancesController : ControllerBase
         return Ok(await _financesService.UpdateConfigAsync(academyId, dto));
     }
 
-    [HttpPost("next-receipt")]
-    [Authorize(Roles = "AcademyAdmin,Staff")]
-    public async Task<IActionResult> GenerateNextReceipt()
-    {
-        var academyId = GetAcademyId();
-        if (academyId == Guid.Empty) return Unauthorized();
-        var nextNumber = await _financesService.GenerateNextReceiptNumberAsync(academyId);
-        return Ok(new { receiptNumber = nextNumber });
-    }
-
     // ── Generate Debts ──────────────────────────────────────
     [HttpPost("generate-debts")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
+    [RequirePermission(Permissions.ManageFinances)]
     public async Task<IActionResult> GenerateDebts([FromBody] GenerateDebtsRequestDto? dto = null)
     {
         var academyId = GetAcademyId();
@@ -77,6 +71,7 @@ public class FinancesController : ControllerBase
     // ── Generate next-month debt for a specific student ───────────
     [HttpPost("debts/{studentId}/generate-next-month")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
+    [RequirePermission(Permissions.ManageFinances)]
     public async Task<IActionResult> GenerateNextMonthDebt(Guid studentId)
     {
         var academyId = GetAcademyId();
@@ -95,6 +90,7 @@ public class FinancesController : ControllerBase
     // ── Query Debts ──────────────────────────────────────
     [HttpGet("debts/pending")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
+    [RequirePermission(Permissions.ManageFinances, Permissions.ManageStore)] // Tienda: recibo combinado
     public async Task<IActionResult> GetPendingDebts([FromQuery] int? year, [FromQuery] int? month)
     {
         var academyId = GetAcademyId();
@@ -104,6 +100,7 @@ public class FinancesController : ControllerBase
 
     [HttpGet("debts/all")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
+    [RequirePermission(Permissions.ManageFinances)]
     public async Task<IActionResult> GetAllDebts([FromQuery] int? year, [FromQuery] int? month)
     {
         var academyId = GetAcademyId();
@@ -114,6 +111,7 @@ public class FinancesController : ControllerBase
     // ── Register Payment (partial/full + method + voucher) ────────
     [HttpPost("debts/pay")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
+    [RequirePermission(Permissions.ManageFinances)]
     public async Task<IActionResult> RegisterPayment([FromBody] RegisterPaymentDto dto)
     {
         var academyId = GetAcademyId();
@@ -131,34 +129,21 @@ public class FinancesController : ControllerBase
     // ── Upload Voucher ───────────────────────────────────────────────
     [HttpPost("upload-voucher")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
-    public async Task<IActionResult> UploadVoucher(Microsoft.AspNetCore.Http.IFormFile file)
+    [RequirePermission(Permissions.ManageFinances, Permissions.ManageStore)]
+    [RequestSizeLimit(UploadStorage.MaxVoucherBytes + 64 * 1024)]
+    public async Task<IActionResult> UploadVoucher(Microsoft.AspNetCore.Http.IFormFile file, [FromServices] UploadStorage storage)
     {
         var academyId = GetAcademyId();
         if (academyId == Guid.Empty) return Unauthorized();
 
-        if (file == null || file.Length == 0)
-            return BadRequest(new { message = "No se proporcionó ningún archivo." });
-
-        var uploadsFolder = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), "wwwroot", "uploads", "vouchers");
-        if (!System.IO.Directory.Exists(uploadsFolder))
-            System.IO.Directory.CreateDirectory(uploadsFolder);
-
-        var ext = System.IO.Path.GetExtension(file.FileName);
-        var fileName = $"{Guid.NewGuid()}{ext}";
-        var filePath = System.IO.Path.Combine(uploadsFolder, fileName);
-
-        using (var stream = new System.IO.FileStream(filePath, System.IO.FileMode.Create))
-        {
-            await file.CopyToAsync(stream);
-        }
-
-        var url = $"/uploads/vouchers/{fileName}";
-        return Ok(new { url });
+        var (url, error) = await storage.SaveVoucherAsync(file);
+        return error != null ? BadRequest(new { message = error }) : Ok(new { url });
     }
 
     // ── Quick-pay (legacy full cash) ──────────────────────────────
     [HttpPost("debts/{id}/pay")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
+    [RequirePermission(Permissions.ManageFinances)]
     public async Task<IActionResult> MarkAsPaid(Guid id)
     {
         var academyId = GetAcademyId();
@@ -176,6 +161,7 @@ public class FinancesController : ControllerBase
     // ── Recalculate / Proration ───────────────────────────────────
     [HttpPost("debts/recalculate")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
+    [RequirePermission(Permissions.ManageFinances)]
     public async Task<IActionResult> RecalculatePayment([FromBody] RecalculatePaymentDto dto)
     {
         var academyId = GetAcademyId();
@@ -193,6 +179,7 @@ public class FinancesController : ControllerBase
     // ── Exclude / Exonerate ───────────────────────────────────────
     [HttpPost("debts/exclude")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
+    [RequirePermission(Permissions.ManageFinances)]
     public async Task<IActionResult> ExcludePayment([FromBody] ExcludePaymentDto dto)
     {
         var academyId = GetAcademyId();
@@ -219,22 +206,20 @@ public class FinancesController : ControllerBase
         return Ok(await _financesService.GetMyDebtsAsync(academyId, userId));
     }
 
+    /// <summary>
+    /// DESHABILITADO por seguridad: marcaba deudas como pagadas sin ningún cobro real.
+    /// Se mantiene la ruta para que la app móvil instalada muestre un mensaje claro en vez de fallar.
+    /// Reemplazo previsto: el apoderado sube su voucher y la academia lo valida.
+    /// </summary>
     [HttpPost("mobile/pay")]
     [Authorize(Roles = "Guardian,Student")]
-    public async Task<IActionResult> MobilePayDebts([FromBody] List<Guid> debtIds)
+    public IActionResult MobilePayDebts([FromBody] List<Guid>? debtIds)
     {
-        var academyId = GetAcademyId();
-        if (academyId == Guid.Empty) return Unauthorized();
-        var userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-        if (!Guid.TryParse(userIdStr, out var userId)) return Unauthorized();
-        try
+        return BadRequest(new
         {
-            await _financesService.ProcessMobilePaymentAsync(academyId, userId, debtIds);
-            return Ok(new { message = "Pago procesado exitosamente." });
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+            message = "El pago directo desde la app ya no está disponible. " +
+                      "Paga por Yape, Plin o transferencia y envía tu comprobante desde el portal web " +
+                      "(Estado de cuenta → Enviar comprobante); la academia lo validará y registrará tu pago."
+        });
     }
 }
