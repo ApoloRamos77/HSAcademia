@@ -22,6 +22,12 @@
     <PackageReference Include="Swashbuckle.AspNetCore" Version="7.3.1" />
   </ItemGroup>
 
+  <!-- Los archivos subidos por usuarios (comprobantes) viven en un volumen; nunca se publican. -->
+  <ItemGroup>
+    <Content Remove="wwwroot\uploads\**" />
+    <None Remove="wwwroot\uploads\**" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\HSAcademia.Application\HSAcademia.Application.csproj" />
     <ProjectReference Include="..\HSAcademia.Infrastructure\HSAcademia.Infrastructure.csproj" />
