@@ -4,12 +4,13 @@ using HSAcademia.Application.DTOs.FinancesPremium;
 using HSAcademia.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using HSAcademia.API.Authorization;
 
 namespace HSAcademia.API.Controllers;
 
 [ApiController]
 [Route("api/finances-premium")]
-[Authorize]
+[Authorize(Roles = "AcademyAdmin,Staff")]
 public class FinancesPremiumController : ControllerBase
 {
     private readonly IFinancesPremiumService _service;
@@ -34,6 +35,7 @@ public class FinancesPremiumController : ControllerBase
     // ── Expenses ──────────────────────────────────────────────────────────────
 
     [HttpGet("expenses")]
+    [RequirePermission(Permissions.ManageFinances)]
     public async Task<IActionResult> GetExpenses([FromQuery] int month, [FromQuery] int year)
     {
         if (month == 0) month = DateTime.UtcNow.Month;
@@ -43,6 +45,7 @@ public class FinancesPremiumController : ControllerBase
     }
 
     [HttpPost("expenses")]
+    [RequirePermission(Permissions.ManageFinances)]
     public async Task<IActionResult> CreateExpense([FromBody] CreateExpenseDto dto)
     {
         var result = await _service.CreateExpenseAsync(GetAcademyId(), GetUserId(), dto);
@@ -50,6 +53,7 @@ public class FinancesPremiumController : ControllerBase
     }
 
     [HttpPut("expenses/{id}")]
+    [RequirePermission(Permissions.ManageFinances)]
     public async Task<IActionResult> UpdateExpense(Guid id, [FromBody] UpdateExpenseDto dto)
     {
         var result = await _service.UpdateExpenseAsync(GetAcademyId(), id, dto);
@@ -57,6 +61,7 @@ public class FinancesPremiumController : ControllerBase
     }
 
     [HttpDelete("expenses/{id}")]
+    [RequirePermission(Permissions.ManageFinances)]
     public async Task<IActionResult> DeleteExpense(Guid id)
     {
         await _service.DeleteExpenseAsync(id, GetAcademyId());
@@ -66,6 +71,7 @@ public class FinancesPremiumController : ControllerBase
     // ── Petty Cash ────────────────────────────────────────────────────────────
 
     [HttpGet("petty-cash")]
+    [RequirePermission(Permissions.ManageFinances)]
     public async Task<IActionResult> GetPettyCash([FromQuery] int month, [FromQuery] int year)
     {
         if (month == 0) month = DateTime.UtcNow.Month;
@@ -75,6 +81,7 @@ public class FinancesPremiumController : ControllerBase
     }
 
     [HttpPost("petty-cash")]
+    [RequirePermission(Permissions.ManageFinances)]
     public async Task<IActionResult> CreatePettyCash([FromBody] CreatePettyCashDto dto)
     {
         try
@@ -89,6 +96,7 @@ public class FinancesPremiumController : ControllerBase
     }
 
     [HttpPost("petty-cash/transaction")]
+    [RequirePermission(Permissions.ManageFinances)]
     public async Task<IActionResult> AddTransaction([FromBody] AddPettyCashTransactionDto dto)
     {
         var result = await _service.AddTransactionAsync(GetAcademyId(), GetUserId(), dto);
@@ -98,6 +106,7 @@ public class FinancesPremiumController : ControllerBase
     // ── Staff Payments ────────────────────────────────────────────────────────
 
     [HttpGet("staff-payments")]
+    [RequirePermission(Permissions.ManageFinances)]
     public async Task<IActionResult> GetStaffPayments([FromQuery] int month, [FromQuery] int year)
     {
         if (month == 0) month = DateTime.UtcNow.Month;
@@ -117,6 +126,7 @@ public class FinancesPremiumController : ControllerBase
     }
 
     [HttpGet("staff-payments/calculate")]
+    [RequirePermission(Permissions.ManageFinances)]
     public async Task<IActionResult> CalculateStaffPayment([FromQuery] Guid staffId, [FromQuery] int month, [FromQuery] int year)
     {
         if (month == 0) month = DateTime.UtcNow.Month;
@@ -133,6 +143,7 @@ public class FinancesPremiumController : ControllerBase
     }
 
     [HttpPost("staff-payments")]
+    [RequirePermission(Permissions.ManageFinances)]
     public async Task<IActionResult> CreateStaffPayment([FromBody] CreateStaffPaymentDto dto)
     {
         var result = await _service.CreateStaffPaymentAsync(GetAcademyId(), dto);
@@ -140,22 +151,18 @@ public class FinancesPremiumController : ControllerBase
     }
 
     [HttpPatch("staff-payments/{id}/mark-paid")]
+    [RequirePermission(Permissions.ManageFinances)]
     public async Task<IActionResult> MarkPaid(Guid id)
     {
-        try
-        {
-            var result = await _service.MarkStaffPaymentPaidAsync(id, GetAcademyId());
-            return Ok(result);
-        }
-        catch (Exception ex)
-        {
-            return NotFound(new { message = ex.Message });
-        }
+        // Errores de negocio (ya pagado, periodo cerrado, no encontrado) los traduce el manejador global.
+        var result = await _service.MarkStaffPaymentPaidAsync(id, GetAcademyId());
+        return Ok(result);
     }
 
     // ── Dashboard Summary ─────────────────────────────────────────────────────
 
     [HttpGet("summary")]
+    [RequirePermission(Permissions.ManageFinances)]
     public async Task<IActionResult> GetSummary([FromQuery] int month, [FromQuery] int year)
     {
         if (month == 0) month = DateTime.UtcNow.Month;
@@ -165,6 +172,7 @@ public class FinancesPremiumController : ControllerBase
     }
 
     [HttpGet("trends")]
+    [RequirePermission(Permissions.ManageFinances)]
     public async Task<IActionResult> GetTrends([FromQuery] int months = 6)
     {
         var result = await _service.GetTrendDataAsync(GetAcademyId(), months);
@@ -174,6 +182,7 @@ public class FinancesPremiumController : ControllerBase
     // ── Financial Goals ───────────────────────────────────────────────────────
 
     [HttpGet("goals")]
+    [RequirePermission(Permissions.ManageFinances)]
     public async Task<IActionResult> GetGoal([FromQuery] int month, [FromQuery] int year)
     {
         if (month == 0) month = DateTime.UtcNow.Month;
@@ -184,6 +193,7 @@ public class FinancesPremiumController : ControllerBase
     }
 
     [HttpPost("goals")]
+    [RequirePermission(Permissions.ManageFinances)]
     public async Task<IActionResult> UpsertGoal([FromBody] CreateFinancialGoalDto dto)
     {
         var result = await _service.UpsertGoalAsync(GetAcademyId(), dto);
@@ -193,6 +203,7 @@ public class FinancesPremiumController : ControllerBase
     // ── Monthly Closings ──────────────────────────────────────────────────────
 
     [HttpGet("closings")]
+    [RequirePermission(Permissions.ManageFinances, Permissions.ManageStore)] // Tienda valida si el mes está cerrado
     public async Task<IActionResult> GetMonthlyClosing([FromQuery] int month, [FromQuery] int year)
     {
         if (month == 0) month = DateTime.UtcNow.Month;
@@ -202,8 +213,12 @@ public class FinancesPremiumController : ControllerBase
     }
 
     [HttpPost("monthly-closings/{year}/{month}/close")]
-    public async Task<IActionResult> CloseMonth(int year, int month, [FromBody] CloseMonthDto dto)
+    [HttpPost("closings")] // ruta que usa el frontend (antes no existía y el cierre fallaba)
+    [Authorize(Roles = "AcademyAdmin")] // cerrar/reabrir periodos contables: solo el administrador
+    public async Task<IActionResult> CloseMonth([FromBody] CloseMonthDto dto, int? year = null, int? month = null)
     {
+        if (year.HasValue) dto.Year = year.Value;
+        if (month.HasValue) dto.Month = month.Value;
         var result = await _service.CloseMonthAsync(GetAcademyId(), GetUserId(), dto);
         return Ok(result);
     }
@@ -211,6 +226,7 @@ public class FinancesPremiumController : ControllerBase
     // ── Financial Period Closings (Block modifications) ──────────────────────
 
     [HttpGet("periods/{year}/{month}")]
+    [RequirePermission(Permissions.ManageFinances)]
     public async Task<IActionResult> GetPeriodStatus(int year, int month)
     {
         var result = await _service.GetPeriodStatusAsync(GetAcademyId(), month, year);
@@ -218,6 +234,7 @@ public class FinancesPremiumController : ControllerBase
     }
 
     [HttpPost("periods/{year}/{month}/toggle")]
+    [Authorize(Roles = "AcademyAdmin")] // cerrar/reabrir periodos contables: solo el administrador
     public async Task<IActionResult> TogglePeriodClose(int year, int month)
     {
         var result = await _service.TogglePeriodCloseAsync(GetAcademyId(), month, year, GetUserId());

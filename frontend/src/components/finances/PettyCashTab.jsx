@@ -4,6 +4,7 @@ import {
   Archive, Plus, TrendingDown, TrendingUp, ChevronDown, ChevronUp, X, DollarSign
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { todayISO } from '../../utils/dates';
 
 const MONTHS = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',
@@ -22,7 +23,7 @@ export default function PettyCashTab() {
   const [modal, setModal] = useState(null); // 'newBox' | 'transaction'
   const [selectedBox, setSelectedBox] = useState(null);
   const [newBoxForm, setNewBoxForm] = useState({ headquarterId: '', month, year, assignedAmount: '' });
-  const [txForm, setTxForm] = useState({ type: 2, amount: '', concept: '', date: new Date().toISOString().split('T')[0] });
+  const [txForm, setTxForm] = useState({ type: 2, amount: '', concept: '', date: todayISO() });
 
   useEffect(() => { fetchData(); }, [month, year]);
 
@@ -69,7 +70,7 @@ export default function PettyCashTab() {
 
   const openTx = (box) => {
     setSelectedBox(box);
-    setTxForm({ type: 2, amount: '', concept: '', date: new Date().toISOString().split('T')[0] });
+    setTxForm({ type: 2, amount: '', concept: '', date: todayISO() });
     setModal('transaction');
   };
 
@@ -82,7 +83,7 @@ export default function PettyCashTab() {
     <div className="fade-in space-y-6">
       {/* Period selector + New button */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card/40 backdrop-blur-md border border-border/50 p-4 rounded-xl">
-        <h3 className="text-xl font-bold text-white flex items-center gap-2">
+        <h3 className="text-xl font-bold text-text-primary flex items-center gap-2">
           <Archive className="text-primary" size={20}/> Caja Chica
         </h3>
         <div className="flex flex-wrap items-center gap-3">
@@ -118,7 +119,7 @@ export default function PettyCashTab() {
                 <div className="p-5 border-b border-border/50">
                   <div className="flex justify-between items-start gap-4">
                     <div>
-                      <h4 className="font-bold text-white text-lg">{box.headquarterName || 'General'}</h4>
+                      <h4 className="font-bold text-text-primary text-lg">{box.headquarterName || 'General'}</h4>
                       <p className="text-xs text-text-muted mt-0.5">{MONTHS[box.month-1]} {box.year}</p>
                     </div>
                     <button onClick={() => openTx(box)} className="btn btn-primary btn-sm flex items-center gap-1 shrink-0">
@@ -130,7 +131,7 @@ export default function PettyCashTab() {
                   <div className="grid grid-cols-2 gap-3 mt-4">
                     <div className="bg-bg-dark rounded-lg p-3 border border-border/50">
                       <p className="text-xs text-text-muted">Asignado</p>
-                      <p className="text-lg font-bold text-white">S/. {box.assignedAmount.toFixed(2)}</p>
+                      <p className="text-lg font-bold text-text-primary">S/. {box.assignedAmount.toFixed(2)}</p>
                     </div>
                     <div className={`rounded-lg p-3 border ${box.currentBalance < box.assignedAmount * 0.2 ? 'bg-danger/10 border-danger/30' : 'bg-success/10 border-success/30'}`}>
                       <p className="text-xs text-text-muted">Saldo</p>
@@ -177,7 +178,7 @@ export default function PettyCashTab() {
                               : <TrendingUp size={16} className="text-success shrink-0"/>
                             }
                             <div>
-                              <p className="font-medium text-white">{t.concept}</p>
+                              <p className="font-medium text-text-primary">{t.concept}</p>
                               <p className="text-xs text-text-muted">{new Date(t.date).toLocaleDateString('es-PE')}</p>
                             </div>
                           </div>
@@ -242,7 +243,7 @@ export default function PettyCashTab() {
               <button onClick={() => setModal(null)} className="btn btn-ghost btn-sm"><X size={16}/></button>
             </div>
             <p className="text-sm text-text-secondary mb-4">
-              Caja: <strong className="text-white">{selectedBox.headquarterName || 'General'}</strong> — Saldo: <strong className="text-success">S/. {selectedBox.currentBalance.toFixed(2)}</strong>
+              Caja: <strong className="text-text-primary">{selectedBox.headquarterName || 'General'}</strong> — Saldo: <strong className="text-success">S/. {selectedBox.currentBalance.toFixed(2)}</strong>
             </p>
             <form onSubmit={handleAddTransaction}>
               <div className="form-row">

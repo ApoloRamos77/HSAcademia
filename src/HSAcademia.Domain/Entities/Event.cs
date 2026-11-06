@@ -27,6 +27,14 @@ public class Event
 
     public bool IsActive { get; set; } = true;
 
+    /// <summary>Serie de horario recurrente a la que pertenece (null = evento suelto).</summary>
+    public Guid? SeriesId { get; set; }
+
+    // Resultado del partido (amistoso / torneo)
+    public int? GoalsFor { get; set; }
+    public int? GoalsAgainst { get; set; }
+    public string? MatchNotes { get; set; }
+
     // Attendance closure — Coach/Admin can close; only Admin can reopen
     public bool AttendanceClosed { get; set; } = false;
     public DateTime? AttendanceClosedAt { get; set; }

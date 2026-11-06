@@ -13,80 +13,102 @@ namespace HSAcademia.Infrastructure.Services;
 public class FinancesService
 {
     private readonly AppDbContext _context;
+    private readonly FinancialPeriodGuard _periods;
+    private readonly AuditService _audit;
 
-    public FinancesService(AppDbContext context)
+    public FinancesService(AppDbContext context, FinancialPeriodGuard periods, AuditService audit)
     {
         _context = context;
+        _periods = periods;
+        _audit = audit;
     }
 
     // ─────────────────────────────────────────────────────────────
-    // Helper: verificar si el mes contable está cerrado
+    // Helpers de periodo
     // ─────────────────────────────────────────────────────────────
-    private async Task<bool> IsMonthClosedAsync(Guid academyId, int year, int month)
+    private static (int Year, int Month) PeriodOf(PaymentRecord p) =>
+        (p.PeriodYear ?? p.DueDate.Year, p.PeriodMonth ?? p.DueDate.Month);
+
+    /// <summary>Filtra por mes: las mensualidades usan su periodo; el resto, la fecha de vencimiento.</summary>
+    private static IQueryable<PaymentRecord> WhereInMonth(IQueryable<PaymentRecord> q, int year, int month) =>
+        q.Where(p =>
+            (p.PeriodYear != null && p.PeriodYear == year && p.PeriodMonth == month) ||
+            (p.PeriodYear == null && p.DueDate.Year == year && p.DueDate.Month == month));
+
+    private static DateTime DueDateFor(int year, int month, int paymentDay)
     {
-        return await _context.MonthlyClosings
-            .AnyAsync(c => c.AcademyId == academyId
-                        && c.Year  == year
-                        && c.Month == month
-                        && c.Status == MonthlyClosingStatus.Closed);
+        var day = Math.Min(paymentDay, DateTime.DaysInMonth(year, month));
+        return new DateTime(year, month, day, 0, 0, 0, DateTimeKind.Utc);
     }
 
     // ─────────────────────────────────────────────────────────────
     // Configuration
     // ─────────────────────────────────────────────────────────────
-    public async Task<FinancialConfigDto> GetConfigAsync(Guid academyId)
+    private async Task<AcademyFinancialConfig> GetOrCreateConfigEntityAsync(Guid academyId)
     {
         var config = await _context.AcademyFinancialConfigs.FirstOrDefaultAsync(c => c.AcademyId == academyId);
         if (config == null)
         {
-            config = new AcademyFinancialConfig { AcademyId = academyId, DefaultPaymentDay = 5, CurrentReceiptNumber = 43 };
+            config = new AcademyFinancialConfig { AcademyId = academyId, DefaultPaymentDay = 5, CurrentReceiptNumber = 0 };
             _context.AcademyFinancialConfigs.Add(config);
             await _context.SaveChangesAsync();
         }
+        return config;
+    }
+
+    public async Task<FinancialConfigDto> GetConfigAsync(Guid academyId)
+    {
+        var config = await GetOrCreateConfigEntityAsync(academyId);
         return new FinancialConfigDto { DefaultPaymentDay = config.DefaultPaymentDay };
     }
 
-    public async Task<string> GenerateNextReceiptNumberAsync(Guid academyId)
+    /// <summary>
+    /// Reserva el siguiente número de recibo de forma segura ante cobros simultáneos
+    /// (token de concurrencia + reintento). Debe llamarse dentro de una transacción
+    /// (ver <see cref="DbContextExtensions.InTransactionAsync"/>) y ANTES de agregar otros cambios,
+    /// para que si la operación falla el número se revierta y no queden saltos.
+    /// </summary>
+    public async Task<string> ReserveReceiptNumberAsync(Guid academyId)
     {
-        var config = await _context.AcademyFinancialConfigs.FirstOrDefaultAsync(c => c.AcademyId == academyId);
-        if (config == null)
+        var config = await GetOrCreateConfigEntityAsync(academyId);
+        for (var attempt = 1; ; attempt++)
         {
-            config = new AcademyFinancialConfig { AcademyId = academyId, DefaultPaymentDay = 5, CurrentReceiptNumber = 43 };
-            _context.AcademyFinancialConfigs.Add(config);
+            config.CurrentReceiptNumber++;
+            try
+            {
+                await _context.SaveChangesAsync();
+                return config.CurrentReceiptNumber.ToString().PadLeft(6, '0');
+            }
+            catch (DbUpdateConcurrencyException ex) when (attempt < 5)
+            {
+                foreach (var entry in ex.Entries) await entry.ReloadAsync();
+            }
         }
-        
-        config.CurrentReceiptNumber++;
-        await _context.SaveChangesAsync();
-        
-        return config.CurrentReceiptNumber.ToString().PadLeft(6, '0');
     }
 
     public async Task<FinancialConfigDto> UpdateConfigAsync(Guid academyId, UpdateFinancialConfigDto dto)
     {
-        var config = await _context.AcademyFinancialConfigs.FirstOrDefaultAsync(c => c.AcademyId == academyId);
-        if (config == null)
-        {
-            config = new AcademyFinancialConfig { AcademyId = academyId, DefaultPaymentDay = dto.DefaultPaymentDay };
-            _context.AcademyFinancialConfigs.Add(config);
-        }
-        else
-        {
-            config.DefaultPaymentDay = dto.DefaultPaymentDay;
-        }
+        if (dto.DefaultPaymentDay < 1 || dto.DefaultPaymentDay > 31)
+            throw new Exception("El día de cobro debe estar entre 1 y 31.");
 
-        // Update pending debts for the current month
-        var today = DateTime.UtcNow;
-        var pendingDebts = await _context.PaymentRecords
-            .Where(p => p.AcademyId == academyId && !p.IsPaid && !p.IsDeleted && p.DueDate.Month == today.Month && p.DueDate.Year == today.Year)
+        var config = await GetOrCreateConfigEntityAsync(academyId);
+        config.DefaultPaymentDay = dto.DefaultPaymentDay;
+
+        // Ajustar el vencimiento de las mensualidades pendientes del mes actual
+        var now = AcademyClock.Now;
+        var pendingDebts = await WhereInMonth(_context.PaymentRecords
+                .Where(p => p.AcademyId == academyId && !p.IsPaid && p.Type == PaymentType.MonthlyFee),
+                now.Year, now.Month)
             .ToListAsync();
 
         foreach (var debt in pendingDebts)
         {
-            var daysInMonth = DateTime.DaysInMonth(debt.DueDate.Year, debt.DueDate.Month);
-            var newDay = Math.Min(dto.DefaultPaymentDay, daysInMonth);
-            debt.DueDate = new DateTime(debt.DueDate.Year, debt.DueDate.Month, newDay, 0, 0, 0, DateTimeKind.Utc);
+            var (y, m) = PeriodOf(debt);
+            debt.DueDate = DueDateFor(y, m, dto.DefaultPaymentDay);
         }
 
+        _audit.Add(academyId, "finances.config.update", nameof(AcademyFinancialConfig), config.Id,
+            new { dto.DefaultPaymentDay, adjustedDebts = pendingDebts.Count });
         await _context.SaveChangesAsync();
         return new FinancialConfigDto { DefaultPaymentDay = config.DefaultPaymentDay };
     }
@@ -117,14 +139,29 @@ public class FinancesService
 
         var sessions = await query.Select(e => e.StartTime).ToListAsync();
         int total    = sessions.Count;
-        
+
         var validSessions = sessions.AsEnumerable();
         if (fromDate.HasValue) validSessions = validSessions.Where(s => s.Date >= fromDate.Value.Date);
         if (toDate.HasValue)   validSessions = validSessions.Where(s => s.Date <= toDate.Value.Date);
-        
+
         int active = validSessions.Count();
 
         return (total, active);
+    }
+
+    /// <summary>Aplica beca/invitado al monto. Devuelve (montoACobrar, descuento).</summary>
+    private static (decimal Charged, decimal Discount) ApplyBenefits(Student student, decimal amount)
+    {
+        if (student.IsGuest || student.IsScholarship)
+            return (0m, amount);
+
+        if (student.ScholarshipPercentage.HasValue && student.ScholarshipPercentage.Value > 0)
+        {
+            var pct = Math.Min(student.ScholarshipPercentage.Value, 100m);
+            var discount = Math.Round(amount * pct / 100, 2);
+            return (amount - discount, discount);
+        }
+        return (amount, 0m);
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -133,22 +170,24 @@ public class FinancesService
     public async Task<(int Generated, int Replaced, int Cleaned)> GenerateMonthlyDebtsAsync(
         Guid academyId, int? targetYear = null, int? targetMonth = null)
     {
-        var config = await GetConfigAsync(academyId);
-        var today  = DateTime.UtcNow;
+        var now   = AcademyClock.Now;
+        int year  = targetYear  ?? now.Year;
+        int month = targetMonth ?? now.Month;
+        if (month < 1 || month > 12 || year < 2000 || year > 2100)
+            throw new Exception("Periodo inválido.");
 
-        int year  = targetYear  ?? today.Year;
-        int month = targetMonth ?? today.Month;
+        await _periods.EnsureOpenAsync(academyId, year, month, "generar cobros");
 
+        var config      = await GetConfigAsync(academyId);
         var daysInMonth = DateTime.DaysInMonth(year, month);
-        var dueDayNum   = Math.Min(config.DefaultPaymentDay, daysInMonth);
-        var dueDate     = new DateTime(year, month, dueDayNum, 0, 0, 0, DateTimeKind.Utc);
+        var dueDate     = DueDateFor(year, month, config.DefaultPaymentDay);
         var targetRef   = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Utc);
-        string description = $"Mensualidad {new DateTime(year, month, 1):MMMM yyyy}";
+        var description = Culture.MonthlyFeeDescription(year, month);
 
         var students = await _context.Students
             .Include(s => s.Category)
-            .Where(s => s.AcademyId == academyId && 
-                       (s.IsActive || 
+            .Where(s => s.AcademyId == academyId &&
+                       (s.IsActive ||
                        (s.WithdrawalDate.HasValue && s.WithdrawalDate.Value >= targetRef)))
             .ToListAsync();
 
@@ -158,28 +197,24 @@ public class FinancesService
         //   each student's effective start month (PaymentStartDate ?? EnrollmentDate)
         //   EXCEPCIÓN: nunca eliminar registros con pagos parciales registrados.
         var studentIds = students.Select(s => s.Id).ToList();
+        var studentsById = students.ToDictionary(s => s.Id);
         var allUnpaidMonthly = await _context.PaymentRecords
             .Include(p => p.Installments)
             .Where(p => p.AcademyId == academyId
-                     && !p.IsPaid && !p.IsDeleted
+                     && !p.IsPaid
                      && p.Type == PaymentType.MonthlyFee
                      && studentIds.Contains(p.StudentId))
             .ToListAsync();
 
         foreach (var record in allUnpaidMonthly)
         {
-            var student = students.FirstOrDefault(s => s.Id == record.StudentId);
-            if (student == null) continue;
+            if (!studentsById.TryGetValue(record.StudentId, out var student)) continue;
+            if (record.Installments.Any()) continue;
 
-            // Nunca eliminar si tiene pagos parciales
-            if (record.Installments != null && record.Installments.Any()) continue;
-
-            var effStart = (student.PaymentStartDate.HasValue
-                ? student.PaymentStartDate.Value
-                : student.EnrollmentDate).ToUniversalTime();
-
-            var effStartMonth  = new DateTime(effStart.Year,  effStart.Month,  1, 0, 0, 0, DateTimeKind.Utc);
-            var recordMonth    = new DateTime(record.DueDate.Year, record.DueDate.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+            var effStart = (student.PaymentStartDate ?? student.EnrollmentDate).ToUniversalTime();
+            var effStartMonth = new DateTime(effStart.Year, effStart.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+            var (ry, rm) = PeriodOf(record);
+            var recordMonth = new DateTime(ry, rm, 1, 0, 0, 0, DateTimeKind.Utc);
 
             if (recordMonth < effStartMonth)
             {
@@ -189,22 +224,17 @@ public class FinancesService
             }
         }
 
-        // ── STEP 1.5: Cleanup — soft-delete unpaid records FOR THE TARGET MONTH if the student is no longer eligible
-        //   EXCEPCIÓN: nunca eliminar registros con pagos parciales registrados.
-        var unpaidInTargetMonth = await _context.PaymentRecords
-            .Include(p => p.Installments)
-            .Where(p => p.AcademyId == academyId
-                     && !p.IsPaid && !p.IsDeleted
-                     && p.Type == PaymentType.MonthlyFee
-                     && p.Description == description)
+        // ── STEP 1.5: soft-delete unpaid records of the TARGET MONTH for students no longer eligible
+        var targetMonthRecords = await WhereInMonth(_context.PaymentRecords
+                .Include(p => p.Installments)
+                .Where(p => p.AcademyId == academyId && p.Type == PaymentType.MonthlyFee),
+                year, month)
             .ToListAsync();
 
-        foreach (var record in unpaidInTargetMonth)
+        foreach (var record in targetMonthRecords.Where(r => !r.IsPaid && !r.IsDeleted))
         {
-            // Nunca eliminar si tiene pagos parciales
-            if (record.Installments != null && record.Installments.Any()) continue;
-
-            if (!studentIds.Contains(record.StudentId))
+            if (record.Installments.Any()) continue;
+            if (!studentsById.ContainsKey(record.StudentId))
             {
                 record.IsDeleted = true;
                 record.DeletedAt = DateTime.UtcNow;
@@ -212,28 +242,23 @@ public class FinancesService
             }
         }
 
+        // Una consulta para todo el mes (antes era una consulta por alumno)
+        var existingByStudent = targetMonthRecords
+            .Where(r => !r.IsDeleted)
+            .GroupBy(r => r.StudentId)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(r => r.IsPaid).ThenByDescending(r => r.AmountPaid).First());
+
         // ── STEP 2: Generate / replace for the target month ───────────────
         foreach (var student in students)
         {
-            var effStart = (student.PaymentStartDate.HasValue
-                ? student.PaymentStartDate.Value
-                : student.EnrollmentDate).ToUniversalTime();
-
+            var effStart = (student.PaymentStartDate ?? student.EnrollmentDate).ToUniversalTime();
             var effStartMonth = new DateTime(effStart.Year, effStart.Month, 1, 0, 0, 0, DateTimeKind.Utc);
 
-            // Skip if target month is BEFORE the student's effective start month
             if (targetRef < effStartMonth) continue;
 
-            var existingDebt = await _context.PaymentRecords
-                .Include(p => p.Installments)
-                .FirstOrDefaultAsync(p =>
-                    p.AcademyId == academyId &&
-                    p.StudentId == student.Id &&
-                    p.Type == PaymentType.MonthlyFee &&
-                    p.Description == description &&
-                    !p.IsDeleted);
+            existingByStudent.TryGetValue(student.Id, out var existingDebt);
 
-            // Pagado completamente → nunca sobrescribir (mes cerrado implícito)
+            // Pagado completamente → nunca sobrescribir
             if (existingDebt != null && existingDebt.IsPaid) continue;
 
             var fullAmount = student.PreferentialFee ?? student.Category?.MonthlyFee ?? 0m;
@@ -281,41 +306,24 @@ public class FinancesService
                 }
             }
 
-            decimal discountAmount = 0m;
-            if (student.IsGuest)
-            {
-                discountAmount = chargedAmount;
-                chargedAmount  = 0m;
-            }
-            else if (student.IsScholarship)
-            {
-                discountAmount = chargedAmount;
-                chargedAmount  = 0m;
-            }
-            else if (student.ScholarshipPercentage.HasValue && student.ScholarshipPercentage.Value > 0)
-            {
-                discountAmount = Math.Round(chargedAmount * student.ScholarshipPercentage.Value / 100, 2);
-                chargedAmount -= discountAmount;
-            }
+            var (amountToCharge, discountAmount) = ApplyBenefits(student, chargedAmount);
+            chargedAmount = amountToCharge;
 
-            // ── ¿Existe registro previo con pagos parciales? → preservarlo ──
-            bool hasPartialPayments = existingDebt != null &&
-                                      existingDebt.Installments != null &&
-                                      existingDebt.Installments.Any();
+            bool hasPartialPayments = existingDebt != null && existingDebt.Installments.Any();
 
             if (hasPartialPayments)
             {
-                // Solo actualizamos el monto total; el AmountPaid ya registrado se conserva.
-                // El saldo pendiente (Amount - AmountPaid) se ajusta automáticamente.
+                // Solo se actualiza el total; lo ya abonado se conserva.
                 existingDebt!.Amount              = chargedAmount;
                 existingDebt.DiscountAmount       = discountAmount;
                 existingDebt.DueDate              = dueDate;
+                existingDebt.PeriodYear           = year;
+                existingDebt.PeriodMonth          = month;
                 existingDebt.IsProrated           = isProrated;
                 existingDebt.ProratedStartDate    = proratedStart;
                 existingDebt.ProratedTotalDays    = totalSessions;
                 existingDebt.ProratedDaysCharged  = sessionsCharged;
 
-                // Si el pago parcial ya cubre el nuevo total, marcar como pagado
                 if (existingDebt.AmountPaid >= chargedAmount - 0.01m && chargedAmount > 0)
                 {
                     existingDebt.AmountPaid = chargedAmount;
@@ -328,15 +336,19 @@ public class FinancesService
                     existingDebt.PaidDate = chargedAmount == 0m ? DateTime.UtcNow : null;
                 }
 
-                replacedCount++; // contabilizamos como "actualizado"
+                replacedCount++;
             }
             else
             {
-                // Sin pagos parciales: soft-delete del registro anterior (si existe) y crear nuevo
                 if (existingDebt != null)
                 {
                     existingDebt.IsDeleted = true;
                     existingDebt.DeletedAt = DateTime.UtcNow;
+                    replacedCount++;
+                }
+                else
+                {
+                    generatedCount++;
                 }
 
                 _context.PaymentRecords.Add(new PaymentRecord
@@ -348,6 +360,8 @@ public class FinancesService
                     AmountPaid          = 0m,
                     DiscountAmount      = discountAmount,
                     DueDate             = dueDate,
+                    PeriodYear          = year,
+                    PeriodMonth         = month,
                     IsPaid              = chargedAmount == 0m,
                     PaidDate            = chargedAmount == 0m ? DateTime.UtcNow : null,
                     Type                = PaymentType.MonthlyFee,
@@ -356,12 +370,15 @@ public class FinancesService
                     ProratedTotalDays   = totalSessions,
                     ProratedDaysCharged = sessionsCharged
                 });
-                generatedCount++;
             }
         }
 
         if (generatedCount > 0 || replacedCount > 0 || cleanedCount > 0)
+        {
+            _audit.Add(academyId, "finances.debts.generate", nameof(PaymentRecord), null,
+                new { year, month, generatedCount, replacedCount, cleanedCount });
             await _context.SaveChangesAsync();
+        }
 
         return (generatedCount, replacedCount, cleanedCount);
     }
@@ -377,59 +394,40 @@ public class FinancesService
             .FirstOrDefaultAsync(s => s.Id == studentId && s.AcademyId == academyId)
             ?? throw new Exception("Alumno no encontrado.");
 
-        // Next month relative to today
-        var today     = DateTime.UtcNow;
-        var nextMonth = today.AddMonths(1);
+        var nextMonth = AcademyClock.Now.AddMonths(1);
         int year      = nextMonth.Year;
         int month     = nextMonth.Month;
+        var description = Culture.MonthlyFeeDescription(year, month);
 
-        string description = $"Mensualidad {new DateTime(year, month, 1):MMMM yyyy}";
+        await _periods.EnsureOpenAsync(academyId, year, month, "generar el cobro");
 
-        var existing = await _context.PaymentRecords.FirstOrDefaultAsync(p =>
+        var exists = await _context.PaymentRecords.AnyAsync(p =>
             p.AcademyId == academyId &&
             p.StudentId == studentId &&
             p.Type == PaymentType.MonthlyFee &&
-            p.Description == description);
+            p.PeriodYear == year && p.PeriodMonth == month);
 
-        if (existing != null)
+        if (exists)
             throw new Exception($"Ya existe un cobro para {description}.");
 
         var fullAmount = student.PreferentialFee ?? student.Category?.MonthlyFee ?? 0m;
         if (fullAmount <= 0) throw new Exception("El alumno no tiene tarifa configurada.");
 
-        var daysInMonth  = DateTime.DaysInMonth(year, month);
-        var dueDayNum    = Math.Min(config.DefaultPaymentDay, daysInMonth);
-        var dueDate      = new DateTime(year, month, dueDayNum, 0, 0, 0, DateTimeKind.Utc);
+        var (amount, discountAmount) = ApplyBenefits(student, fullAmount);
 
-        decimal discountAmount = 0m;
-        if (student.IsGuest)
-        {
-            discountAmount = fullAmount;
-            fullAmount = 0m;
-        }
-        else if (student.IsScholarship)
-        {
-            discountAmount = fullAmount;
-            fullAmount = 0m;
-        }
-        else if (student.ScholarshipPercentage.HasValue && student.ScholarshipPercentage.Value > 0)
-        {
-            discountAmount = Math.Round(fullAmount * student.ScholarshipPercentage.Value / 100, 2);
-            fullAmount -= discountAmount;
-        }
-
-        // Next month is always full month (no proration needed)
         var record = new PaymentRecord
         {
             AcademyId           = academyId,
             StudentId           = studentId,
             Description         = description,
-            Amount              = fullAmount,
+            Amount              = amount,
             AmountPaid          = 0m,
             DiscountAmount      = discountAmount,
-            DueDate             = dueDate,
-            IsPaid              = fullAmount == 0m,
-            PaidDate            = fullAmount == 0m ? DateTime.UtcNow : null,
+            DueDate             = DueDateFor(year, month, config.DefaultPaymentDay),
+            PeriodYear          = year,
+            PeriodMonth         = month,
+            IsPaid              = amount == 0m,
+            PaidDate            = amount == 0m ? DateTime.UtcNow : null,
             Type                = PaymentType.MonthlyFee,
             IsProrated          = false
         };
@@ -437,13 +435,12 @@ public class FinancesService
         _context.PaymentRecords.Add(record);
         await _context.SaveChangesAsync();
 
-        // Reload with navigations
         var loaded = await _context.PaymentRecords
             .Include(p => p.Student).ThenInclude(s => s.Category)
             .Include(p => p.Installments)
             .FirstAsync(p => p.Id == record.Id);
 
-        return MapToDto(loaded, today);
+        return MapToDto(loaded);
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -451,107 +448,129 @@ public class FinancesService
     // ─────────────────────────────────────────────────────────────
     public async Task<List<PaymentRecordDto>> GetPendingDebtsAsync(Guid academyId, int? year = null, int? month = null)
     {
-        var today = DateTime.UtcNow;
         var query = _context.PaymentRecords
             .Include(p => p.Student).ThenInclude(s => s.Category)
             .Include(p => p.Installments)
-            .Where(p => p.AcademyId == academyId && !p.IsPaid && !p.IsDeleted);
+            .Where(p => p.AcademyId == academyId && !p.IsPaid);
 
         if (year.HasValue && month.HasValue)
-            query = query.Where(p => p.DueDate.Year == year.Value && p.DueDate.Month == month.Value);
+            query = WhereInMonth(query, year.Value, month.Value);
 
         var debts = await query.OrderBy(p => p.DueDate).ToListAsync();
-        return debts.Select(p => MapToDto(p, today)).ToList();
+        return debts.Select(MapToDto).ToList();
     }
 
     public async Task<List<PaymentRecordDto>> GetAllDebtsAsync(Guid academyId, int? year = null, int? month = null)
     {
-        var today = DateTime.UtcNow;
         var query = _context.PaymentRecords
             .Include(p => p.Student).ThenInclude(s => s.Category)
             .Include(p => p.Installments)
-            .Where(p => p.AcademyId == academyId && !p.IsDeleted);
+            .Where(p => p.AcademyId == academyId);
 
         if (year.HasValue && month.HasValue)
-            query = query.Where(p => p.DueDate.Year == year.Value && p.DueDate.Month == month.Value);
+            query = WhereInMonth(query, year.Value, month.Value);
 
         var debts = await query.OrderByDescending(p => p.DueDate).ToListAsync();
-        return debts.Select(p => MapToDto(p, today)).ToList();
+        return debts.Select(MapToDto).ToList();
     }
 
     public async Task<List<PaymentRecordDto>> GetMyDebtsAsync(Guid academyId, Guid guardianUserId)
     {
-        var today = DateTime.UtcNow;
         var debts = await _context.PaymentRecords
             .Include(p => p.Student).ThenInclude(s => s.Category)
             .Include(p => p.Installments)
-            .Where(p => p.AcademyId == academyId && 
-                       (p.Student.GuardianId == guardianUserId || p.Student.UserId == guardianUserId) && 
-                       !p.IsDeleted)
+            .Where(p => p.AcademyId == academyId &&
+                       (p.Student.GuardianId == guardianUserId || p.Student.UserId == guardianUserId))
             .OrderBy(p => p.DueDate)
             .ToListAsync();
-        return debts.Select(p => MapToDto(p, today)).ToList();
+        return debts.Select(MapToDto).ToList();
     }
 
     // ─────────────────────────────────────────────────────────────
     // Registrar pago (total o parcial) con medio + voucher
     // ─────────────────────────────────────────────────────────────
+    /// <summary>
+    /// Registra un abono. Si otro usuario cobra la MISMA deuda al mismo tiempo, el token de concurrencia
+    /// de AmountPaid detecta el conflicto: la transacción se revierte (incluido el número de recibo)
+    /// y la operación se reintenta con el saldo actualizado.
+    /// </summary>
     public async Task<PaymentRecordDto> RegisterPaymentAsync(Guid academyId, RegisterPaymentDto dto)
     {
-        var record = await _context.PaymentRecords
-            .Include(p => p.Student).ThenInclude(s => s.Category)
-            .Include(p => p.Installments)
-            .FirstOrDefaultAsync(p => p.Id == dto.PaymentRecordId && p.AcademyId == academyId)
-            ?? throw new Exception("Registro de pago no encontrado.");
-
-        // Verificar si el mes contable está cerrado
-        if (await IsMonthClosedAsync(academyId, record.DueDate.Year, record.DueDate.Month))
-            throw new Exception($"No se puede registrar el cobro porque el mes contable ({record.DueDate:MMMM yyyy}) está cerrado.");
-
-        if (record.IsPaid)
-            throw new Exception("Este cobro ya está completamente pagado.");
-        if (dto.AmountPaid <= 0)
-            throw new Exception("El monto a pagar debe ser mayor a cero.");
-
-        var pending = record.Amount - record.AmountPaid;
-        if (dto.AmountPaid > pending + 0.01m)
-            throw new Exception($"El monto ingresado ({dto.AmountPaid:N2}) supera el saldo pendiente ({pending:N2}).");
-
-        if (!Enum.TryParse<PaymentMethod>(dto.Method, true, out var method))
-            method = PaymentMethod.Cash;
-
-        // Generate a sequential receipt number stored in the DB
-        var receiptNum = await GenerateNextReceiptNumberAsync(academyId);
-
-        _context.PaymentInstallments.Add(new PaymentInstallment
+        for (var attempt = 1; ; attempt++)
         {
-            PaymentRecordId = record.Id,
-            AmountPaid      = dto.AmountPaid,
-            PaidAt          = DateTime.UtcNow,
-            Method          = method,
-            OperationNumber = dto.OperationNumber,
-            VoucherUrl      = dto.VoucherUrl,
-            Notes           = dto.Notes,
-            ReceiptNumber   = receiptNum
-        });
-
-        record.AmountPaid += dto.AmountPaid;
-
-        if (record.AmountPaid >= record.Amount - 0.01m)
-        {
-            record.AmountPaid = record.Amount;
-            record.IsPaid     = true;
-            record.PaidDate   = DateTime.UtcNow;
+            try
+            {
+                return await RegisterPaymentOnceAsync(academyId, dto);
+            }
+            catch (DbUpdateConcurrencyException) when (attempt < 4)
+            {
+                _context.ChangeTracker.Clear();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                _context.ChangeTracker.Clear();
+                throw new Exception("Otro usuario está registrando un pago sobre esta deuda. Actualiza la pantalla e inténtalo nuevamente.");
+            }
         }
-
-        await _context.SaveChangesAsync();
-        return MapToDto(record, DateTime.UtcNow);
     }
+
+    private Task<PaymentRecordDto> RegisterPaymentOnceAsync(Guid academyId, RegisterPaymentDto dto) =>
+        _context.InTransactionAsync(async () =>
+        {
+            var record = await _context.PaymentRecords
+                .Include(p => p.Student).ThenInclude(s => s.Category)
+                .Include(p => p.Installments)
+                .FirstOrDefaultAsync(p => p.Id == dto.PaymentRecordId && p.AcademyId == academyId)
+                ?? throw new Exception("Registro de pago no encontrado.");
+
+            // El dinero entra HOY: lo que debe estar abierto es el periodo del día de pago
+            // (se puede cobrar una deuda antigua aunque su mes ya esté cerrado).
+            await _periods.EnsureOpenAsync(academyId, AcademyClock.Today, "registrar el cobro");
+
+            if (record.IsPaid)
+                throw new Exception("Este cobro ya está completamente pagado.");
+            if (dto.AmountPaid <= 0)
+                throw new Exception("El monto a pagar debe ser mayor a cero.");
+
+            var pending = record.Amount - record.AmountPaid;
+            if (dto.AmountPaid > pending + 0.01m)
+                throw new Exception($"El monto ingresado ({dto.AmountPaid:N2}) supera el saldo pendiente ({pending:N2}).");
+
+            if (!Enum.TryParse<PaymentMethod>(dto.Method, true, out var method))
+                method = PaymentMethod.Cash;
+
+            var receiptNum = await ReserveReceiptNumberAsync(academyId);
+
+            var installment = new PaymentInstallment
+            {
+                PaymentRecordId = record.Id,
+                AmountPaid      = dto.AmountPaid,
+                PaidAt          = DateTime.UtcNow,
+                Method          = method,
+                OperationNumber = dto.OperationNumber,
+                VoucherUrl      = dto.VoucherUrl,
+                Notes           = dto.Notes,
+                ReceiptNumber   = receiptNum
+            };
+            _context.PaymentInstallments.Add(installment);
+
+            record.AmountPaid += dto.AmountPaid;
+            if (record.AmountPaid >= record.Amount - 0.01m)
+            {
+                record.AmountPaid = record.Amount;
+                record.IsPaid     = true;
+                record.PaidDate   = DateTime.UtcNow;
+            }
+
+            _audit.Add(academyId, "finances.payment.register", nameof(PaymentRecord), record.Id,
+                new { dto.AmountPaid, method = method.ToString(), dto.OperationNumber, receipt = receiptNum, record.StudentId });
+
+            await _context.SaveChangesAsync();
+            return MapToDto(record);
+        });
 
     // ─────────────────────────────────────────────────────────────
     // Recalcular monto (prorrateo manual o importe libre)
-    // Usa el día de cobro de la configuración para recalcular DueDate.
-    // Si aún no se ha completado el pago, actualiza Amount y DueDate.
     // ─────────────────────────────────────────────────────────────
     public async Task<PaymentRecordDto> RecalculatePaymentAsync(Guid academyId, RecalculatePaymentDto dto)
     {
@@ -561,21 +580,19 @@ public class FinancesService
             .FirstOrDefaultAsync(p => p.Id == dto.PaymentRecordId && p.AcademyId == academyId)
             ?? throw new Exception("Registro de pago no encontrado.");
 
-        // Verificar si el mes contable está cerrado
-        if (await IsMonthClosedAsync(academyId, record.DueDate.Year, record.DueDate.Month))
-            throw new Exception($"No se puede recalcular porque el mes contable ({record.DueDate:MMMM yyyy}) está cerrado.");
+        var (periodYear, periodMonth) = PeriodOf(record);
+        await _periods.EnsureOpenAsync(academyId, periodYear, periodMonth, "recalcular el cobro");
 
         if (record.IsPaid)
             throw new Exception("No se puede recalcular un pago ya completado.");
+        if (dto.NewAmount.HasValue && dto.NewAmount.Value < 0)
+            throw new Exception("El monto no puede ser negativo.");
 
-        // ── Obtener configuración de la academia ──────────────────
+        var before = new { record.Amount, record.DiscountAmount };
         var config = await GetConfigAsync(academyId);
 
-        // ── Recalcular DueDate con el día configurado ─────────────
-        var dueRef       = record.DueDate;  // mes/año de referencia
-        var daysInMonth  = DateTime.DaysInMonth(dueRef.Year, dueRef.Month);
-        var configuredDay = Math.Min(config.DefaultPaymentDay, daysInMonth);
-        record.DueDate   = new DateTime(dueRef.Year, dueRef.Month, configuredDay, 0, 0, 0, DateTimeKind.Utc);
+        var daysInMonth  = DateTime.DaysInMonth(periodYear, periodMonth);
+        record.DueDate   = DueDateFor(periodYear, periodMonth, config.DefaultPaymentDay);
 
         var fullAmount = record.Student.PreferentialFee ?? record.Student.Category?.MonthlyFee ?? 0m;
 
@@ -601,84 +618,59 @@ public class FinancesService
         }
         else
         {
-            // Sin monto manual ni fecha: recalcular desde categoría + prorrateo automático
-            // según EnrollmentDate o PaymentStartDate del alumno para el mes de referencia
+            // Recalcular desde categoría + prorrateo automático por inicio en el mes
             var student = record.Student;
-            bool autoProrated = false;
+            DateTime? startInMonth = null;
 
-            // Verificar EnrollmentDate
             var enrollUtc = student.EnrollmentDate.Kind == DateTimeKind.Utc
                 ? student.EnrollmentDate
                 : student.EnrollmentDate.ToUniversalTime();
-
-            if (enrollUtc.Year == dueRef.Year && enrollUtc.Month == dueRef.Month && enrollUtc.Day > 1)
-            {
-                var charged  = daysInMonth - enrollUtc.Day + 1;
-                record.Amount              = Math.Round(fullAmount * charged / daysInMonth, 2);
-                record.IsProrated          = true;
-                record.ProratedStartDate   = new DateTime(dueRef.Year, dueRef.Month, enrollUtc.Day, 0, 0, 0, DateTimeKind.Utc);
-                record.ProratedTotalDays   = daysInMonth;
-                record.ProratedDaysCharged = charged;
-                autoProrated = true;
-            }
+            if (enrollUtc.Year == periodYear && enrollUtc.Month == periodMonth && enrollUtc.Day > 1)
+                startInMonth = enrollUtc;
             else if (student.PaymentStartDate.HasValue)
             {
                 var psUtc = student.PaymentStartDate.Value.ToUniversalTime();
-                if (psUtc.Year == dueRef.Year && psUtc.Month == dueRef.Month && psUtc.Day > 1)
-                {
-                    var charged  = daysInMonth - psUtc.Day + 1;
-                    record.Amount              = Math.Round(fullAmount * charged / daysInMonth, 2);
-                    record.IsProrated          = true;
-                    record.ProratedStartDate   = new DateTime(dueRef.Year, dueRef.Month, psUtc.Day, 0, 0, 0, DateTimeKind.Utc);
-                    record.ProratedTotalDays   = daysInMonth;
-                    record.ProratedDaysCharged = charged;
-                    autoProrated = true;
-                }
+                if (psUtc.Year == periodYear && psUtc.Month == periodMonth && psUtc.Day > 1)
+                    startInMonth = psUtc;
             }
 
-            if (!autoProrated)
+            if (startInMonth.HasValue)
             {
-                // Mes completo: importe de categoría sin prorrateo
+                var charged = daysInMonth - startInMonth.Value.Day + 1;
+                record.Amount              = Math.Round(fullAmount * charged / daysInMonth, 2);
+                record.IsProrated          = true;
+                record.ProratedStartDate   = new DateTime(periodYear, periodMonth, startInMonth.Value.Day, 0, 0, 0, DateTimeKind.Utc);
+                record.ProratedTotalDays   = daysInMonth;
+                record.ProratedDaysCharged = charged;
+            }
+            else
+            {
                 record.Amount              = fullAmount;
                 record.IsProrated          = false;
                 record.ProratedStartDate   = null;
                 record.ProratedTotalDays   = null;
                 record.ProratedDaysCharged = null;
             }
-            
-            // Aplicar descuento de beca/invitado al monto recalculado
-            decimal discountAmount = 0m;
-            if (student.IsGuest)
-            {
-                discountAmount = record.Amount;
-                record.Amount = 0m;
-            }
-            else if (student.IsScholarship)
-            {
-                discountAmount = record.Amount;
-                record.Amount = 0m;
-            }
-            else if (student.ScholarshipPercentage.HasValue && student.ScholarshipPercentage.Value > 0)
-            {
-                discountAmount = Math.Round(record.Amount * student.ScholarshipPercentage.Value / 100, 2);
-                record.Amount -= discountAmount;
-            }
-            record.DiscountAmount = discountAmount;
+
+            var (charge, discount) = ApplyBenefits(student, record.Amount);
+            record.Amount = charge;
+            record.DiscountAmount = discount;
         }
 
-        // ── Ajuste de AmountPaid si supera el nuevo Amount ────────
         if (record.AmountPaid > record.Amount)
             record.AmountPaid = record.Amount;
 
-        // ── Marcar como pagado si el monto abonado cubre el total ─
         if (record.AmountPaid >= record.Amount - 0.01m && record.Amount > 0)
         {
             record.IsPaid   = true;
             record.PaidDate = DateTime.UtcNow;
         }
 
+        _audit.Add(academyId, "finances.payment.recalculate", nameof(PaymentRecord), record.Id,
+            new { before, after = new { record.Amount, record.DiscountAmount }, dto.NewAmount, dto.ProratedStartDate });
+
         await _context.SaveChangesAsync();
-        return MapToDto(record, DateTime.UtcNow);
+        return MapToDto(record);
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -692,25 +684,30 @@ public class FinancesService
             .FirstOrDefaultAsync(p => p.Id == dto.PaymentRecordId && p.AcademyId == academyId)
             ?? throw new Exception("Registro de pago no encontrado.");
 
-        // Verificar si el mes contable está cerrado
-        if (await IsMonthClosedAsync(academyId, record.DueDate.Year, record.DueDate.Month))
-            throw new Exception($"No se puede exonerar porque el mes contable ({record.DueDate:MMMM yyyy}) está cerrado.");
+        var (periodYear, periodMonth) = PeriodOf(record);
+        await _periods.EnsureOpenAsync(academyId, periodYear, periodMonth, "exonerar el cobro");
 
-        if (!Enum.TryParse<ExclusionType>(dto.ExclusionType, true, out var excType))
+        if (record.IsPaid)
+            throw new Exception("Este cobro ya está pagado o exonerado.");
+
+        if (!Enum.TryParse<ExclusionType>(dto.ExclusionType, true, out var excType) || excType == ExclusionType.None)
             excType = ExclusionType.FreeClass;
 
-        record.ExclusionType = excType;
-        record.ExclusionNote = dto.ExclusionNote;
-        
-        // El monto que iba a ser cobrado se registra como pérdida/descuento
-        record.DiscountAmount = record.Amount;
-        record.Amount        = 0m;
-        record.AmountPaid    = 0m;
-        record.IsPaid        = true;
-        record.PaidDate      = DateTime.UtcNow;
+        // Solo se exonera el SALDO pendiente: lo que el alumno ya pagó se conserva como ingreso.
+        var pendingBalance = record.Amount - record.AmountPaid;
+
+        record.ExclusionType   = excType;
+        record.ExclusionNote   = dto.ExclusionNote;
+        record.DiscountAmount += pendingBalance;
+        record.Amount          = record.AmountPaid;
+        record.IsPaid          = true;
+        record.PaidDate        = DateTime.UtcNow;
+
+        _audit.Add(academyId, "finances.payment.exclude", nameof(PaymentRecord), record.Id,
+            new { exclusion = excType.ToString(), dto.ExclusionNote, exoneratedAmount = pendingBalance, record.StudentId });
 
         await _context.SaveChangesAsync();
-        return MapToDto(record, DateTime.UtcNow);
+        return MapToDto(record);
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -718,7 +715,7 @@ public class FinancesService
     // ─────────────────────────────────────────────────────────────
     public async Task<PaymentRecordDto> MarkAsPaidAsync(Guid academyId, Guid paymentId)
     {
-        var r = await _context.PaymentRecords
+        var r = await _context.PaymentRecords.AsNoTracking()
             .FirstOrDefaultAsync(p => p.Id == paymentId && p.AcademyId == academyId)
             ?? throw new Exception("Registro no encontrado.");
 
@@ -731,56 +728,19 @@ public class FinancesService
     }
 
     // ─────────────────────────────────────────────────────────────
-    // Mobile: pago múltiple en app
-    // ─────────────────────────────────────────────────────────────
-    public async Task ProcessMobilePaymentAsync(Guid academyId, Guid guardianUserId, List<Guid> paymentIds)
-    {
-        if (paymentIds == null || !paymentIds.Any()) return;
-
-        var records = await _context.PaymentRecords
-            .Include(p => p.Student)
-            .Where(p =>
-                p.AcademyId == academyId &&
-                paymentIds.Contains(p.Id) &&
-                p.Student.GuardianId == guardianUserId &&
-                !p.IsPaid)
-            .ToListAsync();
-
-        if (records.Count != paymentIds.Count)
-            throw new Exception("Algunas deudas no fueron encontradas o ya están pagadas.");
-
-        var now = DateTime.UtcNow;
-        foreach (var record in records)
-        {
-            _context.PaymentInstallments.Add(new PaymentInstallment
-            {
-                PaymentRecordId = record.Id,
-                AmountPaid      = record.Amount - record.AmountPaid,
-                PaidAt          = now,
-                Method          = PaymentMethod.Other,
-                Notes           = "Pago móvil"
-            });
-            record.AmountPaid = record.Amount;
-            record.IsPaid     = true;
-            record.PaidDate   = now;
-        }
-
-        await _context.SaveChangesAsync();
-    }
-
-    // ─────────────────────────────────────────────────────────────
     // Mapper
     // ─────────────────────────────────────────────────────────────
-    private static PaymentRecordDto MapToDto(PaymentRecord p, DateTime today)
+    private static PaymentRecordDto MapToDto(PaymentRecord p)
     {
+        var today = AcademyClock.Today;
         string status;
         int daysOverdue = 0;
 
         if (p.IsPaid)
             status = "Pagado";
-        else if (today.Date > p.DueDate.Date)
+        else if (today > p.DueDate.Date)
         {
-            daysOverdue = (today.Date - p.DueDate.Date).Days;
+            daysOverdue = (today - p.DueDate.Date).Days;
             status = "Vencido";
         }
         else

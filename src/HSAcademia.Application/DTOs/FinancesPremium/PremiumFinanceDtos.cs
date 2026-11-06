@@ -84,7 +84,12 @@ public class FinanceSummaryDto
 {
     public int Month { get; set; }
     public int Year { get; set; }
+    /// <summary>Cobrado en el mes (abonos registrados con fecha de pago dentro del mes, cualquier deuda).</summary>
     public decimal TotalIncome { get; set; }
+    /// <summary>Facturado: total a cobrar de las mensualidades del periodo (después de becas/descuentos).</summary>
+    public decimal TotalBilled { get; set; }
+    /// <summary>Saldo pendiente de cobro de las mensualidades del periodo.</summary>
+    public decimal TotalPending { get; set; }
     /// <summary>Ingresos extra por ventas de tienda.</summary>
     public decimal TotalStoreRevenue { get; set; }
     public decimal TotalExpenses { get; set; }

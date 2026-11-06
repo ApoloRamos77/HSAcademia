@@ -65,4 +65,26 @@ public class MobileStudentController : ControllerBase
         var students = await _studentService.GetMyStudentsAsync(academyId, userId);
         return Ok(students);
     }
+
+    /// <summary>GET /api/mobile/students/{studentId}/evaluations — evaluaciones deportivas visibles para la familia.</summary>
+    [HttpGet("{studentId:guid}/evaluations")]
+    public async Task<IActionResult> GetEvaluations(Guid studentId,
+        [FromServices] AccessControlService access, [FromServices] EvaluationService evaluations)
+    {
+        var academyId = GetAcademyId();
+        if (!await access.UserOwnsStudentAsync(academyId, GetUserId(), studentId))
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = "No tienes acceso a la información de este alumno." });
+        return Ok(await evaluations.GetByStudentAsync(academyId, studentId, onlyVisibleToFamily: true));
+    }
+
+    /// <summary>GET /api/mobile/students/{studentId}/sports-summary — partidos, minutos, goles y asistencias.</summary>
+    [HttpGet("{studentId:guid}/sports-summary")]
+    public async Task<IActionResult> GetSportsSummary(Guid studentId,
+        [FromServices] AccessControlService access, [FromServices] SportsService sports)
+    {
+        var academyId = GetAcademyId();
+        if (!await access.UserOwnsStudentAsync(academyId, GetUserId(), studentId))
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = "No tienes acceso a la información de este alumno." });
+        return Ok(await sports.GetStudentSummaryAsync(academyId, studentId));
+    }
 }

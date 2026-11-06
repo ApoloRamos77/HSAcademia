@@ -49,6 +49,10 @@ public class AnnouncementController : ControllerBase
         var userId = GetUserId();
         
         if (academyId == Guid.Empty || userId == Guid.Empty) return Unauthorized();
+        if (string.IsNullOrWhiteSpace(dto.Title) || string.IsNullOrWhiteSpace(dto.Content))
+            return BadRequest(new { message = "El título y el mensaje son obligatorios." });
+        if (dto.Title.Length > 150 || dto.Content.Length > 4000)
+            return BadRequest(new { message = "El título admite hasta 150 caracteres y el mensaje hasta 4000." });
 
         var result = await _announcementService.CreateAnnouncementAsync(academyId, userId, dto);
         return Created("", result);

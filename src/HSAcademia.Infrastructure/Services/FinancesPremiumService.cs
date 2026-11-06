@@ -14,21 +14,30 @@ namespace HSAcademia.Infrastructure.Services;
 public class FinancesPremiumService : IFinancesPremiumService
 {
     private readonly AppDbContext _context;
+    private readonly FinancialPeriodGuard _periods;
+    private readonly AuditService _audit;
 
-    public FinancesPremiumService(AppDbContext context)
+    public FinancesPremiumService(AppDbContext context, FinancialPeriodGuard periods, AuditService audit)
     {
         _context = context;
+        _periods = periods;
+        _audit = audit;
     }
 
-    private async Task CheckPeriodClosedAsync(Guid academyId, DateTime date)
+    /// <summary>Usa el control único de periodos (el mismo que cobros y tienda).</summary>
+    private Task CheckPeriodClosedAsync(Guid academyId, DateTime date) =>
+        _periods.EnsureOpenAsync(academyId, date.Year, date.Month, "realizar modificaciones");
+
+    private static void ValidatePeriod(int month, int year)
     {
-        var period = await _context.FinancialPeriods
-            .FirstOrDefaultAsync(p => p.AcademyId == academyId && p.Year == date.Year && p.Month == date.Month);
-            
-        if (period != null && period.IsClosed)
-        {
-            throw new Exception($"El periodo contable de {date:MMMM yyyy} está cerrado. No se pueden realizar modificaciones.");
-        }
+        if (month < 1 || month > 12 || year < 2000 || year > 2100)
+            throw new Exception("Periodo inválido.");
+    }
+
+    private static void ValidateExpense(decimal amount, string description)
+    {
+        if (amount <= 0) throw new Exception("El monto del egreso debe ser mayor a cero.");
+        if (string.IsNullOrWhiteSpace(description)) throw new Exception("La descripción del egreso es obligatoria.");
     }
 
     // ══════════════════════════════════════════
@@ -76,6 +85,9 @@ public class FinancesPremiumService : IFinancesPremiumService
 
     public async Task<ExpenseDto> CreateExpenseAsync(Guid academyId, Guid registeredBy, CreateExpenseDto dto)
     {
+        ValidateExpense(dto.Amount, dto.Description);
+        if (dto.Products?.Any(p => p.Quantity <= 0 || p.UnitCost < 0 || p.SalePrice < 0) == true)
+            throw new Exception("Los productos de la compra deben tener cantidad mayor a cero y precios no negativos.");
         await CheckPeriodClosedAsync(academyId, dto.Date);
 
         var expense = new Expense
@@ -172,6 +184,7 @@ public class FinancesPremiumService : IFinancesPremiumService
 
     public async Task<ExpenseDto> UpdateExpenseAsync(Guid academyId, Guid expenseId, UpdateExpenseDto dto)
     {
+        ValidateExpense(dto.Amount, dto.Description);
         await CheckPeriodClosedAsync(academyId, dto.Date);
 
         var expense = await _context.Expenses
@@ -182,8 +195,10 @@ public class FinancesPremiumService : IFinancesPremiumService
         
         await CheckPeriodClosedAsync(academyId, expense.Date); // Must also check original date
 
-        // NOTE: We do not allow editing products from here to prevent inventory corruption. 
+        // NOTE: We do not allow editing products from here to prevent inventory corruption.
         // Only basic properties can be changed.
+        _audit.Add(academyId, "finances.expense.update", nameof(Expense), expense.Id,
+            new { before = new { expense.Amount, expense.Date, expense.Type }, after = new { dto.Amount, dto.Date, dto.Type } });
         expense.Type = dto.Type;
         expense.Amount = dto.Amount;
         expense.Date = dto.Date.ToUniversalTime();
@@ -243,6 +258,8 @@ public class FinancesPremiumService : IFinancesPremiumService
 
         expense.IsDeleted = true;
         expense.DeletedAt = DateTime.UtcNow;
+        _audit.Add(academyId, "finances.expense.delete", nameof(Expense), expense.Id,
+            new { expense.Amount, expense.Date, expense.Type, expense.Description });
         await _context.SaveChangesAsync();
     }
 
@@ -280,6 +297,13 @@ public class FinancesPremiumService : IFinancesPremiumService
 
     public async Task<PettyCashDto> CreatePettyCashAsync(Guid academyId, CreatePettyCashDto dto)
     {
+        ValidatePeriod(dto.Month, dto.Year);
+        if (dto.AssignedAmount < 0) throw new Exception("El monto asignado no puede ser negativo.");
+        if (dto.HeadquarterId.HasValue &&
+            !await _context.Headquarters.AnyAsync(h => h.Id == dto.HeadquarterId && h.AcademyId == academyId))
+            throw new Exception("La sede seleccionada no es válida.");
+        await CheckPeriodClosedAsync(academyId, new DateTime(dto.Year, dto.Month, 1));
+
         // Prevent duplicates for same month/year/headquarters
         var existing = await _context.PettyCashes
             .FirstOrDefaultAsync(p => p.AcademyId == academyId
@@ -322,8 +346,16 @@ public class FinancesPremiumService : IFinancesPremiumService
             .FirstOrDefaultAsync(p => p.Id == dto.PettyCashId && p.AcademyId == academyId);
 
         if (pettyCash == null) throw new Exception("Caja Chica no encontrada.");
-        
+
         await CheckPeriodClosedAsync(academyId, new DateTime(pettyCash.Year, pettyCash.Month, 1));
+
+        if (dto.Amount <= 0) throw new Exception("El monto debe ser mayor a cero.");
+        if (string.IsNullOrWhiteSpace(dto.Concept)) throw new Exception("El concepto es obligatorio.");
+        if (dto.Type == PettyCashTransactionType.Expense && dto.Amount > pettyCash.CurrentBalance)
+            throw new Exception($"Saldo insuficiente en caja chica. Disponible: {pettyCash.CurrentBalance:N2}. Registra una reposición primero.");
+
+        _audit.Add(academyId, "finances.pettycash.transaction", nameof(PettyCash), pettyCash.Id,
+            new { type = dto.Type.ToString(), dto.Amount, dto.Concept });
 
         var transaction = new PettyCashTransaction
         {
@@ -452,7 +484,24 @@ public class FinancesPremiumService : IFinancesPremiumService
 
     public async Task<StaffPaymentDto> CreateStaffPaymentAsync(Guid academyId, CreateStaffPaymentDto dto)
     {
+        ValidatePeriod(dto.PeriodMonth, dto.PeriodYear);
+        if (dto.BaseAmount < 0 || dto.Bonuses < 0 || dto.Deductions < 0)
+            throw new Exception("Los montos no pueden ser negativos.");
+        if (dto.BaseAmount + dto.Bonuses - dto.Deductions < 0)
+            throw new Exception("Los descuentos no pueden superar el total a pagar.");
+
         await CheckPeriodClosedAsync(academyId, new DateTime(dto.PeriodYear, dto.PeriodMonth, 1));
+
+        var staffOk = await _context.Users.AnyAsync(u => u.Id == dto.StaffId && u.AcademyId == academyId &&
+            (u.Role == UserRole.Staff || u.Role == UserRole.AcademyAdmin));
+        if (!staffOk) throw new Exception("El colaborador seleccionado no es válido.");
+
+        // El índice único incluye registros eliminados: se valida con IgnoreQueryFilters
+        var duplicate = await _context.StaffPayments.IgnoreQueryFilters().AnyAsync(sp =>
+            sp.AcademyId == academyId && sp.StaffId == dto.StaffId &&
+            sp.PeriodMonth == dto.PeriodMonth && sp.PeriodYear == dto.PeriodYear);
+        if (duplicate)
+            throw new Exception("Ya existe un pago registrado para este colaborador en ese periodo.");
 
         var payment = new StaffPayment
         {
@@ -501,6 +550,11 @@ public class FinancesPremiumService : IFinancesPremiumService
         
         await CheckPeriodClosedAsync(academyId, new DateTime(payment.PeriodYear, payment.PeriodMonth, 1));
 
+        if (payment.Status == StaffPaymentStatus.Paid)
+            throw new Exception("Este pago ya fue marcado como pagado.");
+
+        _audit.Add(academyId, "finances.staffpayment.paid", nameof(StaffPayment), payment.Id,
+            new { payment.StaffId, payment.PeriodMonth, payment.PeriodYear, payment.TotalPaid });
         payment.Status = StaffPaymentStatus.Paid;
         payment.PaidAt = DateTime.UtcNow;
         payment.UpdatedAt = DateTime.UtcNow;
@@ -526,63 +580,71 @@ public class FinancesPremiumService : IFinancesPremiumService
     // ══════════════════════════════════════════
     // FINANCE SUMMARY DASHBOARD
     // ══════════════════════════════════════════
-    public async Task<FinanceSummaryDto> GetFinanceSummaryAsync(Guid academyId, int month, int year)
+    /// <summary>
+    /// Cálculo único del mes (lo usan el resumen, las tendencias, las metas y el cierre).
+    /// Criterio de CAJA: el ingreso por mensualidades es lo efectivamente cobrado en el mes
+    /// (abonos por fecha de pago), incluidos pagos parciales y deudas de meses anteriores.
+    /// Lo facturado y lo pendiente se calculan por el PERIODO de la mensualidad.
+    /// </summary>
+    private async Task<FinanceSummaryDto> ComputeMonthAsync(Guid academyId, int month, int year, bool includeBreakdown)
     {
-        var startDate = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Utc);
-        var endDate = startDate.AddMonths(1);
+        ValidatePeriod(month, year);
+        var (startUtc, endUtc) = AcademyClock.MonthRangeUtc(year, month);
+        var monthStart = new DateTime(year, month, 1);
+        var monthEnd = monthStart.AddMonths(1);
 
-        // Ingresos: pagos de mensualidades cobrados ese mes
-        var income = await _context.PaymentRecords
-            .Where(pr => pr.AcademyId == academyId
-                && pr.IsPaid
-                && pr.DueDate >= startDate
-                && pr.DueDate < endDate)
-            .SumAsync(pr => (decimal?)pr.AmountPaid) ?? 0m;
+        // Cobrado: abonos con fecha de pago en el mes (se excluyen registros de venta: ya cuentan en Tienda)
+        var income = await _context.PaymentInstallments
+            .Where(i => i.PaymentRecord.AcademyId == academyId
+                && !i.PaymentRecord.IsDeleted
+                && i.PaymentRecord.Type != PaymentType.ProductSale
+                && i.PaidAt >= startUtc && i.PaidAt < endUtc)
+            .SumAsync(i => (decimal?)i.AmountPaid) ?? 0m;
 
-        // Descuentos: becas, exoneraciones (montos que se dejaron de cobrar)
-        var totalDiscounts = await _context.PaymentRecords
-            .Where(pr => pr.AcademyId == academyId
-                && pr.DueDate >= startDate
-                && pr.DueDate < endDate
-                && pr.DiscountAmount > 0)
-            .SumAsync(pr => (decimal?)pr.DiscountAmount) ?? 0m;
+        // Mensualidades del periodo: facturado, pendiente y descuentos (becas, exoneraciones)
+        var periodRecords = _context.PaymentRecords.Where(p => p.AcademyId == academyId &&
+            ((p.PeriodYear != null && p.PeriodYear == year && p.PeriodMonth == month) ||
+             (p.PeriodYear == null && p.DueDate.Year == year && p.DueDate.Month == month)));
 
-        // Tienda: ventas de productos (sin contar obsequios)
+        var billed = await periodRecords.Where(p => p.Type != PaymentType.ProductSale)
+            .SumAsync(p => (decimal?)p.Amount) ?? 0m;
+        var pending = await periodRecords.Where(p => p.Type != PaymentType.ProductSale && !p.IsPaid)
+            .SumAsync(p => (decimal?)(p.Amount - p.AmountPaid)) ?? 0m;
+        var totalDiscounts = await periodRecords.Where(p => p.DiscountAmount > 0)
+            .SumAsync(p => (decimal?)p.DiscountAmount) ?? 0m;
+
+        // Tienda: ventas (sin obsequios) y pérdida por obsequios, por fecha local de venta
         var storeRevenue = await _context.ProductSales
-            .Where(ps => ps.AcademyId == academyId
-                && !ps.IsGift
-                && ps.SaleDate >= startDate
-                && ps.SaleDate < endDate)
+            .Where(ps => ps.AcademyId == academyId && !ps.IsGift && ps.SaleDate >= startUtc && ps.SaleDate < endUtc)
             .SumAsync(ps => (decimal?)ps.TotalPrice) ?? 0m;
-
-        // Pérdida por obsequios: costo (precio de venta) de artículos entregados gratis
         var giftCost = await _context.ProductSales
-            .Where(ps => ps.AcademyId == academyId
-                && ps.IsGift
-                && ps.SaleDate >= startDate
-                && ps.SaleDate < endDate)
+            .Where(ps => ps.AcademyId == academyId && ps.IsGift && ps.SaleDate >= startUtc && ps.SaleDate < endUtc)
             .SumAsync(ps => (decimal?)ps.DiscountAmount) ?? 0m;
 
-        // Egresos generales
-        var expenses = await _context.Expenses
-            .Where(e => e.AcademyId == academyId && e.Date >= startDate && e.Date < endDate)
-            .GroupBy(e => e.Type)
-            .Select(g => new ExpenseByCategoryDto
-            {
-                Category = g.Key.ToString(),
-                Total = g.Sum(e => e.Amount)
-            })
-            .ToListAsync();
+        // Egresos (columna date: se compara por fecha calendario)
+        var expensesQuery = _context.Expenses
+            .Where(e => e.AcademyId == academyId && e.Date >= monthStart && e.Date < monthEnd);
 
-        var totalExpenses = expenses.Sum(e => e.Total);
+        List<ExpenseByCategoryDto> expensesByCategory;
+        decimal totalExpenses;
+        if (includeBreakdown)
+        {
+            expensesByCategory = await expensesQuery
+                .GroupBy(e => e.Type)
+                .Select(g => new ExpenseByCategoryDto { Category = g.Key.ToString(), Total = g.Sum(e => e.Amount) })
+                .ToListAsync();
+            totalExpenses = expensesByCategory.Sum(e => e.Total);
+        }
+        else
+        {
+            expensesByCategory = new List<ExpenseByCategoryDto>();
+            totalExpenses = await expensesQuery.SumAsync(e => (decimal?)e.Amount) ?? 0m;
+        }
 
-        // Nómina pagada
+        // Nómina pagada del periodo
         var staffTotal = await _context.StaffPayments
-            .Where(sp => sp.AcademyId == academyId
-                && sp.PeriodMonth == month
-                && sp.PeriodYear == year
-                && sp.Status == StaffPaymentStatus.Paid
-                && !sp.IsDeleted)
+            .Where(sp => sp.AcademyId == academyId && sp.PeriodMonth == month && sp.PeriodYear == year
+                && sp.Status == StaffPaymentStatus.Paid)
             .SumAsync(sp => (decimal?)sp.TotalPaid) ?? 0m;
 
         return new FinanceSummaryDto
@@ -590,64 +652,45 @@ public class FinancesPremiumService : IFinancesPremiumService
             Month = month,
             Year = year,
             TotalIncome = income,
+            TotalBilled = billed,
+            TotalPending = pending,
             TotalStoreRevenue = storeRevenue,
             TotalExpenses = totalExpenses,
             TotalStaffPayments = staffTotal,
             TotalDiscounts = totalDiscounts,
             TotalGiftCost = giftCost,
             NetBalance = (income + storeRevenue) - totalExpenses - staffTotal,
-            ExpensesByCategory = expenses
+            ExpensesByCategory = expensesByCategory
         };
     }
+
+    public Task<FinanceSummaryDto> GetFinanceSummaryAsync(Guid academyId, int month, int year) =>
+        ComputeMonthAsync(academyId, month, year, includeBreakdown: true);
 
     // ══════════════════════════════════════════
     // TREND DATA (Last N months)
     // ══════════════════════════════════════════
     public async Task<List<MonthlyTrendDto>> GetTrendDataAsync(Guid academyId, int months = 6)
     {
+        months = Math.Clamp(months, 1, 24);
         var result = new List<MonthlyTrendDto>();
-        var now = DateTime.UtcNow;
-
+        var now = AcademyClock.Now;
         var shortMonths = new[] { "Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic" };
 
         for (int i = months - 1; i >= 0; i--)
         {
             var refDate = new DateTime(now.Year, now.Month, 1).AddMonths(-i);
-            var m = refDate.Month;
-            var y = refDate.Year;
-            var start = new DateTime(y, m, 1, 0, 0, 0, DateTimeKind.Utc);
-            var end = start.AddMonths(1);
-
-            var income = await _context.PaymentRecords
-                .Where(pr => pr.AcademyId == academyId && pr.IsPaid && pr.DueDate >= start && pr.DueDate < end)
-                .SumAsync(pr => (decimal?)pr.AmountPaid) ?? 0m;
-
-            var storeRev = await _context.ProductSales
-                .Where(ps => ps.AcademyId == academyId && !ps.IsGift && ps.SaleDate >= start && ps.SaleDate < end)
-                .SumAsync(ps => (decimal?)ps.TotalPrice) ?? 0m;
-
-            var discounts = await _context.PaymentRecords
-                .Where(pr => pr.AcademyId == academyId && pr.DueDate >= start && pr.DueDate < end && pr.DiscountAmount > 0)
-                .SumAsync(pr => (decimal?)pr.DiscountAmount) ?? 0m;
-
-            var exp = await _context.Expenses
-                .Where(e => e.AcademyId == academyId && e.Date >= start && e.Date < end)
-                .SumAsync(e => (decimal?)e.Amount) ?? 0m;
-
-            var staff = await _context.StaffPayments
-                .Where(sp => sp.AcademyId == academyId && sp.PeriodMonth == m && sp.PeriodYear == y
-                    && sp.Status == StaffPaymentStatus.Paid && !sp.IsDeleted)
-                .SumAsync(sp => (decimal?)sp.TotalPaid) ?? 0m;
+            var s = await ComputeMonthAsync(academyId, refDate.Month, refDate.Year, includeBreakdown: false);
 
             result.Add(new MonthlyTrendDto
             {
-                Label = $"{shortMonths[m - 1]} {y}",
-                Income = income,
-                StoreRevenue = storeRev,
-                Expenses = exp,
-                StaffPayments = staff,
-                Discounts = discounts,
-                NetBalance = (income + storeRev) - exp - staff
+                Label = $"{shortMonths[refDate.Month - 1]} {refDate.Year}",
+                Income = s.TotalIncome,
+                StoreRevenue = s.TotalStoreRevenue,
+                Expenses = s.TotalExpenses,
+                StaffPayments = s.TotalStaffPayments,
+                Discounts = s.TotalDiscounts,
+                NetBalance = s.NetBalance
             });
         }
 
@@ -748,19 +791,25 @@ public class FinancesPremiumService : IFinancesPremiumService
         };
     }
 
+    /// <summary>
+    /// Cierra el mes: guarda una "foto" de los totales (MonthlyClosing) y BLOQUEA el periodo
+    /// (FinancialPeriod) para cobros, ventas, gastos y nómina. Se puede reabrir con TogglePeriodClose.
+    /// </summary>
     public async Task<MonthlyClosingDto> CloseMonthAsync(Guid academyId, Guid closedBy, CloseMonthDto dto)
     {
-        var existing = await _context.MonthlyClosings
-            .FirstOrDefaultAsync(c => c.AcademyId == academyId && c.Month == dto.Month && c.Year == dto.Year);
+        ValidatePeriod(dto.Month, dto.Year);
 
-        if (existing != null && existing.Status == MonthlyClosingStatus.Closed)
+        if (await _periods.IsClosedAsync(academyId, dto.Year, dto.Month))
             throw new Exception("El mes ya se encuentra cerrado.");
 
         var summary = await GetFinanceSummaryAsync(academyId, dto.Month, dto.Year);
 
         var pettyCashBalance = await _context.PettyCashes
             .Where(p => p.AcademyId == academyId && p.Month == dto.Month && p.Year == dto.Year)
-            .SumAsync(p => p.CurrentBalance);
+            .SumAsync(p => (decimal?)p.CurrentBalance) ?? 0m;
+
+        var existing = await _context.MonthlyClosings
+            .FirstOrDefaultAsync(c => c.AcademyId == academyId && c.Month == dto.Month && c.Year == dto.Year);
 
         if (existing == null)
         {
@@ -769,35 +818,55 @@ public class FinancesPremiumService : IFinancesPremiumService
                 AcademyId = academyId,
                 Month = dto.Month,
                 Year = dto.Year,
-                TotalIncome = summary.TotalIncome,
-                TotalExpenses = summary.TotalExpenses + summary.TotalStaffPayments,
-                NetProfit = summary.NetBalance,
-                PettyCashBalance = pettyCashBalance,
-                Status = MonthlyClosingStatus.Closed,
-                ClosedAt = DateTime.UtcNow,
-                ClosedById = closedBy,
-                Notes = dto.Notes,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow
             };
             _context.MonthlyClosings.Add(existing);
         }
-        else
-        {
-            existing.TotalIncome = summary.TotalIncome;
-            existing.TotalExpenses = summary.TotalExpenses + summary.TotalStaffPayments;
-            existing.NetProfit = summary.NetBalance;
-            existing.PettyCashBalance = pettyCashBalance;
-            existing.Status = MonthlyClosingStatus.Closed;
-            existing.ClosedAt = DateTime.UtcNow;
-            existing.ClosedById = closedBy;
-            existing.Notes = dto.Notes;
-            existing.UpdatedAt = DateTime.UtcNow;
-        }
+
+        existing.TotalIncome = summary.TotalIncome + summary.TotalStoreRevenue;
+        existing.TotalExpenses = summary.TotalExpenses + summary.TotalStaffPayments;
+        existing.NetProfit = summary.NetBalance;
+        existing.PettyCashBalance = pettyCashBalance;
+        existing.Status = MonthlyClosingStatus.Closed;
+        existing.ClosedAt = DateTime.UtcNow;
+        existing.ClosedById = closedBy;
+        existing.Notes = dto.Notes;
+        existing.UpdatedAt = DateTime.UtcNow;
+
+        await SetPeriodStateAsync(academyId, dto.Year, dto.Month, closed: true, userId: closedBy);
+
+        _audit.Add(academyId, "finances.period.close", nameof(MonthlyClosing), existing.Id,
+            new { dto.Year, dto.Month, existing.TotalIncome, existing.TotalExpenses, existing.NetProfit, dto.Notes });
 
         await _context.SaveChangesAsync();
 
         return await GetMonthlyClosingAsync(academyId, dto.Month, dto.Year) ?? throw new Exception("Error al recuperar el cierre.");
+    }
+
+    /// <summary>Marca el periodo como cerrado/abierto en FinancialPeriods (sin guardar).</summary>
+    private async Task<FinancialPeriod> SetPeriodStateAsync(Guid academyId, int year, int month, bool closed, Guid userId)
+    {
+        var period = await _context.FinancialPeriods
+            .FirstOrDefaultAsync(p => p.AcademyId == academyId && p.Year == year && p.Month == month);
+
+        if (period == null)
+        {
+            period = new FinancialPeriod { Id = Guid.NewGuid(), AcademyId = academyId, Year = year, Month = month };
+            _context.FinancialPeriods.Add(period);
+        }
+
+        period.IsClosed = closed;
+        if (closed)
+        {
+            period.ClosedAt = DateTime.UtcNow;
+            period.ClosedByUserId = userId;
+        }
+        else
+        {
+            period.ReopenedAt = DateTime.UtcNow;
+            period.ReopenedByUserId = userId;
+        }
+        return period;
     }
 
     // ══════════════════════════════════════════
@@ -805,64 +874,43 @@ public class FinancesPremiumService : IFinancesPremiumService
     // ══════════════════════════════════════════
     public async Task<FinancialPeriodDto> GetPeriodStatusAsync(Guid academyId, int month, int year)
     {
-        var period = await _context.FinancialPeriods
+        ValidatePeriod(month, year);
+        var period = await _context.FinancialPeriods.AsNoTracking()
             .FirstOrDefaultAsync(p => p.AcademyId == academyId && p.Year == year && p.Month == month);
-
-        if (period == null)
-        {
-            return new FinancialPeriodDto
-            {
-                Id = Guid.Empty,
-                Year = year,
-                Month = month,
-                IsClosed = false
-            };
-        }
 
         return new FinancialPeriodDto
         {
-            Id = period.Id,
-            Year = period.Year,
-            Month = period.Month,
-            IsClosed = period.IsClosed,
-            ClosedAt = period.ClosedAt,
-            ClosedByUserId = period.ClosedByUserId
+            Id = period?.Id ?? Guid.Empty,
+            Year = year,
+            Month = month,
+            // Considera también cierres antiguos registrados solo en MonthlyClosings
+            IsClosed = await _periods.IsClosedAsync(academyId, year, month),
+            ClosedAt = period?.ClosedAt,
+            ClosedByUserId = period?.ClosedByUserId
         };
     }
 
     public async Task<FinancialPeriodDto> TogglePeriodCloseAsync(Guid academyId, int month, int year, Guid userId)
     {
-        var period = await _context.FinancialPeriods
-            .FirstOrDefaultAsync(p => p.AcademyId == academyId && p.Year == year && p.Month == month);
+        ValidatePeriod(month, year);
+        var willClose = !await _periods.IsClosedAsync(academyId, year, month);
 
-        if (period == null)
+        var period = await SetPeriodStateAsync(academyId, year, month, willClose, userId);
+
+        if (!willClose)
         {
-            period = new FinancialPeriod
+            // Al reabrir, la foto del cierre deja de estar vigente.
+            var closing = await _context.MonthlyClosings
+                .FirstOrDefaultAsync(c => c.AcademyId == academyId && c.Year == year && c.Month == month);
+            if (closing != null)
             {
-                AcademyId = academyId,
-                Year = year,
-                Month = month,
-                IsClosed = true,
-                ClosedAt = DateTime.UtcNow,
-                ClosedByUserId = userId
-            };
-            _context.FinancialPeriods.Add(period);
-        }
-        else
-        {
-            period.IsClosed = !period.IsClosed;
-            
-            if (period.IsClosed)
-            {
-                period.ClosedAt = DateTime.UtcNow;
-                period.ClosedByUserId = userId;
-            }
-            else
-            {
-                period.ReopenedAt = DateTime.UtcNow;
-                period.ReopenedByUserId = userId;
+                closing.Status = MonthlyClosingStatus.Open;
+                closing.UpdatedAt = DateTime.UtcNow;
             }
         }
+
+        _audit.Add(academyId, willClose ? "finances.period.close" : "finances.period.reopen",
+            nameof(FinancialPeriod), period.Id, new { year, month });
 
         await _context.SaveChangesAsync();
 

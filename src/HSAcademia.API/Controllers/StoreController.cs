@@ -4,12 +4,14 @@ using HSAcademia.Application.DTOs.Store;
 using HSAcademia.Infrastructure.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using HSAcademia.API.Authorization;
 
 namespace HSAcademia.API.Controllers;
 
 [ApiController]
 [Route("api/store")]
 [Authorize(Roles = "AcademyAdmin,Staff")]
+[RequirePermission(Permissions.ManageStore, Permissions.ManageFinances)] // lectura: Tienda y Finanzas
 public class StoreController : ControllerBase
 {
     private readonly StoreService _storeService;
@@ -34,6 +36,7 @@ public class StoreController : ControllerBase
     }
 
     [HttpPost("products")]
+    [RequirePermission(Permissions.ManageStore)]
     public async Task<IActionResult> CreateProduct([FromBody] CreateProductDto dto)
     {
         var academyId = GetAcademyId();
@@ -49,6 +52,7 @@ public class StoreController : ControllerBase
     }
 
     [HttpPut("products/{id}")]
+    [RequirePermission(Permissions.ManageStore)]
     public async Task<IActionResult> UpdateProduct(Guid id, [FromBody] CreateProductDto dto)
     {
         var academyId = GetAcademyId();
@@ -72,6 +76,7 @@ public class StoreController : ControllerBase
     }
 
     [HttpPost("sales")]
+    [RequirePermission(Permissions.ManageStore)]
     public async Task<IActionResult> CreateSale([FromBody] CreateProductSaleDto dto)
     {
         var academyId = GetAcademyId();

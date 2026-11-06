@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, Building2, Users, ClipboardList, LogOut,
-  ShieldCheck, ShoppingCart, DollarSign, CalendarCheck, CalendarDays, Crown, X
+  ShieldCheck, ShoppingCart, DollarSign, CalendarCheck, CalendarDays, Crown, X, Megaphone, FileSpreadsheet
 } from 'lucide-react';
 
 export default function Sidebar({ isOpen, onClose }) {
@@ -86,6 +86,12 @@ export default function Sidebar({ isOpen, onClose }) {
               <NavLink to="/academy/directorio" className={navCls} onClick={onClose}>
                 <ClipboardList size={16} /> Directorio
               </NavLink>
+              <NavLink to="/academy/comunicados" className={navCls} onClick={onClose}>
+                <Megaphone size={16} /> Comunicados
+              </NavLink>
+              <NavLink to="/academy/reportes" className={navCls} onClick={onClose}>
+                <FileSpreadsheet size={16} /> Reportes
+              </NavLink>
             </div>
 
             <div className="nav-section">
@@ -131,6 +137,14 @@ export default function Sidebar({ isOpen, onClose }) {
 
             <div className="nav-section">
               <div className="nav-label">👥 Gestión y Portal</div>
+              <NavLink to="/academy/comunicados" className={navCls} onClick={onClose}>
+                <Megaphone size={16} /> Comunicados
+              </NavLink>
+              {['view_students', 'manage_finances', 'manage_attendance'].some(p => user.permissions?.includes(p)) && (
+                <NavLink to="/academy/reportes" className={navCls} onClick={onClose}>
+                  <FileSpreadsheet size={16} /> Reportes
+                </NavLink>
+              )}
               {(user.permissions?.includes('view_students')) && (
                 <>
                   <NavLink to="/academy/alumnos" className={navCls} onClick={onClose}>

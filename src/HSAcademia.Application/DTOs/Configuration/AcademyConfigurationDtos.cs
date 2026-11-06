@@ -26,6 +26,7 @@ public class CategoryDto
     public string Name { get; set; } = string.Empty;
     public DateTime StartDateOfBirth { get; set; }
     public DateTime EndDateOfBirth { get; set; }
+    public decimal MonthlyFee { get; set; }
     public bool IsActive { get; set; }
 }
 
@@ -35,6 +36,8 @@ public class CreateCategoryDto
     public string Name { get; set; } = string.Empty;
     public DateTime StartDateOfBirth { get; set; }
     public DateTime EndDateOfBirth { get; set; }
+    /// <summary>Mensualidad de la categoría. En edición, null = conservar la actual.</summary>
+    public decimal? MonthlyFee { get; set; }
 }
 
 public class AcademyRoleDto

@@ -33,6 +33,9 @@ public class AppDbContext : DbContext
     public DbSet<EventCall> EventCalls => Set<EventCall>();
     public DbSet<Announcement> Announcements => Set<Announcement>();
     public DbSet<FinancialPeriod> FinancialPeriods => Set<FinancialPeriod>();
+    public DbSet<PaymentProof> PaymentProofs => Set<PaymentProof>();
+    public DbSet<StudentEvaluation> StudentEvaluations => Set<StudentEvaluation>();
+    public DbSet<MatchPlayerStat> MatchPlayerStats => Set<MatchPlayerStat>();
     public DbSet<Expense> Expenses => Set<Expense>();
     public DbSet<PettyCash> PettyCashes => Set<PettyCash>();
     public DbSet<PettyCashTransaction> PettyCashTransactions => Set<PettyCashTransaction>();
@@ -112,6 +115,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.SuspendedAt).HasColumnName("suspended_at");
             entity.Property(e => e.PasswordResetToken).HasColumnName("password_reset_token").HasMaxLength(500);
             entity.Property(e => e.PasswordResetExpiry).HasColumnName("password_reset_expiry");
+            entity.Property(e => e.MustChangePassword).HasColumnName("must_change_password").HasDefaultValue(false);
             entity.Property(e => e.LastLoginAt).HasColumnName("last_login_at");
             entity.Property(e => e.BirthDate).HasColumnName("birth_date");
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
@@ -335,7 +339,8 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Description).HasColumnName("description").HasMaxLength(500);
             entity.Property(e => e.ProductCategory).HasColumnName("product_category").HasMaxLength(100);
             entity.Property(e => e.Price).HasColumnName("price").HasColumnType("numeric(10,2)").IsRequired();
-            entity.Property(e => e.Stock).HasColumnName("stock").IsRequired();
+            // Token de concurrencia: dos ventas simultáneas no pueden vender la misma última unidad.
+            entity.Property(e => e.Stock).HasColumnName("stock").IsRequired().IsConcurrencyToken();
             entity.Property(e => e.IsActive).HasColumnName("is_active").HasDefaultValue(true);
 
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
@@ -402,6 +407,8 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.AcademyId).HasColumnName("academy_id").IsRequired();
             entity.Property(e => e.DefaultPaymentDay).HasColumnName("default_payment_day").IsRequired().HasDefaultValue(5);
+            // Dos cajeros cobrando a la vez no pueden obtener el mismo número de recibo.
+            entity.Property(e => e.CurrentReceiptNumber).IsConcurrencyToken();
 
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
@@ -426,6 +433,9 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Description).HasColumnName("description").HasMaxLength(255).IsRequired();
             entity.Property(e => e.Amount).HasColumnName("amount").HasColumnType("numeric(10,2)").IsRequired();
             entity.Property(e => e.DueDate).HasColumnName("due_date").IsRequired();
+            entity.Property(e => e.PeriodYear).HasColumnName("period_year");
+            entity.Property(e => e.PeriodMonth).HasColumnName("period_month");
+            entity.HasIndex(e => new { e.AcademyId, e.StudentId, e.Type, e.PeriodYear, e.PeriodMonth });
             entity.Property(e => e.IsPaid).HasColumnName("is_paid").HasDefaultValue(false);
             entity.Property(e => e.PaidDate).HasColumnName("paid_date");
             entity.Property(e => e.Type).HasColumnName("type").HasConversion<int>().IsRequired();
@@ -455,7 +465,8 @@ public class AppDbContext : DbContext
                   .OnDelete(DeleteBehavior.SetNull);
 
             // Installments
-            entity.Property(e => e.AmountPaid).HasColumnName("amount_paid").HasColumnType("numeric(10,2)").HasDefaultValue(0m);
+            // Token de concurrencia: dos cobros simultáneos sobre la misma deuda no pueden pisarse el saldo.
+            entity.Property(e => e.AmountPaid).HasColumnName("amount_paid").HasColumnType("numeric(10,2)").HasDefaultValue(0m).IsConcurrencyToken();
             entity.Property(e => e.IsProrated).HasColumnName("is_prorated").HasDefaultValue(false);
             entity.Property(e => e.ProratedStartDate).HasColumnName("prorated_start_date");
             entity.Property(e => e.ProratedTotalDays).HasColumnName("prorated_total_days");
@@ -507,7 +518,10 @@ public class AppDbContext : DbContext
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
 
-            entity.HasIndex(e => new { e.StudentId, e.Date }).IsUnique();
+            // Un alumno puede tener varias asistencias el mismo día (entrenamiento + partido),
+            // pero solo una por evento.
+            entity.HasIndex(e => new { e.StudentId, e.Date });
+            entity.HasIndex(e => new { e.StudentId, e.EventId }).IsUnique().HasFilter("event_id IS NOT NULL");
             entity.HasIndex(e => e.AcademyId);
             entity.HasIndex(e => e.EventId);
 
@@ -605,6 +619,11 @@ public class AppDbContext : DbContext
             entity.Property(e => e.EndTime).HasColumnName("end_time").IsRequired();
             entity.Property(e => e.HeadquarterId).HasColumnName("headquarter_id");
             entity.Property(e => e.CategoryId).HasColumnName("category_id");
+            entity.Property(e => e.SeriesId).HasColumnName("series_id");
+            entity.Property(e => e.GoalsFor).HasColumnName("goals_for");
+            entity.Property(e => e.GoalsAgainst).HasColumnName("goals_against");
+            entity.Property(e => e.MatchNotes).HasColumnName("match_notes").HasMaxLength(1000);
+            entity.HasIndex(e => e.SeriesId);
             entity.Property(e => e.CategoryIds)
                   .HasColumnName("category_ids")
                   .HasColumnType("jsonb")
@@ -914,6 +933,113 @@ public class AppDbContext : DbContext
         // ----------------------------------------------------------------
         // Seed: SuperAdmin user
         // ----------------------------------------------------------------
+        // FinancialPeriod (bloqueo de periodos contables)
+        // Antes la FK apuntaba por convención a academies.id en lugar del tenant (academies.academy_id),
+        // por lo que ningún cierre/reapertura podía guardarse.
+        // ----------------------------------------------------------------
+        modelBuilder.Entity<FinancialPeriod>(entity =>
+        {
+            entity.HasOne(e => e.Academy)
+                  .WithMany()
+                  .HasForeignKey(e => e.AcademyId)
+                  .HasPrincipalKey(a => a.AcademyId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(e => new { e.AcademyId, e.Year, e.Month }).IsUnique();
+        });
+
+        // ----------------------------------------------------------------
+        // Fase 3: comprobantes de pago, evaluaciones deportivas y estadísticas de partido
+        // ----------------------------------------------------------------
+        modelBuilder.Entity<PaymentProof>(entity =>
+        {
+            entity.ToTable("payment_proofs");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.AcademyId).HasColumnName("academy_id").IsRequired();
+            entity.Property(e => e.PaymentRecordId).HasColumnName("payment_record_id").IsRequired();
+            entity.Property(e => e.StudentId).HasColumnName("student_id").IsRequired();
+            entity.Property(e => e.SubmittedByUserId).HasColumnName("submitted_by_user_id").IsRequired();
+            entity.Property(e => e.Amount).HasColumnName("amount").HasColumnType("numeric(10,2)").IsRequired();
+            entity.Property(e => e.Method).HasColumnName("method").HasConversion<int>();
+            entity.Property(e => e.OperationNumber).HasColumnName("operation_number").HasMaxLength(100);
+            entity.Property(e => e.VoucherUrl).HasColumnName("voucher_url").HasMaxLength(500).IsRequired();
+            entity.Property(e => e.PaidOn).HasColumnName("paid_on").HasColumnType("date");
+            entity.Property(e => e.Notes).HasColumnName("notes").HasMaxLength(500);
+            entity.Property(e => e.Status).HasColumnName("status").HasConversion<int>();
+            entity.Property(e => e.ReviewedByUserId).HasColumnName("reviewed_by_user_id");
+            entity.Property(e => e.ReviewedAt).HasColumnName("reviewed_at");
+            entity.Property(e => e.RejectionReason).HasColumnName("rejection_reason").HasMaxLength(500);
+            entity.Property(e => e.ReceiptNumber).HasColumnName("receipt_number").HasMaxLength(20);
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+            entity.HasIndex(e => new { e.AcademyId, e.Status });
+            entity.HasIndex(e => e.PaymentRecordId);
+
+            entity.HasOne(e => e.PaymentRecord).WithMany().HasForeignKey(e => e.PaymentRecordId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Student).WithMany().HasForeignKey(e => e.StudentId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(e => e.SubmittedBy).WithMany().HasForeignKey(e => e.SubmittedByUserId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<Academy>().WithMany().HasForeignKey(e => e.AcademyId).HasPrincipalKey(a => a.AcademyId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasQueryFilter(e => !e.PaymentRecord.IsDeleted);
+        });
+
+        modelBuilder.Entity<StudentEvaluation>(entity =>
+        {
+            entity.ToTable("student_evaluations");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.AcademyId).HasColumnName("academy_id").IsRequired();
+            entity.Property(e => e.StudentId).HasColumnName("student_id").IsRequired();
+            entity.Property(e => e.EvaluatorUserId).HasColumnName("evaluator_user_id").IsRequired();
+            entity.Property(e => e.Period).HasColumnName("period").HasMaxLength(60).IsRequired();
+            entity.Property(e => e.EvaluationDate).HasColumnName("evaluation_date").HasColumnType("date");
+            entity.Property(e => e.Technical).HasColumnName("technical");
+            entity.Property(e => e.Tactical).HasColumnName("tactical");
+            entity.Property(e => e.Physical).HasColumnName("physical");
+            entity.Property(e => e.Attitude).HasColumnName("attitude");
+            entity.Property(e => e.Strengths).HasColumnName("strengths").HasMaxLength(1000);
+            entity.Property(e => e.ToImprove).HasColumnName("to_improve").HasMaxLength(1000);
+            entity.Property(e => e.Goals).HasColumnName("goals").HasMaxLength(1000);
+            entity.Property(e => e.Comments).HasColumnName("comments").HasMaxLength(2000);
+            entity.Property(e => e.IsVisibleToFamily).HasColumnName("is_visible_to_family");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(e => e.IsDeleted).HasColumnName("is_deleted");
+            entity.Property(e => e.DeletedAt).HasColumnName("deleted_at");
+            entity.HasIndex(e => new { e.AcademyId, e.StudentId });
+
+            entity.HasOne(e => e.Student).WithMany().HasForeignKey(e => e.StudentId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Evaluator).WithMany().HasForeignKey(e => e.EvaluatorUserId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<Academy>().WithMany().HasForeignKey(e => e.AcademyId).HasPrincipalKey(a => a.AcademyId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasQueryFilter(e => !e.IsDeleted);
+        });
+
+        modelBuilder.Entity<MatchPlayerStat>(entity =>
+        {
+            entity.ToTable("match_player_stats");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.AcademyId).HasColumnName("academy_id").IsRequired();
+            entity.Property(e => e.EventId).HasColumnName("event_id").IsRequired();
+            entity.Property(e => e.StudentId).HasColumnName("student_id").IsRequired();
+            entity.Property(e => e.IsStarter).HasColumnName("is_starter");
+            entity.Property(e => e.Minutes).HasColumnName("minutes");
+            entity.Property(e => e.Goals).HasColumnName("goals");
+            entity.Property(e => e.Assists).HasColumnName("assists");
+            entity.Property(e => e.YellowCards).HasColumnName("yellow_cards");
+            entity.Property(e => e.RedCards).HasColumnName("red_cards");
+            entity.Property(e => e.Rating).HasColumnName("rating");
+            entity.Property(e => e.Notes).HasColumnName("notes").HasMaxLength(500);
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+            entity.HasIndex(e => new { e.EventId, e.StudentId }).IsUnique();
+            entity.HasIndex(e => new { e.AcademyId, e.StudentId });
+
+            entity.HasOne(e => e.Event).WithMany().HasForeignKey(e => e.EventId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Student).WithMany().HasForeignKey(e => e.StudentId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<Academy>().WithMany().HasForeignKey(e => e.AcademyId).HasPrincipalKey(a => a.AcademyId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasQueryFilter(e => !e.Event.IsDeleted);
+        });
+
         SeedData(modelBuilder);
     }
 
@@ -928,7 +1054,8 @@ public class AppDbContext : DbContext
             FirstName = "Super",
             LastName = "Admin",
             Email = "superadmin@adhsoft.com",
-            PasswordHash = "$2a$11$G7Z3P7d1G3kMhY1S1iR5M.O5X9W8G2m5T4c5lR2p5n8v1M3s1x2eO", // Admin2026!
+            // Contraseña inicial de semilla: CAMBIARLA en producción desde la cuenta del SuperAdmin.
+            PasswordHash = "$2a$11$G7Z3P7d1G3kMhY1S1iR5M.O5X9W8G2m5T4c5lR2p5n8v1M3s1x2eO",
             Role = Domain.Enums.UserRole.SuperAdmin,
             Status = Domain.Enums.UserStatus.Active,
             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),

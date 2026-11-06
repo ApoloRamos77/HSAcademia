@@ -4,13 +4,15 @@ import AppLayout from '../../components/AppLayout';
 import { Search, Filter, Shield, User, GraduationCap, Users, KeyRound } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import CredentialsDialog from '../../components/CredentialsDialog';
 
 export default function Directorio() {
   const [usuarios, setUsuarios] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filtroRol, setFiltroRol] = useState('Todos');
-  const [confirmReset, setConfirmReset] = useState(null); // null | { id, name }
+  const [confirmReset, setConfirmReset] = useState(null); // null | { id, name, email }
+  const [resetCredentials, setResetCredentials] = useState(null);
 
   useEffect(() => {
     fetchData();
@@ -28,16 +30,21 @@ export default function Directorio() {
     }
   };
 
-  const handleResetPassword = (userId, userName) => {
-    setConfirmReset({ id: userId, name: userName });
+  const handleResetPassword = (userId, userName, email) => {
+    setConfirmReset({ id: userId, name: userName, email });
   };
 
   const confirmResetPassword = async () => {
     try {
-      await api.post(`/academy-config/users/${confirmReset.id}/reset-password`);
-      toast.success(`Contraseña de ${confirmReset.name} reseteada a 123456`);
+      const res = await api.post(`/academy-config/users/${confirmReset.id}/reset-password`);
+      setResetCredentials([{
+        role: 'Usuario',
+        fullName: confirmReset.name,
+        login: confirmReset.email || '',
+        temporaryPassword: res.data.temporaryPassword
+      }]);
     } catch (err) {
-      toast.error('Error al resetear la contraseña');
+      toast.error(err.response?.data?.message || 'Error al resetear la contraseña');
     } finally {
       setConfirmReset(null);
     }
@@ -133,7 +140,7 @@ export default function Directorio() {
                     return (
                       <tr key={u.id} className="hover:bg-white/5 transition-colors">
                         <td>
-                          <div className="font-bold text-white flex items-center gap-2">
+                          <div className="font-bold text-text-primary flex items-center gap-2">
                             {u.firstName} {u.lastName}
                           </div>
                           <div className="text-xs text-text-muted mt-1">{u.email || 'Sin correo'}</div>
@@ -155,7 +162,7 @@ export default function Directorio() {
                         </td>
                         <td className="text-center">
                           <button
-                            onClick={() => handleResetPassword(u.id, `${u.firstName} ${u.lastName}`)}
+                            onClick={() => handleResetPassword(u.id, `${u.firstName} ${u.lastName}`, u.email)}
                             className="btn btn-ghost btn-sm text-warning mx-auto flex items-center gap-1"
                             title="Resetear a 123456"
                           >
@@ -175,12 +182,13 @@ export default function Directorio() {
       <ConfirmDialog
         isOpen={!!confirmReset}
         title="Resetear Contraseña"
-        message={`¿Resetear la contraseña de ${confirmReset?.name} a "123456"?`}
-        detail="El usuario deberá cambiarla en su próximo ingreso."
+        message={`¿Generar una contraseña temporal para ${confirmReset?.name}?`}
+        detail="Se mostrará una sola vez. El usuario deberá cambiarla en su próximo ingreso."
         confirmLabel="Sí, resetear"
         onConfirm={confirmResetPassword}
         onCancel={() => setConfirmReset(null)}
       />
+      <CredentialsDialog credentials={resetCredentials} onClose={() => setResetCredentials(null)} />
     </AppLayout>
   );
 }

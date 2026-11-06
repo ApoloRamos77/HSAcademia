@@ -183,6 +183,7 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasDefaultValueSql("NOW()");
 
                     b.Property<int>("CurrentReceiptNumber")
+                        .IsConcurrencyToken()
                         .HasColumnType("integer");
 
                     b.Property<int>("DefaultPaymentDay")
@@ -495,8 +496,11 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("EventId");
 
-                    b.HasIndex("StudentId", "Date")
-                        .IsUnique();
+                    b.HasIndex("StudentId", "Date");
+
+                    b.HasIndex("StudentId", "EventId")
+                        .IsUnique()
+                        .HasFilter("event_id IS NOT NULL");
 
                     b.ToTable("attendances", (string)null);
                 });
@@ -685,6 +689,14 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("end_time");
 
+                    b.Property<int?>("GoalsAgainst")
+                        .HasColumnType("integer")
+                        .HasColumnName("goals_against");
+
+                    b.Property<int?>("GoalsFor")
+                        .HasColumnType("integer")
+                        .HasColumnName("goals_for");
+
                     b.Property<Guid?>("HeadquarterId")
                         .HasColumnType("uuid")
                         .HasColumnName("headquarter_id");
@@ -701,10 +713,19 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasDefaultValue(false)
                         .HasColumnName("is_deleted");
 
+                    b.Property<string>("MatchNotes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("match_notes");
+
                     b.Property<string>("OpponentTeam")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
                         .HasColumnName("opponent_team");
+
+                    b.Property<Guid?>("SeriesId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("series_id");
 
                     b.Property<DateTime>("StartTime")
                         .HasColumnType("timestamp with time zone")
@@ -741,6 +762,8 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.HasIndex("CategoryId");
 
                     b.HasIndex("HeadquarterId");
+
+                    b.HasIndex("SeriesId");
 
                     b.HasIndex("StartTime");
 
@@ -967,11 +990,12 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("AcademyId");
-
                     b.HasIndex("ClosedByUserId");
 
                     b.HasIndex("ReopenedByUserId");
+
+                    b.HasIndex("AcademyId", "Year", "Month")
+                        .IsUnique();
 
                     b.ToTable("FinancialPeriods");
                 });
@@ -1036,6 +1060,78 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.HasIndex("AcademyId");
 
                     b.ToTable("headquarters", (string)null);
+                });
+
+            modelBuilder.Entity("HSAcademia.Domain.Entities.MatchPlayerStat", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AcademyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("academy_id");
+
+                    b.Property<int>("Assists")
+                        .HasColumnType("integer")
+                        .HasColumnName("assists");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("event_id");
+
+                    b.Property<int>("Goals")
+                        .HasColumnType("integer")
+                        .HasColumnName("goals");
+
+                    b.Property<bool>("IsStarter")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_starter");
+
+                    b.Property<int>("Minutes")
+                        .HasColumnType("integer")
+                        .HasColumnName("minutes");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("notes");
+
+                    b.Property<int?>("Rating")
+                        .HasColumnType("integer")
+                        .HasColumnName("rating");
+
+                    b.Property<int>("RedCards")
+                        .HasColumnType("integer")
+                        .HasColumnName("red_cards");
+
+                    b.Property<Guid>("StudentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("student_id");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<int>("YellowCards")
+                        .HasColumnType("integer")
+                        .HasColumnName("yellow_cards");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StudentId");
+
+                    b.HasIndex("AcademyId", "StudentId");
+
+                    b.HasIndex("EventId", "StudentId")
+                        .IsUnique();
+
+                    b.ToTable("match_player_stats", (string)null);
                 });
 
             modelBuilder.Entity("HSAcademia.Domain.Entities.MonthlyClosing", b =>
@@ -1178,6 +1274,100 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.ToTable("payment_installments", (string)null);
                 });
 
+            modelBuilder.Entity("HSAcademia.Domain.Entities.PaymentProof", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AcademyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("academy_id");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("numeric(10,2)")
+                        .HasColumnName("amount");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<int>("Method")
+                        .HasColumnType("integer")
+                        .HasColumnName("method");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("notes");
+
+                    b.Property<string>("OperationNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("operation_number");
+
+                    b.Property<DateTime>("PaidOn")
+                        .HasColumnType("date")
+                        .HasColumnName("paid_on");
+
+                    b.Property<Guid>("PaymentRecordId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("payment_record_id");
+
+                    b.Property<string>("ReceiptNumber")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("receipt_number");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("rejection_reason");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reviewed_at");
+
+                    b.Property<Guid?>("ReviewedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reviewed_by_user_id");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("StudentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("student_id");
+
+                    b.Property<Guid>("SubmittedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("submitted_by_user_id");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("VoucherUrl")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("voucher_url");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PaymentRecordId");
+
+                    b.HasIndex("StudentId");
+
+                    b.HasIndex("SubmittedByUserId");
+
+                    b.HasIndex("AcademyId", "Status");
+
+                    b.ToTable("payment_proofs", (string)null);
+                });
+
             modelBuilder.Entity("HSAcademia.Domain.Entities.PaymentRecord", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1194,6 +1384,7 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasColumnName("amount");
 
                     b.Property<decimal>("AmountPaid")
+                        .IsConcurrencyToken()
                         .ValueGeneratedOnAdd()
                         .HasColumnType("numeric(10,2)")
                         .HasDefaultValue(0m)
@@ -1255,6 +1446,14 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("paid_date");
 
+                    b.Property<int?>("PeriodMonth")
+                        .HasColumnType("integer")
+                        .HasColumnName("period_month");
+
+                    b.Property<int?>("PeriodYear")
+                        .HasColumnType("integer")
+                        .HasColumnName("period_year");
+
                     b.Property<Guid?>("ProductSaleId")
                         .HasColumnType("uuid")
                         .HasColumnName("product_sale_id");
@@ -1287,11 +1486,11 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("AcademyId");
-
                     b.HasIndex("ProductSaleId");
 
                     b.HasIndex("StudentId");
+
+                    b.HasIndex("AcademyId", "StudentId", "Type", "PeriodYear", "PeriodMonth");
 
                     b.ToTable("payment_records", (string)null);
                 });
@@ -1459,6 +1658,7 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<int>("Stock")
+                        .IsConcurrencyToken()
                         .HasColumnType("integer")
                         .HasColumnName("stock");
 
@@ -1789,6 +1989,102 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.ToTable("Students");
                 });
 
+            modelBuilder.Entity("HSAcademia.Domain.Entities.StudentEvaluation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AcademyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("academy_id");
+
+                    b.Property<int>("Attitude")
+                        .HasColumnType("integer")
+                        .HasColumnName("attitude");
+
+                    b.Property<string>("Comments")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("comments");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<DateTime>("EvaluationDate")
+                        .HasColumnType("date")
+                        .HasColumnName("evaluation_date");
+
+                    b.Property<Guid>("EvaluatorUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("evaluator_user_id");
+
+                    b.Property<string>("Goals")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("goals");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_deleted");
+
+                    b.Property<bool>("IsVisibleToFamily")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_visible_to_family");
+
+                    b.Property<string>("Period")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("period");
+
+                    b.Property<int>("Physical")
+                        .HasColumnType("integer")
+                        .HasColumnName("physical");
+
+                    b.Property<string>("Strengths")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("strengths");
+
+                    b.Property<Guid>("StudentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("student_id");
+
+                    b.Property<int>("Tactical")
+                        .HasColumnType("integer")
+                        .HasColumnName("tactical");
+
+                    b.Property<int>("Technical")
+                        .HasColumnType("integer")
+                        .HasColumnName("technical");
+
+                    b.Property<string>("ToImprove")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("to_improve");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EvaluatorUserId");
+
+                    b.HasIndex("StudentId");
+
+                    b.HasIndex("AcademyId", "StudentId");
+
+                    b.ToTable("student_evaluations", (string)null);
+                });
+
             modelBuilder.Entity("HSAcademia.Domain.Entities.StudentMedicalRecord", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2019,6 +2315,12 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(100)")
                         .HasColumnName("last_name");
 
+                    b.Property<bool>("MustChangePassword")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("must_change_password");
+
                     b.Property<string>("PasswordHash")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -2100,6 +2402,7 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                             FirstName = "Super",
                             IsDeleted = false,
                             LastName = "Admin",
+                            MustChangePassword = false,
                             PasswordHash = "$2a$11$G7Z3P7d1G3kMhY1S1iR5M.O5X9W8G2m5T4c5lR2p5n8v1M3s1x2eO",
                             PaymentRate = 0m,
                             PaymentType = 0,
@@ -2337,6 +2640,7 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.HasOne("HSAcademia.Domain.Entities.Academy", "Academy")
                         .WithMany()
                         .HasForeignKey("AcademyId")
+                        .HasPrincipalKey("AcademyId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -2367,6 +2671,32 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.Navigation("Academy");
                 });
 
+            modelBuilder.Entity("HSAcademia.Domain.Entities.MatchPlayerStat", b =>
+                {
+                    b.HasOne("HSAcademia.Domain.Entities.Academy", null)
+                        .WithMany()
+                        .HasForeignKey("AcademyId")
+                        .HasPrincipalKey("AcademyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("HSAcademia.Domain.Entities.Event", "Event")
+                        .WithMany()
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("HSAcademia.Domain.Entities.Student", "Student")
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Event");
+
+                    b.Navigation("Student");
+                });
+
             modelBuilder.Entity("HSAcademia.Domain.Entities.MonthlyClosing", b =>
                 {
                     b.HasOne("HSAcademia.Domain.Entities.Academy", "Academy")
@@ -2395,6 +2725,40 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("PaymentRecord");
+                });
+
+            modelBuilder.Entity("HSAcademia.Domain.Entities.PaymentProof", b =>
+                {
+                    b.HasOne("HSAcademia.Domain.Entities.Academy", null)
+                        .WithMany()
+                        .HasForeignKey("AcademyId")
+                        .HasPrincipalKey("AcademyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("HSAcademia.Domain.Entities.PaymentRecord", "PaymentRecord")
+                        .WithMany()
+                        .HasForeignKey("PaymentRecordId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("HSAcademia.Domain.Entities.Student", "Student")
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("HSAcademia.Domain.Entities.User", "SubmittedBy")
+                        .WithMany()
+                        .HasForeignKey("SubmittedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("PaymentRecord");
+
+                    b.Navigation("Student");
+
+                    b.Navigation("SubmittedBy");
                 });
 
             modelBuilder.Entity("HSAcademia.Domain.Entities.PaymentRecord", b =>
@@ -2569,6 +2933,32 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.Navigation("Headquarter");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("HSAcademia.Domain.Entities.StudentEvaluation", b =>
+                {
+                    b.HasOne("HSAcademia.Domain.Entities.Academy", null)
+                        .WithMany()
+                        .HasForeignKey("AcademyId")
+                        .HasPrincipalKey("AcademyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("HSAcademia.Domain.Entities.User", "Evaluator")
+                        .WithMany()
+                        .HasForeignKey("EvaluatorUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("HSAcademia.Domain.Entities.Student", "Student")
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Evaluator");
+
+                    b.Navigation("Student");
                 });
 
             modelBuilder.Entity("HSAcademia.Domain.Entities.StudentMedicalRecord", b =>

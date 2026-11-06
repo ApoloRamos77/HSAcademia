@@ -5,6 +5,9 @@ public class LoginRequestDto
     public string EmailOrPhone { get; set; } = string.Empty;
     public string Password { get; set; } = string.Empty;
     public string? Role { get; set; }
+    /// <summary>Opcional: academia seleccionada (acepta el Id o el TenantId devuelto por /auth/academies).
+    /// Necesario cuando el mismo teléfono/DNI existe en varias academias.</summary>
+    public Guid? AcademyId { get; set; }
 }
 
 public class LoginResponseDto

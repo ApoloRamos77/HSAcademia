@@ -16,7 +16,7 @@ public class AttendanceService : IAttendanceService
     }
 
     // =========================================================
-    // Phase 1 â€” Date-based roll call
+    // Phase 1 — Date-based roll call
     // =========================================================
 
     public async Task<List<StudentAttendanceDto>> GetAttendanceByCategoryAndDateAsync(
@@ -56,7 +56,7 @@ public class AttendanceService : IAttendanceService
         var categoryExists = await _context.Categories
             .AnyAsync(c => c.Id == categoryId && c.AcademyId == academyId);
         if (!categoryExists)
-            throw new Exception("CategorÃ­a no encontrada.");
+            throw new Exception("Categoría no encontrada.");
 
         var studentIds = dto.Records.Select(r => r.StudentId).ToList();
 
@@ -97,7 +97,7 @@ public class AttendanceService : IAttendanceService
     }
 
     // =========================================================
-    // Phase 2 â€” Event-linked roll call (with 15-min window rule)
+    // Phase 2 — Event-linked roll call (with 15-min window rule)
     // =========================================================
 
     public async Task<List<StudentAttendanceDto>> GetAttendanceByEventAsync(Guid academyId, Guid eventId)
@@ -110,7 +110,7 @@ public class AttendanceService : IAttendanceService
         EnforceWindowRule(ev);
 
         if (!ev.CategoryId.HasValue && (ev.CategoryIds == null || !ev.CategoryIds.Any()))
-            throw new InvalidOperationException("Este evento no tiene una categorÃ­a asignada.");
+            throw new InvalidOperationException("Este evento no tiene una categoría asignada.");
 
         var categoryIds = new List<Guid>();
         if (ev.CategoryId.HasValue) categoryIds.Add(ev.CategoryId.Value);
@@ -154,8 +154,11 @@ public class AttendanceService : IAttendanceService
 
         EnforceWindowRule(ev);
 
+        if (ev.AttendanceClosed)
+            throw new InvalidOperationException("La asistencia de este evento está cerrada. Solo un administrador puede reabrirla.");
+
         if (!ev.CategoryId.HasValue && (ev.CategoryIds == null || !ev.CategoryIds.Any()))
-            throw new InvalidOperationException("Este evento no tiene categorÃ­a asignada.");
+            throw new InvalidOperationException("Este evento no tiene categoría asignada.");
 
         var categoryIds = new List<Guid>();
         if (ev.CategoryId.HasValue) categoryIds.Add(ev.CategoryId.Value);
@@ -207,7 +210,7 @@ public class AttendanceService : IAttendanceService
     }
 
     // =========================================================
-    // Phase 2 â€” Monthly attendance metrics (70% rule)
+    // Phase 2 — Monthly attendance metrics (70% rule)
     // =========================================================
 
     public async Task<AttendanceMetricsSummaryDto> GetMonthlyMetricsAsync(
@@ -215,7 +218,7 @@ public class AttendanceService : IAttendanceService
     {
         var category = await _context.Categories
             .FirstOrDefaultAsync(c => c.Id == categoryId && c.AcademyId == academyId)
-            ?? throw new KeyNotFoundException("CategorÃ­a no encontrada.");
+            ?? throw new KeyNotFoundException("Categoría no encontrada.");
 
         var students = await _context.Students
             .Where(s => s.AcademyId == academyId && s.CategoryId == categoryId && s.IsActive)
@@ -290,7 +293,7 @@ public class AttendanceService : IAttendanceService
     }
 
     // =========================================================
-    // Phase 3 â€” Mobile App: QR Scan
+    // Phase 3 — Mobile App: QR Scan
     // =========================================================
 
     /// <summary>
@@ -300,7 +303,7 @@ public class AttendanceService : IAttendanceService
     /// </summary>
     public async Task<QrScanResultDto> ScanQrAsync(Guid academyId, QrScanDto dto)
     {
-        // A student's QR embeds their own UserId â€” but students don't have a User account
+        // A student's QR embeds their own UserId — but students don't have a User account
         // in the current model. The QR instead embeds the Student.Id directly (field "u").
         var student = await _context.Students
             .Include(s => s.Category)
@@ -310,9 +313,9 @@ public class AttendanceService : IAttendanceService
                 s.IsActive && !s.IsDeleted)
             ?? throw new KeyNotFoundException("Alumno no encontrado en esta academia.");
 
-        var today = DateTime.UtcNow.Date;
+        var today = AcademyClock.Today;
 
-        // Duplicate check â€” already scanned today?
+        // Duplicate check — already scanned today?
         var existing = await _context.Attendances
             .FirstOrDefaultAsync(a =>
                 a.AcademyId == academyId &&
@@ -329,7 +332,7 @@ public class AttendanceService : IAttendanceService
             StudentId = student.Id,
             Date      = today,
             Status    = Domain.Enums.AttendanceStatus.Present,
-            Notes     = "Registrado vÃ­a QR mÃ³vil",
+            Notes     = "Registrado vía QR móvil",
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
         };
@@ -348,7 +351,7 @@ public class AttendanceService : IAttendanceService
     }
 
     // =========================================================
-    // Phase 3 â€” Mobile App: Student's own history & summary
+    // Phase 3 — Mobile App: Student's own history & summary
     // =========================================================
 
     /// <summary>
@@ -373,10 +376,10 @@ public class AttendanceService : IAttendanceService
         var enrollMonth = new DateTime(enrollDate.Year, enrollDate.Month, 1, 0, 0, 0, DateTimeKind.Utc);
 
         // Window: from enrollment OR (now - months), whichever is later
-        var windowFrom = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1, 0, 0, 0, DateTimeKind.Utc)
+        var windowFrom = new DateTime(AcademyClock.Now.Year, AcademyClock.Now.Month, 1, 0, 0, 0, DateTimeKind.Utc)
                              .AddMonths(-(months - 1));
         var from = windowFrom < enrollMonth ? enrollMonth : windowFrom;
-        var to   = DateTime.UtcNow.Date.AddDays(1); // inclusive today
+        var to   = AcademyClock.Today.AddDays(1); // inclusive today
 
         // ── 1. All events for this student's category in the range ──
         var allEvents = await _context.Events
@@ -393,18 +396,18 @@ public class AttendanceService : IAttendanceService
 
         if (!events.Any())
         {
-            // No events â†’ still return empty-record months since enrollment
+            // No events → still return empty-record months since enrollment
             return BuildEmptyMonths(from, DateTime.UtcNow, student.Category?.Name);
         }
 
-        // â”€â”€ 2. Attendance records for this student in the range â”€â”€
+        // ── 2. Attendance records for this student in the range ──
         var attendances = await _context.Attendances
             .Where(a => a.AcademyId == academyId &&
                         a.StudentId == studentId &&
                         a.Date >= from && a.Date < to)
             .ToListAsync();
 
-        // â”€â”€ 3. For each event, check if attendance was taken at all â”€â”€
+        // ── 3. For each event, check if attendance was taken at all ──
         //    (any student in that category for that date)
         var eventIds = events.Select(e => e.Id).ToList();
         var eventDates = events.Select(e => e.StartTime.Date).Distinct().ToList();
@@ -429,12 +432,12 @@ public class AttendanceService : IAttendanceService
 
         var categoryName = student.Category?.Name;
 
-        // â”€â”€ 4. Build one record per event â”€â”€
+        // ── 4. Build one record per event ──
         var records = events.Select(ev =>
         {
             var evDate = ev.StartTime.Date;
 
-            // Find student's own attendance record â€” prefer EventId match, fall back to date match
+            // Find student's own attendance record — prefer EventId match, fall back to date match
             var att = attendances.FirstOrDefault(a => a.EventId == ev.Id)
                    ?? attendances.FirstOrDefault(a => a.Date.Date == evDate);
 
@@ -465,7 +468,7 @@ public class AttendanceService : IAttendanceService
             };
         }).ToList();
 
-        // â”€â”€ 5. Group by month â”€â”€
+        // ── 5. Group by month ──
         var grouped = records
             .GroupBy(r => new { r.DateObj.Year, r.DateObj.Month })
             .OrderByDescending(g => g.Key.Year).ThenByDescending(g => g.Key.Month)
@@ -485,10 +488,10 @@ public class AttendanceService : IAttendanceService
                 };
             }).ToList();
 
-        // â”€â”€ 6. Pad with empty months that had no events â”€â”€
+        // ── 6. Pad with empty months that had no events ──
         for (int i = 0; i < months; i++)
         {
-            var target = DateTime.UtcNow.AddMonths(-i);
+            var target = AcademyClock.Now.AddMonths(-i);
             var targetMonth = new DateTime(target.Year, target.Month, 1, 0, 0, 0, DateTimeKind.Utc);
             if (targetMonth < enrollMonth) break;
 
@@ -535,7 +538,7 @@ public class AttendanceService : IAttendanceService
     public async Task<MobileAttendanceSummaryDto> GetMyAttendanceSummaryAsync(
         Guid academyId, Guid studentId)
     {
-        var now  = DateTime.UtcNow;
+        var now  = AcademyClock.Now;
         var from = new DateTime(now.Year, now.Month, 1);
         var to   = from.AddMonths(1);
 
@@ -588,13 +591,13 @@ public class AttendanceService : IAttendanceService
     private static void EnforceWindowRule(Domain.Entities.Event ev)
     {
         var openAt = ev.StartTime.AddMinutes(-15);
-        if (DateTime.UtcNow < openAt)
+        if (AcademyClock.WallNow < openAt)
         {
-            var remaining = (openAt - DateTime.UtcNow).TotalMinutes;
+            var remaining = (openAt - AcademyClock.WallNow).TotalMinutes;
             throw new InvalidOperationException(
-                $"La lista de asistencia aÃºn no estÃ¡ abierta. " +
-                $"PodrÃ¡s tomarla en {Math.Ceiling(remaining)} minuto(s), " +
-                $"15 minutos antes del inicio del evento ({ev.StartTime:HH:mm} UTC).");
+                $"La lista de asistencia aún no está abierta. " +
+                $"Podrás tomarla en {Math.Ceiling(remaining)} minuto(s), " +
+                $"15 minutos antes del inicio del evento ({ev.StartTime:HH:mm}).");
         }
     }
 
@@ -733,6 +736,8 @@ public class AttendanceService : IAttendanceService
             var ev = await _context.Events
                 .FirstOrDefaultAsync(e => e.AcademyId == academyId && e.Id == dto.EventId.Value && !e.IsDeleted);
             if (ev == null) throw new Exception("Evento no encontrado.");
+            if (ev.AttendanceClosed)
+                throw new Exception("La asistencia de este evento está cerrada. Solo un administrador puede reabrirla.");
 
             bool isTeacher = ev.TeacherId == staffUserId;
 
@@ -835,7 +840,7 @@ public class AttendanceService : IAttendanceService
             ?? throw new KeyNotFoundException("Entrenamiento no encontrado.");
 
         if (!ev.AttendanceClosed)
-            throw new InvalidOperationException("La asistencia de este entrenamiento no estÃ¡ cerrada.");
+            throw new InvalidOperationException("La asistencia de este entrenamiento no está cerrada.");
 
         ev.AttendanceClosed   = false;
         ev.AttendanceClosedAt = null;
@@ -860,9 +865,9 @@ public class AttendanceService : IAttendanceService
         bool isAdmin = user.Role == Domain.Enums.UserRole.AcademyAdmin;
         var categoryIds = user.AssignedCategories?.Select(c => c.Id).ToList() ?? new List<Guid>();
 
-        var from = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1, 0, 0, 0, DateTimeKind.Utc)
+        var from = new DateTime(AcademyClock.Now.Year, AcademyClock.Now.Month, 1, 0, 0, 0, DateTimeKind.Utc)
                        .AddMonths(-(months - 1));
-        var to = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1, 0, 0, 0, DateTimeKind.Utc)
+        var to = new DateTime(AcademyClock.Now.Year, AcademyClock.Now.Month, 1, 0, 0, 0, DateTimeKind.Utc)
                      .AddMonths(1);
 
         var query = _context.Events

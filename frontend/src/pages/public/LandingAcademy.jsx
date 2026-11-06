@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ChevronRight, Phone, Mail, MapPin, Send, MessageCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { getTenantData } from '../../utils/tenantConfig';
+import { getTenantData, defaultAcademy } from '../../utils/tenantConfig';
+import api from '../../api/axios';
 import './LandingAcademy.css';
 
 export default function LandingAcademy() {
@@ -13,9 +14,33 @@ export default function LandingAcademy() {
   const [tenantData, setTenantData] = useState(null);
 
   useEffect(() => {
-    // In a real app, this might be an API call.
-    const data = getTenantData(tenantId);
-    setTenantData(data);
+    let cancelled = false;
+    const fallback = getTenantData(tenantId);
+    // Datos reales de la academia (slug, Id o TenantId); si no existe, se usa la plantilla.
+    api.get(`/public/academies/${encodeURIComponent(tenantId || '')}`)
+      .then(({ data }) => {
+        if (cancelled) return;
+        setTenantData({
+          ...defaultAcademy,
+          id: data.slug || data.id,
+          name: data.name,
+          slogan: (data.name || '').toUpperCase(),
+          badge: data.sport ? `ACADEMIA DE ${data.sport.toUpperCase()}` : defaultAcademy.badge,
+          description: data.description || `Formamos deportistas con disciplina y valores${data.city ? ` en ${data.city}` : ''}. ¡Inscríbete y entrena con nosotros!`,
+          logo: data.logoUrl || defaultAcademy.logo,
+          contact: {
+            phone: data.contact?.phone || '',
+            email: data.contact?.email || '',
+            address: data.contact?.address || data.city || '',
+            whatsapp: data.contact?.whatsapp || '',
+          },
+          categories: (data.categories || []).length > 0
+            ? data.categories.map(c => ({ id: c.id, title: `Categoría ${c.name}`, desc: `Nacidos ${c.birthYears} · Sede ${c.headquarter}` }))
+            : defaultAcademy.categories,
+        });
+      })
+      .catch(() => { if (!cancelled) setTenantData(fallback); });
+    return () => { cancelled = true; };
   }, [tenantId]);
 
   useEffect(() => {

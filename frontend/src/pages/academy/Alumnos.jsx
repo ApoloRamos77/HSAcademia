@@ -4,7 +4,11 @@ import AppLayout from '../../components/AppLayout';
 import { PlusCircle, Search, Users, Activity, FileText, Calendar, MapPin, UserPlus, X, Filter, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
+import CredentialsDialog from '../../components/CredentialsDialog';
+import EvaluationsModal from '../../components/EvaluationsModal';
+import { Star } from 'lucide-react';
 import { Apple, Activity as ActivityIcon } from 'lucide-react';
+import { todayISO } from '../../utils/dates';
 
 export default function Alumnos() {
   const { user } = useAuth();
@@ -18,12 +22,14 @@ export default function Alumnos() {
   const itemsPerPage = 10;
 
   const [showModal, setShowModal] = useState(false);
+  const [generatedCredentials, setGeneratedCredentials] = useState(null);
+  const [evalStudent, setEvalStudent] = useState(null);
   const [currentStep, setCurrentStep] = useState(1); // 1: Alumno, 2: Apoderado, 3: Ficha Médica
   const [showNutritionModal, setShowNutritionModal] = useState(false);
   const [nutritionStudent, setNutritionStudent] = useState(null);
   const [nutritionRecords, setNutritionRecords] = useState([]);
   const [nutritionForm, setNutritionForm] = useState({
-    weightKg: '', heightCm: '', muscleMassPercentage: '', fatPercentage: '', notes: '', recordDate: new Date().toISOString().split('T')[0]
+    weightKg: '', heightCm: '', muscleMassPercentage: '', fatPercentage: '', notes: '', recordDate: todayISO()
   });
 
   const [showFinancialModal, setShowFinancialModal] = useState(false);
@@ -40,7 +46,7 @@ export default function Alumnos() {
 
   const initialForm = {
     firstName: '', lastName: '', email: '', phone: '', dateOfBirth: '', documentNumber: '', headquarterId: '', categoryId: '',
-    enrollmentDate: new Date().toISOString().split('T')[0], paymentStartDate: '', withdrawalDate: '', preferentialFee: '',
+    enrollmentDate: todayISO(), paymentStartDate: '', withdrawalDate: '', preferentialFee: '',
     isGuest: false, isScholarship: false, scholarshipPercentage: '', isActive: true,
     guardianFirstName: '', guardianLastName: '', guardianEmail: '', guardianPhone: '',
     medicalRecord: {
@@ -212,10 +218,12 @@ export default function Alumnos() {
       };
 
       if (editingId) {
-        await api.put(`/students/${editingId}`, payload);
+        const res = await api.put(`/students/${editingId}`, payload);
+        if (res.data?.generatedCredentials?.length) setGeneratedCredentials(res.data.generatedCredentials);
         toast.success('Alumno actualizado correctamente');
       } else {
-        await api.post('/students', payload);
+        const res = await api.post('/students', payload);
+        if (res.data?.generatedCredentials?.length) setGeneratedCredentials(res.data.generatedCredentials);
         toast.success('Alumno registrado correctamente');
       }
       
@@ -232,7 +240,7 @@ export default function Alumnos() {
   const openNutritionModal = async (alumno) => {
     setNutritionStudent(alumno);
     setNutritionForm({
-      weightKg: '', heightCm: '', muscleMassPercentage: '', fatPercentage: '', notes: '', recordDate: new Date().toISOString().split('T')[0]
+      weightKg: '', heightCm: '', muscleMassPercentage: '', fatPercentage: '', notes: '', recordDate: todayISO()
     });
     try {
       const res = await api.get(`/students/${alumno.id}/nutrition-records`);
@@ -256,7 +264,7 @@ export default function Alumnos() {
       const res = await api.post(`/students/${nutritionStudent.id}/nutrition-records`, payload);
       setNutritionRecords([res.data, ...nutritionRecords]);
       setNutritionForm({
-        weightKg: '', heightCm: '', muscleMassPercentage: '', fatPercentage: '', notes: '', recordDate: new Date().toISOString().split('T')[0]
+        weightKg: '', heightCm: '', muscleMassPercentage: '', fatPercentage: '', notes: '', recordDate: todayISO()
       });
       toast.success("Registro guardado");
       // Optionally update the medical record in the main view
@@ -299,6 +307,8 @@ export default function Alumnos() {
 
   return (
     <AppLayout title="Gestión de Alumnos">
+      <CredentialsDialog credentials={generatedCredentials} onClose={() => setGeneratedCredentials(null)} />
+      {evalStudent && <EvaluationsModal student={evalStudent} onClose={() => setEvalStudent(null)} />}
       <div className="fade-in">
         <div className="card">
           <div className="card-header">
@@ -432,6 +442,12 @@ export default function Alumnos() {
                         </button>
                         <button className="btn btn-ghost btn-sm text-success" onClick={() => openNutritionModal(alumno)} title="Nutrición">
                           <Apple size={15} />
+                        </button>
+                        <button className="btn btn-ghost btn-sm text-primary" onClick={() => setEvalStudent(alumno)} title="Evaluación deportiva" aria-label="Evaluación deportiva">
+                          <Star size={15} />
+                        </button>
+                        <button className="btn btn-ghost btn-sm text-primary" onClick={() => setEvalStudent(alumno)} title="Evaluación deportiva" aria-label="Evaluación deportiva">
+                          <Star size={15} />
                         </button>
                         <button className="btn btn-ghost btn-sm text-warning" onClick={async () => {
                             try {

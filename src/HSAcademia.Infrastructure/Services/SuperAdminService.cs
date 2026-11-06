@@ -129,6 +129,11 @@ public class SuperAdminService
         if (request.Status != RegistrationRequestStatus.Pending)
             return Result<AcademyCreatedDto>.Failure("La solicitud ya fue procesada.");
 
+        var contactEmail = request.ContactEmail.Trim().ToLower();
+        if (await _db.Users.IgnoreQueryFilters().AnyAsync(u => u.Email.ToLower() == contactEmail))
+            return Result<AcademyCreatedDto>.Failure(
+                $"El correo {contactEmail} ya tiene una cuenta en la plataforma. Edita la solicitud con otro correo antes de aprobarla.");
+
         var slug = GenerateSlug(request.AcademyName);
         var slugExists = await _db.Academies.IgnoreQueryFilters().AnyAsync(a => a.SlugName == slug);
         if (slugExists) slug = $"{slug}-{DateTime.UtcNow.Ticks % 10000}";
@@ -151,15 +156,16 @@ public class SuperAdminService
         };
         _db.Academies.Add(academy);
 
-        var tempPassword = GenerateTempPassword();
+        var tempPassword = PasswordPolicy.GenerateTemporary(12);
         var nameParts = request.ContactName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         var adminUser = new User
         {
             AcademyId = academyTenantId,
             FirstName = nameParts.FirstOrDefault() ?? request.ContactName,
             LastName = nameParts.Length > 1 ? string.Join(" ", nameParts.Skip(1)) : "",
-            Email = request.ContactEmail,
+            Email = contactEmail,
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(tempPassword),
+            MustChangePassword = true,
             Role = UserRole.AcademyAdmin,
             Status = UserStatus.Active
         };
@@ -445,11 +451,4 @@ public class SuperAdminService
             .Replace(" ", "-").Replace("á", "a").Replace("é", "e")
             .Replace("í", "i").Replace("ó", "o").Replace("ú", "u").Replace("ñ", "n")
             .Where(c => char.IsLetterOrDigit(c) || c == '-').ToArray());
-
-    private static string GenerateTempPassword()
-    {
-        const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#";
-        var random = new Random();
-        return new string(Enumerable.Repeat(chars, 12).Select(s => s[random.Next(s.Length)]).ToArray());
-    }
 }

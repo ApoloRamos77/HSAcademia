@@ -8,7 +8,7 @@ export default function ChangePasswordPage() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   // Read the password stored at login (sessionStorage) to use as currentPassword
-  const storedPw = sessionStorage.getItem('_lp') || '123456';
+  const storedPw = sessionStorage.getItem('_lp') || '';
   const [form, setForm] = useState({ currentPassword: storedPw, newPassword: '', confirmPassword: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -17,8 +17,13 @@ export default function ChangePasswordPage() {
     e.preventDefault();
     setError('');
 
-    if (form.newPassword.length < 6) {
-      setError('La nueva contraseña debe tener al menos 6 caracteres.');
+    // Misma política que el backend (PasswordPolicy)
+    if (form.newPassword.length < 8) {
+      setError('La nueva contraseña debe tener al menos 8 caracteres.');
+      return;
+    }
+    if (!/[A-Za-zÁÉÍÓÚáéíóúÑñ]/.test(form.newPassword) || !/\d/.test(form.newPassword)) {
+      setError('La nueva contraseña debe combinar letras y números.');
       return;
     }
     if (form.newPassword !== form.confirmPassword) {

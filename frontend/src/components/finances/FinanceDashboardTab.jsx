@@ -208,7 +208,7 @@ export default function FinanceDashboardTab() {
       {/* ── Period Selector ── */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card/40 backdrop-blur-md border border-border/50 p-4 rounded-xl">
         <div className="flex items-center gap-3">
-          <h3 className="text-xl font-bold text-white flex items-center gap-2">
+          <h3 className="text-xl font-bold text-text-primary flex items-center gap-2">
             <BarChart3 className="text-primary" size={20}/> Resumen Financiero
           </h3>
           {closing && closing.status === 'Closed' && (
@@ -265,7 +265,12 @@ export default function FinanceDashboardTab() {
             >
               <div className="stat-label">Mensualidades</div>
               <div className="stat-value text-3xl font-bold" style={{ color: '#84cc16' }}>S/. {summary.totalIncome.toFixed(2)}</div>
-              <div className="text-sm text-text-muted mt-1">Cobrado en {MONTHS[month-1]}</div>
+              <div className="text-sm text-text-muted mt-1">Cobrado en {MONTHS[month-1]} (incluye abonos y deudas anteriores)</div>
+              {summary.totalBilled != null && (
+                <div className="text-xs text-text-secondary mt-1">
+                  Facturado del mes: <b>S/. {summary.totalBilled.toFixed(2)}</b> · Pendiente: <b className={summary.totalPending > 0 ? 'text-danger' : ''}>S/. {summary.totalPending.toFixed(2)}</b>
+                </div>
+              )}
               <div className="stat-icon" style={{ color: '#84cc16' }}><TrendingUp size={32}/></div>
             </div>
 
@@ -327,7 +332,7 @@ export default function FinanceDashboardTab() {
           {/* ── Metas Financieras ── */}
           <div className="card p-6">
             <div className="flex justify-between items-center mb-5">
-              <h4 className="font-bold text-white flex items-center gap-2">
+              <h4 className="font-bold text-text-primary flex items-center gap-2">
                 <span className="text-xl">🎯</span> Progreso de Metas
               </h4>
               <button onClick={() => setShowGoalModal(true)} className="btn btn-ghost btn-sm text-primary">
@@ -374,7 +379,7 @@ export default function FinanceDashboardTab() {
             {/* Trend Line Chart — 2/3 width */}
             <div className="card p-6 lg:col-span-2">
               <div className="flex justify-between items-center mb-5">
-                <h4 className="font-bold text-white flex items-center gap-2">
+                <h4 className="font-bold text-text-primary flex items-center gap-2">
                   <TrendingUp size={18} className="text-primary"/> Tendencia Financiera
                 </h4>
                 <select
@@ -419,7 +424,7 @@ export default function FinanceDashboardTab() {
 
             {/* Pie Chart — 1/3 width */}
             <div className="card p-6">
-              <h4 className="font-bold text-white mb-5 flex items-center gap-2">
+              <h4 className="font-bold text-text-primary mb-5 flex items-center gap-2">
                 <DollarSign size={18} className="text-primary"/> Distribución Egresos
               </h4>
               {pieData.length === 0 ? (
@@ -457,7 +462,7 @@ export default function FinanceDashboardTab() {
                             style={{ background: PIE_COLORS[i % PIE_COLORS.length] }}/>
                           <span className="text-text-secondary">{item.name}</span>
                         </div>
-                        <span className="text-white font-semibold">S/. {item.value.toFixed(2)}</span>
+                        <span className="text-text-primary font-semibold">S/. {item.value.toFixed(2)}</span>
                       </div>
                     ))}
                   </div>
@@ -469,7 +474,7 @@ export default function FinanceDashboardTab() {
           {/* ── Bar Chart: Monthly Comparison ── */}
           {trendData.length > 0 && (
             <div className="card p-6">
-              <h4 className="font-bold text-white mb-5 flex items-center gap-2">
+              <h4 className="font-bold text-text-primary mb-5 flex items-center gap-2">
                 <BarChart3 size={18} className="text-primary"/> Comparativa Mensual (Ingresos vs Egresos totales)
               </h4>
               <ResponsiveContainer width="100%" height={220}>
