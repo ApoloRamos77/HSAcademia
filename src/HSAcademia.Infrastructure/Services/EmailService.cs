@@ -16,22 +16,22 @@ public class EmailService : IEmailService
 
     public async Task SendWelcomeEmailAsync(string toEmail, string academyName, string adminName, string tempPassword)
     {
-        var subject = $"¡Bienvenido a ADHSOFT SPORT! - Academia {academyName} aprobada";
+        var subject = $"¡Bienvenido a Clubio! - Academia {academyName} aprobada";
         var portalUrl = _config["App:FrontendUrl"] ?? "#";
         var body = $@"
 <html><body style='font-family:Arial,sans-serif;color:#333;'>
   <div style='max-width:600px;margin:auto;padding:30px;border:1px solid #e0e0e0;border-radius:8px;'>
     <h1 style='color:#4F46E5;'>¡Bienvenido, {adminName}!</h1>
-    <p>Su academia <strong>{academyName}</strong> ha sido aprobada exitosamente en la plataforma <strong>ADHSOFT SPORT</strong>.</p>
+    <p>Su academia <strong>{academyName}</strong> ha sido aprobada exitosamente en la plataforma <strong>Clubio</strong>.</p>
     <h3>Credenciales de acceso:</h3>
     <ul>
       <li><strong>Email:</strong> {toEmail}</li>
       <li><strong>Contraseña temporal:</strong> <code style='background:#f4f4f4;padding:4px 8px;border-radius:4px;'>{tempPassword}</code></li>
     </ul>
     <p style='color:#e53e3e;'><strong>⚠️ Por seguridad, cambie su contraseña al primer inicio de sesión.</strong></p>
-    <p>Acceda a la plataforma en: <a href='{portalUrl}'>ADHSOFT SPORT Portal</a></p>
+    <p>Acceda a la plataforma en: <a href='{portalUrl}'>Clubio Portal</a></p>
     <hr style='border:none;border-top:1px solid #e0e0e0;margin:20px 0;'/>
-    <p style='color:#888;font-size:12px;'>ADHSOFT SPORT - Plataforma de Gestión Deportiva</p>
+    <p style='color:#888;font-size:12px;'>Clubio - Plataforma de Gestión Deportiva</p>
   </div>
 </body></html>";
 
@@ -50,7 +50,7 @@ public class EmailService : IEmailService
     <p style='background:#fff5f5;padding:15px;border-radius:6px;border-left:4px solid #E53E3E;'>{reason}</p>
     <p>Si tiene alguna consulta, puede volver a enviar una solicitud con la información corregida.</p>
     <hr style='border:none;border-top:1px solid #e0e0e0;margin:20px 0;'/>
-    <p style='color:#888;font-size:12px;'>ADHSOFT SPORT - Plataforma de Gestión Deportiva</p>
+    <p style='color:#888;font-size:12px;'>Clubio - Plataforma de Gestión Deportiva</p>
   </div>
 </body></html>";
 
@@ -64,12 +64,12 @@ public class EmailService : IEmailService
 <html><body style='font-family:Arial,sans-serif;color:#333;'>
   <div style='max-width:600px;margin:auto;padding:30px;border:1px solid #e0e0e0;border-radius:8px;'>
     <h1 style='color:#D97706;'>Academia suspendida temporalmente</h1>
-    <p>La academia <strong>{academyName}</strong> ha sido suspendida temporalmente de la plataforma <strong>ADHSOFT SPORT</strong>.</p>
+    <p>La academia <strong>{academyName}</strong> ha sido suspendida temporalmente de la plataforma <strong>Clubio</strong>.</p>
     <h3>Motivo de suspensión:</h3>
     <p style='background:#fffbeb;padding:15px;border-radius:6px;border-left:4px solid #D97706;'>{reason}</p>
-    <p>Para obtener más información o apelar esta decisión, contacte al equipo de ADHSOFT SPORT.</p>
+    <p>Para obtener más información o apelar esta decisión, contacte al equipo de Clubio.</p>
     <hr style='border:none;border-top:1px solid #e0e0e0;margin:20px 0;'/>
-    <p style='color:#888;font-size:12px;'>ADHSOFT SPORT - Plataforma de Gestión Deportiva</p>
+    <p style='color:#888;font-size:12px;'>Clubio - Plataforma de Gestión Deportiva</p>
   </div>
 </body></html>";
 
@@ -82,7 +82,7 @@ public class EmailService : IEmailService
         var host = smtpSection["Host"];
         var port = int.Parse(smtpSection["Port"] ?? "587");
         var fromEmail = smtpSection["FromEmail"];
-        var fromName = smtpSection["FromName"] ?? "ADHSOFT SPORT";
+        var fromName = smtpSection["FromName"] ?? "Clubio";
         var username = smtpSection["Username"];
         var password = smtpSection["Password"];
 

@@ -2,9 +2,9 @@
 
 export const defaultAcademy = {
   id: 'default',
-  name: 'ADHSOFT SPORT',
+  name: 'Clubio',
   badge: 'BIENVENIDO A LA ÉLITE',
-  slogan: 'ACADEMIA DEPORTIVA ADHSOFT SPORT',
+  slogan: 'EL CORAZÓN DE TU ACADEMIA DEPORTIVA',
   description: 'Formando campeones con valores y pasión por el deporte. Únete a nuestra gran familia y desarrolla tu máximo potencial en la cancha.',
   logo: '/logo.png',
   theme: {
@@ -68,6 +68,6 @@ export const getTenantData = (tenantId) => {
   if (tenantId && mockTenants[tenantId]) {
     return mockTenants[tenantId];
   }
-  // Fallback: return the default ADHSOFT SPORT template for any unrecognized GUID.
+  // Fallback: return the default Clubio template for any unrecognized GUID.
   return defaultAcademy;
 };

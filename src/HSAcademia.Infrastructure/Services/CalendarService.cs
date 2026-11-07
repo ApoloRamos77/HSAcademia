@@ -738,7 +738,7 @@ public class CalendarService : ICalendarService
         else if (eventDay == today.AddDays(1))
             dateStr = $"Mañana, {localTime:HH:mm} hrs";
         else
-            dateStr = $"{localTime:dddd d 'de' MMMM}, {localTime:HH:mm} hrs";
+            dateStr = $"{localTime.ToString("dddd d 'de' MMMM", Culture.Es)}, {localTime:HH:mm} hrs";
 
         return new NextEventDto
         {

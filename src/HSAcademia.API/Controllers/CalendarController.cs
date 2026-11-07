@@ -302,6 +302,39 @@ public class CalendarController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// GET /api/calendar/mobile/my-calls — convocatorias de los PRÓXIMOS partidos de mis alumnos
+    /// (apoderado o alumno), para confirmar o rechazar la asistencia desde la app.
+    /// </summary>
+    [HttpGet("mobile/my-calls")]
+    [Authorize(Roles = "Student,Guardian")]
+    public async Task<IActionResult> GetMyCalls([FromServices] HSAcademia.Infrastructure.Persistence.AppDbContext db)
+    {
+        var academyId = GetAcademyId();
+        var userId = User.GetUserId();
+        var now = HSAcademia.Infrastructure.Services.AcademyClock.WallNow;
+
+        var calls = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(
+            db.EventCalls
+              .Where(c => c.AcademyId == academyId && c.Event.EndTime >= now && !c.Event.IsDeleted &&
+                          (c.Student.GuardianId == userId || c.Student.UserId == userId))
+              .OrderBy(c => c.Event.StartTime)
+              .Select(c => new
+              {
+                  callId = c.Id,
+                  eventId = c.EventId,
+                  title = c.Event.Title,
+                  opponent = c.Event.OpponentTeam,
+                  startTime = c.Event.StartTime,
+                  endTime = c.Event.EndTime,
+                  location = c.Event.Headquarter != null ? c.Event.Headquarter.Name : null,
+                  studentId = c.StudentId,
+                  studentName = c.Student.FirstName + " " + c.Student.LastName,
+                  isConfirmed = c.IsConfirmed
+              }));
+        return Ok(calls);
+    }
+
     [HttpPut("mobile/calls/{callId:guid}/confirm")]
     public async Task<IActionResult> ConfirmEventCall(Guid callId, [FromBody] UpdateEventCallDto dto, [FromServices] AccessControlService access)
     {

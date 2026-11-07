@@ -1,6 +1,17 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
+/** Perfil de la academia guardado al iniciar sesión (nombre, dirección, teléfono). */
+const getAcademyProfile = () => {
+  try {
+    const profile = JSON.parse(localStorage.getItem('academyProfile') || 'null');
+    const user = JSON.parse(localStorage.getItem('user') || 'null');
+    return { name: profile?.name || user?.academyName || '', address: profile?.address || '', phone: profile?.phone || '' };
+  } catch {
+    return { name: '', address: '', phone: '' };
+  }
+};
+
 export const generateReceiptPDF = (data) => {
   // 1. Calcular la altura requerida
   const dummyDoc = new jsPDF({ format: [105, 297] });
@@ -38,17 +49,21 @@ export const generateReceiptPDF = (data) => {
   // 2. Generar el documento real con altura dinámica
   const doc = new jsPDF({ format: [105, totalHeight] });
   
+  // Datos de la academia que emite el recibo (multi-academia): se guardan al iniciar sesión.
+  const academy = getAcademyProfile();
+  const academyName = (academy.name || 'Academia deportiva').toUpperCase();
+
   // Header
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(12);
+  doc.setFontSize(academyName.length > 28 ? 10 : 12);
   doc.setTextColor(0, 86, 179); // Blue
-  doc.text("ACADEMIA DEPORTIVA", 52.5, 12, { align: "center" });
-  
-  doc.setFontSize(9);
+  doc.text(doc.splitTextToSize(academyName, 95).slice(0, 2), 52.5, 12, { align: "center" });
+
+  doc.setFontSize(7);
   doc.setFont("helvetica", "normal");
-  doc.setTextColor(100, 100, 100);
-  doc.text("Helper Soft Sport", 52.5, 17, { align: "center" });
-  
+  doc.setTextColor(120, 120, 120);
+  doc.text("Emitido con Clubio", 52.5, 19, { align: "center" });
+
   // Receipt Title & Number
   doc.setFillColor(0, 86, 179);
   doc.rect(60, 23, 40, 6, "F");
@@ -56,24 +71,27 @@ export const generateReceiptPDF = (data) => {
   doc.setFontSize(9);
   doc.setFont("helvetica", "bold");
   doc.text("RECIBO", 80, 27.5, { align: "center" });
-  
+
   doc.setTextColor(200, 0, 0); // Red
   doc.setFontSize(10);
   const receiptNum = data.receiptNumber || 'S/N';
   doc.text(`N° ${receiptNum}`, 80, 35, { align: "center" });
 
-  // Company Info (Left)
+  // Company Info (Left): datos de contacto de la academia
   doc.setTextColor(0, 86, 179);
   doc.setFontSize(8);
-  doc.text("ADHSOFT SPORT", 5, 25);
+  doc.text(doc.splitTextToSize(academy.name || '', 52).slice(0, 1), 5, 25);
   doc.setFontSize(7);
   doc.setTextColor(100, 100, 100);
-  doc.text("Jr. J.C. Mariategui 315 Block E1", 5, 29);
-  doc.text("Dpto 102 Condominio La Pradera Club", 5, 33);
-  doc.text("Puente Piedra", 5, 37);
-  
-  // Date Box
-  const today = new Date();
+  const contactLines = [
+    ...doc.splitTextToSize(academy.address || '', 52).slice(0, 2),
+    academy.phone ? `Tel. ${academy.phone}` : '',
+  ].filter(Boolean).slice(0, 3);
+  contactLines.forEach((line, i) => doc.text(line, 5, 29 + i * 4));
+
+  // Date Box: fecha del pago/venta (no la de hoy: las copias deben mostrar la fecha real)
+  const issued = data.date ? new Date(data.date) : new Date();
+  const today = Number.isNaN(issued.getTime()) ? new Date() : issued;
   doc.setDrawColor(0, 86, 179);
   doc.setFillColor(0, 86, 179);
   doc.rect(5, 42, 45, 5, "FD");
@@ -81,7 +99,7 @@ export const generateReceiptPDF = (data) => {
   doc.text("DÍA", 12.5, 45.5, { align: "center" });
   doc.text("MES", 27.5, 45.5, { align: "center" });
   doc.text("AÑO", 42.5, 45.5, { align: "center" });
-  
+
   doc.rect(5, 47, 45, 5, "S");
   doc.setTextColor(0, 0, 0);
   doc.text(today.getDate().toString().padStart(2, '0'), 12.5, 50.5, { align: "center" });

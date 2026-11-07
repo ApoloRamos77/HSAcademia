@@ -178,6 +178,7 @@ export default function Finanzas() {
       generateReceiptPDF({
         receiptNumber,
         customerName: selected.studentName,
+        date: lastInstallment?.paidAt,
         description: finalDescription,
         quantity: 1,
         total: parseFloat(payForm.amountPaid),
@@ -232,6 +233,7 @@ export default function Finanzas() {
     generateReceiptPDF({
       receiptNumber: lastInstallment.receiptNumber,
       customerName: d.studentName,
+      date: lastInstallment.paidAt,
       description: d.description,
       quantity: 1,
       total: parseFloat(lastInstallment.amountPaid),
@@ -244,6 +246,7 @@ export default function Finanzas() {
     generateReceiptPDF({
       receiptNumber: installment.receiptNumber,
       customerName: d.studentName,
+      date: installment.paidAt,
       description: `${d.description} (Cuota parcial)`,
       quantity: 1,
       total: parseFloat(installment.amountPaid),
