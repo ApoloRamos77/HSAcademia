@@ -80,3 +80,44 @@ export function initials(full?: string | null): string {
   const parts = (full ?? '').trim().split(/\s+/).filter(Boolean);
   return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase() || '?';
 }
+
+// ── Fechas escritas a mano (DD/MM/AAAA) ────────────────────────────
+
+/** Aplica la máscara DD/MM/AAAA mientras se escribe (solo dígitos). */
+export function maskDate(input: string): string {
+  const d = input.replace(/\D/g, '').slice(0, 8);
+  if (d.length <= 2) return d;
+  if (d.length <= 4) return `${d.slice(0, 2)}/${d.slice(2)}`;
+  return `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}`;
+}
+
+/** "DD/MM/AAAA" → "YYYY-MM-DD"; null si está vacío; 'invalid' si no es una fecha real. */
+export function parseDmy(value: string): string | null | 'invalid' {
+  const v = value.trim();
+  if (!v) return null;
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(v);
+  if (!m) return 'invalid';
+  const [, dd, mm, yyyy] = m;
+  const d = new Date(Number(yyyy), Number(mm) - 1, Number(dd));
+  if (d.getFullYear() !== Number(yyyy) || d.getMonth() !== Number(mm) - 1 || d.getDate() !== Number(dd)) return 'invalid';
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+/** "YYYY-MM-DD..." → "DD/MM/AAAA" (vacío si no hay fecha). */
+export function toDmy(iso?: string | null): string {
+  if (!iso) return '';
+  const [y, m, d] = iso.slice(0, 10).split('-');
+  return y && m && d ? `${d}/${m}/${y}` : '';
+}
+
+/** Edad cumplida a la fecha de hoy. */
+export function ageFrom(isoDate: string): number {
+  const b = parseDay(isoDate);
+  const t = new Date();
+  let age = t.getFullYear() - b.getFullYear();
+  if (t.getMonth() < b.getMonth() || (t.getMonth() === b.getMonth() && t.getDate() < b.getDate())) age--;
+  return age;
+}
+
+/** Solo dígitos (para celulares). */
+export const digitsOnly = (s?: string | null) => (s ?? '').replace(/\D/g, '');

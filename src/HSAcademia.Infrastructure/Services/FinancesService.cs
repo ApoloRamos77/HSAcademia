@@ -446,12 +446,12 @@ public class FinancesService
     // ─────────────────────────────────────────────────────────────
     // Query debts
     // ─────────────────────────────────────────────────────────────
-    public async Task<List<PaymentRecordDto>> GetPendingDebtsAsync(Guid academyId, int? year = null, int? month = null)
+    public async Task<List<PaymentRecordDto>> GetPendingDebtsAsync(Guid academyId, int? year = null, int? month = null, Guid? studentId = null)
     {
         var query = _context.PaymentRecords
             .Include(p => p.Student).ThenInclude(s => s.Category)
             .Include(p => p.Installments)
-            .Where(p => p.AcademyId == academyId && !p.IsPaid);
+            .Where(p => p.AcademyId == academyId && !p.IsPaid && (studentId == null || p.StudentId == studentId));
 
         if (year.HasValue && month.HasValue)
             query = WhereInMonth(query, year.Value, month.Value);

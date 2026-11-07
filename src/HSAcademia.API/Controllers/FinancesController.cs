@@ -91,11 +91,11 @@ public class FinancesController : ControllerBase
     [HttpGet("debts/pending")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
     [RequirePermission(Permissions.ManageFinances, Permissions.ManageStore)] // Tienda: recibo combinado
-    public async Task<IActionResult> GetPendingDebts([FromQuery] int? year, [FromQuery] int? month)
+    public async Task<IActionResult> GetPendingDebts([FromQuery] int? year, [FromQuery] int? month, [FromQuery] Guid? studentId)
     {
         var academyId = GetAcademyId();
         if (academyId == Guid.Empty) return Unauthorized();
-        return Ok(await _financesService.GetPendingDebtsAsync(academyId, year, month));
+        return Ok(await _financesService.GetPendingDebtsAsync(academyId, year, month, studentId));
     }
 
     [HttpGet("debts/all")]

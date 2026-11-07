@@ -1,31 +1,40 @@
 import React, { useEffect } from 'react';
 import { Linking, Text, View } from 'react-native';
-import { HeartPulse, MessageCircle, Phone, Star, Trophy } from 'lucide-react-native';
+import { HeartPulse, MessageCircle, Pencil, Phone, Star, Trophy, Wallet } from 'lucide-react-native';
 import { api } from '../../api/client';
-import type { Evaluation, MedicalRecord, SportsSummary, StudentSummary } from '../../api/types';
+import type { Debt, Evaluation, MedicalRecord, SportsSummary, StudentSummary } from '../../api/types';
 import { useAuth } from '../../auth/AuthContext';
 import { Badge, Banner, Button, Card, Divider, Loading, Row, Screen, SectionTitle, Stat } from '../../components/ui';
 import { useApi } from '../../hooks/useApi';
 import { colors, font, spacing } from '../../theme';
-import { shortDay } from '../../utils/format';
+import { money, shortDay } from '../../utils/format';
 
 const digits = (s?: string | null) => (s ?? '').replace(/\D/g, '');
 const waNumber = (s?: string | null) => { const d = digits(s); return d.length === 9 ? `51${d}` : d; };
 
 /** Ficha del alumno para el entrenador: contacto de emergencia, salud, evaluaciones y partidos. */
 export default function StudentDetailScreen({ route, navigation }: any) {
-  const student: StudentSummary = route.params.student;
+  const initial: StudentSummary = route.params.student;
   const { can } = useAuth();
-  useEffect(() => { navigation.setOptions({ title: `${student.firstName} ${student.lastName}` }); }, [navigation, student]);
+  const canFinance = can('manage_finances');
 
   const { data, loading, refreshing, refresh } = useApi(async () => {
-    const [medical, evaluations, sports] = await Promise.all([
-      api.get<MedicalRecord>(`/students/${student.id}/medical-record`).then(r => r.data).catch(() => null),
-      api.get<Evaluation[]>(`/sports/students/${student.id}/evaluations`).then(r => r.data).catch(() => [] as Evaluation[]),
-      api.get<SportsSummary>(`/sports/students/${student.id}/summary`).then(r => r.data).catch(() => null),
+    const id = initial.id;
+    const [medical, evaluations, sports, fresh, debts] = await Promise.all([
+      api.get<MedicalRecord>(`/students/${id}/medical-record`).then(r => r.data).catch(() => null),
+      api.get<Evaluation[]>(`/sports/students/${id}/evaluations`).then(r => r.data).catch(() => [] as Evaluation[]),
+      api.get<SportsSummary>(`/sports/students/${id}/summary`).then(r => r.data).catch(() => null),
+      api.get<StudentSummary[]>('/students').then(r => r.data.find(s => s.id === id) ?? null).catch(() => null),
+      canFinance
+        ? api.get<Debt[]>('/finances/debts/pending', { params: { studentId: id } }).then(r => r.data.filter(d => d.studentId === id)).catch(() => null)
+        : Promise.resolve(null),
     ]);
-    return { medical, evaluations, sports };
-  }, [student.id]);
+    return { medical, evaluations, sports, fresh, debts };
+  }, [initial.id]);
+
+  // Datos frescos del alumno (se recargan al volver de editar o cobrar).
+  const student = data?.fresh ?? initial;
+  useEffect(() => { navigation.setOptions({ title: `${student.firstName} ${student.lastName}` }); }, [navigation, student.firstName, student.lastName]);
 
   if (loading && !data) return <Loading />;
   const m = data?.medical;
@@ -38,7 +47,26 @@ export default function StudentDetailScreen({ route, navigation }: any) {
         <Text style={font.h2}>{student.firstName} {student.lastName}</Text>
         <Text style={font.small}>{student.categoryName} · {student.age} años · Sede {student.headquarterName}</Text>
         {student.documentNumber ? <Text style={font.tiny}>DNI {student.documentNumber}</Text> : null}
+        {!student.isActive && <View style={{ marginTop: 6 }}><Badge tone="muted" text="Retirado" /></View>}
       </View>
+
+      <Row>
+        {can('view_students') && (
+          <Button compact title="Editar datos" variant="secondary" icon={<Pencil color={colors.primaryDark} size={16} />} style={{ flex: 1 }}
+            onPress={() => navigation.navigate('StudentForm', { student })} />
+        )}
+        {canFinance && (
+          <Button compact title="Cobrar" variant="success" icon={<Wallet color={colors.white} size={16} />} style={{ flex: 1 }}
+            onPress={() => navigation.navigate('FieldPayment', { student })} />
+        )}
+      </Row>
+
+      {canFinance && data?.debts && (
+        data.debts.length === 0
+          ? <Banner tone="success" text="Al día: sin deudas pendientes." />
+          : <Banner tone={data.debts.some(d => d.status === 'Vencido') ? 'danger' : 'warning'}
+              text={`Debe ${money(data.debts.reduce((a, d) => a + d.amountPending, 0))} en ${data.debts.length} ${data.debts.length === 1 ? 'concepto' : 'conceptos'}${data.debts.some(d => d.status === 'Vencido') ? ' (con vencidos)' : ''}.`} />
+      )}
 
       {hasHealthAlert && (
         <Banner tone="danger" icon={<HeartPulse color={colors.danger} size={20} />}

@@ -1,10 +1,10 @@
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
-import { AlertTriangle, Cake, ChevronRight, Info, Inbox } from 'lucide-react-native';
+import { AlertTriangle, Cake, ChevronRight, Info, Inbox, UserPlus } from 'lucide-react-native';
 import { api } from '../../api/client';
 import type { Dashboard } from '../../api/types';
 import { useAuth } from '../../auth/AuthContext';
-import { Badge, Banner, Card, Divider, Loading, Row, Screen, SectionTitle, Stat } from '../../components/ui';
+import { Badge, Banner, Button, Card, Divider, Loading, Row, Screen, SectionTitle, Stat } from '../../components/ui';
 import { useApi } from '../../hooks/useApi';
 import { colors, font, radius, spacing } from '../../theme';
 import { eventLabel, firstName, greeting, longDay, money } from '../../utils/format';
@@ -30,6 +30,8 @@ export default function AdminHomeScreen({ navigation }: any) {
         <Text style={font.h1}>{greeting()}, {firstName(session?.fullName)}</Text>
         <Text style={font.small}>{session?.academyName}</Text>
       </View>
+
+      <Button title="Inscribir alumno" icon={<UserPlus color={colors.white} size={18} />} onPress={() => navigation.navigate('StudentForm')} />
 
       {(data?.proofs ?? 0) > 0 && (
         <Pressable onPress={() => navigation.navigate('Comprobantes')}>

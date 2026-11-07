@@ -42,7 +42,8 @@ public class StudentController : ControllerBase
         if (academyId == Guid.Empty) return Unauthorized();
         try
         {
-            return Ok(await _studentService.CreateStudentAsync(academyId, dto));
+            var canFinance = await PermissionChecker.HasAsync(HttpContext, Permissions.ManageFinances);
+            return Ok(await _studentService.CreateStudentAsync(academyId, dto, canFinance));
         }
         catch (Exception ex)
         {
@@ -58,7 +59,8 @@ public class StudentController : ControllerBase
         if (academyId == Guid.Empty) return Unauthorized();
         try
         {
-            return Ok(await _studentService.UpdateStudentAsync(academyId, id, dto));
+            var canFinance = await PermissionChecker.HasAsync(HttpContext, Permissions.ManageFinances);
+            return Ok(await _studentService.UpdateStudentAsync(academyId, id, dto, canFinance));
         }
         catch (Exception ex)
         {
