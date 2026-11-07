@@ -7,7 +7,7 @@ import { printReceipt } from '../../utils/pdfGenerator';
 import CheckoutModal from './CheckoutModal';
 
 const METHOD = { Cash: 'Efectivo', BankTransfer: 'Transferencia', Yape: 'Yape', Plin: 'Plin', Card: 'Tarjeta', Other: 'Otro' };
-const CHANNEL = { web: 'Caja', app: 'App', tienda: 'Tienda', comprobante: 'Comprobante' };
+const CHANNEL = { web: 'Caja', app: 'App', tienda: 'Tienda', comprobante: 'Comprobante', historico: 'Histórico (antes de los comprobantes)' };
 const money = (n) => `S/. ${(Number(n) || 0).toFixed(2)}`;
 const isoDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
