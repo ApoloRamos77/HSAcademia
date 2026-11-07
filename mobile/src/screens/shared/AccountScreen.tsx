@@ -1,6 +1,6 @@
 import React from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Building2, ChevronRight, KeyRound, LogOut, Mail, Megaphone, QrCode, Wallet, CalendarDays } from 'lucide-react-native';
+import { Building2, ChevronRight, KeyRound, LogOut, Mail, Megaphone, QrCode, Wallet, CalendarDays, Banknote } from 'lucide-react-native';
 import { getVersion } from '../../utils/appInfo';
 import { useAuth } from '../../auth/AuthContext';
 import { Card, Row, Screen } from '../../components/ui';
@@ -11,10 +11,11 @@ const ROLE_LABEL: Record<string, string> = { AcademyAdmin: 'Administrador', Staf
 
 /** Mi cuenta + menú "Más": accesos secundarios según el rol y cierre de sesión. */
 export default function AccountScreen({ navigation }: any) {
-  const { session, logout, role, selectAcademy } = useAuth();
+  const { session, logout, role, selectAcademy, can } = useAuth();
   const isStaff = role === 'Staff' || role === 'AcademyAdmin';
 
   const items = [
+    isStaff && (can('manage_finances') || can('manage_store')) && { icon: <Banknote color={colors.primaryDark} />, label: 'Mi caja (cobros por rendir)', go: () => navigation.navigate('MyCash') },
     isStaff && { icon: <QrCode color={colors.primaryDark} />, label: 'Escanear carné', go: () => navigation.navigate('Scan') },
     role === 'AcademyAdmin' && { icon: <CalendarDays color={colors.primaryDark} />, label: 'Agenda y partidos', go: () => navigation.navigate('Agenda') },
     { icon: <Megaphone color={colors.primaryDark} />, label: 'Comunicados', go: () => navigation.navigate('News') },

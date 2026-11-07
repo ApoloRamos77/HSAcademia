@@ -52,6 +52,10 @@ public class Receipt
     /// </summary>
     public string? ClientRequestId { get; set; }
 
+    /// <summary>Rendición de caja en la que se entregó este recibo (null = aún no rendido).</summary>
+    public Guid? CashHandoverId { get; set; }
+    public virtual CashHandover? CashHandover { get; set; }
+
     public Guid? CreatedByUserId { get; set; }
     public string? CreatedByName { get; set; }
 
@@ -85,6 +89,8 @@ public class ReceiptLine
     public int Quantity { get; set; } = 1;
     public decimal UnitPrice { get; set; }
     public decimal Discount { get; set; }
+    /// <summary>Qué descuentos se aplicaron (ej. "Pronto pago 5%", "Manual").</summary>
+    public string? DiscountLabel { get; set; }
     public decimal Total { get; set; }
 
     public Guid? PaymentRecordId { get; set; }

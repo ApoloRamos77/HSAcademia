@@ -5,6 +5,7 @@ import { Package, ShoppingCart, PlusCircle, DollarSign, Tag, TrendingUp, AlertCi
 import toast from 'react-hot-toast';
 import { generateReceiptPDF, printReceipt } from '../../utils/pdfGenerator';
 import CheckoutModal from '../../components/finances/CheckoutModal';
+import MyCashPanel from '../../components/finances/MyCashPanel';
 import { todayISO } from '../../utils/dates';
 
 function SearchableStudentSelect({ students, value, onChange }) {
@@ -878,6 +879,7 @@ export default function Tienda() {
           </div>
         </div>
       )}
+      <div className="mt-4"><MyCashPanel refreshKey={sales.length} /></div>
       <CheckoutModal open={showCheckout} onClose={() => setShowCheckout(false)} onDone={() => fetchData()} />
     </AppLayout>
   );
