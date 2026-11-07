@@ -60,9 +60,12 @@ export default function PaymentsScreen({ navigation }: any) {
             <Text style={[font.tiny, { marginTop: 6 }]}>Regularizado {d.lateFeeAmount ? `con mora de ${money(d.lateFeeAmount)}` : 'sin mora'}{d.regularizationNote ? `: ${d.regularizationNote}` : ''}</Text>
           )}
           <View style={{ marginTop: spacing.md }}>
-            {d.requiresRegularization ? (
-              <Banner tone="danger" text={`Tu pago venció el ${longDay(d.dueDate)}. Acércate a administración para regularizarlo; luego podrás pagar aquí.`} />
-            ) : inReview.has(d.id) ? (
+            {d.requiresRegularization && !inReview.has(d.id) && (
+              <View style={{ marginBottom: spacing.sm }}>
+                <Banner tone="danger" text={`Tu pago venció el ${longDay(d.dueDate)}. Puede aplicarse una mora: comunícate con administración o envía tu comprobante y lo evaluarán.`} />
+              </View>
+            )}
+            {inReview.has(d.id) ? (
               <Banner tone="warning" text="Tu comprobante está en validación." />
             ) : (
               <Button title="Enviar comprobante" icon={<Upload color={colors.white} size={18} />} onPress={() => navigation.navigate('SendProof', { debt: d })} />

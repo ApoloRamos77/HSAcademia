@@ -66,7 +66,7 @@ export default function FamilyHomeScreen({ navigation }: any) {
             <Text style={styles.big}>{money(totalPending)}</Text>
             <Text style={font.small}>
               {toRegularize.length
-                ? `${toRegularize.length} pago(s) vencido(s): acércate a administración para regularizar.`
+                ? `${toRegularize.length} pago(s) vencido(s): puede aplicarse mora. Toca para pagar o comunícate con administración.`
                 : `${overdue.length ? `${overdue.length} vencida(s). ` : ''}Toca para pagar con Yape, Plin o transferencia y enviar tu comprobante.`}
             </Text>
           </>

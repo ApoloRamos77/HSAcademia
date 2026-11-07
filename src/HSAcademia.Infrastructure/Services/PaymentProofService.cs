@@ -42,9 +42,7 @@ public class PaymentProofService
 
         var day = (paidOn ?? AcademyClock.Today).Date;
         if (day > AcademyClock.Today) throw new Exception("La fecha de pago no puede ser futura.");
-        // Política de pago: si se pagó después del vencimiento, primero se regulariza en administración.
-        if (FinancesService.RequiresRegularization(debt) && day > debt.DueDate.Date)
-            throw new Exception($"Tu pago de {debt.Description} venció el {debt.DueDate:dd/MM/yyyy}. Acércate a administración para regularizarlo.");
+        // Pago fuera de fecha: se acepta; al validarlo, administración decide si corresponde mora.
 
         var proof = new PaymentProof
         {
@@ -97,13 +95,23 @@ public class PaymentProofService
 
         await _db.InTransactionAsync(async () =>
         {
-            // Pagado a tiempo (fecha del comprobante ≤ vencimiento) pero validado después: se regulariza sin mora.
             var record = await _db.PaymentRecords.FirstAsync(p => p.Id == proof.PaymentRecordId);
-            if (FinancesService.RequiresRegularization(record) && proof.PaidOn.Date <= record.DueDate.Date)
+            if (FinancesService.RequiresRegularization(record))
             {
-                record.RegularizedAt = DateTime.UtcNow;
-                record.RegularizedByUserId = reviewerId;
-                record.RegularizationNote = $"Pagado a tiempo (comprobante del {proof.PaidOn:dd/MM/yyyy}); validado después del vencimiento.";
+                if (proof.PaidOn.Date <= record.DueDate.Date)
+                {
+                    // Pagado a tiempo pero validado después del vencimiento: sin mora.
+                    record.RegularizedAt = DateTime.UtcNow;
+                    record.RegularizedByUserId = reviewerId;
+                    record.RegularizationNote = $"Pagado a tiempo (comprobante del {proof.PaidOn:dd/MM/yyyy}); validado después del vencimiento.";
+                }
+                else
+                {
+                    // Pagado fuera de fecha: decisión de mora obligatoria. La mora queda como deuda pendiente.
+                    if (dto.Regularization == null)
+                        throw new Exception($"El pago se hizo el {proof.PaidOn:dd/MM/yyyy}, después del vencimiento ({record.DueDate:dd/MM/yyyy}): indica si se cobra mora o no y la observación.");
+                    await _finances.ApplyRegularizationAsync(academyId, record, dto.Regularization, reviewerId);
+                }
                 await _db.SaveChangesAsync();
             }
 
@@ -167,6 +175,10 @@ public class PaymentProofService
             PaymentRecordId = p.PaymentRecordId,
             DebtDescription = p.PaymentRecord.Description,
             DebtPending = p.PaymentRecord.Amount - p.PaymentRecord.AmountPaid,
+            DebtDueDate = p.PaymentRecord.DueDate,
+            RequiresRegularization = p.Status == PaymentProofStatus.Pending && p.PaymentRecord.Type == PaymentType.MonthlyFee &&
+                                     !p.PaymentRecord.IsPaid && p.PaymentRecord.RegularizedAt == null &&
+                                     p.PaidOn.Date > p.PaymentRecord.DueDate.Date,
             StudentId = p.StudentId,
             StudentName = p.Student.FirstName + " " + p.Student.LastName,
             SubmittedByName = p.SubmittedBy.FirstName + " " + p.SubmittedBy.LastName,

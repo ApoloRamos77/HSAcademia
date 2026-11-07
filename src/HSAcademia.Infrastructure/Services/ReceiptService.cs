@@ -165,7 +165,7 @@ public class ReceiptService
         ValidateRequest(dto, canChargeDebts, canSellProducts, requireOperation: false);
         try
         {
-            var plan = await BuildPlanAsync(academyId, dto);
+            var plan = await BuildPlanAsync(academyId, dto, forPreview: true);
             var lines = plan.Debts.Select(d => new ReceiptLineDto
             {
                 Type = "Debt",
@@ -179,7 +179,17 @@ public class ReceiptService
                 Total = d.Amount,
                 PaymentRecordId = d.Record.Id,
                 PendingBefore = d.Pending
-            }).Concat(plan.Products.Select(p => new ReceiptLineDto
+            }).Concat(plan.Debts.Where(d => d.LateFee > 0).Select(d => new ReceiptLineDto
+            {
+                Type = "Debt",
+                Description = $"Mora · {d.Record.Description}",
+                StudentId = d.Record.StudentId,
+                StudentName = d.StudentName,
+                Quantity = 1,
+                UnitPrice = d.LateFee,
+                Total = d.LateFee,
+                DiscountLabel = "Pago fuera de fecha"
+            })).Concat(plan.Products.Select(p => new ReceiptLineDto
             {
                 Type = "Product",
                 Description = p.Item.IsGift ? $"{p.Product.Name} (obsequio)" : p.Product.Name,
@@ -302,6 +312,9 @@ public class ReceiptService
         public decimal Amount;
         public decimal TotalDiscount => RuleDiscount + ManualDiscount;
         public string? Label;
+        /// <summary>Decisión de regularización (mensualidad vencida) y mora a cobrar en este recibo.</summary>
+        public RegularizeDebtDto? Regularization;
+        public decimal LateFee;
     }
 
     private sealed class ProductPlan
@@ -332,7 +345,8 @@ public class ReceiptService
         return list.Count == 0 ? null : string.Join(" · ", list);
     }
 
-    private async Task<CheckoutPlan> BuildPlanAsync(Guid academyId, CheckoutDto dto)
+    /// <param name="forPreview">Vista previa: tolera la decisión de mora aún incompleta (se exige al cobrar).</param>
+    private async Task<CheckoutPlan> BuildPlanAsync(Guid academyId, CheckoutDto dto, bool forPreview = false)
     {
         var today = AcademyClock.Today;
         var plan = new CheckoutPlan();
@@ -364,7 +378,27 @@ public class ReceiptService
             var record = records[item.PaymentRecordId];
             var studentName = $"{record.Student.FirstName} {record.Student.LastName}".Trim();
             if (record.IsPaid) throw new Exception($"{record.Description} de {studentName} ya está pagada.");
-            FinancesService.EnsureRegularized(record);
+
+            // Mensualidad vencida: se puede cobrar, pero es obligatorio decidir la mora y dejar observación.
+            RegularizeDebtDto? regularization = null;
+            decimal lateFee = 0;
+            if (FinancesService.RequiresRegularization(record))
+            {
+                regularization = item.Regularization;
+                if (regularization == null && !forPreview) FinancesService.EnsureRegularized(record); // explica qué falta
+                if (regularization != null)
+                {
+                    if (!forPreview && (regularization.Note?.Trim().Length ?? 0) < 5)
+                        throw new Exception($"{record.Description} ({studentName}): escribe la observación de la regularización.");
+                    if (regularization.ChargeLateFee)
+                    {
+                        lateFee = regularization.LateFeeAmount ?? (await _finances.GetConfigAsync(academyId)).LateFeeAmount;
+                        if (lateFee <= 0 && !forPreview) throw new Exception($"{record.Description} ({studentName}): indica el monto de la mora.");
+                        lateFee = Math.Max(0, lateFee);
+                        regularization = new RegularizeDebtDto { ChargeLateFee = true, LateFeeAmount = lateFee, Note = regularization.Note };
+                    }
+                }
+            }
             var pending = record.Amount - record.AmountPaid;
             if (item.Discount > pending + 0.01m)
                 throw new Exception($"El descuento de {record.Description} ({studentName}) supera el saldo pendiente.");
@@ -412,7 +446,9 @@ public class ReceiptService
                 RuleDiscount = bestValue,
                 ManualDiscount = item.Discount,
                 Amount = amount,
-                Label = JoinLabels(best?.Label, item.Discount > 0 ? $"Descuento en caja S/ {item.Discount:0.00}" : null)
+                Label = JoinLabels(best?.Label, item.Discount > 0 ? $"Descuento en caja S/ {item.Discount:0.00}" : null),
+                Regularization = regularization,
+                LateFee = lateFee
             });
         }
 
@@ -502,6 +538,9 @@ public class ReceiptService
             foreach (var d in plan.Debts)
             {
                 var record = d.Record;
+                PaymentRecord? lateFeeRecord = null;
+                if (d.Regularization != null)
+                    lateFeeRecord = await _finances.ApplyRegularizationAsync(academyId, record, d.Regularization, _recorder.CurrentUserId);
                 if (d.TotalDiscount > 0)
                 {
                     record.Amount -= d.TotalDiscount;
@@ -548,6 +587,39 @@ public class ReceiptService
                     PaymentRecordId = record.Id,
                     PaymentInstallmentId = installment?.Id
                 });
+
+                if (lateFeeRecord != null)
+                {
+                    // La mora se cobra en este mismo recibo, como ítem aparte (ingreso por mora en reportes).
+                    var feeInstallment = new PaymentInstallment
+                    {
+                        PaymentRecordId = lateFeeRecord.Id,
+                        AmountPaid = lateFeeRecord.Amount,
+                        PaidAt = now,
+                        Method = method,
+                        OperationNumber = dto.OperationNumber,
+                        VoucherUrl = dto.VoucherUrl,
+                        Notes = record.RegularizationNote,
+                        ReceiptNumber = number
+                    };
+                    _db.PaymentInstallments.Add(feeInstallment);
+                    lateFeeRecord.AmountPaid = lateFeeRecord.Amount;
+                    lateFeeRecord.IsPaid = true;
+                    lateFeeRecord.PaidDate = now;
+                    ReceiptRecorder.AddLine(receipt, new ReceiptLine
+                    {
+                        Type = ReceiptLineType.Debt,
+                        Description = lateFeeRecord.Description,
+                        StudentId = record.StudentId,
+                        StudentName = d.StudentName,
+                        Quantity = 1,
+                        UnitPrice = lateFeeRecord.Amount,
+                        Total = lateFeeRecord.Amount,
+                        DiscountLabel = "Pago fuera de fecha",
+                        PaymentRecordId = lateFeeRecord.Id,
+                        PaymentInstallmentId = feeInstallment.Id
+                    });
+                }
             }
 
             foreach (var p in plan.Products)

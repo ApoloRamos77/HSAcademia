@@ -17,7 +17,7 @@ describe('recordatorios de pago', () => {
     expect(r.map(x => new Date(x.at).getDate())).toEqual([1, 4, 5, 6]);
     expect(r.every(x => new Date(x.at).getHours() === 9)).toBe(true);
     expect(r[1].title).toMatch(/mañana/);
-    expect(r[3].body).toMatch(/administración/);
+    expect(r[3].body).toMatch(/mora/);
   });
 
   test('omite fechas pasadas y deudas pagadas', () => {

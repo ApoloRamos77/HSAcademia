@@ -25,6 +25,10 @@ export default function PaymentProofsTab({ onChanged }) {
   const [amount, setAmount] = useState('');
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
+  // Pago hecho después del vencimiento: decisión de mora obligatoria al aprobar.
+  const [reg, setReg] = useState({ charge: false, amount: '', note: '' });
+  const [lateFeeDefault, setLateFeeDefault] = useState(0);
+  useEffect(() => { api.get('/finances/config').then(r => setLateFeeDefault(Number(r.data.lateFeeAmount) || 0)).catch(() => {}); }, []);
 
   const load = () => {
     setLoading(true);
@@ -35,12 +39,24 @@ export default function PaymentProofsTab({ onChanged }) {
   };
   useEffect(load, [status]);
 
-  const open = p => { setSelected(p); setAmount(String(Math.min(p.amount, p.debtPending))); setReason(''); };
+  const open = p => {
+    setSelected(p); setAmount(String(Math.min(p.amount, p.debtPending))); setReason('');
+    setReg({ charge: lateFeeDefault > 0, amount: lateFeeDefault > 0 ? lateFeeDefault.toFixed(2) : '', note: '' });
+  };
 
   const approve = async () => {
+    if (selected.requiresRegularization) {
+      if (reg.note.trim().length < 5) return toast.error('Pago fuera de fecha: escribe la observación de la regularización.');
+      if (reg.charge && !(parseFloat(reg.amount) > 0)) return toast.error('Indica el monto de la mora.');
+    }
     setBusy(true);
     try {
-      const r = await api.post(`/finances/proofs/${selected.id}/approve`, { amount: parseFloat(amount) });
+      const r = await api.post(`/finances/proofs/${selected.id}/approve`, {
+        amount: parseFloat(amount),
+        regularization: selected.requiresRegularization
+          ? { chargeLateFee: reg.charge, lateFeeAmount: reg.charge ? parseFloat(reg.amount) : null, note: reg.note.trim() }
+          : null,
+      });
       toast.success(`Pago registrado · recibo N° ${r.data.receiptNumber || '—'}`);
       setSelected(null); load(); onChanged?.();
     } catch (err) { toast.error(err.response?.data?.message || 'No se pudo aprobar.'); }
@@ -141,6 +157,18 @@ export default function PaymentProofsTab({ onChanged }) {
                       <input type="number" min="0.01" step="0.01" className="form-control" value={amount} onChange={e => setAmount(e.target.value)} />
                       <small className="text-xs text-text-muted">Ajústalo si el monto recibido es distinto al declarado.</small>
                     </div>
+                    {selected.requiresRegularization && (
+                      <div className="p-3 rounded border border-warning/40 bg-warning/10 flex flex-col gap-2">
+                        <div className="text-sm font-bold text-warning">Pagó el {day(selected.paidOn)}, después del vencimiento ({day(selected.debtDueDate)}). ¿Se cobra mora?</div>
+                        <div className="flex gap-2 items-center flex-wrap">
+                          <button type="button" className={`btn btn-sm ${reg.charge ? 'btn-warning' : 'btn-ghost'}`} onClick={() => setReg({ ...reg, charge: true })}>Cobrar mora</button>
+                          <button type="button" className={`btn btn-sm ${!reg.charge ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setReg({ ...reg, charge: false })}>Sin mora</button>
+                          {reg.charge && <input type="number" step="0.01" min="0.01" className="form-control py-1 text-sm w-28" placeholder="Mora S/." value={reg.amount} onChange={e => setReg({ ...reg, amount: e.target.value })} />}
+                        </div>
+                        <input className="form-control text-sm" maxLength={500} placeholder="Observación obligatoria" value={reg.note} onChange={e => setReg({ ...reg, note: e.target.value })} />
+                        {reg.charge && <small className="text-xs text-text-muted">La mora queda como deuda pendiente de la familia.</small>}
+                      </div>
+                    )}
                     <div className="form-group">
                       <label className="form-label">Motivo (solo si rechazas)</label>
                       <input className="form-control" maxLength={500} placeholder="Ej. El número de operación no figura en el estado de cuenta" value={reason} onChange={e => setReason(e.target.value)} />

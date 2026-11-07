@@ -6,7 +6,7 @@
  *   - 4 días antes del vencimiento (inicio del periodo de pago),
  *   - un día antes ("vence mañana"),
  *   - el día del vencimiento ("vence hoy"),
- *   - el día siguiente ("venció: acércate a administración").
+ *   - el día siguiente ("venció: puede aplicarse mora").
  * Si ya está vencida sin regularizar: recordatorios al día siguiente y luego cada 4 días (máx. 3).
  * Las fechas pasadas se omiten. Cada vez que la app carga las deudas se reemplaza toda la programación.
  */
@@ -53,7 +53,7 @@ export function buildReminders(debts: Debt[], now: number = Date.now()): Reminde
       [1, 5, 9].forEach((offset, i) => items.push({
         id: reminderId(`${d.id}:overdue:${i}`),
         title: 'Pago vencido',
-        body: `${what} (${amount}) venció el ${dayLabel(due)}. Acércate a administración para regularizar tu pago.`,
+        body: `${what} (${amount}) venció el ${dayLabel(due)}. Puede aplicarse mora: paga lo antes posible o comunícate con administración.`,
         at: at(base, offset),
       }));
       continue;
@@ -64,7 +64,7 @@ export function buildReminders(debts: Debt[], now: number = Date.now()): Reminde
         { id: reminderId(`${d.id}:open`), title: 'Ya puedes pagar tu mensualidad', body: `${what}: ${amount}. Tienes hasta el ${dayLabel(due)}.`, at: at(due, -4) },
         { id: reminderId(`${d.id}:tomorrow`), title: 'Tu mensualidad vence mañana', body: `${what}: ${amount}. Paga por Yape, Plin o transferencia y envía tu comprobante en la app.`, at: at(due, -1) },
         { id: reminderId(`${d.id}:today`), title: 'Hoy vence tu mensualidad', body: `${what}: ${amount}. Evita la mora pagando hoy.`, at: at(due, 0) },
-        { id: reminderId(`${d.id}:late`), title: 'Tu pago venció', body: `${what} venció el ${dayLabel(due)}. Acércate a administración para regularizar tu pago.`, at: at(due, 1) },
+        { id: reminderId(`${d.id}:late`), title: 'Tu pago venció', body: `${what} venció el ${dayLabel(due)}. Puede aplicarse mora: paga lo antes posible o comunícate con administración.`, at: at(due, 1) },
       );
     } else {
       // Otras deudas (mora, productos): un aviso el día de vencimiento.

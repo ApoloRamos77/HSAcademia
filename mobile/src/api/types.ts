@@ -99,6 +99,9 @@ export interface PaymentProof {
   paymentRecordId: string;
   debtDescription: string;
   debtPending: number;
+  /** Pagado después del vencimiento y sin regularizar: al aprobar se decide la mora. */
+  requiresRegularization?: boolean;
+  debtDueDate?: string;
   studentId: string;
   studentName: string;
   submittedByName: string;

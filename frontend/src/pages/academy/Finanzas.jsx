@@ -40,7 +40,7 @@ const EXCLUSION_TYPES = [
 
 const statusBadge = (d) => {
   if (d.isPaid) return <span className="badge badge-success">Pagado</span>;
-  if (d.requiresRegularization) return <span className="badge badge-danger flex items-center gap-1 w-max" title="Venció: debe regularizarse con o sin mora"><AlertTriangle size={11}/> Por regularizar {d.daysOverdue}d</span>;
+  if (d.requiresRegularization) return <span className="badge badge-danger flex items-center gap-1 w-max" title="Venció: al cobrar se decide la mora"><AlertTriangle size={11}/> Vencido {d.daysOverdue}d · mora por decidir</span>;
   if (d.amountPaid > 0 && d.amountPending > 0) return <span className="badge badge-info bg-blue-500/20 text-blue-400">Pago Parcial</span>;
   if (d.status === 'Vencido') return <span className="badge badge-danger flex items-center gap-1 w-max"><AlertTriangle size={11}/> Vencido {d.daysOverdue}d</span>;
   return <span className="badge badge-warning">En Curso</span>;
@@ -425,13 +425,12 @@ export default function Finanzas() {
                                       </span>
                                     ) : (
                                       <>
-                                        {d.requiresRegularization ? (
-                                          <button onClick={()=>setRegularizing(d)} className="btn btn-sm btn-warning flex items-center gap-1" title="Venció: decidir mora y registrar observación">
-                                            <AlertTriangle size={13}/> Regularizar
-                                          </button>
-                                        ) : (
-                                          <button onClick={()=>openPay(d)} className="btn btn-sm btn-success flex items-center gap-1" title="Registrar Pago">
-                                            <CreditCard size={13}/> Cobrar
+                                        <button onClick={()=>openPay(d)} className="btn btn-sm btn-success flex items-center gap-1" title={d.requiresRegularization ? 'Venció: al cobrar decides la mora' : 'Registrar Pago'}>
+                                          <CreditCard size={13}/> Cobrar
+                                        </button>
+                                        {d.requiresRegularization && (
+                                          <button onClick={()=>setRegularizing(d)} className="btn btn-sm btn-ghost text-warning flex items-center gap-1" title="Decidir la mora sin cobrar ahora">
+                                            <AlertTriangle size={13}/>
                                           </button>
                                         )}
                                         <button onClick={()=>openRecalc(d)} className="btn btn-sm btn-ghost text-warning flex items-center gap-1" title="Recalcular">

@@ -828,36 +828,28 @@ public class FinancesService
     {
         if (!RequiresRegularization(p)) return;
         var who = p.Student != null ? $" de {p.Student.FirstName} {p.Student.LastName}".TrimEnd() : "";
-        throw new Exception($"{p.Description}{who} venció el {p.DueDate:dd/MM/yyyy}. " +
-                            "Primero regulariza el pago (con o sin mora) e indica la observación.");
+        throw new Exception($"{p.Description}{who} venció el {p.DueDate:dd/MM/yyyy}: indica si se cobra mora o no y la observación.");
     }
 
     /// <summary>
-    /// Administración regulariza una mensualidad vencida: cobra mora (genera una deuda de mora) o la
-    /// exonera; en ambos casos registra la observación. Desde ese momento se puede cobrar normalmente.
+    /// Aplica la decisión de regularización a una mensualidad vencida (cargada y rastreada):
+    /// registra observación, quién y cuándo; si se cobra mora agrega (sin guardar) la deuda de mora.
+    /// La usan: regularizar suelto, el cobro con recibo y la aprobación de comprobantes.
     /// </summary>
-    public async Task<PaymentRecordDto> RegularizeAsync(Guid academyId, Guid debtId, Guid? userId, RegularizeDebtDto dto)
+    internal async Task<PaymentRecord?> ApplyRegularizationAsync(Guid academyId, PaymentRecord record, RegularizeDebtDto dto, Guid? userId)
     {
         var note = dto.Note?.Trim() ?? "";
-        if (note.Length < 5) throw new Exception("Indica la observación de la regularización (mínimo 5 caracteres).");
-
-        var record = await _context.PaymentRecords
-            .Include(p => p.Student).ThenInclude(s => s.Category)
-            .Include(p => p.Installments)
-            .FirstOrDefaultAsync(p => p.Id == debtId && p.AcademyId == academyId)
-            ?? throw new KeyNotFoundException("Deuda no encontrada.");
+        if (note.Length < 5)
+            throw new Exception($"{record.Description}: indica la observación de la regularización (mínimo 5 caracteres).");
         if (record.Type != PaymentType.MonthlyFee) throw new Exception("Solo se regularizan mensualidades.");
-        if (record.IsPaid) throw new Exception("Esta mensualidad ya está pagada.");
-        if (record.RegularizedAt != null) throw new Exception($"Esta mensualidad ya fue regularizada el {AcademyClock.ToLocalDate(record.RegularizedAt.Value):dd/MM/yyyy}.");
-        if (AcademyClock.Today <= record.DueDate.Date) throw new Exception("La mensualidad aún no vence: no requiere regularización.");
-
-        await _periods.EnsureOpenAsync(academyId, AcademyClock.Today, "regularizar el pago");
+        if (record.RegularizedAt != null)
+            throw new Exception($"Esta mensualidad ya fue regularizada el {AcademyClock.ToLocalDate(record.RegularizedAt.Value):dd/MM/yyyy}.");
 
         decimal? fee = null;
         if (dto.ChargeLateFee)
         {
             fee = dto.LateFeeAmount ?? (await GetOrCreateConfigEntityAsync(academyId)).LateFeeAmount;
-            if (fee is null or <= 0) throw new Exception("Indica el monto de la mora.");
+            if (fee is null or <= 0) throw new Exception($"{record.Description}: indica el monto de la mora.");
             if (fee > 10000) throw new Exception("Revisa el monto de la mora.");
         }
 
@@ -865,7 +857,6 @@ public class FinancesService
         if (userId.HasValue)
             userName = await _context.Users.Where(u => u.Id == userId).Select(u => (u.FirstName + " " + u.LastName).Trim()).FirstOrDefaultAsync();
 
-        var today = DateTime.SpecifyKind(AcademyClock.Today, DateTimeKind.Utc);
         record.RegularizedAt = DateTime.UtcNow;
         record.RegularizedByUserId = userId;
         record.RegularizedByName = userName;
@@ -873,16 +864,17 @@ public class FinancesService
         record.LateFeeAmount = fee;
         record.UpdatedAt = DateTime.UtcNow;
 
+        PaymentRecord? lateFee = null;
         if (fee.HasValue)
         {
-            var lateFee = new PaymentRecord
+            lateFee = new PaymentRecord
             {
                 AcademyId = academyId,
                 StudentId = record.StudentId,
                 Description = $"Mora · {record.Description}",
                 Amount = fee.Value,
                 AmountPaid = 0m,
-                DueDate = today,
+                DueDate = DateTime.SpecifyKind(AcademyClock.Today, DateTimeKind.Utc),
                 PeriodYear = record.PeriodYear,
                 PeriodMonth = record.PeriodMonth,
                 Type = PaymentType.LateFee,
@@ -894,6 +886,22 @@ public class FinancesService
 
         _audit.Add(academyId, "finances.debt.regularize", nameof(PaymentRecord), record.Id,
             new { record.StudentId, record.Description, chargeLateFee = dto.ChargeLateFee, fee, note });
+        return lateFee;
+    }
+
+    /// <summary>Regularizar sin cobrar en ese momento (ej. se acordó por teléfono): con o sin mora, con observación.</summary>
+    public async Task<PaymentRecordDto> RegularizeAsync(Guid academyId, Guid debtId, Guid? userId, RegularizeDebtDto dto)
+    {
+        var record = await _context.PaymentRecords
+            .Include(p => p.Student).ThenInclude(s => s.Category)
+            .Include(p => p.Installments)
+            .FirstOrDefaultAsync(p => p.Id == debtId && p.AcademyId == academyId)
+            ?? throw new KeyNotFoundException("Deuda no encontrada.");
+        if (record.IsPaid) throw new Exception("Esta mensualidad ya está pagada.");
+        if (AcademyClock.Today <= record.DueDate.Date) throw new Exception("La mensualidad aún no vence: no requiere regularización.");
+        await _periods.EnsureOpenAsync(academyId, AcademyClock.Today, "regularizar el pago");
+
+        await ApplyRegularizationAsync(academyId, record, dto, userId);
         await _context.SaveChangesAsync();
         return MapToDto(record);
     }
