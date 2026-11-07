@@ -102,6 +102,7 @@ public class PaymentProofService
                 Method = proof.Method.ToString(),
                 OperationNumber = proof.OperationNumber,
                 VoucherUrl = proof.VoucherUrl,
+                Channel = "comprobante",
                 Notes = string.IsNullOrWhiteSpace(dto.Notes)
                     ? $"Validado desde comprobante del {proof.PaidOn:dd/MM/yyyy}"
                     : dto.Notes

@@ -15,9 +15,11 @@ public class FinancesService
     private readonly AppDbContext _context;
     private readonly FinancialPeriodGuard _periods;
     private readonly AuditService _audit;
+    private readonly ReceiptRecorder? _receipts;
 
-    public FinancesService(AppDbContext context, FinancialPeriodGuard periods, AuditService audit)
+    public FinancesService(AppDbContext context, FinancialPeriodGuard periods, AuditService audit, ReceiptRecorder? receipts = null)
     {
+        _receipts = receipts;
         _context = context;
         _periods = periods;
         _audit = audit;
@@ -519,6 +521,7 @@ public class FinancesService
         {
             var record = await _context.PaymentRecords
                 .Include(p => p.Student).ThenInclude(s => s.Category)
+                .Include(p => p.Student).ThenInclude(s => s.Guardian)
                 .Include(p => p.Installments)
                 .FirstOrDefaultAsync(p => p.Id == dto.PaymentRecordId && p.AcademyId == academyId)
                 ?? throw new Exception("Registro de pago no encontrado.");
@@ -553,6 +556,26 @@ public class FinancesService
                 ReceiptNumber   = receiptNum
             };
             _context.PaymentInstallments.Add(installment);
+
+            // Cabecera del comprobante (un ítem): permite reimprimirlo y anularlo como cualquier recibo.
+            if (_receipts != null)
+            {
+                var (payer, document, guardianId) = ReceiptRecorder.PayerOf(record.Student);
+                var receipt = await _receipts.CreateAsync(academyId, receiptNum, installment.PaidAt, payer, document, guardianId,
+                    method, dto.OperationNumber, dto.VoucherUrl, dto.Notes, dto.Channel ?? "web");
+                ReceiptRecorder.AddLine(receipt, new ReceiptLine
+                {
+                    Type = ReceiptLineType.Debt,
+                    Description = record.Description,
+                    StudentId = record.StudentId,
+                    StudentName = $"{record.Student.FirstName} {record.Student.LastName}".Trim(),
+                    Quantity = 1,
+                    UnitPrice = dto.AmountPaid,
+                    Total = dto.AmountPaid,
+                    PaymentRecordId = record.Id,
+                    PaymentInstallmentId = installment.Id
+                });
+            }
 
             record.AmountPaid += dto.AmountPaid;
             if (record.AmountPaid >= record.Amount - 0.01m)
@@ -730,7 +753,7 @@ public class FinancesService
     // ─────────────────────────────────────────────────────────────
     // Mapper
     // ─────────────────────────────────────────────────────────────
-    private static PaymentRecordDto MapToDto(PaymentRecord p)
+    internal static PaymentRecordDto MapToDto(PaymentRecord p)
     {
         var today = AcademyClock.Today;
         string status;

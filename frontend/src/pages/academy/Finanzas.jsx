@@ -13,6 +13,9 @@ import PettyCashTab from '../../components/finances/PettyCashTab';
 import StaffPaymentsTab from '../../components/finances/StaffPaymentsTab';
 import FinanceDashboardTab from '../../components/finances/FinanceDashboardTab';
 import PaymentProofsTab from '../../components/finances/PaymentProofsTab';
+import ReceiptsTab from '../../components/finances/ReceiptsTab';
+import CheckoutModal from '../../components/finances/CheckoutModal';
+import { Receipt } from 'lucide-react';
 import { Inbox } from 'lucide-react';
 
 const PAYMENT_METHODS = [
@@ -70,8 +73,8 @@ export default function Finanzas() {
   // Estado de mes contable cerrado
   const [monthClosed, setMonthClosed] = useState(false);
 
-  // Pay form
-  const [payForm, setPayForm] = useState({ amountPaid: '', method: 'Cash', operationNumber: '', voucherUrl: '', notes: '', discount: '' });
+  // Cobro con varios ítems (un solo recibo): { studentId, debtIds } | {} para cobro libre | null cerrado
+  const [checkoutFor, setCheckoutFor] = useState(null);
   // Recalc form
   const [recalcForm, setRecalcForm] = useState({ newAmount: '', proratedStartDate: '', notes: '' });
   // Exclude form
@@ -125,11 +128,8 @@ export default function Finanzas() {
   };
 
   // ── Open modals ──────────────────────────────────────────────
-  const openPay = (d) => {
-    setSelected(d);
-    setPayForm({ amountPaid: (d.amount - d.amountPaid).toFixed(2), method: 'Cash', operationNumber: '', voucherUrl: '', notes: '', discount: '' });
-    setModal('pay');
-  };
+  // "Cobrar" abre el cobro familiar: la deuda elegida queda marcada y se ven las de los hermanos.
+  const openPay = (d) => setCheckoutFor({ studentId: d.studentId, debtIds: [d.id] });
   const openRecalc = (d) => {
     setSelected(d);
     setRecalcForm({ newAmount: d.amount.toFixed(2), proratedStartDate: '', notes: '' });
@@ -142,53 +142,6 @@ export default function Finanzas() {
   };
 
   // ── Submit handlers ──────────────────────────────────────────
-  const handlePay = async (e) => {
-    e.preventDefault();
-    try {
-      const discountVal = parseFloat(payForm.discount) || 0;
-      let finalDescription = selected.description;
-
-      if (discountVal > 0) {
-        if (discountVal >= selected.amountPending) {
-          toast.error('El descuento no puede ser mayor o igual al saldo pendiente.');
-          return;
-        }
-        await api.post('/finances/debts/recalculate', {
-          paymentRecordId: selected.id,
-          newAmount: selected.amount - discountVal,
-          notes: 'Descuento en caja.'
-        });
-        finalDescription += ` (Desc. S/ ${discountVal.toFixed(2)})`;
-      }
-
-      const res = await api.post('/finances/debts/pay', {
-        paymentRecordId: selected.id,
-        amountPaid: parseFloat(payForm.amountPaid),
-        method: payForm.method,
-        operationNumber: payForm.operationNumber || null,
-        voucherUrl: payForm.voucherUrl || null,
-        notes: payForm.notes || null,
-      });
-      toast.success('Pago registrado.');
-      setModal(null);
-
-      // Receipt number comes from the payment response (stored in DB)
-      const lastInstallment = res.data?.installments?.slice(-1)[0];
-      const receiptNumber = lastInstallment?.receiptNumber;
-      generateReceiptPDF({
-        receiptNumber,
-        customerName: selected.studentName,
-        date: lastInstallment?.paidAt,
-        description: finalDescription,
-        quantity: 1,
-        total: parseFloat(payForm.amountPaid),
-        notes: payForm.notes || 'Ninguna'
-      });
-
-      fetchData();
-    } catch (err) { toast.error(err.response?.data?.message || 'Error al registrar pago.'); }
-  };
-
   const handleRecalc = async (e) => {
     e.preventDefault();
     try {
@@ -283,6 +236,9 @@ export default function Finanzas() {
           <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='debts'?'bg-primary text-white shadow-md':'text-text-muted hover:text-text-primary hover:bg-white'}`} onClick={()=>setActiveTab('debts')}>
             <DollarSign size={16}/> Cobranzas
           </button>
+          <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='receipts'?'bg-primary text-white shadow-md':'text-text-muted hover:text-text-primary hover:bg-white'}`} onClick={()=>setActiveTab('receipts')}>
+            <Receipt size={16}/> Recibos
+          </button>
           <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='proofs'?'bg-primary text-white shadow-md':'text-text-muted hover:text-text-primary hover:bg-white'}`} onClick={()=>setActiveTab('proofs')}>
             <Inbox size={16}/> Comprobantes
             {pendingProofs > 0 && <span className="badge badge-danger" style={{ marginLeft: 4 }}>{pendingProofs}</span>}
@@ -334,6 +290,11 @@ export default function Finanzas() {
               <div className="p-4 border-b border-border/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div className="flex flex-wrap items-center gap-3">
                   <h3 className="card-title whitespace-nowrap m-0">Cuentas por Cobrar</h3>
+                  {!monthClosed && (
+                    <button onClick={()=>setCheckoutFor({})} className="btn btn-sm btn-success flex items-center gap-1 whitespace-nowrap">
+                      <Receipt size={13}/> Nuevo cobro
+                    </button>
+                  )}
                   <button onClick={()=>setShowAll(p=>!p)} className={`btn btn-sm ${showAll?'btn-primary':'btn-ghost'} whitespace-nowrap`}>
                     {showAll ? 'Ver Pendientes' : 'Ver Todos'}
                   </button>
@@ -389,7 +350,7 @@ export default function Finanzas() {
                   <tbody>
                     {Object.values(filtered.reduce((acc, d) => {
                       const key = d.studentId || d.studentName;
-                      if (!acc[key]) acc[key] = { studentName: d.studentName, totalPending: 0, items: [] };
+                      if (!acc[key]) acc[key] = { studentId: d.studentId, studentName: d.studentName, totalPending: 0, items: [] };
                       acc[key].items.push(d);
                       acc[key].totalPending += d.amountPending;
                       return acc;
@@ -404,7 +365,14 @@ export default function Finanzas() {
                           <td className="font-bold text-danger p-3 text-lg">
                             S/. {group.totalPending.toFixed(2)}
                           </td>
-                          <td></td>
+                          <td className="text-right">
+                            {!monthClosed && group.totalPending > 0 && (
+                              <button onClick={()=>setCheckoutFor({ studentId: group.studentId, debtIds: group.items.filter(i=>!i.isPaid).map(i=>i.id) })}
+                                className="btn btn-sm btn-success flex items-center gap-1 ml-auto" title="Cobrar todo (incluye hermanos)">
+                                <Receipt size={13}/> Cobrar todo
+                              </button>
+                            )}
+                          </td>
                         </tr>
                         {/* Detalles de la deuda */}
                         {group.items.map(d => (
@@ -582,6 +550,10 @@ export default function Finanzas() {
         )}
 
         {/* EXPENSES TAB */}
+        {activeTab === 'receipts' && (
+          <ReceiptsTab onChanged={fetchData} />
+        )}
+
         {activeTab === 'proofs' && (
           <PaymentProofsTab onChanged={() => { refreshPendingProofs(); fetchData(); }} />
         )}
@@ -605,90 +577,6 @@ export default function Finanzas() {
           <FinanceDashboardTab />
         )}
       </div>
-
-      {/* ── MODAL: REGISTRAR PAGO ── */}
-      {modal === 'pay' && selected && (
-        <div className="modal-overlay" onClick={()=>setModal(null)}>
-          <div className="modal" onClick={e=>e.stopPropagation()} style={{maxWidth:480}}>
-            <div className="flex justify-between items-center mb-5 border-b border-border pb-3">
-              <h3 className="modal-title m-0 flex items-center gap-2"><CreditCard size={18}/> Registrar Pago</h3>
-              <button onClick={()=>setModal(null)} className="btn btn-ghost btn-sm"><X size={16}/></button>
-            </div>
-            <div className="bg-bg-dark p-3 rounded border border-border mb-4 text-sm">
-              <p className="font-bold text-text-primary">{selected.studentName}</p>
-              <p className="text-text-muted">{selected.description}</p>
-              <div className="flex gap-4 mt-2">
-                <span>Total: <b className="text-text-primary">S/. {selected.amount.toFixed(2)}</b></span>
-                <span>Pagado: <b className="text-success">S/. {selected.amountPaid.toFixed(2)}</b></span>
-                <span>Pendiente: <b className="text-danger">S/. {selected.amountPending.toFixed(2)}</b></span>
-              </div>
-            </div>
-            <form onSubmit={handlePay}>
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label text-warning flex justify-between items-center">
-                    <span>Descuento (S/.)</span>
-                    <span className="text-xs text-text-muted">Opcional</span>
-                  </label>
-                  <input type="number" step="0.01" min="0" max={selected.amountPending - 0.01} className="form-control"
-                    value={payForm.discount} 
-                    onChange={e => {
-                      const d = parseFloat(e.target.value) || 0;
-                      setPayForm({
-                        ...payForm, 
-                        discount: e.target.value, 
-                        amountPaid: Math.max(0.01, selected.amountPending - d).toFixed(2)
-                      });
-                    }}/>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Medio de Pago *</label>
-                  <select required className="form-control" value={payForm.method} onChange={e=>setPayForm({...payForm,method:e.target.value})}>
-                    {PAYMENT_METHODS.map(m=><option key={m.value} value={m.value}>{m.label}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label flex justify-between items-center">
-                    <span>Monto a Pagar *</span>
-                    <span className={`badge ${parseFloat(payForm.amountPaid || 0) < (selected.amountPending - (parseFloat(payForm.discount)||0)) ? 'badge-warning' : 'badge-success'} text-xs`}>
-                      {parseFloat(payForm.amountPaid || 0) < (selected.amountPending - (parseFloat(payForm.discount)||0)) ? 'Pago Parcial' : 'Pago Total'}
-                    </span>
-                  </label>
-                  <input required type="number" step="0.01" min="0.01" max={(selected.amountPending - (parseFloat(payForm.discount)||0)).toFixed(2)} className="form-control text-lg font-bold"
-                    value={payForm.amountPaid} onChange={e=>setPayForm({...payForm,amountPaid:e.target.value})}/>
-                  <span className="text-xs text-text-muted mt-1 inline-block">Máx. a pagar: S/. {(selected.amountPending - (parseFloat(payForm.discount)||0)).toFixed(2)}</span>
-                </div>
-                <div className="form-group">
-                  {/* Espacio para alinear si se desea */}
-                </div>
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">N° Operación (Opcional)</label>
-                  <input type="text" className="form-control" placeholder="Ej. 123456789"
-                    value={payForm.operationNumber} onChange={e=>setPayForm({...payForm,operationNumber:e.target.value})}/>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">URL Voucher (Opcional)</label>
-                  <input type="url" className="form-control" placeholder="https://..."
-                    value={payForm.voucherUrl} onChange={e=>setPayForm({...payForm,voucherUrl:e.target.value})}/>
-                </div>
-              </div>
-              <div className="form-group">
-                <label className="form-label">Nota (Opcional)</label>
-                <input type="text" className="form-control" placeholder="Observación..."
-                  value={payForm.notes} onChange={e=>setPayForm({...payForm,notes:e.target.value})}/>
-              </div>
-              <div className="modal-footer mt-4 flex justify-end gap-2">
-                <button type="button" onClick={()=>setModal(null)} className="btn btn-ghost text-danger">Cancelar</button>
-                <button type="submit" className="btn btn-success flex items-center gap-2"><CheckCircle size={15}/> Confirmar Pago</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* ── MODAL: RECALCULAR ── */}
       {modal === 'recalculate' && selected && (
@@ -757,6 +645,8 @@ export default function Finanzas() {
           </div>
         </div>
       )}
+      <CheckoutModal open={!!checkoutFor} onClose={()=>setCheckoutFor(null)} onDone={()=>fetchData()}
+        initialStudentId={checkoutFor?.studentId} initialDebtIds={checkoutFor?.debtIds || []} />
     </AppLayout>
   );
 }
