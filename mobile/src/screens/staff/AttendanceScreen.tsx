@@ -4,7 +4,7 @@ import { Lock, Users } from 'lucide-react-native';
 import { api, errorMessage } from '../../api/client';
 import type { AttendanceCode, RosterStudent, TrainingSession } from '../../api/types';
 import { useAuth } from '../../auth/AuthContext';
-import { Banner, Button, Empty, Loading, Row } from '../../components/ui';
+import { Banner, Button, Empty, Loading, Row, useBottomInset } from '../../components/ui';
 import { colors, font, radius, spacing } from '../../theme';
 import { initials, shortDay } from '../../utils/format';
 
@@ -19,6 +19,7 @@ const OPTIONS: { code: AttendanceCode; short: string; label: string; bg: string;
 export default function AttendanceScreen({ route, navigation }: any) {
   const s: TrainingSession = route.params.session;
   const { role } = useAuth();
+  const bottomInset = useBottomInset();
   const [roster, setRoster] = useState<RosterStudent[]>([]);
   const [marks, setMarks] = useState<Record<string, AttendanceCode>>({});
   const [loading, setLoading] = useState(true);
@@ -93,7 +94,7 @@ export default function AttendanceScreen({ route, navigation }: any) {
       <FlatList
         data={roster}
         keyExtractor={r => r.studentId}
-        contentContainerStyle={{ padding: spacing.lg, gap: spacing.sm, paddingBottom: 140 }}
+        contentContainerStyle={{ padding: spacing.lg, gap: spacing.sm, paddingBottom: 140 + bottomInset }}
         ListEmptyComponent={<Empty icon={<Users color={colors.textMuted} />} text="No hay alumnos en esta categoría." />}
         renderItem={({ item }) => (
           <View style={styles.row}>
@@ -116,7 +117,7 @@ export default function AttendanceScreen({ route, navigation }: any) {
       />
 
       {!closed && roster.length > 0 && (
-        <View style={styles.footer}>
+        <View style={[styles.footer, { paddingBottom: spacing.lg + bottomInset }]}>
           <Button title="Guardar" onPress={() => save(false)} loading={saving} style={{ flex: 1 }} />
           {(role === 'AcademyAdmin' || role === 'Staff') && (
             <Button title="Guardar y cerrar" variant="ghost" onPress={confirmClose} disabled={saving} style={{ flex: 1 }} />

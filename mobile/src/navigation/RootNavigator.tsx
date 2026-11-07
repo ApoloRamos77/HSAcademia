@@ -2,6 +2,7 @@ import React from 'react';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   CalendarDays, ClipboardCheck, CreditCard, Home, Inbox, LayoutDashboard, Menu, QrCode, TrendingUp, Users,
 } from 'lucide-react-native';
@@ -45,19 +46,28 @@ const header = {
   headerShadowVisible: false,
 };
 
-const tabOptions = {
-  ...header,
-  tabBarActiveTintColor: colors.primaryDark,
-  tabBarInactiveTintColor: colors.textMuted,
-  tabBarLabelStyle: { fontSize: 12, fontWeight: '600' as const },
-  tabBarStyle: { height: 64, paddingBottom: 8, paddingTop: 6, borderTopColor: colors.border },
-};
+/**
+ * Opciones de las pestañas. La altura suma el espacio de la barra de navegación del sistema
+ * (botones ◀ ● ■ o barra de gestos): desde Android 15 la app se dibuja debajo de ella.
+ */
+function useTabOptions() {
+  const insets = useSafeAreaInsets();
+  const bottom = Math.max(insets.bottom, 8);
+  return {
+    ...header,
+    tabBarActiveTintColor: colors.primaryDark,
+    tabBarInactiveTintColor: colors.textMuted,
+    tabBarLabelStyle: { fontSize: 12, fontWeight: '600' as const },
+    tabBarStyle: { height: 56 + bottom, paddingBottom: bottom, paddingTop: 6, borderTopColor: colors.border },
+  };
+}
 
 const icon = (Icon: React.ComponentType<{ color: string; size: number }>) =>
   ({ color, size }: { color: string; size: number }) => <Icon color={color} size={size} />;
 
 // ── Familia (apoderado / alumno) ─────────────────────────────────
 function FamilyTabs() {
+  const tabOptions = useTabOptions();
   return (
     <Tab.Navigator screenOptions={tabOptions}>
       <Tab.Screen name="Inicio" component={FamilyHomeScreen} options={{ tabBarIcon: icon(Home), title: 'Inicio' }} />
@@ -87,6 +97,7 @@ function FamilyStack() {
 function StaffTabs() {
   const { role, can } = useAuth();
   const isAdmin = role === 'AcademyAdmin';
+  const tabOptions = useTabOptions();
   return (
     <Tab.Navigator screenOptions={tabOptions}>
       {isAdmin && <Tab.Screen name="Resumen" component={AdminHomeScreen} options={{ tabBarIcon: icon(LayoutDashboard) }} />}

@@ -2,20 +2,33 @@ import React from 'react';
 import {
   ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TextInputProps, View, ViewStyle,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BottomTabBarHeightContext } from '@react-navigation/bottom-tabs';
 import { colors, font, radius, shadow, spacing } from '../theme';
 
 /** Contenedor de pantalla con scroll y "jalar para actualizar". */
+/**
+ * Espacio inferior que ocupa la barra de navegación del sistema (◀ ● ■ o la barra de gestos).
+ * Desde Android 15 las apps se dibujan "de borde a borde", también debajo de esa barra.
+ * Dentro de las pestañas devuelve 0: la barra de pestañas ya reserva ese espacio.
+ */
+export function useBottomInset(): number {
+  const insets = useSafeAreaInsets();
+  const inTabs = React.useContext(BottomTabBarHeightContext) !== undefined;
+  return inTabs ? 0 : insets.bottom;
+}
+
 export function Screen({ children, refreshing, onRefresh, padded = true, scroll = true, edges }: {
   children: React.ReactNode; refreshing?: boolean; onRefresh?: () => void; padded?: boolean; scroll?: boolean;
   edges?: ('top' | 'bottom' | 'left' | 'right')[];
 }) {
+  const bottomInset = useBottomInset();
   const content = padded ? <View style={styles.padded}>{children}</View> : children;
   return (
     <SafeAreaView style={styles.screen} edges={edges ?? ['left', 'right']}>
       {scroll ? (
         <ScrollView
-          contentContainerStyle={{ paddingBottom: spacing.xxl }}
+          contentContainerStyle={{ paddingBottom: spacing.xxl + bottomInset }}
           keyboardShouldPersistTaps="handled"
           refreshControl={onRefresh ? <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} colors={[colors.primary]} /> : undefined}
         >

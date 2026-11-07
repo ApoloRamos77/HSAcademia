@@ -4,7 +4,7 @@ import { Camera, CameraType } from 'react-native-camera-kit';
 import { useIsFocused } from '@react-navigation/native';
 import { CheckCircle2, XCircle } from 'lucide-react-native';
 import { api, errorMessage } from '../../api/client';
-import { Button, Loading } from '../../components/ui';
+import { Button, Loading, useBottomInset } from '../../components/ui';
 import { colors, font, radius, spacing } from '../../theme';
 
 const GUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
@@ -23,6 +23,7 @@ type Result = { ok: boolean; title: string; detail?: string };
 /** Escáner de carnés: registra "Presente" del día. Pensado para la puerta de la cancha: uno tras otro. */
 export default function ScanScreen() {
   const focused = useIsFocused();
+  const bottomInset = useBottomInset();
   const [permission, setPermission] = useState<'checking' | 'granted' | 'denied'>('checking');
   const [result, setResult] = useState<Result | null>(null);
   const [count, setCount] = useState(0);
@@ -100,7 +101,7 @@ export default function ScanScreen() {
         <Text style={styles.topSub}>{count} registrado(s) en esta sesión</Text>
       </View>
       {result && (
-        <View style={[styles.result, { backgroundColor: result.ok ? colors.successBg : colors.dangerBg }]}>
+        <View style={[styles.result, { bottom: spacing.xl + bottomInset, backgroundColor: result.ok ? colors.successBg : colors.dangerBg }]}>
           {result.ok ? <CheckCircle2 color={colors.success} size={28} /> : <XCircle color={colors.danger} size={28} />}
           <View style={{ flex: 1 }}>
             <Text style={[font.h3, { color: result.ok ? colors.success : colors.danger }]}>{result.title}</Text>
