@@ -256,3 +256,31 @@ export interface Dashboard {
   birthdays: { studentId: string; name: string; category: string; date: string; turnsAge: number; isToday: boolean }[];
   alerts: { level: 'danger' | 'warning' | 'info'; message: string }[];
 }
+
+export interface Product { id: string; name: string; price: number; stock: number; isActive: boolean; productCategory?: string }
+
+/** Cuenta familiar: apoderado, hermanos y todo lo pendiente (GET /receipts/family/{studentId}). */
+export interface FamilyAccount {
+  guardianId?: string | null;
+  payerName: string;
+  payerDocument?: string | null;
+  payerPhone?: string | null;
+  students: { studentId: string; name: string; categoryName: string; isActive: boolean }[];
+  pendingDebts: Debt[];
+  totalPending: number;
+}
+
+export interface Receipt {
+  id?: string | null;
+  number: string;
+  issuedAt: string;
+  payerName: string;
+  method: string;
+  operationNumber?: string | null;
+  notes?: string | null;
+  subtotal: number;
+  discountTotal: number;
+  total: number;
+  status: 'Issued' | 'Voided';
+  lines: { type: 'Debt' | 'Product'; description: string; studentName?: string | null; quantity: number; unitPrice: number; discount: number; total: number }[];
+}

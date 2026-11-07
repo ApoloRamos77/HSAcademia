@@ -49,6 +49,8 @@ builder.Services.AddScoped<AcademyConfigurationService>();
 builder.Services.AddScoped<StudentService>();
 builder.Services.AddScoped<StoreService>();
 builder.Services.AddScoped<FinancesService>();
+builder.Services.AddScoped<ReceiptRecorder>();
+builder.Services.AddScoped<ReceiptService>();
 builder.Services.AddScoped<AccessControlService>();
 builder.Services.AddScoped<FinancialPeriodGuard>();
 builder.Services.AddScoped<AuditService>();

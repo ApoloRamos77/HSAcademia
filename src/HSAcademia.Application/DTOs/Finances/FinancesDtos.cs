@@ -75,6 +75,8 @@ public class RegisterPaymentDto
     public string? OperationNumber { get; set; }
     public string? VoucherUrl { get; set; }
     public string? Notes { get; set; }
+    /// <summary>Origen del cobro: "web", "app", "comprobante" (informativo).</summary>
+    public string? Channel { get; set; }
 }
 
 /// <summary>Mark an existing charge as exonerated (free class, recovery, etc.).</summary>
