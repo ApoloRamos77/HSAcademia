@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Alert, Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { CheckCircle2, FileText, Inbox, X } from 'lucide-react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { api, errorMessage } from '../../api/client';
 import type { PaymentProof, ProofStatus } from '../../api/types';
 import { Badge, Banner, Button, Card, Chips, Empty, Input, Loading, Row, Screen } from '../../components/ui';
@@ -76,7 +77,10 @@ function ReviewModal({ proof, onClose, onDone }: { proof: PaymentProof; onClose:
   };
 
   return (
-    <Modal visible animationType="slide" onRequestClose={onClose}>
+    <Modal visible animationType="slide" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
+      {/* El modal es otra ventana: necesita su propio SafeArea para no quedar bajo las barras del sistema */}
+      <SafeAreaProvider>
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top', 'bottom', 'left', 'right']}>
       <View style={styles.modalHead}>
         <Text style={[font.h2, { flex: 1 }]}>{proof.studentName}</Text>
         <Pressable onPress={onClose} hitSlop={12} accessibilityLabel="Cerrar"><X color={colors.text} /></Pressable>
@@ -109,6 +113,8 @@ function ReviewModal({ proof, onClose, onDone }: { proof: PaymentProof; onClose:
           </>
         )}
       </ScrollView>
+      </SafeAreaView>
+      </SafeAreaProvider>
     </Modal>
   );
 }
