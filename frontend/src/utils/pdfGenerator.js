@@ -194,7 +194,7 @@ export const printReceipt = (r) => {
     description: [
       l.description,
       l.studentName ? `— ${l.studentName}` : '',
-      l.discount > 0 ? `(desc. S/ ${Number(l.discount).toFixed(2)})` : '',
+      l.discount > 0 ? `(${l.discountLabel ? l.discountLabel + ': ' : 'desc. '}-S/ ${Number(l.discount).toFixed(2)})` : '',
     ].filter(Boolean).join(' '),
     total: l.total,
   }));

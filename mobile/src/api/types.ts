@@ -79,6 +79,8 @@ export interface Debt {
   isPaid: boolean;
   status: 'Pagado' | 'Vencido' | 'En Curso';
   daysOverdue: number;
+  discountAmount?: number;
+  discountDetail?: string | null;
   installments: { id: string; amountPaid: number; paidAt: string; method: string; receiptNumber?: string | null }[];
 }
 
@@ -282,5 +284,28 @@ export interface Receipt {
   discountTotal: number;
   total: number;
   status: 'Issued' | 'Voided';
-  lines: { type: 'Debt' | 'Product'; description: string; studentName?: string | null; quantity: number; unitPrice: number; discount: number; total: number }[];
+  isPreview?: boolean;
+  cashHandoverId?: string | null;
+  lines: {
+    type: 'Debt' | 'Product'; description: string; studentId?: string | null; studentName?: string | null; quantity: number;
+    unitPrice: number; discount: number; discountLabel?: string | null; total: number; paymentRecordId?: string | null; productId?: string | null;
+  }[];
+}
+
+export interface DiscountRule {
+  id: string; name: string; kind: 'Sibling' | 'EarlyPayment' | 'Promotion'; valueType: 'Percent' | 'Amount'; value: number;
+  scope: 'MonthlyFees' | 'Products' | 'All'; isActive: boolean; isCurrentlyValid: boolean; label: string; categoryName?: string | null;
+}
+
+export interface CashHandover {
+  id: string; collectorName: string; declaredAt: string; receiptsCount: number; expectedCash: number; digitalTotal: number;
+  declaredCash: number; declaredDifference: number; notes?: string | null; status: 'Pending' | 'Received';
+  receivedByName?: string | null; receivedAt?: string | null; receivedCash?: number | null; receivedDifference?: number | null; receivedNotes?: string | null;
+}
+
+export interface MyCash {
+  collectorName: string; pendingReceipts: number; pendingCash: number; pendingDigital: number;
+  byMethod: { method: string; count: number; total: number }[];
+  receipts: Receipt[];
+  recentHandovers: CashHandover[];
 }

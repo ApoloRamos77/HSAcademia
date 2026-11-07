@@ -136,6 +136,7 @@ export default function ReceiptsTab({ onChanged }) {
             <ul className="text-sm mb-3 list-disc pl-5">
               {voiding.lines.map((l, i) => <li key={i}>{l.description}{l.studentName ? ` — ${l.studentName}` : ''}: {money(l.total)}</li>)}
             </ul>
+            {voiding.cashHandoverId && <p className="text-xs text-warning mb-2">Este recibo ya está en una rendición de caja. Si la rendición aún no se recibió, se descuenta de ella; si ya se recibió, coordina la devolución del dinero.</p>}
             <p className="text-xs text-text-muted mb-3">Las mensualidades vuelven a quedar pendientes y los productos regresan al stock. El número no se reutiliza y la anulación queda registrada en auditoría.</p>
             <form onSubmit={doVoid}>
               <div className="form-group">

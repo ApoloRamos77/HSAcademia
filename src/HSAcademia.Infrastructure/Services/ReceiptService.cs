@@ -156,36 +156,63 @@ public class ReceiptService
     // ─────────────────────────────────────────────────────────────
     // Cobro con varios ítems
     // ─────────────────────────────────────────────────────────────
+    /// <summary>Calcula el comprobante (descuentos incluidos) sin registrar nada: para mostrarlo antes de cobrar.</summary>
+    public async Task<ReceiptDto> PreviewAsync(Guid academyId, CheckoutDto dto, bool canChargeDebts, bool canSellProducts)
+    {
+        ValidateRequest(dto, canChargeDebts, canSellProducts, requireOperation: false);
+        try
+        {
+            var plan = await BuildPlanAsync(academyId, dto);
+            var lines = plan.Debts.Select(d => new ReceiptLineDto
+            {
+                Type = "Debt",
+                Description = d.Record.Description,
+                StudentId = d.Record.StudentId,
+                StudentName = d.StudentName,
+                Quantity = 1,
+                UnitPrice = d.Amount + d.TotalDiscount,
+                Discount = d.TotalDiscount,
+                DiscountLabel = d.Label,
+                Total = d.Amount,
+                PaymentRecordId = d.Record.Id,
+                PendingBefore = d.Pending
+            }).Concat(plan.Products.Select(p => new ReceiptLineDto
+            {
+                Type = "Product",
+                Description = p.Item.IsGift ? $"{p.Product.Name} (obsequio)" : p.Product.Name,
+                StudentId = p.Student?.Id,
+                StudentName = p.StudentName,
+                Quantity = p.Item.Quantity,
+                UnitPrice = p.Product.Price,
+                Discount = p.Discount,
+                DiscountLabel = p.Label,
+                Total = p.Total,
+                ProductId = p.Product.Id
+            })).ToList();
+            return new ReceiptDto
+            {
+                Number = "",
+                IsPreview = true,
+                IssuedAt = DateTime.UtcNow,
+                PayerName = plan.PayerName,
+                PayerDocument = plan.PayerDocument,
+                GuardianId = plan.GuardianId,
+                Method = dto.Method,
+                Subtotal = lines.Sum(l => l.UnitPrice * l.Quantity),
+                DiscountTotal = lines.Sum(l => l.Discount),
+                Total = lines.Sum(l => l.Total),
+                Lines = lines
+            };
+        }
+        finally
+        {
+            _db.ChangeTracker.Clear(); // la vista previa nunca deja cambios pendientes
+        }
+    }
+
     public async Task<ReceiptDto> CheckoutAsync(Guid academyId, CheckoutDto dto, bool canChargeDebts, bool canSellProducts)
     {
-        dto.Debts ??= new();
-        dto.Products ??= new();
-        if (dto.Debts.Count == 0 && dto.Products.Count == 0)
-            throw new Exception("Agrega al menos un ítem al comprobante.");
-        if (dto.Debts.Count + dto.Products.Count > 40)
-            throw new Exception("Un comprobante admite como máximo 40 ítems.");
-        if (dto.Debts.Count > 0 && !canChargeDebts)
-            throw new UnauthorizedAccessException("No tienes permiso para cobrar mensualidades.");
-        if (dto.Products.Count > 0 && !canSellProducts)
-            throw new UnauthorizedAccessException("No tienes permiso para vender productos.");
-        if (dto.Debts.Select(d => d.PaymentRecordId).Distinct().Count() != dto.Debts.Count)
-            throw new Exception("Una deuda aparece dos veces en el comprobante.");
-
-        foreach (var d in dto.Debts)
-        {
-            if (d.Amount < 0 || d.Discount < 0) throw new Exception("Los montos y descuentos no pueden ser negativos.");
-            if (d.Amount + d.Discount <= 0) throw new Exception("Cada deuda del comprobante debe tener un monto a cobrar.");
-        }
-        foreach (var p in dto.Products)
-        {
-            if (p.Quantity <= 0 || p.Quantity > 999) throw new Exception("La cantidad de cada producto debe ser mayor a cero.");
-            if (p.Discount < 0) throw new Exception("El descuento no puede ser negativo.");
-        }
-
-        if (!Enum.TryParse<PaymentMethod>(dto.Method, true, out var method)) method = PaymentMethod.Cash;
-        var isDigital = method is PaymentMethod.Yape or PaymentMethod.Plin or PaymentMethod.BankTransfer;
-        if (isDigital && string.IsNullOrWhiteSpace(dto.OperationNumber) && string.IsNullOrWhiteSpace(dto.VoucherUrl))
-            throw new Exception("Para pagos con Yape, Plin o transferencia indica el número de operación.");
+        var method = ValidateRequest(dto, canChargeDebts, canSellProducts, requireOperation: true);
 
         var requestId = string.IsNullOrWhiteSpace(dto.ClientRequestId) ? null : dto.ClientRequestId.Trim();
         if (requestId is { Length: > 64 }) throw new Exception("Clave de solicitud no válida.");
@@ -221,12 +248,237 @@ public class ReceiptService
         }
     }
 
+    private static PaymentMethod ValidateRequest(CheckoutDto dto, bool canChargeDebts, bool canSellProducts, bool requireOperation)
+    {
+        dto.Debts ??= new();
+        dto.Products ??= new();
+        if (dto.Debts.Count == 0 && dto.Products.Count == 0)
+            throw new Exception("Agrega al menos un ítem al comprobante.");
+        if (dto.Debts.Count + dto.Products.Count > 40)
+            throw new Exception("Un comprobante admite como máximo 40 ítems.");
+        if (dto.Debts.Count > 0 && !canChargeDebts)
+            throw new UnauthorizedAccessException("No tienes permiso para cobrar mensualidades.");
+        if (dto.Products.Count > 0 && !canSellProducts)
+            throw new UnauthorizedAccessException("No tienes permiso para vender productos.");
+        if (dto.Debts.Select(d => d.PaymentRecordId).Distinct().Count() != dto.Debts.Count)
+            throw new Exception("Una deuda aparece dos veces en el comprobante.");
+
+        foreach (var d in dto.Debts)
+        {
+            if (d.Amount < 0 || d.Discount < 0) throw new Exception("Los montos y descuentos no pueden ser negativos.");
+            if (d.Amount.HasValue && d.Amount.Value + d.Discount <= 0) throw new Exception("Cada deuda del comprobante debe tener un monto a cobrar.");
+        }
+        foreach (var p in dto.Products)
+        {
+            if (p.Quantity <= 0 || p.Quantity > 999) throw new Exception("La cantidad de cada producto debe ser mayor a cero.");
+            if (p.Discount < 0) throw new Exception("El descuento no puede ser negativo.");
+        }
+
+        if (!Enum.TryParse<PaymentMethod>(dto.Method, true, out var method)) method = PaymentMethod.Cash;
+        var isDigital = method is PaymentMethod.Yape or PaymentMethod.Plin or PaymentMethod.BankTransfer;
+        if (requireOperation && isDigital && string.IsNullOrWhiteSpace(dto.OperationNumber) && string.IsNullOrWhiteSpace(dto.VoucherUrl))
+            throw new Exception("Para pagos con Yape, Plin o transferencia indica el número de operación.");
+        return method;
+    }
+
     private async Task<ReceiptDto?> FindByRequestIdAsync(Guid academyId, string requestId)
     {
         var r = await _db.Receipts.AsNoTracking().Include(x => x.Lines)
             .FirstOrDefaultAsync(x => x.AcademyId == academyId && x.ClientRequestId == requestId);
         return r == null ? null : Map(r);
     }
+
+    // ── Plan del cobro: todo lo que se va a registrar, ya calculado (no modifica nada) ──
+    private sealed class DebtPlan
+    {
+        public PaymentRecord Record = null!;
+        public string StudentName = "";
+        public decimal Pending;
+        public decimal RuleDiscount;
+        public decimal ManualDiscount;
+        public decimal Amount;
+        public decimal TotalDiscount => RuleDiscount + ManualDiscount;
+        public string? Label;
+    }
+
+    private sealed class ProductPlan
+    {
+        public CheckoutProductItemDto Item = null!;
+        public Product Product = null!;
+        public Student? Student;
+        public string? StudentName;
+        public decimal Base;
+        public decimal Discount;
+        public decimal Total => Base - Discount;
+        public string? Label;
+    }
+
+    private sealed class CheckoutPlan
+    {
+        public List<DebtPlan> Debts = new();
+        public List<ProductPlan> Products = new();
+        public string PayerName = "";
+        public string? PayerDocument;
+        public Guid? GuardianId;
+        public DiscountRule? Promotion;
+    }
+
+    private static string? JoinLabels(params string?[] parts)
+    {
+        var list = parts.Where(p => !string.IsNullOrWhiteSpace(p)).ToList();
+        return list.Count == 0 ? null : string.Join(" · ", list);
+    }
+
+    private async Task<CheckoutPlan> BuildPlanAsync(Guid academyId, CheckoutDto dto)
+    {
+        var today = AcademyClock.Today;
+        var plan = new CheckoutPlan();
+
+        // ── Reglas de descuento vigentes ──
+        var earlyRules = await _db.DiscountRules
+            .Where(r => r.AcademyId == academyId && r.Kind == DiscountKind.EarlyPayment && r.IsActive)
+            .ToListAsync();
+        earlyRules = earlyRules.Where(r => r.IsValidOn(today)).ToList();
+        if (dto.PromotionId.HasValue)
+        {
+            plan.Promotion = await _db.DiscountRules.FirstOrDefaultAsync(r =>
+                    r.Id == dto.PromotionId && r.AcademyId == academyId && r.Kind == DiscountKind.Promotion)
+                ?? throw new Exception("La promoción elegida no existe.");
+            if (!plan.Promotion.IsValidOn(today)) throw new Exception($"La promoción \"{plan.Promotion.Name}\" no está vigente hoy.");
+        }
+
+        // ── Deudas ──
+        var debtIds = dto.Debts.Select(d => d.PaymentRecordId).ToList();
+        var records = await _db.PaymentRecords
+            .Include(p => p.Student).ThenInclude(s => s.Guardian)
+            .Where(p => p.AcademyId == academyId && debtIds.Contains(p.Id))
+            .ToDictionaryAsync(p => p.Id);
+        if (records.Count != debtIds.Count)
+            throw new Exception("Una de las deudas seleccionadas ya no existe. Actualiza la pantalla.");
+
+        foreach (var item in dto.Debts)
+        {
+            var record = records[item.PaymentRecordId];
+            var studentName = $"{record.Student.FirstName} {record.Student.LastName}".Trim();
+            if (record.IsPaid) throw new Exception($"{record.Description} de {studentName} ya está pagada.");
+            var pending = record.Amount - record.AmountPaid;
+            if (item.Discount > pending + 0.01m)
+                throw new Exception($"El descuento de {record.Description} ({studentName}) supera el saldo pendiente.");
+
+            // Descuento automático (no acumulable: se aplica el mayor) solo para mensualidades.
+            DiscountRule? best = null;
+            decimal bestValue = 0;
+            if (record.Type == PaymentType.MonthlyFee)
+            {
+                var candidates = earlyRules
+                    .Where(r => today <= record.DueDate.Date.AddDays(-(r.DaysBeforeDue ?? 0)))
+                    .ToList();
+                if (plan.Promotion != null && plan.Promotion.AppliesToMonthlyFees) candidates.Add(plan.Promotion);
+                foreach (var r in candidates.Where(r => r.CategoryId == null || r.CategoryId == record.Student.CategoryId))
+                {
+                    var v = r.DiscountFor(pending - item.Discount);
+                    if (v > bestValue) { best = r; bestValue = v; }
+                }
+            }
+
+            var netFull = pending - item.Discount - bestValue;
+            decimal amount;
+            if (!item.Amount.HasValue || item.Amount.Value >= netFull - 0.01m)
+            {
+                // Cancela la deuda: aplica el descuento automático.
+                if (item.Amount.HasValue && item.Amount.Value > pending + 0.01m)
+                    throw new Exception($"El monto de {record.Description} ({studentName}) supera el saldo pendiente ({pending:N2}).");
+                amount = Math.Max(0, netFull);
+            }
+            else
+            {
+                // Abono parcial: sin descuento automático.
+                best = null;
+                bestValue = 0;
+                amount = item.Amount.Value;
+            }
+            if (amount + item.Discount + bestValue <= 0)
+                throw new Exception($"Indica el monto a cobrar de {record.Description} ({studentName}).");
+
+            plan.Debts.Add(new DebtPlan
+            {
+                Record = record,
+                StudentName = studentName,
+                Pending = pending,
+                RuleDiscount = bestValue,
+                ManualDiscount = item.Discount,
+                Amount = amount,
+                Label = JoinLabels(best?.Label, item.Discount > 0 ? $"Descuento en caja S/ {item.Discount:0.00}" : null)
+            });
+        }
+
+        // ── Productos ──
+        var productIds = dto.Products.Select(p => p.ProductId).Distinct().ToList();
+        var products = await _db.Products
+            .Where(p => p.AcademyId == academyId && productIds.Contains(p.Id))
+            .ToDictionaryAsync(p => p.Id);
+        if (products.Count != productIds.Count)
+            throw new Exception("Uno de los productos seleccionados ya no existe.");
+        foreach (var group in dto.Products.GroupBy(p => p.ProductId))
+        {
+            var product = products[group.Key];
+            var qty = group.Sum(p => p.Quantity);
+            if (product.Stock < qty)
+                throw new Exception($"Stock insuficiente de {product.Name}. Disponible: {product.Stock}.");
+        }
+        var productStudentIds = dto.Products.Where(p => p.StudentId.HasValue).Select(p => p.StudentId!.Value).Distinct().ToList();
+        var productStudents = await _db.Students.Include(s => s.Guardian)
+            .Where(s => s.AcademyId == academyId && productStudentIds.Contains(s.Id))
+            .ToDictionaryAsync(s => s.Id);
+        if (productStudents.Count != productStudentIds.Count)
+            throw new Exception("Uno de los alumnos de la venta no es válido.");
+
+        foreach (var item in dto.Products)
+        {
+            var product = products[item.ProductId];
+            var student = item.StudentId.HasValue ? productStudents[item.StudentId.Value] : null;
+            var baseTotal = product.Price * item.Quantity;
+            if (item.IsGift)
+            {
+                plan.Products.Add(new ProductPlan { Item = item, Product = product, Student = student, StudentName = NameOf(student), Base = baseTotal, Discount = baseTotal, Label = "Obsequio" });
+                continue;
+            }
+            if (item.Discount > baseTotal) throw new Exception($"El descuento de {product.Name} supera su precio.");
+            var promo = plan.Promotion != null && plan.Promotion.AppliesToProducts &&
+                        (plan.Promotion.CategoryId == null || plan.Promotion.CategoryId == student?.CategoryId)
+                ? plan.Promotion : null;
+            // Promoción por unidad (monto fijo) o sobre el total (porcentaje).
+            var promoValue = promo == null ? 0m
+                : promo.ValueType == DiscountValueType.Amount ? Math.Min(promo.Value * item.Quantity, baseTotal) : promo.DiscountFor(baseTotal);
+            var discount = Math.Min(baseTotal, promoValue + item.Discount);
+            plan.Products.Add(new ProductPlan
+            {
+                Item = item, Product = product, Student = student, StudentName = NameOf(student),
+                Base = baseTotal, Discount = discount,
+                Label = JoinLabels(promoValue > 0 ? promo!.Label : null, item.Discount > 0 ? $"Descuento S/ {item.Discount:0.00}" : null)
+            });
+        }
+
+        // ── Pagador ──
+        if (dto.GuardianId.HasValue && dto.GuardianId != Guid.Empty)
+        {
+            var guardian = await _db.Users.FirstOrDefaultAsync(u => u.Id == dto.GuardianId && u.AcademyId == academyId)
+                ?? throw new Exception("El apoderado indicado no es válido.");
+            plan.GuardianId = guardian.Id;
+            plan.PayerName = $"{guardian.FirstName} {guardian.LastName}".Trim();
+            plan.PayerDocument = guardian.DocumentNumber;
+        }
+        else
+        {
+            var first = records.Values.Select(r => r.Student).FirstOrDefault() ?? productStudents.Values.FirstOrDefault();
+            (plan.PayerName, plan.PayerDocument, plan.GuardianId) = ReceiptRecorder.PayerOf(first);
+        }
+        if (!string.IsNullOrWhiteSpace(dto.PayerName)) plan.PayerName = dto.PayerName.Trim();
+        if (!string.IsNullOrWhiteSpace(dto.PayerDocument)) plan.PayerDocument = dto.PayerDocument.Trim();
+        return plan;
+    }
+
+    private static string? NameOf(Student? s) => s == null ? null : $"{s.FirstName} {s.LastName}".Trim();
 
     private Task<ReceiptDto> CheckoutOnceAsync(Guid academyId, CheckoutDto dto, PaymentMethod method, string? requestId) =>
         _db.InTransactionAsync(async () =>
@@ -235,88 +487,31 @@ public class ReceiptService
             // El dinero entra hoy: el periodo de hoy debe estar abierto (aunque la deuda sea de un mes cerrado).
             await _periods.EnsureOpenAsync(academyId, AcademyClock.Today, "registrar el cobro");
 
-            // ── Cargar y validar todo antes de reservar el número ──
-            var debtIds = dto.Debts.Select(d => d.PaymentRecordId).ToList();
-            var records = await _db.PaymentRecords
-                .Include(p => p.Student).ThenInclude(s => s.Guardian)
-                .Where(p => p.AcademyId == academyId && debtIds.Contains(p.Id))
-                .ToDictionaryAsync(p => p.Id);
-            if (records.Count != debtIds.Count)
-                throw new Exception("Una de las deudas seleccionadas ya no existe. Actualiza la pantalla.");
-
-            var productIds = dto.Products.Select(p => p.ProductId).Distinct().ToList();
-            var products = await _db.Products
-                .Where(p => p.AcademyId == academyId && productIds.Contains(p.Id))
-                .ToDictionaryAsync(p => p.Id);
-            if (products.Count != productIds.Count)
-                throw new Exception("Uno de los productos seleccionados ya no existe.");
-            foreach (var group in dto.Products.GroupBy(p => p.ProductId))
-            {
-                var product = products[group.Key];
-                var qty = group.Sum(p => p.Quantity);
-                if (product.Stock < qty)
-                    throw new Exception($"Stock insuficiente de {product.Name}. Disponible: {product.Stock}.");
-            }
-
-            var productStudentIds = dto.Products.Where(p => p.StudentId.HasValue).Select(p => p.StudentId!.Value).Distinct().ToList();
-            var productStudents = await _db.Students.Include(s => s.Guardian)
-                .Where(s => s.AcademyId == academyId && productStudentIds.Contains(s.Id))
-                .ToDictionaryAsync(s => s.Id);
-            if (productStudents.Count != productStudentIds.Count)
-                throw new Exception("Uno de los alumnos de la venta no es válido.");
-
-            // ── Pagador ──
-            string payerName;
-            string? payerDocument;
-            Guid? guardianId;
-            if (dto.GuardianId.HasValue && dto.GuardianId != Guid.Empty)
-            {
-                var guardian = await _db.Users.FirstOrDefaultAsync(u => u.Id == dto.GuardianId && u.AcademyId == academyId)
-                    ?? throw new Exception("El apoderado indicado no es válido.");
-                guardianId = guardian.Id;
-                payerName = $"{guardian.FirstName} {guardian.LastName}".Trim();
-                payerDocument = guardian.DocumentNumber;
-            }
-            else
-            {
-                var first = records.Values.Select(r => r.Student).FirstOrDefault() ?? productStudents.Values.FirstOrDefault();
-                (payerName, payerDocument, guardianId) = ReceiptRecorder.PayerOf(first);
-            }
-            if (!string.IsNullOrWhiteSpace(dto.PayerName)) payerName = dto.PayerName.Trim();
-            if (!string.IsNullOrWhiteSpace(dto.PayerDocument)) payerDocument = dto.PayerDocument.Trim();
+            var plan = await BuildPlanAsync(academyId, dto);
 
             // ── Número de recibo (si algo falla, la transacción lo revierte: sin saltos) ──
             var number = await _finances.ReserveReceiptNumberAsync(academyId);
-            var receipt = await _recorder.CreateAsync(academyId, number, now, payerName, payerDocument, guardianId,
+            var receipt = await _recorder.CreateAsync(academyId, number, now, plan.PayerName, plan.PayerDocument, plan.GuardianId,
                 method, dto.OperationNumber, dto.VoucherUrl, dto.Notes, dto.Channel ?? "web");
             receipt.ClientRequestId = requestId;
 
-            // ── Deudas ──
-            foreach (var item in dto.Debts)
+            foreach (var d in plan.Debts)
             {
-                var record = records[item.PaymentRecordId];
-                var studentName = $"{record.Student.FirstName} {record.Student.LastName}".Trim();
-                if (record.IsPaid) throw new Exception($"{record.Description} de {studentName} ya está pagada.");
-
-                var pending = record.Amount - record.AmountPaid;
-                if (item.Discount > 0)
+                var record = d.Record;
+                if (d.TotalDiscount > 0)
                 {
-                    if (item.Discount > pending + 0.01m)
-                        throw new Exception($"El descuento de {record.Description} ({studentName}) supera el saldo pendiente.");
-                    record.Amount -= item.Discount;
-                    record.DiscountAmount += item.Discount;
-                    pending -= item.Discount;
+                    record.Amount -= d.TotalDiscount;
+                    record.DiscountAmount += d.TotalDiscount;
+                    record.DiscountDetail = ReceiptRecorder.Truncate(JoinLabels(record.DiscountDetail, d.Label), 200);
                 }
-                if (item.Amount > pending + 0.01m)
-                    throw new Exception($"El monto de {record.Description} ({studentName}) supera el saldo pendiente ({pending:N2}).");
 
                 PaymentInstallment? installment = null;
-                if (item.Amount > 0)
+                if (d.Amount > 0)
                 {
                     installment = new PaymentInstallment
                     {
                         PaymentRecordId = record.Id,
-                        AmountPaid = item.Amount,
+                        AmountPaid = d.Amount,
                         PaidAt = now,
                         Method = method,
                         OperationNumber = dto.OperationNumber,
@@ -325,7 +520,7 @@ public class ReceiptService
                         ReceiptNumber = number
                     };
                     _db.PaymentInstallments.Add(installment);
-                    record.AmountPaid += item.Amount;
+                    record.AmountPaid += d.Amount;
                 }
                 if (record.AmountPaid >= record.Amount - 0.01m)
                 {
@@ -340,36 +535,30 @@ public class ReceiptService
                     Type = ReceiptLineType.Debt,
                     Description = record.Description,
                     StudentId = record.StudentId,
-                    StudentName = studentName,
+                    StudentName = d.StudentName,
                     Quantity = 1,
-                    UnitPrice = item.Amount + item.Discount,
-                    Discount = item.Discount,
-                    Total = item.Amount,
+                    UnitPrice = d.Amount + d.TotalDiscount,
+                    Discount = d.TotalDiscount,
+                    DiscountLabel = ReceiptRecorder.Truncate(d.Label, 150),
+                    Total = d.Amount,
                     PaymentRecordId = record.Id,
                     PaymentInstallmentId = installment?.Id
                 });
             }
 
-            // ── Productos ──
-            foreach (var item in dto.Products)
+            foreach (var p in plan.Products)
             {
-                var product = products[item.ProductId];
-                var student = item.StudentId.HasValue ? productStudents[item.StudentId.Value] : null;
-                var baseTotal = product.Price * item.Quantity;
-                var discount = item.IsGift ? baseTotal : item.Discount;
-                if (discount > baseTotal) throw new Exception($"El descuento de {product.Name} supera su precio.");
-
-                product.Stock -= item.Quantity;
+                p.Product.Stock -= p.Item.Quantity;
                 var sale = new ProductSale
                 {
                     AcademyId = academyId,
-                    ProductId = product.Id,
-                    StudentId = student?.Id,
-                    Quantity = item.Quantity,
-                    UnitPrice = product.Price,
-                    TotalPrice = baseTotal - discount,
-                    IsGift = item.IsGift,
-                    DiscountAmount = discount,
+                    ProductId = p.Product.Id,
+                    StudentId = p.Student?.Id,
+                    Quantity = p.Item.Quantity,
+                    UnitPrice = p.Product.Price,
+                    TotalPrice = p.Total,
+                    IsGift = p.Item.IsGift,
+                    DiscountAmount = p.Discount,
                     SaleDate = now,
                     ReceiptNumber = number,
                     Notes = dto.Notes
@@ -379,20 +568,22 @@ public class ReceiptService
                 ReceiptRecorder.AddLine(receipt, new ReceiptLine
                 {
                     Type = ReceiptLineType.Product,
-                    Description = item.IsGift ? $"{product.Name} (obsequio)" : product.Name,
-                    StudentId = student?.Id,
-                    StudentName = student != null ? $"{student.FirstName} {student.LastName}".Trim() : null,
-                    Quantity = item.Quantity,
-                    UnitPrice = product.Price,
-                    Discount = discount,
-                    Total = baseTotal - discount,
+                    Description = p.Item.IsGift ? $"{p.Product.Name} (obsequio)" : p.Product.Name,
+                    StudentId = p.Student?.Id,
+                    StudentName = p.StudentName,
+                    Quantity = p.Item.Quantity,
+                    UnitPrice = p.Product.Price,
+                    Discount = p.Discount,
+                    DiscountLabel = ReceiptRecorder.Truncate(p.Label, 150),
+                    Total = p.Total,
                     ProductSaleId = sale.Id,
-                    ProductId = product.Id
+                    ProductId = p.Product.Id
                 });
             }
 
             _audit.Add(academyId, "finances.receipt.create", nameof(Receipt), receipt.Id,
-                new { number, receipt.Total, method = method.ToString(), dto.OperationNumber, lines = receipt.Lines.Count, payerName });
+                new { number, receipt.Total, receipt.DiscountTotal, promotion = plan.Promotion?.Name, method = method.ToString(),
+                      dto.OperationNumber, lines = receipt.Lines.Count, payer = plan.PayerName });
 
             await _db.SaveChangesAsync();
             return Map(receipt);
@@ -453,6 +644,11 @@ public class ReceiptService
                 {
                     record.Amount += line.Discount;
                     record.DiscountAmount = Math.Max(0, record.DiscountAmount - line.Discount);
+                    if (!string.IsNullOrEmpty(line.DiscountLabel) && record.DiscountDetail != null)
+                    {
+                        var detail = record.DiscountDetail.Replace(" · " + line.DiscountLabel, "").Replace(line.DiscountLabel, "").Trim(' ', '·');
+                        record.DiscountDetail = string.IsNullOrWhiteSpace(detail) ? null : detail;
+                    }
                 }
                 record.AmountPaid = Math.Max(0, record.AmountPaid);
                 if (record.AmountPaid < record.Amount - 0.01m)
@@ -483,6 +679,9 @@ public class ReceiptService
             proof.RejectionReason = ReceiptRecorder.Truncate($"Recibo N° {receipt.Number} anulado: {reason}", 500);
             proof.UpdatedAt = DateTime.UtcNow;
         }
+
+        // Si el recibo estaba en una rendición de caja aún no recibida, sale de ella.
+        await CashService.DetachVoidedAsync(_db, receipt);
 
         receipt.Status = ReceiptStatus.Voided;
         receipt.VoidedAt = DateTime.UtcNow;
@@ -618,7 +817,11 @@ public class ReceiptService
             Quantity = l.Quantity,
             UnitPrice = l.UnitPrice,
             Discount = l.Discount,
-            Total = l.Total
-        }).ToList()
+            DiscountLabel = l.DiscountLabel,
+            Total = l.Total,
+            PaymentRecordId = l.PaymentRecordId,
+            ProductId = l.ProductId
+        }).ToList(),
+        CashHandoverId = r.CashHandoverId
     };
 }

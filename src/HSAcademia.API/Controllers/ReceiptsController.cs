@@ -38,6 +38,16 @@ public class ReceiptsController : ControllerBase
         return await Run(academyId => _receipts.CheckoutAsync(academyId, dto, canDebts, canProducts));
     }
 
+    /// <summary>Calcula el comprobante con sus descuentos (pronto pago, promoción) sin registrar nada.</summary>
+    [HttpPost("preview")]
+    [RequirePermission(Permissions.ManageFinances, Permissions.ManageStore)]
+    public async Task<IActionResult> Preview([FromBody] CheckoutDto dto)
+    {
+        var canDebts = await PermissionChecker.HasAsync(HttpContext, Permissions.ManageFinances);
+        var canProducts = canDebts || await PermissionChecker.HasAsync(HttpContext, Permissions.ManageStore);
+        return await Run(academyId => _receipts.PreviewAsync(academyId, dto, canDebts, canProducts));
+    }
+
     [HttpGet]
     [RequirePermission(Permissions.ManageFinances, Permissions.ManageStore)]
     public Task<IActionResult> List([FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] string? search, [FromQuery] Guid? studentId) =>

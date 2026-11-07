@@ -43,6 +43,7 @@ public class PaymentRecordDto
     public decimal Amount { get; set; }
     public decimal AmountPaid { get; set; }
     public decimal DiscountAmount { get; set; }
+    public string? DiscountDetail { get; set; }
     public decimal AmountPending => Amount - AmountPaid;
     public DateTime DueDate { get; set; }
     public bool IsPaid { get; set; }
