@@ -72,3 +72,25 @@ public sealed class RequirePermissionAttribute : Attribute, IAsyncAuthorizationF
     private static ObjectResult Forbidden() =>
         new(new { message = "No tienes permisos para realizar esta acción." }) { StatusCode = StatusCodes.Status403Forbidden };
 }
+
+/// <summary>Consulta puntual de permisos dentro de una acción (misma regla que [RequirePermission]).</summary>
+public static class PermissionChecker
+{
+    public static async Task<bool> HasAsync(HttpContext http, string permission)
+    {
+        var user = http.User;
+        if (user.IsInRole("AcademyAdmin") || user.IsInRole("SuperAdmin")) return true;
+        if (!user.IsInRole("Staff")) return false;
+        var userId = user.GetUserId();
+        var academyId = user.GetAcademyId();
+        var db = http.RequestServices.GetRequiredService<AppDbContext>();
+        var permissions = await db.Users
+            .AsNoTracking()
+            .Where(u => u.Id == userId && u.AcademyId == academyId)
+            .Select(u => u.AcademyRole != null && u.AcademyRole.IsActive && !u.AcademyRole.IsDeleted
+                ? u.AcademyRole.Permissions
+                : null)
+            .FirstOrDefaultAsync();
+        return permissions != null && permissions.Contains(permission);
+    }
+}

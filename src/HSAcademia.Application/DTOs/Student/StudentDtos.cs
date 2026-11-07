@@ -21,6 +21,8 @@ public class StudentDto
     
     public Guid? GuardianId { get; set; }
     public string GuardianName { get; set; } = string.Empty;
+    public string GuardianFirstName { get; set; } = string.Empty;
+    public string GuardianLastName { get; set; } = string.Empty;
     public string GuardianPhone { get; set; } = string.Empty;
     public string GuardianEmail { get; set; } = string.Empty;
     
