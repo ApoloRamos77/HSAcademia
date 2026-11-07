@@ -3,7 +3,9 @@ import api from '../../api/axios';
 import AppLayout from '../../components/AppLayout';
 import { Package, ShoppingCart, PlusCircle, DollarSign, Tag, TrendingUp, AlertCircle, ShoppingBag, BarChart3, Download, Trash2, X, AlertTriangle, ChevronDown } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { generateReceiptPDF } from '../../utils/pdfGenerator';
+import { generateReceiptPDF, printReceipt } from '../../utils/pdfGenerator';
+import CheckoutModal from '../../components/finances/CheckoutModal';
+import MyCashPanel from '../../components/finances/MyCashPanel';
 import { todayISO } from '../../utils/dates';
 
 function SearchableStudentSelect({ students, value, onChange }) {
@@ -78,6 +80,7 @@ export default function Tienda() {
   const [productForm, setProductForm] = useState(initialProduct);
 
   const [showSaleModal, setShowSaleModal] = useState(false);
+  const [showCheckout, setShowCheckout] = useState(false);
   const initialSale = { productId: '', studentId: '', quantity: '1', isGift: false, customDiscount: '', paymentMethod: 'Cash', operationNumber: '', saleDate: todayISO(), paymentRecordId: '', monthlyAmountPaid: '', notes: '' };
   const [saleForm, setSaleForm] = useState(initialSale);
 
@@ -222,7 +225,11 @@ export default function Tienda() {
   const selectedProductForSale = products.find(p => p.id === saleForm.productId);
   const totalSaleEstimation = selectedProductForSale && !saleForm.isGift ? (selectedProductForSale.price * parseInt(saleForm.quantity || 0)).toFixed(2) : '0.00';
 
-  const regenerateSaleReceipt = (s) => {
+  const regenerateSaleReceipt = async (s) => {
+    // El recibo completo (todos sus ítems) está en /receipts; si falla, se arma solo con esta venta.
+    if (s.receiptNumber) {
+      try { const { data } = await api.get(`/receipts/by-number/${s.receiptNumber}`); printReceipt(data); return; } catch { /* recibo antiguo */ }
+    }
     const items = [];
     items.push({
       quantity: s.quantity,
@@ -517,6 +524,9 @@ export default function Tienda() {
                 </select>
                 <button onClick={() => { setSaleForm(initialSale); setShowSaleModal(true); }} className="btn btn-success">
                   <ShoppingBag size={16} /> Registrar Venta
+                </button>
+                <button onClick={() => setShowCheckout(true)} className="btn btn-primary flex items-center gap-2" title="Varios productos y mensualidades en un solo recibo">
+                  <ShoppingCart size={16} /> Cobro con varios ítems
                 </button>
               </div>
             </div>
@@ -869,6 +879,8 @@ export default function Tienda() {
           </div>
         </div>
       )}
+      <div className="mt-4"><MyCashPanel refreshKey={sales.length} /></div>
+      <CheckoutModal open={showCheckout} onClose={() => setShowCheckout(false)} onDone={() => fetchData()} />
     </AppLayout>
   );
 }

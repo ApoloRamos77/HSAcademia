@@ -571,6 +571,87 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.ToTable("audit_logs", (string)null);
                 });
 
+            modelBuilder.Entity("HSAcademia.Domain.Entities.CashHandover", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AcademyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("academy_id");
+
+                    b.Property<string>("CollectorName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("collector_name");
+
+                    b.Property<Guid>("CollectorUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("collector_user_id");
+
+                    b.Property<DateTime>("DeclaredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("declared_at");
+
+                    b.Property<decimal>("DeclaredCash")
+                        .HasColumnType("numeric(10,2)")
+                        .HasColumnName("declared_cash");
+
+                    b.Property<decimal>("DigitalTotal")
+                        .HasColumnType("numeric(10,2)")
+                        .HasColumnName("digital_total");
+
+                    b.Property<decimal>("ExpectedCash")
+                        .HasColumnType("numeric(10,2)")
+                        .HasColumnName("expected_cash");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("notes");
+
+                    b.Property<int>("ReceiptsCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("receipts_count");
+
+                    b.Property<DateTime?>("ReceivedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("received_at");
+
+                    b.Property<string>("ReceivedByName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("received_by_name");
+
+                    b.Property<Guid?>("ReceivedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("received_by_user_id");
+
+                    b.Property<decimal?>("ReceivedCash")
+                        .HasColumnType("numeric(10,2)")
+                        .HasColumnName("received_cash");
+
+                    b.Property<string>("ReceivedNotes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("received_notes");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AcademyId", "Status");
+
+                    b.HasIndex("AcademyId", "CollectorUserId", "DeclaredAt");
+
+                    b.ToTable("cash_handovers", (string)null);
+                });
+
             modelBuilder.Entity("HSAcademia.Domain.Entities.Category", b =>
                 {
                     b.Property<Guid>("Id")
@@ -638,6 +719,87 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.HasIndex("HeadquarterId");
 
                     b.ToTable("categories", (string)null);
+                });
+
+            modelBuilder.Entity("HSAcademia.Domain.Entities.DiscountRule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AcademyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("academy_id");
+
+                    b.Property<Guid?>("CategoryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("category_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<int?>("DaysBeforeDue")
+                        .HasColumnType("integer")
+                        .HasColumnName("days_before_due");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("description");
+
+                    b.Property<int?>("FromSiblingNumber")
+                        .HasColumnType("integer")
+                        .HasColumnName("from_sibling_number");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_deleted");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.Property<int>("Scope")
+                        .HasColumnType("integer")
+                        .HasColumnName("scope");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<DateTime?>("ValidFrom")
+                        .HasColumnType("date")
+                        .HasColumnName("valid_from");
+
+                    b.Property<DateTime?>("ValidTo")
+                        .HasColumnType("date")
+                        .HasColumnName("valid_to");
+
+                    b.Property<decimal>("Value")
+                        .HasColumnType("numeric(10,2)")
+                        .HasColumnName("value");
+
+                    b.Property<int>("ValueType")
+                        .HasColumnType("integer")
+                        .HasColumnName("value_type");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AcademyId", "Kind");
+
+                    b.ToTable("discount_rules", (string)null);
                 });
 
             modelBuilder.Entity("HSAcademia.Domain.Entities.Event", b =>
@@ -1409,6 +1571,11 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.Property<decimal>("DiscountAmount")
                         .HasColumnType("numeric");
 
+                    b.Property<string>("DiscountDetail")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("discount_detail");
+
                     b.Property<DateTime>("DueDate")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("due_date");
@@ -1749,6 +1916,221 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.HasIndex("StudentId");
 
                     b.ToTable("product_sales", (string)null);
+                });
+
+            modelBuilder.Entity("HSAcademia.Domain.Entities.Receipt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AcademyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("academy_id");
+
+                    b.Property<Guid?>("CashHandoverId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("cash_handover_id");
+
+                    b.Property<string>("Channel")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("channel");
+
+                    b.Property<string>("ClientRequestId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("client_request_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CreatedByName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("created_by_name");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<decimal>("DiscountTotal")
+                        .HasColumnType("numeric(10,2)")
+                        .HasColumnName("discount_total");
+
+                    b.Property<Guid?>("GuardianId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("guardian_id");
+
+                    b.Property<DateTime>("IssuedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("issued_at");
+
+                    b.Property<int>("Method")
+                        .HasColumnType("integer")
+                        .HasColumnName("method");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("notes");
+
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("number");
+
+                    b.Property<string>("OperationNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("operation_number");
+
+                    b.Property<string>("PayerDocument")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("payer_document");
+
+                    b.Property<string>("PayerName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("payer_name");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer")
+                        .HasColumnName("status");
+
+                    b.Property<decimal>("Subtotal")
+                        .HasColumnType("numeric(10,2)")
+                        .HasColumnName("subtotal");
+
+                    b.Property<decimal>("Total")
+                        .HasColumnType("numeric(10,2)")
+                        .HasColumnName("total");
+
+                    b.Property<string>("VoidReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("void_reason");
+
+                    b.Property<DateTime?>("VoidedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("voided_at");
+
+                    b.Property<Guid?>("VoidedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("voided_by_user_id");
+
+                    b.Property<string>("VoucherUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("voucher_url");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CashHandoverId");
+
+                    b.HasIndex("AcademyId", "ClientRequestId")
+                        .IsUnique()
+                        .HasFilter("client_request_id IS NOT NULL");
+
+                    b.HasIndex("AcademyId", "IssuedAt");
+
+                    b.HasIndex("AcademyId", "Number")
+                        .IsUnique();
+
+                    b.HasIndex("AcademyId", "CreatedByUserId", "CashHandoverId");
+
+                    b.ToTable("receipts", (string)null);
+                });
+
+            modelBuilder.Entity("HSAcademia.Domain.Entities.ReceiptLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("description");
+
+                    b.Property<decimal>("Discount")
+                        .HasColumnType("numeric(10,2)")
+                        .HasColumnName("discount");
+
+                    b.Property<string>("DiscountLabel")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("discount_label");
+
+                    b.Property<Guid?>("PaymentInstallmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("payment_installment_id");
+
+                    b.Property<Guid?>("PaymentRecordId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("payment_record_id");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.Property<Guid?>("ProductId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_id");
+
+                    b.Property<Guid?>("ProductSaleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_sale_id");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("integer")
+                        .HasColumnName("quantity");
+
+                    b.Property<Guid>("ReceiptId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("receipt_id");
+
+                    b.Property<Guid?>("StudentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("student_id");
+
+                    b.Property<string>("StudentName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("student_name");
+
+                    b.Property<decimal>("Total")
+                        .HasColumnType("numeric(10,2)")
+                        .HasColumnName("total");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("integer")
+                        .HasColumnName("type");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasColumnType("numeric(10,2)")
+                        .HasColumnName("unit_price");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PaymentInstallmentId");
+
+                    b.HasIndex("PaymentRecordId");
+
+                    b.HasIndex("ProductSaleId");
+
+                    b.HasIndex("ReceiptId");
+
+                    b.HasIndex("StudentId");
+
+                    b.ToTable("receipt_lines", (string)null);
                 });
 
             modelBuilder.Entity("HSAcademia.Domain.Entities.StaffAttendance", b =>
@@ -2509,6 +2891,16 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("HSAcademia.Domain.Entities.CashHandover", b =>
+                {
+                    b.HasOne("HSAcademia.Domain.Entities.Academy", null)
+                        .WithMany()
+                        .HasForeignKey("AcademyId")
+                        .HasPrincipalKey("AcademyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("HSAcademia.Domain.Entities.Category", b =>
                 {
                     b.HasOne("HSAcademia.Domain.Entities.Academy", "Academy")
@@ -2527,6 +2919,16 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.Navigation("Academy");
 
                     b.Navigation("Headquarter");
+                });
+
+            modelBuilder.Entity("HSAcademia.Domain.Entities.DiscountRule", b =>
+                {
+                    b.HasOne("HSAcademia.Domain.Entities.Academy", null)
+                        .WithMany()
+                        .HasForeignKey("AcademyId")
+                        .HasPrincipalKey("AcademyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("HSAcademia.Domain.Entities.Event", b =>
@@ -2864,6 +3266,34 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.Navigation("Student");
                 });
 
+            modelBuilder.Entity("HSAcademia.Domain.Entities.Receipt", b =>
+                {
+                    b.HasOne("HSAcademia.Domain.Entities.Academy", null)
+                        .WithMany()
+                        .HasForeignKey("AcademyId")
+                        .HasPrincipalKey("AcademyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("HSAcademia.Domain.Entities.CashHandover", "CashHandover")
+                        .WithMany("Receipts")
+                        .HasForeignKey("CashHandoverId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("CashHandover");
+                });
+
+            modelBuilder.Entity("HSAcademia.Domain.Entities.ReceiptLine", b =>
+                {
+                    b.HasOne("HSAcademia.Domain.Entities.Receipt", "Receipt")
+                        .WithMany("Lines")
+                        .HasForeignKey("ReceiptId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Receipt");
+                });
+
             modelBuilder.Entity("HSAcademia.Domain.Entities.StaffAttendance", b =>
                 {
                     b.HasOne("HSAcademia.Domain.Entities.Academy", "Academy")
@@ -3045,6 +3475,11 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.Navigation("Users");
                 });
 
+            modelBuilder.Entity("HSAcademia.Domain.Entities.CashHandover", b =>
+                {
+                    b.Navigation("Receipts");
+                });
+
             modelBuilder.Entity("HSAcademia.Domain.Entities.Headquarter", b =>
                 {
                     b.Navigation("Categories");
@@ -3060,6 +3495,11 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("HSAcademia.Domain.Entities.PettyCash", b =>
                 {
                     b.Navigation("Transactions");
+                });
+
+            modelBuilder.Entity("HSAcademia.Domain.Entities.Receipt", b =>
+                {
+                    b.Navigation("Lines");
                 });
 
             modelBuilder.Entity("HSAcademia.Domain.Entities.Student", b =>

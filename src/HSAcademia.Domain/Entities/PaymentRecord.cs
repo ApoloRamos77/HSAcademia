@@ -51,6 +51,8 @@ public class PaymentRecord
 
     /// <summary>Amount that was discounted or not charged (loss/gift/scholarship).</summary>
     public decimal DiscountAmount { get; set; } = 0m;
+    /// <summary>Detalle de los descuentos aplicados al generar (ej. "Beca 50% · Hermanos 10%").</summary>
+    public string? DiscountDetail { get; set; }
 
     public DateTime DueDate { get; set; }
 

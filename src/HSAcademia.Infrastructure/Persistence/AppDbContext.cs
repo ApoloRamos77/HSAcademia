@@ -34,6 +34,10 @@ public class AppDbContext : DbContext
     public DbSet<Announcement> Announcements => Set<Announcement>();
     public DbSet<FinancialPeriod> FinancialPeriods => Set<FinancialPeriod>();
     public DbSet<PaymentProof> PaymentProofs => Set<PaymentProof>();
+    public DbSet<Receipt> Receipts => Set<Receipt>();
+    public DbSet<ReceiptLine> ReceiptLines => Set<ReceiptLine>();
+    public DbSet<DiscountRule> DiscountRules => Set<DiscountRule>();
+    public DbSet<CashHandover> CashHandovers => Set<CashHandover>();
     public DbSet<StudentEvaluation> StudentEvaluations => Set<StudentEvaluation>();
     public DbSet<MatchPlayerStat> MatchPlayerStats => Set<MatchPlayerStat>();
     public DbSet<Expense> Expenses => Set<Expense>();
@@ -473,6 +477,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.ProratedDaysCharged).HasColumnName("prorated_days_charged");
             entity.Property(e => e.ExclusionType).HasColumnName("exclusion_type").HasConversion<int>().HasDefaultValue(ExclusionType.None);
             entity.Property(e => e.ExclusionNote).HasColumnName("exclusion_note").HasMaxLength(500);
+            entity.Property(e => e.DiscountDetail).HasColumnName("discount_detail").HasMaxLength(200);
 
             entity.HasMany(e => e.Installments)
                   .WithOne(i => i.PaymentRecord)
@@ -980,6 +985,126 @@ public class AppDbContext : DbContext
             entity.HasOne(e => e.SubmittedBy).WithMany().HasForeignKey(e => e.SubmittedByUserId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<Academy>().WithMany().HasForeignKey(e => e.AcademyId).HasPrincipalKey(a => a.AcademyId).OnDelete(DeleteBehavior.Cascade);
             entity.HasQueryFilter(e => !e.PaymentRecord.IsDeleted);
+        });
+
+        // ----------------------------------------------------------------
+        // Comprobantes con varios ítems (cobro familiar + tienda)
+        // ----------------------------------------------------------------
+        modelBuilder.Entity<Receipt>(entity =>
+        {
+            entity.ToTable("receipts");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.AcademyId).HasColumnName("academy_id").IsRequired();
+            entity.Property(e => e.Number).HasColumnName("number").HasMaxLength(20).IsRequired();
+            entity.Property(e => e.IssuedAt).HasColumnName("issued_at");
+            entity.Property(e => e.PayerName).HasColumnName("payer_name").HasMaxLength(200).IsRequired();
+            entity.Property(e => e.PayerDocument).HasColumnName("payer_document").HasMaxLength(20);
+            entity.Property(e => e.GuardianId).HasColumnName("guardian_id");
+            entity.Property(e => e.Method).HasColumnName("method").HasConversion<int>();
+            entity.Property(e => e.OperationNumber).HasColumnName("operation_number").HasMaxLength(100);
+            entity.Property(e => e.VoucherUrl).HasColumnName("voucher_url").HasMaxLength(500);
+            entity.Property(e => e.Notes).HasColumnName("notes").HasMaxLength(500);
+            entity.Property(e => e.Subtotal).HasColumnName("subtotal").HasColumnType("numeric(10,2)");
+            entity.Property(e => e.DiscountTotal).HasColumnName("discount_total").HasColumnType("numeric(10,2)");
+            entity.Property(e => e.Total).HasColumnName("total").HasColumnType("numeric(10,2)");
+            entity.Property(e => e.Channel).HasColumnName("channel").HasMaxLength(30);
+            entity.Property(e => e.ClientRequestId).HasColumnName("client_request_id").HasMaxLength(64);
+            entity.Property(e => e.CashHandoverId).HasColumnName("cash_handover_id");
+            entity.HasIndex(e => new { e.AcademyId, e.CreatedByUserId, e.CashHandoverId });
+            entity.HasOne(e => e.CashHandover).WithMany(h => h.Receipts).HasForeignKey(e => e.CashHandoverId).OnDelete(DeleteBehavior.SetNull);
+            entity.HasIndex(e => new { e.AcademyId, e.ClientRequestId }).IsUnique().HasFilter("client_request_id IS NOT NULL");
+            entity.Property(e => e.CreatedByUserId).HasColumnName("created_by_user_id");
+            entity.Property(e => e.CreatedByName).HasColumnName("created_by_name").HasMaxLength(200);
+            entity.Property(e => e.Status).HasColumnName("status").HasConversion<int>();
+            entity.Property(e => e.VoidedAt).HasColumnName("voided_at");
+            entity.Property(e => e.VoidedByUserId).HasColumnName("voided_by_user_id");
+            entity.Property(e => e.VoidReason).HasColumnName("void_reason").HasMaxLength(500);
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.HasIndex(e => new { e.AcademyId, e.Number }).IsUnique();
+            entity.HasIndex(e => new { e.AcademyId, e.IssuedAt });
+            entity.HasOne<Academy>().WithMany().HasForeignKey(e => e.AcademyId).HasPrincipalKey(a => a.AcademyId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(e => e.Lines).WithOne(l => l.Receipt).HasForeignKey(l => l.ReceiptId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<DiscountRule>(entity =>
+        {
+            entity.ToTable("discount_rules");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.AcademyId).HasColumnName("academy_id").IsRequired();
+            entity.Property(e => e.Name).HasColumnName("name").HasMaxLength(100).IsRequired();
+            entity.Property(e => e.Description).HasColumnName("description").HasMaxLength(300);
+            entity.Property(e => e.Kind).HasColumnName("kind").HasConversion<int>();
+            entity.Property(e => e.ValueType).HasColumnName("value_type").HasConversion<int>();
+            entity.Property(e => e.Value).HasColumnName("value").HasColumnType("numeric(10,2)");
+            entity.Property(e => e.Scope).HasColumnName("scope").HasConversion<int>();
+            entity.Property(e => e.FromSiblingNumber).HasColumnName("from_sibling_number");
+            entity.Property(e => e.DaysBeforeDue).HasColumnName("days_before_due");
+            entity.Property(e => e.ValidFrom).HasColumnName("valid_from").HasColumnType("date");
+            entity.Property(e => e.ValidTo).HasColumnName("valid_to").HasColumnType("date");
+            entity.Property(e => e.CategoryId).HasColumnName("category_id");
+            entity.Property(e => e.IsActive).HasColumnName("is_active");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(e => e.IsDeleted).HasColumnName("is_deleted");
+            entity.Ignore(e => e.Label);
+            entity.Ignore(e => e.AppliesToMonthlyFees);
+            entity.Ignore(e => e.AppliesToProducts);
+            entity.HasIndex(e => new { e.AcademyId, e.Kind });
+            entity.HasOne<Academy>().WithMany().HasForeignKey(e => e.AcademyId).HasPrincipalKey(a => a.AcademyId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasQueryFilter(e => !e.IsDeleted);
+        });
+
+        modelBuilder.Entity<CashHandover>(entity =>
+        {
+            entity.ToTable("cash_handovers");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.AcademyId).HasColumnName("academy_id").IsRequired();
+            entity.Property(e => e.CollectorUserId).HasColumnName("collector_user_id").IsRequired();
+            entity.Property(e => e.CollectorName).HasColumnName("collector_name").HasMaxLength(200);
+            entity.Property(e => e.DeclaredAt).HasColumnName("declared_at");
+            entity.Property(e => e.ReceiptsCount).HasColumnName("receipts_count");
+            entity.Property(e => e.ExpectedCash).HasColumnName("expected_cash").HasColumnType("numeric(10,2)");
+            entity.Property(e => e.DigitalTotal).HasColumnName("digital_total").HasColumnType("numeric(10,2)");
+            entity.Property(e => e.DeclaredCash).HasColumnName("declared_cash").HasColumnType("numeric(10,2)");
+            entity.Property(e => e.Notes).HasColumnName("notes").HasMaxLength(500);
+            entity.Property(e => e.Status).HasColumnName("status").HasConversion<int>();
+            entity.Property(e => e.ReceivedByUserId).HasColumnName("received_by_user_id");
+            entity.Property(e => e.ReceivedByName).HasColumnName("received_by_name").HasMaxLength(200);
+            entity.Property(e => e.ReceivedAt).HasColumnName("received_at");
+            entity.Property(e => e.ReceivedCash).HasColumnName("received_cash").HasColumnType("numeric(10,2)");
+            entity.Property(e => e.ReceivedNotes).HasColumnName("received_notes").HasMaxLength(500);
+            entity.HasIndex(e => new { e.AcademyId, e.Status });
+            entity.HasIndex(e => new { e.AcademyId, e.CollectorUserId, e.DeclaredAt });
+            entity.HasOne<Academy>().WithMany().HasForeignKey(e => e.AcademyId).HasPrincipalKey(a => a.AcademyId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ReceiptLine>(entity =>
+        {
+            entity.ToTable("receipt_lines");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.ReceiptId).HasColumnName("receipt_id").IsRequired();
+            entity.Property(e => e.Position).HasColumnName("position");
+            entity.Property(e => e.Type).HasColumnName("type").HasConversion<int>();
+            entity.Property(e => e.Description).HasColumnName("description").HasMaxLength(300).IsRequired();
+            entity.Property(e => e.StudentId).HasColumnName("student_id");
+            entity.Property(e => e.StudentName).HasColumnName("student_name").HasMaxLength(200);
+            entity.Property(e => e.Quantity).HasColumnName("quantity");
+            entity.Property(e => e.UnitPrice).HasColumnName("unit_price").HasColumnType("numeric(10,2)");
+            entity.Property(e => e.Discount).HasColumnName("discount").HasColumnType("numeric(10,2)");
+            entity.Property(e => e.DiscountLabel).HasColumnName("discount_label").HasMaxLength(150);
+            entity.Property(e => e.Total).HasColumnName("total").HasColumnType("numeric(10,2)");
+            entity.Property(e => e.PaymentRecordId).HasColumnName("payment_record_id");
+            entity.Property(e => e.PaymentInstallmentId).HasColumnName("payment_installment_id");
+            entity.Property(e => e.ProductSaleId).HasColumnName("product_sale_id");
+            entity.Property(e => e.ProductId).HasColumnName("product_id");
+            entity.HasIndex(e => e.PaymentRecordId);
+            entity.HasIndex(e => e.PaymentInstallmentId);
+            entity.HasIndex(e => e.ProductSaleId);
+            entity.HasIndex(e => e.StudentId);
         });
 
         modelBuilder.Entity<StudentEvaluation>(entity =>

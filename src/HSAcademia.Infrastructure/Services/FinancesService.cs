@@ -15,9 +15,11 @@ public class FinancesService
     private readonly AppDbContext _context;
     private readonly FinancialPeriodGuard _periods;
     private readonly AuditService _audit;
+    private readonly ReceiptRecorder? _receipts;
 
-    public FinancesService(AppDbContext context, FinancialPeriodGuard periods, AuditService audit)
+    public FinancesService(AppDbContext context, FinancialPeriodGuard periods, AuditService audit, ReceiptRecorder? receipts = null)
     {
+        _receipts = receipts;
         _context = context;
         _periods = periods;
         _audit = audit;
@@ -164,6 +166,51 @@ public class FinancesService
         return (amount, 0m);
     }
 
+    /// <summary>
+    /// Beca/invitado + descuento por hermanos. Devuelve (montoACobrar, descuentoTotal, detalle legible).
+    /// El descuento por hermanos se calcula sobre lo que queda después de la beca.
+    /// </summary>
+    private static (decimal Charged, decimal Discount, string? Detail) ApplyAllBenefits(
+        Student student, decimal amount, DiscountRule? siblingRule, int? position)
+    {
+        var (charged, discount) = ApplyBenefits(student, amount);
+        var parts = new List<string>();
+        if (student.IsGuest) parts.Add("Invitado");
+        else if (student.IsScholarship) parts.Add("Beca 100%");
+        else if (student.ScholarshipPercentage is > 0) parts.Add($"Beca {student.ScholarshipPercentage:0.##}%");
+
+        if (siblingRule != null && charged > 0)
+        {
+            var d = siblingRule.DiscountFor(charged);
+            if (d > 0)
+            {
+                charged -= d;
+                discount += d;
+                parts.Add($"{siblingRule.Label} ({position}.º hijo)");
+            }
+        }
+        return (charged, discount, parts.Count > 0 ? string.Join(" · ", parts) : null);
+    }
+
+    private static decimal FeeOf(Student s) => s.PreferentialFee ?? s.Category?.MonthlyFee ?? 0m;
+
+    private Task<List<DiscountRule>> SiblingRulesAsync(Guid academyId) =>
+        _context.DiscountRules.Where(r => r.AcademyId == academyId && r.Kind == DiscountKind.Sibling && r.IsActive).ToListAsync();
+
+    /// <summary>Regla de hermanos aplicable a un alumno para un periodo (consulta a sus hermanos).</summary>
+    private async Task<(DiscountRule? Rule, int? Position)> SiblingRuleForAsync(Guid academyId, Student student, int year, int month)
+    {
+        if (!student.GuardianId.HasValue) return (null, null);
+        var rules = await SiblingRulesAsync(academyId);
+        if (rules.Count == 0) return (null, null);
+        var family = await _context.Students.Include(s => s.Category)
+            .Where(s => s.AcademyId == academyId && s.GuardianId == student.GuardianId)
+            .ToListAsync();
+        var positions = DiscountService.SiblingPositions(family, FeeOf);
+        if (!positions.TryGetValue(student.Id, out var pos)) return (null, null);
+        return (DiscountService.SiblingRuleFor(rules, student, pos, new DateTime(year, month, 1)), pos);
+    }
+
     // ─────────────────────────────────────────────────────────────
     // Motor de Generación de Deudas (prorrateo por sesiones)
     // ─────────────────────────────────────────────────────────────
@@ -192,6 +239,11 @@ public class FinancesService
             .ToListAsync();
 
         int generatedCount = 0, replacedCount = 0, cleanedCount = 0;
+
+        // Descuento por hermanos: posición de cada alumno dentro de su familia (mismo apoderado).
+        var siblingRules = await SiblingRulesAsync(academyId);
+        var siblingPositions = siblingRules.Count > 0 ? DiscountService.SiblingPositions(students, FeeOf) : new Dictionary<Guid, int>();
+        var periodDate = new DateTime(year, month, 1);
 
         // ── STEP 1: Cleanup — soft-delete unpaid records that fall BEFORE ──
         //   each student's effective start month (PaymentStartDate ?? EnrollmentDate)
@@ -306,7 +358,9 @@ public class FinancesService
                 }
             }
 
-            var (amountToCharge, discountAmount) = ApplyBenefits(student, chargedAmount);
+            int? position = siblingPositions.TryGetValue(student.Id, out var pos) ? pos : null;
+            var siblingRule = position.HasValue ? DiscountService.SiblingRuleFor(siblingRules, student, position.Value, periodDate) : null;
+            var (amountToCharge, discountAmount, discountDetail) = ApplyAllBenefits(student, chargedAmount, siblingRule, position);
             chargedAmount = amountToCharge;
 
             bool hasPartialPayments = existingDebt != null && existingDebt.Installments.Any();
@@ -316,6 +370,7 @@ public class FinancesService
                 // Solo se actualiza el total; lo ya abonado se conserva.
                 existingDebt!.Amount              = chargedAmount;
                 existingDebt.DiscountAmount       = discountAmount;
+                existingDebt.DiscountDetail       = discountDetail;
                 existingDebt.DueDate              = dueDate;
                 existingDebt.PeriodYear           = year;
                 existingDebt.PeriodMonth          = month;
@@ -359,6 +414,7 @@ public class FinancesService
                     Amount              = chargedAmount,
                     AmountPaid          = 0m,
                     DiscountAmount      = discountAmount,
+                    DiscountDetail      = discountDetail,
                     DueDate             = dueDate,
                     PeriodYear          = year,
                     PeriodMonth         = month,
@@ -413,7 +469,8 @@ public class FinancesService
         var fullAmount = student.PreferentialFee ?? student.Category?.MonthlyFee ?? 0m;
         if (fullAmount <= 0) throw new Exception("El alumno no tiene tarifa configurada.");
 
-        var (amount, discountAmount) = ApplyBenefits(student, fullAmount);
+        var (siblingRule, position) = await SiblingRuleForAsync(academyId, student, year, month);
+        var (amount, discountAmount, discountDetail) = ApplyAllBenefits(student, fullAmount, siblingRule, position);
 
         var record = new PaymentRecord
         {
@@ -423,6 +480,7 @@ public class FinancesService
             Amount              = amount,
             AmountPaid          = 0m,
             DiscountAmount      = discountAmount,
+            DiscountDetail      = discountDetail,
             DueDate             = DueDateFor(year, month, config.DefaultPaymentDay),
             PeriodYear          = year,
             PeriodMonth         = month,
@@ -519,6 +577,7 @@ public class FinancesService
         {
             var record = await _context.PaymentRecords
                 .Include(p => p.Student).ThenInclude(s => s.Category)
+                .Include(p => p.Student).ThenInclude(s => s.Guardian)
                 .Include(p => p.Installments)
                 .FirstOrDefaultAsync(p => p.Id == dto.PaymentRecordId && p.AcademyId == academyId)
                 ?? throw new Exception("Registro de pago no encontrado.");
@@ -553,6 +612,26 @@ public class FinancesService
                 ReceiptNumber   = receiptNum
             };
             _context.PaymentInstallments.Add(installment);
+
+            // Cabecera del comprobante (un ítem): permite reimprimirlo y anularlo como cualquier recibo.
+            if (_receipts != null)
+            {
+                var (payer, document, guardianId) = ReceiptRecorder.PayerOf(record.Student);
+                var receipt = await _receipts.CreateAsync(academyId, receiptNum, installment.PaidAt, payer, document, guardianId,
+                    method, dto.OperationNumber, dto.VoucherUrl, dto.Notes, dto.Channel ?? "web");
+                ReceiptRecorder.AddLine(receipt, new ReceiptLine
+                {
+                    Type = ReceiptLineType.Debt,
+                    Description = record.Description,
+                    StudentId = record.StudentId,
+                    StudentName = $"{record.Student.FirstName} {record.Student.LastName}".Trim(),
+                    Quantity = 1,
+                    UnitPrice = dto.AmountPaid,
+                    Total = dto.AmountPaid,
+                    PaymentRecordId = record.Id,
+                    PaymentInstallmentId = installment.Id
+                });
+            }
 
             record.AmountPaid += dto.AmountPaid;
             if (record.AmountPaid >= record.Amount - 0.01m)
@@ -652,9 +731,11 @@ public class FinancesService
                 record.ProratedDaysCharged = null;
             }
 
-            var (charge, discount) = ApplyBenefits(student, record.Amount);
+            var (siblingRule, position) = await SiblingRuleForAsync(academyId, student, periodYear, periodMonth);
+            var (charge, discount, detail) = ApplyAllBenefits(student, record.Amount, siblingRule, position);
             record.Amount = charge;
             record.DiscountAmount = discount;
+            record.DiscountDetail = detail;
         }
 
         if (record.AmountPaid > record.Amount)
@@ -730,7 +811,7 @@ public class FinancesService
     // ─────────────────────────────────────────────────────────────
     // Mapper
     // ─────────────────────────────────────────────────────────────
-    private static PaymentRecordDto MapToDto(PaymentRecord p)
+    internal static PaymentRecordDto MapToDto(PaymentRecord p)
     {
         var today = AcademyClock.Today;
         string status;
@@ -756,6 +837,7 @@ public class FinancesService
             Amount       = p.Amount,
             AmountPaid   = p.AmountPaid,
             DiscountAmount = p.DiscountAmount,
+            DiscountDetail = p.DiscountDetail,
             DueDate      = p.DueDate,
             IsPaid       = p.IsPaid,
             PaidDate     = p.PaidDate,

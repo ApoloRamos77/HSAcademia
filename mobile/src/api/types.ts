@@ -79,6 +79,8 @@ export interface Debt {
   isPaid: boolean;
   status: 'Pagado' | 'Vencido' | 'En Curso';
   daysOverdue: number;
+  discountAmount?: number;
+  discountDetail?: string | null;
   installments: { id: string; amountPaid: number; paidAt: string; method: string; receiptNumber?: string | null }[];
 }
 
@@ -255,4 +257,55 @@ export interface Dashboard {
   upcomingEvents: { id: string; title: string; type: number; startTime: string; categories?: string | null; opponent?: string | null }[];
   birthdays: { studentId: string; name: string; category: string; date: string; turnsAge: number; isToday: boolean }[];
   alerts: { level: 'danger' | 'warning' | 'info'; message: string }[];
+}
+
+export interface Product { id: string; name: string; price: number; stock: number; isActive: boolean; productCategory?: string }
+
+/** Cuenta familiar: apoderado, hermanos y todo lo pendiente (GET /receipts/family/{studentId}). */
+export interface FamilyAccount {
+  guardianId?: string | null;
+  payerName: string;
+  payerDocument?: string | null;
+  payerPhone?: string | null;
+  students: { studentId: string; name: string; categoryName: string; isActive: boolean }[];
+  pendingDebts: Debt[];
+  totalPending: number;
+}
+
+export interface Receipt {
+  id?: string | null;
+  number: string;
+  issuedAt: string;
+  payerName: string;
+  method: string;
+  operationNumber?: string | null;
+  notes?: string | null;
+  subtotal: number;
+  discountTotal: number;
+  total: number;
+  status: 'Issued' | 'Voided';
+  isPreview?: boolean;
+  cashHandoverId?: string | null;
+  lines: {
+    type: 'Debt' | 'Product'; description: string; studentId?: string | null; studentName?: string | null; quantity: number;
+    unitPrice: number; discount: number; discountLabel?: string | null; total: number; paymentRecordId?: string | null; productId?: string | null;
+  }[];
+}
+
+export interface DiscountRule {
+  id: string; name: string; kind: 'Sibling' | 'EarlyPayment' | 'Promotion'; valueType: 'Percent' | 'Amount'; value: number;
+  scope: 'MonthlyFees' | 'Products' | 'All'; isActive: boolean; isCurrentlyValid: boolean; label: string; categoryName?: string | null;
+}
+
+export interface CashHandover {
+  id: string; collectorName: string; declaredAt: string; receiptsCount: number; expectedCash: number; digitalTotal: number;
+  declaredCash: number; declaredDifference: number; notes?: string | null; status: 'Pending' | 'Received';
+  receivedByName?: string | null; receivedAt?: string | null; receivedCash?: number | null; receivedDifference?: number | null; receivedNotes?: string | null;
+}
+
+export interface MyCash {
+  collectorName: string; pendingReceipts: number; pendingCash: number; pendingDigital: number;
+  byMethod: { method: string; count: number; total: number }[];
+  receipts: Receipt[];
+  recentHandovers: CashHandover[];
 }
