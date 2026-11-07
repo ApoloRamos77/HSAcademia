@@ -192,6 +192,12 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasDefaultValue(5)
                         .HasColumnName("default_payment_day");
 
+                    b.Property<decimal>("LateFeeAmount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("numeric(10,2)")
+                        .HasDefaultValue(0m)
+                        .HasColumnName("late_fee_amount");
+
                     b.Property<DateTime>("UpdatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -1609,6 +1615,14 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasDefaultValue(false)
                         .HasColumnName("is_prorated");
 
+                    b.Property<decimal?>("LateFeeAmount")
+                        .HasColumnType("numeric(10,2)")
+                        .HasColumnName("late_fee_amount");
+
+                    b.Property<Guid?>("LateFeeRecordId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("late_fee_record_id");
+
                     b.Property<DateTime?>("PaidDate")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("paid_date");
@@ -1636,6 +1650,24 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.Property<int?>("ProratedTotalDays")
                         .HasColumnType("integer")
                         .HasColumnName("prorated_total_days");
+
+                    b.Property<string>("RegularizationNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("regularization_note");
+
+                    b.Property<DateTime?>("RegularizedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("regularized_at");
+
+                    b.Property<string>("RegularizedByName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("regularized_by_name");
+
+                    b.Property<Guid?>("RegularizedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("regularized_by_user_id");
 
                     b.Property<Guid>("StudentId")
                         .HasColumnType("uuid")

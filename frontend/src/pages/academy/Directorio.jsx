@@ -60,19 +60,9 @@ export default function Directorio() {
     }
   };
 
-  // Filtrar duplicados por nombre completo y luego aplicar los filtros de búsqueda y rol
-  const uniqueUsers = [];
-  const seenNames = new Set();
-
-  usuarios.forEach(u => {
-    const fullName = `${u.firstName} ${u.lastName}`.toLowerCase().trim();
-    if (!seenNames.has(fullName)) {
-      seenNames.add(fullName);
-      uniqueUsers.push(u);
-    }
-  });
-
-  const filtered = uniqueUsers.filter(u => {
+  // Cada cuenta se muestra aunque dos personas (o la misma persona con dos roles) tengan el mismo nombre:
+  // p. ej. una madre apoderada que además es administradora tiene dos cuentas distintas.
+  const filtered = usuarios.filter(u => {
     const matchesSearch = (u.firstName + ' ' + u.lastName).toLowerCase().includes(search.toLowerCase()) ||
                           (u.email || '').toLowerCase().includes(search.toLowerCase());
     const matchesRole = filtroRol === 'Todos' || u.systemRole === filtroRol;

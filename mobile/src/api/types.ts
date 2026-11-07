@@ -81,6 +81,14 @@ export interface Debt {
   daysOverdue: number;
   discountAmount?: number;
   discountDetail?: string | null;
+  /** 1 mensualidad, 2 producto, 5 mora… */
+  type?: number;
+  /** Mensualidad vencida sin regularizar: la familia debe acercarse a administración. */
+  requiresRegularization?: boolean;
+  regularizedAt?: string | null;
+  regularizedByName?: string | null;
+  regularizationNote?: string | null;
+  lateFeeAmount?: number | null;
   installments: { id: string; amountPaid: number; paidAt: string; method: string; receiptNumber?: string | null }[];
 }
 
@@ -91,6 +99,9 @@ export interface PaymentProof {
   paymentRecordId: string;
   debtDescription: string;
   debtPending: number;
+  /** Pagado después del vencimiento y sin regularizar: al aprobar se decide la mora. */
+  requiresRegularization?: boolean;
+  debtDueDate?: string;
   studentId: string;
   studentName: string;
   submittedByName: string;

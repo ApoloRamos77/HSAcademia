@@ -36,6 +36,11 @@ public class CheckoutDebtItemDto
     public decimal? Amount { get; set; }
     /// <summary>Descuento manual adicional en caja (rebaja el importe de la deuda).</summary>
     public decimal Discount { get; set; }
+    /// <summary>
+    /// Mensualidad vencida sin regularizar: decisión obligatoria (con o sin mora + observación).
+    /// Si se cobra mora, entra en el mismo recibo como un ítem aparte.
+    /// </summary>
+    public RegularizeDebtDto? Regularization { get; set; }
 }
 
 public class CheckoutProductItemDto

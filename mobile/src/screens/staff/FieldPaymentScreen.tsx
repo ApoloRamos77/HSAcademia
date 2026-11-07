@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, Share, Switch, Text, View } from 'react-native';
-import { Banknote, CheckCircle2, Minus, Plus, Receipt as ReceiptIcon, Share2, ShoppingBag, Tag, Trash2, Users, Wallet } from 'lucide-react-native';
+import { Banknote, ShieldAlert, CheckCircle2, Minus, Plus, Receipt as ReceiptIcon, Share2, ShoppingBag, Tag, Trash2, Users, Wallet } from 'lucide-react-native';
 import { api, errorMessage } from '../../api/client';
 import type { Debt, DiscountRule, FamilyAccount, Product, Receipt, StudentSummary } from '../../api/types';
 import { useAuth } from '../../auth/AuthContext';
@@ -20,7 +20,10 @@ const methodLabel = (m: string) => METHODS.find(x => x.value === m)?.label ?? m;
 const newRequestId = () => `app-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 const num = (v: string) => { const n = Number(v.replace(',', '.')); return Number.isFinite(n) ? n : 0; };
 
-type DebtSel = { on: boolean; partial: boolean; amount: string };
+type Reg = { charge: boolean; amount: string; note: string };
+type DebtSel = { on: boolean; partial: boolean; amount: string; reg?: Reg };
+/** Decisión de mora por defecto: se propone la mora sugerida de la academia. */
+const makeReg = (fee: number): Reg => ({ charge: fee > 0, amount: fee > 0 ? fee.toFixed(2) : '', note: '' });
 type Line = { key: number; product: Product; studentId: string | null; quantity: number; isGift: boolean };
 
 /**
@@ -37,13 +40,14 @@ export default function FieldPaymentScreen({ route, navigation }: any) {
   useEffect(() => { navigation.setOptions({ title: 'Cobrar' }); }, [navigation]);
 
   const { data, loading, refreshing, refresh } = useApi(async () => {
-    const [family, products, promotions] = await Promise.all([
+    const [family, products, promotions, lateFee] = await Promise.all([
       api.get<FamilyAccount>(`/receipts/family/${student.id}`).then(r => r.data),
       canProducts ? api.get<Product[]>('/store/products').then(r => r.data.filter(p => p.isActive !== false)).catch(() => [] as Product[]) : Promise.resolve([] as Product[]),
       api.get<DiscountRule[]>('/discounts', { params: { active: true } })
         .then(r => r.data.filter(d => d.kind === 'Promotion' && d.isCurrentlyValid)).catch(() => [] as DiscountRule[]),
+      canDebts ? api.get<{ lateFeeAmount: number }>('/finances/config').then(r => Number(r.data.lateFeeAmount) || 0).catch(() => 0) : Promise.resolve(0),
     ]);
-    return { family, products, promotions };
+    return { family, products, promotions, lateFee };
   }, [student.id]);
 
   const [sel, setSel] = useState<Record<string, DebtSel>>({});
@@ -62,7 +66,6 @@ export default function FieldPaymentScreen({ route, navigation }: any) {
   const requestId = useRef(newRequestId());
   const lineKey = useRef(0);
   const previewSeq = useRef(0);
-
   // Al cargar: marca las deudas del alumno elegido; las de los hermanos quedan disponibles.
   useEffect(() => {
     if (!data) return;
@@ -70,13 +73,14 @@ export default function FieldPaymentScreen({ route, navigation }: any) {
     setSel(prev => {
       const next: Record<string, DebtSel> = {};
       data.family.pendingDebts.forEach(d => {
-        next[d.id] = prev[d.id] ?? { on: d.studentId === student.id, partial: false, amount: '' };
+        next[d.id] = prev[d.id] ?? { on: d.studentId === student.id, partial: false, amount: '', reg: d.requiresRegularization ? makeReg(data.lateFee) : undefined };
       });
       return next;
     });
   }, [data, student.id]);
 
   const debts = useMemo(() => data?.family.pendingDebts ?? [], [data]);
+  const newReg = () => makeReg(data?.lateFee ?? 0);
   const family = data?.family.students ?? [];
   const chosen = debts.filter(d => sel[d.id]?.on);
   const itemCount = chosen.length + lines.length;
@@ -90,7 +94,13 @@ export default function FieldPaymentScreen({ route, navigation }: any) {
     operationNumber: operation.trim() || null,
     notes: [notes.trim(), 'Cobro en campo (app)'].filter(Boolean).join(' · '),
     channel: 'app',
-    debts: chosen.map(d => ({ paymentRecordId: d.id, amount: sel[d.id].partial ? num(sel[d.id].amount) : null, discount: 0 })),
+    debts: chosen.map(d => {
+      const r = sel[d.id].reg;
+      return {
+        paymentRecordId: d.id, amount: sel[d.id].partial ? num(sel[d.id].amount) : null, discount: 0,
+        regularization: d.requiresRegularization ? { chargeLateFee: !!r?.charge, lateFeeAmount: r?.charge ? num(r.amount) : null, note: r?.note ?? '' } : null,
+      };
+    }),
     products: lines.map(l => ({ productId: l.product.id, studentId: l.studentId, quantity: l.quantity, discount: 0, isGift: l.isGift })),
   }), [data, payerName, promotionId, method, operation, notes, chosen, sel, lines]);
 
@@ -115,7 +125,8 @@ export default function FieldPaymentScreen({ route, navigation }: any) {
   }, [bodyKey, itemCount]);
 
   const lineOf = (debtId: string) => preview?.lines.find(l => l.paymentRecordId === debtId);
-  const toggle = (d: Debt) => setSel(p => ({ ...p, [d.id]: { ...p[d.id], on: !p[d.id]?.on } }));
+  const toggle = (d: Debt) => setSel(p => ({ ...p, [d.id]: { ...p[d.id], on: !p[d.id]?.on, reg: p[d.id]?.reg ?? (d.requiresRegularization ? newReg() : undefined) } }));
+  const setReg = (d: Debt, patch: Partial<Reg>) => setSel(p => ({ ...p, [d.id]: { ...p[d.id], reg: { ...(p[d.id]?.reg ?? newReg()), ...patch } } }));
   const setPartial = (d: Debt, partial: boolean) => setSel(p => ({ ...p, [d.id]: { ...p[d.id], partial, amount: '' } }));
   const setAmount = (d: Debt, v: string) => setSel(p => ({ ...p, [d.id]: { ...p[d.id], amount: v.replace(',', '.') } }));
   const addProduct = (product: Product) => {
@@ -132,6 +143,11 @@ export default function FieldPaymentScreen({ route, navigation }: any) {
   const validate = (): string | null => {
     if (itemCount === 0) return 'Elige al menos una deuda o un producto.';
     for (const d of chosen) {
+      if (d.requiresRegularization) {
+        const r = sel[d.id].reg;
+        if (!r || r.note.trim().length < 5) return `${d.description} (${d.studentName}) venció: escribe la observación de la regularización.`;
+        if (r.charge && num(r.amount) <= 0) return `${d.description} (${d.studentName}): indica el monto de la mora.`;
+      }
       if (!sel[d.id].partial) continue;
       const v = num(sel[d.id].amount);
       if (v <= 0) return `Ingresa el abono de ${d.description} (${d.studentName}).`;
@@ -250,12 +266,27 @@ export default function FieldPaymentScreen({ route, navigation }: any) {
                     <Text style={font.h3}>{d.studentName}</Text>
                     <Text style={font.small}>{d.description} · vence {shortDay(d.dueDate)}</Text>
                     {!!d.discountDetail && <Text style={[font.tiny, { color: colors.success }]}>{d.discountDetail}</Text>}
+                    {!!d.regularizedAt && <Text style={[font.tiny, { color: colors.warning }]}>Regularizado {d.lateFeeAmount ? `con mora ${money(d.lateFeeAmount)}` : 'sin mora'}</Text>}
                   </View>
                   <View style={{ alignItems: 'flex-end', gap: 4 }}>
                     <Text style={[font.h3, { color: colors.text }]}>{money(d.amountPending)}</Text>
                     <Badge tone={d.status === 'Vencido' ? 'danger' : 'warning'} text={d.status === 'Vencido' ? `Vencido ${d.daysOverdue}d` : 'En curso'} />
                   </View>
                 </Row>
+                {d.requiresRegularization && !on && (
+                  <Text style={[font.tiny, { color: colors.danger, marginTop: 6 }]}>Venció: al cobrarla decides si aplica mora.</Text>
+                )}
+                {d.requiresRegularization && on && (
+                  <View style={{ marginTop: spacing.sm, gap: spacing.sm, padding: spacing.sm, borderRadius: radius.md, backgroundColor: colors.warningBg }}>
+                    <Row><ShieldAlert color={colors.warning} size={16} /><Text style={[font.small, { color: colors.warning, fontWeight: '700', flex: 1 }]}>Pago fuera de fecha: ¿se cobra mora?</Text></Row>
+                    <Chips options={[{ value: 'fee', label: 'Cobrar mora' }, { value: 'none', label: 'Sin mora' }]}
+                      value={s.reg?.charge ? 'fee' : 'none'} onChange={v => setReg(d, { charge: v === 'fee' })} />
+                    {s.reg?.charge && <Input label="Mora (S/)" value={s.reg.amount} onChangeText={v => setReg(d, { amount: v.replace(',', '.') })} keyboardType="decimal-pad"
+                      hint="Se cobra en este mismo recibo como ítem aparte." />}
+                    <Input label="Observación *" value={s.reg?.note ?? ''} onChangeText={v => setReg(d, { note: v })} maxLength={500}
+                      placeholder={s.reg?.charge ? 'Ej. Pagó fuera de fecha sin aviso' : 'Ej. Se exonera por enfermedad'} />
+                  </View>
+                )}
                 {on && (
                   <View style={{ marginTop: spacing.sm, gap: spacing.sm }}>
                     {!!pv?.discountLabel && pv.discount > 0 && (

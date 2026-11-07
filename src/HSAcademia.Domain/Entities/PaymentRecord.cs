@@ -8,7 +8,9 @@ public enum PaymentType
     MonthlyFee = 1,
     ProductSale = 2,
     RegistrationFee = 3,
-    Other = 4
+    Other = 4,
+    /// <summary>Mora por pago fuera de fecha (la decide administración al regularizar).</summary>
+    LateFee = 5
 }
 
 /// <summary>How a payment (or partial payment) was received.</summary>
@@ -51,6 +53,18 @@ public class PaymentRecord
 
     /// <summary>Amount that was discounted or not charged (loss/gift/scholarship).</summary>
     public decimal DiscountAmount { get; set; } = 0m;
+
+    // ── Regularización de mensualidad vencida ───────────────────
+    // Pasado el vencimiento, la familia debe acercarse a administración: se decide cobrar mora o no,
+    // siempre con una observación. Hasta entonces no se puede cobrar ni enviar comprobante.
+    public DateTime? RegularizedAt { get; set; }
+    public Guid? RegularizedByUserId { get; set; }
+    public string? RegularizedByName { get; set; }
+    public string? RegularizationNote { get; set; }
+    /// <summary>Mora cobrada (null = se regularizó sin mora).</summary>
+    public decimal? LateFeeAmount { get; set; }
+    /// <summary>Deuda de mora generada al regularizar.</summary>
+    public Guid? LateFeeRecordId { get; set; }
     /// <summary>Detalle de los descuentos aplicados al generar (ej. "Beca 50% · Hermanos 10%").</summary>
     public string? DiscountDetail { get; set; }
 

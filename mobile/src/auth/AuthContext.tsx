@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import * as Keychain from 'react-native-keychain';
 import { api, setAuthToken, setUnauthorizedHandler } from '../api/client';
 import type { LoginResponse, PublicAcademy, Role } from '../api/types';
+import { clearPaymentReminders } from '../utils/reminders';
 
 /**
  * Sesión multi-academia.
@@ -50,6 +51,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [academy, setAcademy] = useState<PublicAcademy | null>(null);
 
   const logout = useCallback(async () => {
+    clearPaymentReminders();
     setAuthToken(null);
     setSession(null);
     await Keychain.resetGenericPassword({ service: SESSION_SERVICE }).catch(() => {});

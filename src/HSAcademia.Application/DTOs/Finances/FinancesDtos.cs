@@ -6,11 +6,22 @@ namespace HSAcademia.Application.DTOs.Finances;
 public class FinancialConfigDto
 {
     public int DefaultPaymentDay { get; set; }
+    public decimal LateFeeAmount { get; set; }
 }
 
 public class UpdateFinancialConfigDto
 {
     public int DefaultPaymentDay { get; set; }
+    /// <summary>Mora sugerida (opcional; si no se envía se conserva).</summary>
+    public decimal? LateFeeAmount { get; set; }
+}
+
+/// <summary>Regularización de una mensualidad vencida: con o sin mora, siempre con observación.</summary>
+public class RegularizeDebtDto
+{
+    public bool ChargeLateFee { get; set; }
+    public decimal? LateFeeAmount { get; set; }
+    public string Note { get; set; } = string.Empty;
 }
 
 /// <summary>Optional target period for the debt generation motor.</summary>
@@ -44,6 +55,12 @@ public class PaymentRecordDto
     public decimal AmountPaid { get; set; }
     public decimal DiscountAmount { get; set; }
     public string? DiscountDetail { get; set; }
+    /// <summary>Mensualidad vencida sin regularizar: la familia debe acercarse a administración.</summary>
+    public bool RequiresRegularization { get; set; }
+    public DateTime? RegularizedAt { get; set; }
+    public string? RegularizedByName { get; set; }
+    public string? RegularizationNote { get; set; }
+    public decimal? LateFeeAmount { get; set; }
     public decimal AmountPending => Amount - AmountPaid;
     public DateTime DueDate { get; set; }
     public bool IsPaid { get; set; }

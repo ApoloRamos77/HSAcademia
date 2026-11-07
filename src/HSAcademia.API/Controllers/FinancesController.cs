@@ -126,6 +126,23 @@ public class FinancesController : ControllerBase
         }
     }
 
+    /// <summary>Regulariza una mensualidad vencida: con o sin mora, con observación obligatoria.</summary>
+    [HttpPost("debts/{id:guid}/regularize")]
+    [Authorize(Roles = "AcademyAdmin,Staff")]
+    [RequirePermission(Permissions.ManageFinances)]
+    public async Task<IActionResult> Regularize(Guid id, [FromBody] RegularizeDebtDto dto)
+    {
+        var academyId = GetAcademyId();
+        if (academyId == Guid.Empty) return Unauthorized();
+        try
+        {
+            var userId = User.GetUserId();
+            return Ok(await _financesService.RegularizeAsync(academyId, id, userId == Guid.Empty ? null : userId, dto));
+        }
+        catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
+        catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
+    }
+
     // ── Upload Voucher ───────────────────────────────────────────────
     [HttpPost("upload-voucher")]
     [Authorize(Roles = "AcademyAdmin,Staff")]

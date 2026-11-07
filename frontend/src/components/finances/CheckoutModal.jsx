@@ -49,6 +49,7 @@ export default function CheckoutModal({ open, onClose, onDone, initialStudentId,
   // Clave por intento de cobro: si se reintenta (doble clic, red lenta) el servidor devuelve el mismo recibo.
   const [requestId, setRequestId] = useState('');
   const previewSeq = useRef(0);
+  const [lateFeeDefault, setLateFeeDefault] = useState(0);
 
   useEffect(() => {
     if (!open) return;
@@ -58,6 +59,7 @@ export default function CheckoutModal({ open, onClose, onDone, initialStudentId,
     setPayer({ name: '', document: '' });
     setPay({ method: 'Cash', operationNumber: '', voucherUrl: '', notes: '' });
     api.get('/students').then(r => setStudents(r.data)).catch(() => {});
+    if (canDebts) api.get('/finances/config').then(r => setLateFeeDefault(Number(r.data.lateFeeAmount) || 0)).catch(() => {});
     api.get('/discounts', { params: { active: true } })
       .then(r => setPromotions(r.data.filter(d => d.kind === 'Promotion' && d.isCurrentlyValid))).catch(() => {});
     if (canProducts) api.get('/store/products').then(r => setProducts(r.data.filter(p => p.isActive !== false))).catch(() => {});
@@ -114,6 +116,11 @@ export default function CheckoutModal({ open, onClose, onDone, initialStudentId,
       paymentRecordId: d.id,
       amount: debtSel[d.id].partial ? num(debtSel[d.id].amount) : null, // vacío = cancelar completa
       discount: num(debtSel[d.id].discount),
+      regularization: d.requiresRegularization ? {
+        chargeLateFee: !!debtSel[d.id].reg?.charge,
+        lateFeeAmount: debtSel[d.id].reg?.charge ? num(debtSel[d.id].reg?.amount) : null,
+        note: debtSel[d.id].reg?.note || '',
+      } : null,
     })),
     products: lines.filter(l => l.productId).map(l => ({
       productId: l.productId, studentId: l.studentId || null,
@@ -161,6 +168,8 @@ export default function CheckoutModal({ open, onClose, onDone, initialStudentId,
     e.preventDefault();
     if (itemCount === 0) { toast.error('Agrega al menos una deuda o un producto.'); return; }
     if (previewError) { toast.error(previewError); return; }
+    const missing = allDebts.find(d => d.requiresRegularization && debtSel[d.id]?.on && ((debtSel[d.id].reg?.note || '').trim().length < 5 || (debtSel[d.id].reg?.charge && !(num(debtSel[d.id].reg?.amount) > 0))));
+    if (missing) { toast.error(`${missing.description} (${missing.studentName}) venció: indica la mora (o sin mora) y la observación.`); return; }
     if (DIGITAL.includes(pay.method) && !pay.operationNumber.trim() && !pay.voucherUrl) { toast.error('Indica el número de operación del pago digital.'); return; }
     setSaving(true);
     try {
@@ -238,10 +247,29 @@ export default function CheckoutModal({ open, onClose, onDone, initialStudentId,
                         const pv = sel.on ? previewOf(d.id) : null;
                         return (
                           <tr key={d.id} className={sel.on ? 'bg-primary/5' : ''}>
-                            <td><input type="checkbox" checked={!!sel.on} onChange={e => setDebt(d.id, { on: e.target.checked })} /></td>
+                            <td><input type="checkbox" checked={!!sel.on} onChange={e => setDebt(d.id, {
+                              on: e.target.checked,
+                              ...(d.requiresRegularization && !sel.reg ? { reg: { charge: lateFeeDefault > 0, amount: lateFeeDefault > 0 ? lateFeeDefault.toFixed(2) : '', note: '' } } : {}),
+                            })} /></td>
                             <td className="text-sm font-medium">{d.studentName}</td>
                             <td className="text-sm">
                               {d.description}
+                              {d.requiresRegularization && !sel.on && <div className="text-xs text-danger">Venció: al cobrarla decide si aplica mora.</div>}
+                              {d.requiresRegularization && sel.on && (
+                                <div className="mt-2 p-2 rounded border border-warning/40 bg-warning/10 flex flex-col gap-2">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-xs font-bold text-warning">Pago fuera de fecha:</span>
+                                    <button type="button" className={`btn btn-sm ${sel.reg?.charge ? 'btn-warning' : 'btn-ghost'}`}
+                                      onClick={() => setDebt(d.id, { reg: { ...sel.reg, charge: true, amount: sel.reg?.amount || (lateFeeDefault ? lateFeeDefault.toFixed(2) : '') } })}>Cobrar mora</button>
+                                    <button type="button" className={`btn btn-sm ${sel.reg && !sel.reg.charge ? 'btn-primary' : 'btn-ghost'}`}
+                                      onClick={() => setDebt(d.id, { reg: { ...sel.reg, charge: false } })}>Sin mora</button>
+                                    {sel.reg?.charge && <input type="number" step="0.01" min="0.01" className="form-control py-1 text-sm w-28" placeholder="Mora S/."
+                                      value={sel.reg?.amount || ''} onChange={e => setDebt(d.id, { reg: { ...sel.reg, amount: e.target.value } })} />}
+                                  </div>
+                                  <input className="form-control py-1 text-sm" placeholder="Observación obligatoria (ej. pagó tarde sin aviso / se exonera por viaje)" maxLength={500}
+                                    value={sel.reg?.note || ''} onChange={e => setDebt(d.id, { reg: { ...sel.reg, note: e.target.value } })} />
+                                </div>
+                              )}
                               {d.status === 'Vencido' && <span className="ml-2 badge badge-danger text-xs">Vencido {d.daysOverdue}d</span>}
                               {d.discountDetail && <div className="text-xs text-success">{d.discountDetail}</div>}
                               {pv?.discountLabel && <div className="text-xs text-warning flex items-center gap-1"><Tag size={11} /> {pv.discountLabel}: -{money(pv.discount)}</div>}

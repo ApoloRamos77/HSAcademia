@@ -37,7 +37,7 @@ export default function PaymentsScreen({ navigation }: any) {
   return (
     <Screen refreshing={refreshing} onRefresh={refresh}>
       <StudentPicker />
-      <Banner tone="info" text="Paga por Yape, Plin o transferencia y envía la foto del comprobante. La academia lo valida y registra tu pago con su recibo." />
+      <Banner tone="info" text="Paga por Yape, Plin o transferencia hasta el día de vencimiento y envía la foto del comprobante. La academia lo valida y registra tu pago con su recibo." />
 
       <SectionTitle title="Por pagar" />
       {pending.length === 0 ? (
@@ -52,10 +52,19 @@ export default function PaymentsScreen({ navigation }: any) {
             </View>
             <View style={{ alignItems: 'flex-end', gap: 6 }}>
               <Text style={{ fontSize: 20, fontWeight: '700', color: colors.text }}>{money(d.amountPending)}</Text>
-              <Badge tone={d.status === 'Vencido' ? 'danger' : 'warning'} text={d.status === 'Vencido' ? `Vencido ${d.daysOverdue} d` : 'Pendiente'} />
+              <Badge tone={d.requiresRegularization || (d.status === 'Vencido' && !d.regularizedAt) ? 'danger' : 'warning'}
+                text={d.requiresRegularization ? `Vencido ${d.daysOverdue} d` : d.regularizedAt ? 'Regularizado' : d.status === 'Vencido' ? `Vencido ${d.daysOverdue} d` : 'Pendiente'} />
             </View>
           </Row>
+          {!!d.regularizedAt && (
+            <Text style={[font.tiny, { marginTop: 6 }]}>Regularizado {d.lateFeeAmount ? `con mora de ${money(d.lateFeeAmount)}` : 'sin mora'}{d.regularizationNote ? `: ${d.regularizationNote}` : ''}</Text>
+          )}
           <View style={{ marginTop: spacing.md }}>
+            {d.requiresRegularization && !inReview.has(d.id) && (
+              <View style={{ marginBottom: spacing.sm }}>
+                <Banner tone="danger" text={`Tu pago venció el ${longDay(d.dueDate)}. Puede aplicarse una mora: comunícate con administración o envía tu comprobante y lo evaluarán.`} />
+              </View>
+            )}
             {inReview.has(d.id) ? (
               <Banner tone="warning" text="Tu comprobante está en validación." />
             ) : (

@@ -54,14 +54,23 @@ function ReviewModal({ proof, onClose, onDone }: { proof: PaymentProof; onClose:
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState<'approve' | 'reject' | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [charge, setCharge] = useState(false);
+  const [fee, setFee] = useState('');
+  const [regNote, setRegNote] = useState('');
+  const late = !!proof.requiresRegularization;
   const isPdf = /\.pdf$/i.test(proof.voucherUrl);
   const pending = proof.status === 'Pending';
 
   const approve = async () => {
+    if (late && regNote.trim().length < 5) { setError('Pagó fuera de fecha: escribe la observación de la regularización.'); return; }
+    if (late && charge && !(parseFloat(fee.replace(',', '.')) > 0)) { setError('Indica el monto de la mora.'); return; }
     setBusy('approve');
     setError(null);
     try {
-      const { data } = await api.post<PaymentProof>(`/finances/proofs/${proof.id}/approve`, { amount: parseFloat(amount.replace(',', '.')) });
+      const { data } = await api.post<PaymentProof>(`/finances/proofs/${proof.id}/approve`, {
+        amount: parseFloat(amount.replace(',', '.')),
+        regularization: late ? { chargeLateFee: charge, lateFeeAmount: charge ? parseFloat(fee.replace(',', '.')) : null, note: regNote.trim() } : null,
+      });
       Alert.alert('Pago registrado', `Recibo N° ${data.receiptNumber ?? '—'}`);
       onDone();
     } catch (e) { setError(errorMessage(e)); } finally { setBusy(null); }
@@ -106,6 +115,18 @@ function ReviewModal({ proof, onClose, onDone }: { proof: PaymentProof; onClose:
         {pending && (
           <>
             <Input label="Monto a registrar (S/)" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" hint="Ajústalo si lo recibido es distinto a lo declarado." />
+            {late && (
+              <Card style={{ backgroundColor: colors.warningBg, borderColor: colors.warningBg }}>
+                <Text style={[font.small, { color: colors.warning, fontWeight: '700' }]}>
+                  Pagó el {shortDay(proof.paidOn)}, después del vencimiento{proof.debtDueDate ? ` (${shortDay(proof.debtDueDate)})` : ''}. ¿Se cobra mora?
+                </Text>
+                <View style={{ marginTop: spacing.sm }}>
+                  <Chips options={[{ value: 'fee', label: 'Cobrar mora' }, { value: 'none', label: 'Sin mora' }]} value={charge ? 'fee' : 'none'} onChange={v => setCharge(v === 'fee')} />
+                </View>
+                {charge && <View style={{ marginTop: spacing.sm }}><Input label="Mora (S/)" value={fee} onChangeText={setFee} keyboardType="decimal-pad" hint="Queda como deuda pendiente de la familia." /></View>}
+                <Input label="Observación *" value={regNote} onChangeText={setRegNote} maxLength={500} />
+              </Card>
+            )}
             {error && <Banner tone="danger" text={error} />}
             <Button title="Aprobar y registrar pago" variant="success" icon={<CheckCircle2 color={colors.white} size={18} />} onPress={approve} loading={busy === 'approve'} disabled={!!busy} />
             <Input label="Motivo (si rechazas)" value={reason} onChangeText={setReason} placeholder="Ej. La operación no figura en el banco" maxLength={500} />
