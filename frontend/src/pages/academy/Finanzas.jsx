@@ -14,6 +14,9 @@ import StaffPaymentsTab from '../../components/finances/StaffPaymentsTab';
 import FinanceDashboardTab from '../../components/finances/FinanceDashboardTab';
 import PaymentProofsTab from '../../components/finances/PaymentProofsTab';
 import ReceiptsTab from '../../components/finances/ReceiptsTab';
+import CashTab from '../../components/finances/CashTab';
+import DiscountsTab from '../../components/finances/DiscountsTab';
+import { Wallet, Tag } from 'lucide-react';
 import CheckoutModal from '../../components/finances/CheckoutModal';
 import { Receipt } from 'lucide-react';
 import { Inbox } from 'lucide-react';
@@ -239,6 +242,12 @@ export default function Finanzas() {
           <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='receipts'?'bg-primary text-white shadow-md':'text-text-muted hover:text-text-primary hover:bg-white'}`} onClick={()=>setActiveTab('receipts')}>
             <Receipt size={16}/> Recibos
           </button>
+          <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='cash'?'bg-primary text-white shadow-md':'text-text-muted hover:text-text-primary hover:bg-white'}`} onClick={()=>setActiveTab('cash')}>
+            <Wallet size={16}/> Caja
+          </button>
+          <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='discounts'?'bg-primary text-white shadow-md':'text-text-muted hover:text-text-primary hover:bg-white'}`} onClick={()=>setActiveTab('discounts')}>
+            <Tag size={16}/> Descuentos
+          </button>
           <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='proofs'?'bg-primary text-white shadow-md':'text-text-muted hover:text-text-primary hover:bg-white'}`} onClick={()=>setActiveTab('proofs')}>
             <Inbox size={16}/> Comprobantes
             {pendingProofs > 0 && <span className="badge badge-danger" style={{ marginLeft: 4 }}>{pendingProofs}</span>}
@@ -390,6 +399,7 @@ export default function Finanzas() {
                                   <FileText size={13} className="text-primary-400"/>
                                   <span className="text-sm">{d.description}</span>
                                 </div>
+                                {d.discountDetail && <div className="text-xs text-success mt-0.5">{d.discountDetail} (-S/. {Number(d.discountAmount).toFixed(2)})</div>}
                                 {d.isProrated && (
                                   <div className="text-xs text-warning/80 mt-0.5">
                                     Desde día {d.proratedStartDate ? new Date(d.proratedStartDate).toLocaleDateString('es-PE', { timeZone: 'UTC', day: 'numeric' }) : '?'} — {d.proratedDaysCharged}/{d.proratedTotalDays} sesiones
@@ -550,6 +560,9 @@ export default function Finanzas() {
         )}
 
         {/* EXPENSES TAB */}
+        {activeTab === 'cash' && <CashTab />}
+        {activeTab === 'discounts' && <DiscountsTab />}
+
         {activeTab === 'receipts' && (
           <ReceiptsTab onChanged={fetchData} />
         )}
