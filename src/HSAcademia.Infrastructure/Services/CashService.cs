@@ -151,7 +151,8 @@ public class CashService
 
         // Efectivo aún no rendido (de cualquier día) y rendiciones en camino.
         var notHanded = await _db.Receipts.AsNoTracking()
-            .Where(r => r.AcademyId == academyId && r.Status == ReceiptStatus.Issued && r.CashHandoverId == null)
+            .Where(r => r.AcademyId == academyId && r.Status == ReceiptStatus.Issued && r.CashHandoverId == null &&
+                        r.Channel != ReceiptRecorder.HistoricChannel)
             .Select(r => new { r.CreatedByUserId, r.CreatedByName, r.Method, r.Total })
             .ToListAsync();
         var inTransit = await _db.CashHandovers.AsNoTracking()
@@ -175,7 +176,7 @@ public class CashService
             var name = mine.Select(r => r.CreatedByName).FirstOrDefault(n => n != null)
                        ?? pend.Select(r => r.CreatedByName).FirstOrDefault(n => n != null)
                        ?? inTransit.Where(h => h.CollectorUserId == id).Select(h => h.CollectorName).FirstOrDefault()
-                       ?? "Sin usuario";
+                       ?? (id == null ? "Registros anteriores (sin cobrador)" : "Sin usuario");
             return new CashCollectorSummaryDto
             {
                 CollectorUserId = id,

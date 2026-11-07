@@ -19,6 +19,9 @@ namespace HSAcademia.Infrastructure.Services;
 /// </summary>
 public class ReceiptRecorder
 {
+    /// <summary>Canal de los recibos migrados desde cobros anteriores a los comprobantes (no entran al cuadre de caja).</summary>
+    public const string HistoricChannel = "historico";
+
     private readonly AppDbContext _db;
     private readonly IHttpContextAccessor _http;
 
