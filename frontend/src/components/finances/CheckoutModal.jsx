@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import api from '../../api/axios';
 import { useAuth } from '../../context/AuthContext';
 import { printReceipt } from '../../utils/pdfGenerator';
+import RegularizeModal from './RegularizeModal';
 
 const METHODS = [
   { value: 'Cash', label: '💵 Efectivo' },
@@ -49,6 +50,20 @@ export default function CheckoutModal({ open, onClose, onDone, initialStudentId,
   // Clave por intento de cobro: si se reintenta (doble clic, red lenta) el servidor devuelve el mismo recibo.
   const [requestId, setRequestId] = useState('');
   const previewSeq = useRef(0);
+  const [regularizing, setRegularizing] = useState(null);
+
+  // Tras regularizar, se recarga la cuenta de esa familia (aparece la mora si se cobró) y se marca la deuda.
+  const reloadFamilyOf = async (debt) => {
+    try {
+      const { data } = await api.get(`/receipts/family/${debt.studentId}`);
+      setFamilies(prev => prev.map(f => f.students.some(s => s.studentId === debt.studentId) ? data : f));
+      setDebtSel(prev => {
+        const next = { ...prev, [debt.id]: { ...(prev[debt.id] || {}), on: true, partial: false } };
+        data.pendingDebts.forEach(d => { if (!next[d.id]) next[d.id] = { on: d.description.startsWith('Mora'), partial: false, amount: '', discount: '' }; });
+        return next;
+      });
+    } catch { /* se mantiene */ }
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -238,10 +253,13 @@ export default function CheckoutModal({ open, onClose, onDone, initialStudentId,
                         const pv = sel.on ? previewOf(d.id) : null;
                         return (
                           <tr key={d.id} className={sel.on ? 'bg-primary/5' : ''}>
-                            <td><input type="checkbox" checked={!!sel.on} onChange={e => setDebt(d.id, { on: e.target.checked })} /></td>
+                            <td>{d.requiresRegularization
+                              ? <button type="button" className="btn btn-sm btn-warning text-xs" onClick={() => setRegularizing(d)} title="Venció: decidir mora y registrar observación">Regularizar</button>
+                              : <input type="checkbox" checked={!!sel.on} onChange={e => setDebt(d.id, { on: e.target.checked })} />}</td>
                             <td className="text-sm font-medium">{d.studentName}</td>
                             <td className="text-sm">
                               {d.description}
+                              {d.requiresRegularization && <div className="text-xs text-danger">Venció: regulariza (con o sin mora) para cobrarla.</div>}
                               {d.status === 'Vencido' && <span className="ml-2 badge badge-danger text-xs">Vencido {d.daysOverdue}d</span>}
                               {d.discountDetail && <div className="text-xs text-success">{d.discountDetail}</div>}
                               {pv?.discountLabel && <div className="text-xs text-warning flex items-center gap-1"><Tag size={11} /> {pv.discountLabel}: -{money(pv.discount)}</div>}
@@ -364,6 +382,7 @@ export default function CheckoutModal({ open, onClose, onDone, initialStudentId,
           </div>
         </form>
       </div>
+      {regularizing && <RegularizeModal debt={regularizing} onClose={() => setRegularizing(null)} onDone={() => reloadFamilyOf(regularizing)} />}
     </div>
   );
 }

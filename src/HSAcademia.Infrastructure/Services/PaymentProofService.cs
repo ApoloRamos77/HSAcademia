@@ -42,6 +42,9 @@ public class PaymentProofService
 
         var day = (paidOn ?? AcademyClock.Today).Date;
         if (day > AcademyClock.Today) throw new Exception("La fecha de pago no puede ser futura.");
+        // Política de pago: si se pagó después del vencimiento, primero se regulariza en administración.
+        if (FinancesService.RequiresRegularization(debt) && day > debt.DueDate.Date)
+            throw new Exception($"Tu pago de {debt.Description} venció el {debt.DueDate:dd/MM/yyyy}. Acércate a administración para regularizarlo.");
 
         var proof = new PaymentProof
         {
@@ -94,6 +97,16 @@ public class PaymentProofService
 
         await _db.InTransactionAsync(async () =>
         {
+            // Pagado a tiempo (fecha del comprobante ≤ vencimiento) pero validado después: se regulariza sin mora.
+            var record = await _db.PaymentRecords.FirstAsync(p => p.Id == proof.PaymentRecordId);
+            if (FinancesService.RequiresRegularization(record) && proof.PaidOn.Date <= record.DueDate.Date)
+            {
+                record.RegularizedAt = DateTime.UtcNow;
+                record.RegularizedByUserId = reviewerId;
+                record.RegularizationNote = $"Pagado a tiempo (comprobante del {proof.PaidOn:dd/MM/yyyy}); validado después del vencimiento.";
+                await _db.SaveChangesAsync();
+            }
+
             // Registra el abono (número de recibo, cierre de periodo, concurrencia, auditoría).
             var result = await _finances.RegisterPaymentAsync(academyId, new RegisterPaymentDto
             {

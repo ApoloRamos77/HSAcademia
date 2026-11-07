@@ -364,6 +364,7 @@ public class ReceiptService
             var record = records[item.PaymentRecordId];
             var studentName = $"{record.Student.FirstName} {record.Student.LastName}".Trim();
             if (record.IsPaid) throw new Exception($"{record.Description} de {studentName} ya está pagada.");
+            FinancesService.EnsureRegularized(record);
             var pending = record.Amount - record.AmountPaid;
             if (item.Discount > pending + 0.01m)
                 throw new Exception($"El descuento de {record.Description} ({studentName}) supera el saldo pendiente.");

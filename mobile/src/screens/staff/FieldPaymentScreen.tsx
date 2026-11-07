@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, Share, Switch, Text, View } from 'react-native';
-import { Banknote, CheckCircle2, Minus, Plus, Receipt as ReceiptIcon, Share2, ShoppingBag, Tag, Trash2, Users, Wallet } from 'lucide-react-native';
+import { Banknote, ShieldAlert, CheckCircle2, Minus, Plus, Receipt as ReceiptIcon, Share2, ShoppingBag, Tag, Trash2, Users, Wallet } from 'lucide-react-native';
 import { api, errorMessage } from '../../api/client';
 import type { Debt, DiscountRule, FamilyAccount, Product, Receipt, StudentSummary } from '../../api/types';
 import { useAuth } from '../../auth/AuthContext';
@@ -37,13 +37,14 @@ export default function FieldPaymentScreen({ route, navigation }: any) {
   useEffect(() => { navigation.setOptions({ title: 'Cobrar' }); }, [navigation]);
 
   const { data, loading, refreshing, refresh } = useApi(async () => {
-    const [family, products, promotions] = await Promise.all([
+    const [family, products, promotions, lateFee] = await Promise.all([
       api.get<FamilyAccount>(`/receipts/family/${student.id}`).then(r => r.data),
       canProducts ? api.get<Product[]>('/store/products').then(r => r.data.filter(p => p.isActive !== false)).catch(() => [] as Product[]) : Promise.resolve([] as Product[]),
       api.get<DiscountRule[]>('/discounts', { params: { active: true } })
         .then(r => r.data.filter(d => d.kind === 'Promotion' && d.isCurrentlyValid)).catch(() => [] as DiscountRule[]),
+      canDebts ? api.get<{ lateFeeAmount: number }>('/finances/config').then(r => Number(r.data.lateFeeAmount) || 0).catch(() => 0) : Promise.resolve(0),
     ]);
-    return { family, products, promotions };
+    return { family, products, promotions, lateFee };
   }, [student.id]);
 
   const [sel, setSel] = useState<Record<string, DebtSel>>({});
@@ -62,6 +63,25 @@ export default function FieldPaymentScreen({ route, navigation }: any) {
   const requestId = useRef(newRequestId());
   const lineKey = useRef(0);
   const previewSeq = useRef(0);
+  // Regularización de una mensualidad vencida (con o sin mora, con observación).
+  const [reg, setReg] = useState<{ debtId: string; charge: boolean; amount: string; note: string; saving: boolean } | null>(null);
+
+  const regularize = async () => {
+    if (!reg) return;
+    if (reg.note.trim().length < 5) { Alert.alert('Falta la observación', 'Escribe el motivo de la regularización.'); return; }
+    const fee = num(reg.amount);
+    if (reg.charge && fee <= 0) { Alert.alert('Falta el monto', 'Indica el monto de la mora.'); return; }
+    setReg({ ...reg, saving: true });
+    try {
+      await api.post(`/finances/debts/${reg.debtId}/regularize`, { chargeLateFee: reg.charge, lateFeeAmount: reg.charge ? fee : null, note: reg.note.trim() });
+      setSel(p => ({ ...p, [reg.debtId]: { on: true, partial: false, amount: '' } }));
+      setReg(null);
+      refresh();
+    } catch (e) {
+      Alert.alert('No se pudo regularizar', errorMessage(e));
+      setReg(r => (r ? { ...r, saving: false } : r));
+    }
+  };
 
   // Al cargar: marca las deudas del alumno elegido; las de los hermanos quedan disponibles.
   useEffect(() => {
@@ -70,7 +90,7 @@ export default function FieldPaymentScreen({ route, navigation }: any) {
     setSel(prev => {
       const next: Record<string, DebtSel> = {};
       data.family.pendingDebts.forEach(d => {
-        next[d.id] = prev[d.id] ?? { on: d.studentId === student.id, partial: false, amount: '' };
+        next[d.id] = prev[d.id] ?? { on: d.type === 5 || (d.studentId === student.id && !d.requiresRegularization), partial: false, amount: '' };
       });
       return next;
     });
@@ -115,7 +135,10 @@ export default function FieldPaymentScreen({ route, navigation }: any) {
   }, [bodyKey, itemCount]);
 
   const lineOf = (debtId: string) => preview?.lines.find(l => l.paymentRecordId === debtId);
-  const toggle = (d: Debt) => setSel(p => ({ ...p, [d.id]: { ...p[d.id], on: !p[d.id]?.on } }));
+  const toggle = (d: Debt) => {
+    if (d.requiresRegularization) return; // primero se regulariza
+    setSel(p => ({ ...p, [d.id]: { ...p[d.id], on: !p[d.id]?.on } }));
+  };
   const setPartial = (d: Debt, partial: boolean) => setSel(p => ({ ...p, [d.id]: { ...p[d.id], partial, amount: '' } }));
   const setAmount = (d: Debt, v: string) => setSel(p => ({ ...p, [d.id]: { ...p[d.id], amount: v.replace(',', '.') } }));
   const addProduct = (product: Product) => {
@@ -250,12 +273,34 @@ export default function FieldPaymentScreen({ route, navigation }: any) {
                     <Text style={font.h3}>{d.studentName}</Text>
                     <Text style={font.small}>{d.description} · vence {shortDay(d.dueDate)}</Text>
                     {!!d.discountDetail && <Text style={[font.tiny, { color: colors.success }]}>{d.discountDetail}</Text>}
+                    {!!d.regularizedAt && <Text style={[font.tiny, { color: colors.warning }]}>Regularizado {d.lateFeeAmount ? `con mora ${money(d.lateFeeAmount)}` : 'sin mora'}</Text>}
                   </View>
                   <View style={{ alignItems: 'flex-end', gap: 4 }}>
                     <Text style={[font.h3, { color: colors.text }]}>{money(d.amountPending)}</Text>
                     <Badge tone={d.status === 'Vencido' ? 'danger' : 'warning'} text={d.status === 'Vencido' ? `Vencido ${d.daysOverdue}d` : 'En curso'} />
                   </View>
                 </Row>
+                {d.requiresRegularization && (
+                  reg?.debtId === d.id ? (
+                    <View style={{ marginTop: spacing.sm, gap: spacing.sm }}>
+                      <Chips options={[{ value: 'fee', label: 'Cobrar mora' }, { value: 'none', label: 'Sin mora' }]}
+                        value={reg.charge ? 'fee' : 'none'} onChange={v => setReg({ ...reg, charge: v === 'fee' })} />
+                      {reg.charge && <Input label="Mora (S/)" value={reg.amount} onChangeText={v => setReg({ ...reg, amount: v.replace(',', '.') })} keyboardType="decimal-pad" />}
+                      <Input label="Observación *" value={reg.note} onChangeText={v => setReg({ ...reg, note: v })} maxLength={500}
+                        placeholder={reg.charge ? 'Ej. Pagó fuera de fecha' : 'Ej. Se exonera por enfermedad'} />
+                      <Row>
+                        <Button compact title="Cancelar" variant="ghost" style={{ flex: 1 }} onPress={() => setReg(null)} />
+                        <Button compact title="Regularizar" style={{ flex: 1 }} loading={reg.saving} onPress={regularize} />
+                      </Row>
+                    </View>
+                  ) : (
+                    <View style={{ marginTop: spacing.sm, gap: spacing.sm }}>
+                      <Banner tone="danger" icon={<ShieldAlert color={colors.danger} size={18} />} text="Venció: regulariza (con o sin mora) para poder cobrarla." />
+                      <Button compact title="Regularizar" variant="secondary"
+                        onPress={() => setReg({ debtId: d.id, charge: (data?.lateFee ?? 0) > 0, amount: (data?.lateFee ?? 0) > 0 ? data!.lateFee.toFixed(2) : '', note: '', saving: false })} />
+                    </View>
+                  )
+                )}
                 {on && (
                   <View style={{ marginTop: spacing.sm, gap: spacing.sm }}>
                     {!!pv?.discountLabel && pv.discount > 0 && (

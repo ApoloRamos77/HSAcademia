@@ -1,6 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { AppState } from 'react-native';
 import { api } from '../../api/client';
-import type { StudentSummary } from '../../api/types';
+import type { Debt, StudentSummary } from '../../api/types';
+import { syncPaymentReminders } from '../../utils/reminders';
 
 /** Alumno seleccionado (un apoderado puede tener varios hijos): compartido por todas las pestañas. */
 interface FamilyState {
@@ -29,6 +31,14 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => { reload(); }, [reload]);
+
+  // Recordatorios de pago: al abrir la app y cada vez que vuelve a primer plano.
+  useEffect(() => {
+    const sync = () => api.get<Debt[]>('/finances/my-debts').then(r => syncPaymentReminders(r.data)).catch(() => {});
+    sync();
+    const sub = AppState.addEventListener('change', s => { if (s === 'active') sync(); });
+    return () => sub.remove();
+  }, []);
 
   const value = useMemo(() => ({
     students,

@@ -4,6 +4,9 @@
     <!-- Escanear el carné QR de los alumnos y fotografiar comprobantes de pago -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <!-- Recordatorios de pago: mostrar notificaciones y reprogramarlas al reiniciar -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
       android:name=".MainApplication"
@@ -26,5 +29,12 @@
             <category android:name="android.intent.category.LAUNCHER" />
         </intent-filter>
       </activity>
+      <receiver android:name=".reminders.ReminderReceiver" android:exported="false" />
+      <receiver android:name=".reminders.BootReceiver" android:exported="false">
+        <intent-filter>
+          <action android:name="android.intent.action.BOOT_COMPLETED" />
+          <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+        </intent-filter>
+      </receiver>
     </application>
 </manifest>

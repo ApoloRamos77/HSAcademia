@@ -411,6 +411,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.AcademyId).HasColumnName("academy_id").IsRequired();
             entity.Property(e => e.DefaultPaymentDay).HasColumnName("default_payment_day").IsRequired().HasDefaultValue(5);
+            entity.Property(e => e.LateFeeAmount).HasColumnName("late_fee_amount").HasColumnType("numeric(10,2)").HasDefaultValue(0m);
             // Dos cajeros cobrando a la vez no pueden obtener el mismo número de recibo.
             entity.Property(e => e.CurrentReceiptNumber).IsConcurrencyToken();
 
@@ -478,6 +479,12 @@ public class AppDbContext : DbContext
             entity.Property(e => e.ExclusionType).HasColumnName("exclusion_type").HasConversion<int>().HasDefaultValue(ExclusionType.None);
             entity.Property(e => e.ExclusionNote).HasColumnName("exclusion_note").HasMaxLength(500);
             entity.Property(e => e.DiscountDetail).HasColumnName("discount_detail").HasMaxLength(200);
+            entity.Property(e => e.RegularizedAt).HasColumnName("regularized_at");
+            entity.Property(e => e.RegularizedByUserId).HasColumnName("regularized_by_user_id");
+            entity.Property(e => e.RegularizedByName).HasColumnName("regularized_by_name").HasMaxLength(200);
+            entity.Property(e => e.RegularizationNote).HasColumnName("regularization_note").HasMaxLength(500);
+            entity.Property(e => e.LateFeeAmount).HasColumnName("late_fee_amount").HasColumnType("numeric(10,2)");
+            entity.Property(e => e.LateFeeRecordId).HasColumnName("late_fee_record_id");
 
             entity.HasMany(e => e.Installments)
                   .WithOne(i => i.PaymentRecord)

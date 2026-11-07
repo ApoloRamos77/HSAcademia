@@ -18,6 +18,7 @@ import CashTab from '../../components/finances/CashTab';
 import DiscountsTab from '../../components/finances/DiscountsTab';
 import { Wallet, Tag } from 'lucide-react';
 import CheckoutModal from '../../components/finances/CheckoutModal';
+import RegularizeModal from '../../components/finances/RegularizeModal';
 import { Receipt } from 'lucide-react';
 import { Inbox } from 'lucide-react';
 
@@ -39,6 +40,7 @@ const EXCLUSION_TYPES = [
 
 const statusBadge = (d) => {
   if (d.isPaid) return <span className="badge badge-success">Pagado</span>;
+  if (d.requiresRegularization) return <span className="badge badge-danger flex items-center gap-1 w-max" title="Venció: debe regularizarse con o sin mora"><AlertTriangle size={11}/> Por regularizar {d.daysOverdue}d</span>;
   if (d.amountPaid > 0 && d.amountPending > 0) return <span className="badge badge-info bg-blue-500/20 text-blue-400">Pago Parcial</span>;
   if (d.status === 'Vencido') return <span className="badge badge-danger flex items-center gap-1 w-max"><AlertTriangle size={11}/> Vencido {d.daysOverdue}d</span>;
   return <span className="badge badge-warning">En Curso</span>;
@@ -78,6 +80,7 @@ export default function Finanzas() {
 
   // Cobro con varios ítems (un solo recibo): { studentId, debtIds } | {} para cobro libre | null cerrado
   const [checkoutFor, setCheckoutFor] = useState(null);
+  const [regularizing, setRegularizing] = useState(null);
   // Recalc form
   const [recalcForm, setRecalcForm] = useState({ newAmount: '', proratedStartDate: '', notes: '' });
   // Exclude form
@@ -399,6 +402,7 @@ export default function Finanzas() {
                                   <FileText size={13} className="text-primary-400"/>
                                   <span className="text-sm">{d.description}</span>
                                 </div>
+                                {d.regularizedAt && <div className="text-xs text-warning mt-0.5" title={d.regularizationNote || ''}>Regularizado {d.lateFeeAmount ? `con mora S/. ${Number(d.lateFeeAmount).toFixed(2)}` : 'sin mora'}{d.regularizedByName ? ` · ${d.regularizedByName}` : ''}: {d.regularizationNote}</div>}
                                 {d.discountDetail && <div className="text-xs text-success mt-0.5">{d.discountDetail} (-S/. {Number(d.discountAmount).toFixed(2)})</div>}
                                 {d.isProrated && (
                                   <div className="text-xs text-warning/80 mt-0.5">
@@ -421,9 +425,15 @@ export default function Finanzas() {
                                       </span>
                                     ) : (
                                       <>
-                                        <button onClick={()=>openPay(d)} className="btn btn-sm btn-success flex items-center gap-1" title="Registrar Pago">
-                                          <CreditCard size={13}/> Cobrar
-                                        </button>
+                                        {d.requiresRegularization ? (
+                                          <button onClick={()=>setRegularizing(d)} className="btn btn-sm btn-warning flex items-center gap-1" title="Venció: decidir mora y registrar observación">
+                                            <AlertTriangle size={13}/> Regularizar
+                                          </button>
+                                        ) : (
+                                          <button onClick={()=>openPay(d)} className="btn btn-sm btn-success flex items-center gap-1" title="Registrar Pago">
+                                            <CreditCard size={13}/> Cobrar
+                                          </button>
+                                        )}
                                         <button onClick={()=>openRecalc(d)} className="btn btn-sm btn-ghost text-warning flex items-center gap-1" title="Recalcular">
                                           <RefreshCw size={13}/>
                                         </button>
@@ -508,6 +518,11 @@ export default function Finanzas() {
                   <select className="form-control" value={config.defaultPaymentDay} onChange={e=>setConfig({...config,defaultPaymentDay:parseInt(e.target.value)})}>
                     {[...Array(31).keys()].map(i=><option key={i+1} value={i+1}>Día {i+1}</option>)}
                   </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Mora sugerida (S/.)</label>
+                  <p className="text-sm text-text-muted mb-2">Pasado el día de vencimiento, la mensualidad queda "por regularizar": la familia debe acercarse a administración, que decide cobrar esta mora (puede cambiar el monto) o exonerarla, siempre con una observación.</p>
+                  <input type="number" step="0.01" min="0" className="form-control" value={config.lateFeeAmount ?? 0} onChange={e=>setConfig({...config,lateFeeAmount:e.target.value === '' ? 0 : parseFloat(e.target.value)})}/>
                 </div>
                 <button type="submit" className="btn btn-primary mt-2">Guardar Configuración</button>
               </form>
@@ -658,6 +673,7 @@ export default function Finanzas() {
           </div>
         </div>
       )}
+      {regularizing && <RegularizeModal debt={regularizing} onClose={()=>setRegularizing(null)} onDone={fetchData} />}
       <CheckoutModal open={!!checkoutFor} onClose={()=>setCheckoutFor(null)} onDone={()=>fetchData()}
         initialStudentId={checkoutFor?.studentId} initialDebtIds={checkoutFor?.debtIds || []} />
     </AppLayout>

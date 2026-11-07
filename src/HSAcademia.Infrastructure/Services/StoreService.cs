@@ -281,6 +281,7 @@ public class StoreService
 
                     if (dto.StudentId.HasValue && paymentRecord.StudentId != dto.StudentId.Value)
                         throw new Exception("La mensualidad seleccionada no pertenece al alumno de la venta.");
+                    FinancesService.EnsureRegularized(paymentRecord);
 
                     if (!paymentRecord.IsPaid)
                     {

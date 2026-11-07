@@ -37,6 +37,7 @@ export default function FamilyHomeScreen({ navigation }: any) {
   const pending = (data?.debts ?? []).filter(d => d.studentId === student.id && !d.isPaid);
   const totalPending = pending.reduce((s, d) => s + d.amountPending, 0);
   const overdue = pending.filter(d => d.status === 'Vencido');
+  const toRegularize = pending.filter(d => d.requiresRegularization);
   const callsToAnswer = (data?.calls ?? []).filter(c => c.studentId === student.id && c.isConfirmed === null);
   const month = data?.history?.[0];
   const attended = month ? month.present : 0;
@@ -64,7 +65,9 @@ export default function FamilyHomeScreen({ navigation }: any) {
           <>
             <Text style={styles.big}>{money(totalPending)}</Text>
             <Text style={font.small}>
-              {overdue.length ? `${overdue.length} vencida(s). ` : ''}Toca para pagar con Yape, Plin o transferencia y enviar tu comprobante.
+              {toRegularize.length
+                ? `${toRegularize.length} pago(s) vencido(s): acércate a administración para regularizar.`
+                : `${overdue.length ? `${overdue.length} vencida(s). ` : ''}Toca para pagar con Yape, Plin o transferencia y enviar tu comprobante.`}
             </Text>
           </>
         ) : <Text style={font.small}>No hay mensualidades pendientes.</Text>}
