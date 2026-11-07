@@ -118,7 +118,12 @@ export const generateReceiptPDF = (data) => {
   
   doc.setFont("helvetica", "bold");
   doc.text("D.N.I:", 68, 60);
-  doc.line(76, 60, 100, 60);
+  if (data.document) {
+    doc.setFont("helvetica", "normal");
+    doc.text(String(data.document), 77, 59.5);
+  } else {
+    doc.line(76, 60, 100, 60);
+  }
   
   autoTable(doc, {
     startY: 65,
@@ -162,10 +167,47 @@ export const generateReceiptPDF = (data) => {
   doc.setFontSize(10);
   doc.text(`TOTAL: S/. ${parseFloat(data.total).toFixed(2)}`, 77.5, finalY + 36.5, { align: "center" });
 
+  // Comprobante anulado: sello visible en todas las copias
+  if (data.voided) {
+    doc.setTextColor(200, 0, 0);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(26);
+    doc.text("ANULADO", 52.5, finalY - 2, { align: "center", angle: 18 });
+    doc.setFontSize(7);
+    if (data.voidReason) doc.text(doc.splitTextToSize(`Motivo: ${data.voidReason}`, 95).slice(0, 2), 5, finalY + 46);
+  }
+
   // Abrir en nueva pestaña del navegador (sin descargar ni abrir Acrobat)
   const pdfBlob = doc.output('blob');
   const blobUrl = URL.createObjectURL(pdfBlob);
   const win = window.open(blobUrl, '_blank');
   // Liberar la URL del blob cuando la ventana se cierre
   if (win) win.addEventListener('unload', () => URL.revokeObjectURL(blobUrl));
+};
+
+const METHOD_LABELS = { Cash: 'Efectivo', BankTransfer: 'Transferencia', Yape: 'Yape', Plin: 'Plin', Card: 'Tarjeta', Other: 'Otro' };
+
+/** Imprime un comprobante con varios ítems tal como lo devuelve la API (/api/receipts). */
+export const printReceipt = (r) => {
+  const items = (r.lines || []).map(l => ({
+    quantity: l.quantity || 1,
+    description: [
+      l.description,
+      l.studentName ? `— ${l.studentName}` : '',
+      l.discount > 0 ? `(desc. S/ ${Number(l.discount).toFixed(2)})` : '',
+    ].filter(Boolean).join(' '),
+    total: l.total,
+  }));
+  const payment = [METHOD_LABELS[r.method] || r.method, r.operationNumber ? `Op. ${r.operationNumber}` : ''].filter(Boolean).join(' · ');
+  generateReceiptPDF({
+    receiptNumber: r.number,
+    customerName: r.payerName,
+    document: r.payerDocument,
+    date: r.issuedAt,
+    items,
+    total: r.total,
+    notes: [payment, r.notes].filter(Boolean).join(' — ') || 'Ninguna',
+    voided: r.status === 'Voided',
+    voidReason: r.voidReason,
+  });
 };

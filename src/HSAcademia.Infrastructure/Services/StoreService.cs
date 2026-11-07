@@ -16,9 +16,14 @@ public class StoreService
     private readonly FinancesService _financesService;
     private readonly FinancialPeriodGuard _periods;
     private readonly AuditService _audit;
+    private readonly ReceiptRecorder? _receipts;
+    private readonly ReceiptService? _receiptService;
 
-    public StoreService(AppDbContext context, FinancesService financesService, FinancialPeriodGuard periods, AuditService audit)
+    public StoreService(AppDbContext context, FinancesService financesService, FinancialPeriodGuard periods, AuditService audit,
+        ReceiptRecorder? receipts = null, ReceiptService? receiptService = null)
     {
+        _receipts = receipts;
+        _receiptService = receiptService;
         _context = context;
         _financesService = financesService;
         _periods = periods;
@@ -141,6 +146,20 @@ public class StoreService
 
         await _periods.EnsureOpenAsync(academyId, AcademyClock.ToLocalDate(sale.SaleDate), "anular la venta");
 
+        // Venta registrada dentro de un comprobante: si el recibo solo contiene esta venta se anula completo;
+        // si tiene otros ítems (mensualidades, otros productos) se debe anular el recibo desde Finanzas.
+        var receiptLine = await _context.ReceiptLines.Include(l => l.Receipt).ThenInclude(r => r.Lines)
+            .FirstOrDefaultAsync(l => l.ProductSaleId == sale.Id && l.Receipt.AcademyId == academyId);
+        if (receiptLine != null && receiptLine.Receipt.Status == ReceiptStatus.Issued && _receiptService != null)
+        {
+            if (receiptLine.Receipt.Lines.Count > 1)
+                throw new Exception($"Esta venta es parte del recibo N° {receiptLine.Receipt.Number} junto con otros ítems. Anula el recibo completo desde Finanzas › Recibos.");
+            await _receiptService.VoidLoadedAsync(academyId, receiptLine.Receipt, "Venta anulada desde Tienda");
+            try { await _context.SaveChangesAsync(); }
+            catch (DbUpdateConcurrencyException) { throw new Exception("El stock del producto cambió mientras se anulaba la venta. Inténtalo nuevamente."); }
+            return;
+        }
+
         sale.IsDeleted = true;
         sale.DeletedAt = DateTime.UtcNow;
 
@@ -225,6 +244,31 @@ public class StoreService
                 };
                 _context.ProductSales.Add(sale);
 
+                // Cabecera del comprobante con sus ítems (producto + mensualidad combinada si la hay)
+                Receipt? receipt = null;
+                if (_receipts != null)
+                {
+                    var buyer = dto.StudentId.HasValue
+                        ? await _context.Students.Include(s => s.Guardian).FirstOrDefaultAsync(s => s.Id == dto.StudentId.Value)
+                        : null;
+                    var (payer, document, guardianId) = ReceiptRecorder.PayerOf(buyer);
+                    receipt = await _receipts.CreateAsync(academyId, receiptNumber, saleTimestamp, payer, document, guardianId,
+                        ParseMethod(dto.PaymentMethod), dto.OperationNumber, dto.VoucherUrl, dto.Notes, "tienda");
+                    ReceiptRecorder.AddLine(receipt, new ReceiptLine
+                    {
+                        Type = ReceiptLineType.Product,
+                        Description = dto.IsGift ? $"{product.Name} (obsequio)" : product.Name,
+                        StudentId = buyer?.Id,
+                        StudentName = buyer != null ? $"{buyer.FirstName} {buyer.LastName}".Trim() : null,
+                        Quantity = dto.Quantity,
+                        UnitPrice = product.Price,
+                        Discount = discount,
+                        Total = sale.TotalPrice,
+                        ProductSaleId = sale.Id,
+                        ProductId = product.Id
+                    });
+                }
+
                 string? combinedMonthlyDesc = null;
                 decimal? combinedMonthlyAmount = null;
 
@@ -246,7 +290,7 @@ public class StoreService
                         combinedMonthlyDesc = paymentRecord.Description;
                         combinedMonthlyAmount = toPay;
 
-                        _context.PaymentInstallments.Add(new PaymentInstallment
+                        var combinedInstallment = new PaymentInstallment
                         {
                             PaymentRecordId = paymentRecord.Id,
                             AmountPaid      = toPay,
@@ -256,7 +300,25 @@ public class StoreService
                             VoucherUrl      = dto.VoucherUrl,
                             ReceiptNumber   = receiptNumber,
                             Notes           = $"Pago combinado — recibo #{receiptNumber}"
-                        });
+                        };
+                        _context.PaymentInstallments.Add(combinedInstallment);
+                        if (receipt != null)
+                        {
+                            var owner = await _context.Students.Where(s => s.Id == paymentRecord.StudentId)
+                                .Select(s => s.FirstName + " " + s.LastName).FirstOrDefaultAsync();
+                            ReceiptRecorder.AddLine(receipt, new ReceiptLine
+                            {
+                                Type = ReceiptLineType.Debt,
+                                Description = paymentRecord.Description,
+                                StudentId = paymentRecord.StudentId,
+                                StudentName = owner,
+                                Quantity = 1,
+                                UnitPrice = toPay,
+                                Total = toPay,
+                                PaymentRecordId = paymentRecord.Id,
+                                PaymentInstallmentId = combinedInstallment.Id
+                            });
+                        }
 
                         paymentRecord.AmountPaid += toPay;
                         if (paymentRecord.AmountPaid >= paymentRecord.Amount - 0.01m)
