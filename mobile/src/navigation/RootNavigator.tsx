@@ -25,6 +25,8 @@ import AttendanceScreen from '../screens/staff/AttendanceScreen';
 import ScanScreen from '../screens/staff/ScanScreen';
 import StudentsScreen from '../screens/staff/StudentsScreen';
 import StudentDetailScreen from '../screens/staff/StudentDetailScreen';
+import StudentFormScreen from '../screens/staff/StudentFormScreen';
+import FieldPaymentScreen from '../screens/staff/FieldPaymentScreen';
 import EvaluationScreen from '../screens/staff/EvaluationScreen';
 import StaffAgendaScreen from '../screens/staff/StaffAgendaScreen';
 import MatchScreen from '../screens/staff/MatchScreen';
@@ -119,6 +121,8 @@ function StaffStack() {
       <Stack.Screen name="Attendance" component={AttendanceScreen} options={{ title: 'Asistencia' }} />
       <Stack.Screen name="Scan" component={ScanScreen} options={{ title: 'Escanear carné' }} />
       <Stack.Screen name="StudentDetail" component={StudentDetailScreen} options={{ title: 'Alumno' }} />
+      <Stack.Screen name="StudentForm" component={StudentFormScreen} options={{ title: 'Alumno' }} />
+      <Stack.Screen name="FieldPayment" component={FieldPaymentScreen} options={{ title: 'Cobrar' }} />
       <Stack.Screen name="Evaluation" component={EvaluationScreen} options={{ title: 'Evaluación deportiva' }} />
       <Stack.Screen name="Agenda" component={StaffAgendaScreen} options={{ title: 'Agenda y partidos' }} />
       <Stack.Screen name="Match" component={MatchScreen} options={{ title: 'Partido' }} />

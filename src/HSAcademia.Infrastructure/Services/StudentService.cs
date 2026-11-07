@@ -13,10 +13,12 @@ namespace HSAcademia.Infrastructure.Services;
 public class StudentService
 {
     private readonly AppDbContext _context;
+    private readonly AuditService? _audit;
 
-    public StudentService(AppDbContext context)
+    public StudentService(AppDbContext context, AuditService? audit = null)
     {
         _context = context;
+        _audit = audit;
     }
 
     public async Task<List<StudentDto>> GetStudentsAsync(Guid academyId, Guid? userId = null, string userRole = "")
@@ -65,9 +67,9 @@ public class StudentService
             CategoryName = s.Category.Name,
             Email = s.Email,
             GuardianId = s.GuardianId,
-            GuardianName = s.Guardian != null ? s.Guardian.FirstName + " " + s.Guardian.LastName : "",
+            GuardianName = s.Guardian != null ? s.Guardian.FirstName + " " + s.Guardian.LastName : "", GuardianFirstName = s.Guardian != null ? s.Guardian.FirstName : "", GuardianLastName = s.Guardian != null ? s.Guardian.LastName : "",
             GuardianPhone = s.Guardian?.Phone ?? "",
-            GuardianEmail = s.Guardian?.Email ?? "",
+            GuardianEmail = IsPlaceholderEmail(s.Guardian?.Email) ? "" : s.Guardian?.Email ?? "",
             IsActive = s.IsActive,
             EnrollmentDate = s.EnrollmentDate,
             PaymentStartDate = s.PaymentStartDate,
@@ -79,8 +81,23 @@ public class StudentService
         }).ToList();
     }
 
-    public async Task<StudentDto> CreateStudentAsync(Guid academyId, CreateStudentDto dto)
+    /// <param name="canEditFinancials">
+    /// false para personal sin permiso de finanzas (p. ej. coordinadores de campo): no puede asignar
+    /// becas, tarifas preferenciales ni la condición de invitado.
+    /// </param>
+    public async Task<StudentDto> CreateStudentAsync(Guid academyId, CreateStudentDto dto, bool canEditFinancials = true)
     {
+        if (!canEditFinancials)
+        {
+            dto.PreferentialFee = null;
+            dto.IsGuest = false;
+            dto.IsScholarship = false;
+            dto.ScholarshipPercentage = null;
+            dto.PaymentStartDate = null;
+        }
+        ValidateStudentInput(dto, isCreate: true);
+        await EnsureNotDuplicateAsync(academyId, dto, null);
+
         if (!string.IsNullOrEmpty(dto.DocumentNumber))
         {
             var existingDoc = await _context.Students.FirstOrDefaultAsync(s => s.AcademyId == academyId && s.DocumentNumber == dto.DocumentNumber);
@@ -91,50 +108,7 @@ public class StudentService
         await ValidateHeadquarterAndCategoryAsync(academyId, dto.HeadquarterId, dto.CategoryId);
 
         var credentials = new List<GeneratedCredentialDto>();
-        Guid? guardianId = null;
-
-        if (dto.GuardianId.HasValue && dto.GuardianId != Guid.Empty)
-        {
-            var guardianOk = await _context.Users.AnyAsync(u =>
-                u.Id == dto.GuardianId.Value && u.AcademyId == academyId && u.Role == UserRole.Guardian);
-            if (!guardianOk) throw new Exception("El apoderado seleccionado no es válido.");
-            guardianId = dto.GuardianId.Value;
-        }
-        else if (!string.IsNullOrWhiteSpace(dto.GuardianEmail) && !string.IsNullOrWhiteSpace(dto.GuardianFirstName) && !string.IsNullOrWhiteSpace(dto.GuardianPhone))
-        {
-            var guardianEmail = NormalizeEmail(dto.GuardianEmail);
-            var existingUser = await FindUserByEmailAsync(guardianEmail);
-            if (existingUser != null)
-            {
-                // Solo se reutiliza si es un apoderado activo de ESTA academia (p. ej. hermanos).
-                if (existingUser.IsDeleted || existingUser.AcademyId != academyId || existingUser.Role != UserRole.Guardian)
-                    throw new Exception($"El correo {guardianEmail} ya está registrado en otra cuenta. Usa un correo distinto para el apoderado.");
-                guardianId = existingUser.Id;
-            }
-            else
-            {
-                var newGuardian = new User
-                {
-                    AcademyId = academyId,
-                    FirstName = dto.GuardianFirstName!.Trim(),
-                    LastName = dto.GuardianLastName?.Trim() ?? "",
-                    Email = guardianEmail,
-                    Phone = dto.GuardianPhone,
-                    Role = UserRole.Guardian,
-                    Status = UserStatus.Active
-                };
-                var tempPassword = AuthService.AssignTemporaryPassword(newGuardian);
-                _context.Users.Add(newGuardian);
-                guardianId = newGuardian.Id;
-                credentials.Add(new GeneratedCredentialDto
-                {
-                    Role = "Apoderado",
-                    FullName = $"{newGuardian.FirstName} {newGuardian.LastName}".Trim(),
-                    Login = guardianEmail,
-                    TemporaryPassword = tempPassword
-                });
-            }
-        }
+        var guardianId = await ResolveGuardianAsync(academyId, dto, credentials);
 
         var student = new Student
         {
@@ -182,6 +156,7 @@ public class StudentService
         }
 
         _context.Students.Add(student);
+        _audit?.Add(academyId, "students.create", nameof(Student), student.Id, new { dto.FirstName, dto.LastName, dto.CategoryId });
         // Un único SaveChanges: si algo falla no quedan usuarios huérfanos creados.
         await _context.SaveChangesAsync();
 
@@ -196,6 +171,147 @@ public class StudentService
 
     // ─────────────────────────────────────────────────────────────
     // Helpers de cuentas de usuario (alumno / apoderado)
+    private const string NoEmailDomain = "@sin-correo.clubio";
+
+    /// <summary>Apoderados registrados sin correo usan un correo interno (ingresan con su celular).</summary>
+    public static bool IsPlaceholderEmail(string? email) =>
+        email != null && email.EndsWith(NoEmailDomain, StringComparison.OrdinalIgnoreCase);
+
+    private static string Digits(string? s) => new string((s ?? string.Empty).Where(char.IsDigit).ToArray());
+
+    private static readonly System.Text.RegularExpressions.Regex EmailRegex =
+        new(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    /// <summary>Reglas de negocio del alumno (también aplican a la web).</summary>
+    private static void ValidateStudentInput(CreateStudentDto dto, bool isCreate)
+    {
+        if (string.IsNullOrWhiteSpace(dto.FirstName) || string.IsNullOrWhiteSpace(dto.LastName))
+            throw new Exception("Los nombres y apellidos del alumno son obligatorios.");
+        if (dto.FirstName.Trim().Length > 100 || dto.LastName.Trim().Length > 100)
+            throw new Exception("Los nombres y apellidos no pueden superar 100 caracteres.");
+
+        if (dto.DateOfBirth.HasValue)
+        {
+            var dob = dto.DateOfBirth.Value.Date;
+            if (dob > AcademyClock.Today) throw new Exception("La fecha de nacimiento no puede ser futura.");
+            if (dob.Year < 1940) throw new Exception("Revisa la fecha de nacimiento.");
+        }
+
+        void Phone(string? value, string label)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return;
+            var d = Digits(value);
+            if (d.Length < 7 || d.Length > 15) throw new Exception($"El {label} no es válido.");
+        }
+        Phone(dto.Phone, "celular del alumno");
+        Phone(dto.GuardianPhone, "celular del apoderado");
+        Phone(dto.MedicalRecord?.EmergencyContactPhone, "teléfono de emergencia");
+
+        if (!string.IsNullOrWhiteSpace(dto.Email) && !EmailRegex.IsMatch(dto.Email.Trim()))
+            throw new Exception("El correo del alumno no es válido.");
+        if (!string.IsNullOrWhiteSpace(dto.GuardianEmail) && !EmailRegex.IsMatch(dto.GuardianEmail.Trim()))
+            throw new Exception("El correo del apoderado no es válido.");
+
+        if (dto.ScholarshipPercentage is < 0 or > 100) throw new Exception("El porcentaje de beca debe estar entre 0 y 100.");
+        if (dto.PreferentialFee is < 0) throw new Exception("La tarifa preferencial no puede ser negativa.");
+        if (dto.EnrollmentDate.HasValue && dto.WithdrawalDate.HasValue && dto.WithdrawalDate.Value.Date < dto.EnrollmentDate.Value.Date)
+            throw new Exception("La fecha de retiro no puede ser anterior a la de inscripción.");
+
+        // Al inscribir, debe existir al menos un medio de contacto (seguridad del menor y cobranza).
+        if (isCreate && string.IsNullOrWhiteSpace(dto.Phone) && string.IsNullOrWhiteSpace(dto.GuardianPhone)
+            && !(dto.GuardianId.HasValue && dto.GuardianId != Guid.Empty))
+            throw new Exception("Registra el celular del apoderado o del alumno para poder contactarlo.");
+    }
+
+    /// <summary>Evita inscribir dos veces al mismo alumno (mismo nombre y fecha de nacimiento).</summary>
+    private async Task EnsureNotDuplicateAsync(Guid academyId, CreateStudentDto dto, Guid? excludeId)
+    {
+        if (!dto.DateOfBirth.HasValue) return;
+        var fn = dto.FirstName.Trim().ToLower();
+        var ln = dto.LastName.Trim().ToLower();
+        var dob = dto.DateOfBirth.Value.Date;
+        var candidates = await _context.Students
+            .Where(s => s.AcademyId == academyId && (excludeId == null || s.Id != excludeId) && s.DateOfBirth != null &&
+                        s.FirstName.ToLower() == fn && s.LastName.ToLower() == ln)
+            .Select(s => new { s.DateOfBirth, s.IsActive })
+            .ToListAsync();
+        var dup = candidates.FirstOrDefault(c => c.DateOfBirth!.Value.Date == dob);
+        if (dup != null)
+            throw new Exception(dup.IsActive
+                ? "Ya existe un alumno con el mismo nombre y fecha de nacimiento."
+                : "Este alumno ya está registrado como retirado: búscalo y reactívalo en lugar de inscribirlo de nuevo.");
+    }
+
+    /// <summary>
+    /// Obtiene el apoderado del alumno: uno existente (GuardianId), uno de la academia con el mismo
+    /// correo o celular (hermanos), o crea uno nuevo con contraseña temporal. El correo es opcional:
+    /// sin correo, el apoderado ingresa a la app con su celular.
+    /// </summary>
+    private async Task<Guid?> ResolveGuardianAsync(Guid academyId, CreateStudentDto dto, List<GeneratedCredentialDto> credentials)
+    {
+        if (dto.GuardianId.HasValue && dto.GuardianId != Guid.Empty)
+        {
+            var ok = await _context.Users.AnyAsync(u => u.Id == dto.GuardianId.Value && u.AcademyId == academyId && u.Role == UserRole.Guardian);
+            if (!ok) throw new Exception("El apoderado seleccionado no es válido.");
+            return dto.GuardianId.Value;
+        }
+
+        var hasName = !string.IsNullOrWhiteSpace(dto.GuardianFirstName);
+        var hasPhone = !string.IsNullOrWhiteSpace(dto.GuardianPhone);
+        var hasEmail = !string.IsNullOrWhiteSpace(dto.GuardianEmail);
+        if (!hasName && !hasPhone && !hasEmail) return null;
+        if (!hasName || !hasPhone)
+            throw new Exception("Para registrar al apoderado indica al menos su nombre y su celular.");
+
+        var phone = Digits(dto.GuardianPhone);
+
+        if (hasEmail)
+        {
+            var guardianEmail = NormalizeEmail(dto.GuardianEmail!);
+            var existingUser = await FindUserByEmailAsync(guardianEmail);
+            if (existingUser != null)
+            {
+                if (existingUser.IsDeleted || existingUser.AcademyId != academyId || existingUser.Role != UserRole.Guardian)
+                    throw new Exception($"El correo {guardianEmail} ya está registrado en otra cuenta. Usa un correo distinto para el apoderado.");
+                return existingUser.Id;
+            }
+        }
+        else
+        {
+            // Sin correo: si la academia ya tiene un apoderado con ese celular (hermanos), se reutiliza.
+            var sameAcademyGuardians = await _context.Users
+                .Where(u => u.AcademyId == academyId && u.Role == UserRole.Guardian && u.Phone != null)
+                .Select(u => new { u.Id, u.Phone })
+                .ToListAsync();
+            var sibling = sameAcademyGuardians.FirstOrDefault(u => Digits(u.Phone) == phone);
+            if (sibling != null) return sibling.Id;
+        }
+
+        var email = hasEmail
+            ? NormalizeEmail(dto.GuardianEmail!)
+            : $"apoderado.{phone}.{Guid.NewGuid().ToString("N")[..6]}{NoEmailDomain}";
+        var newGuardian = new User
+        {
+            AcademyId = academyId,
+            FirstName = dto.GuardianFirstName!.Trim(),
+            LastName = dto.GuardianLastName?.Trim() ?? "",
+            Email = email,
+            Phone = phone, // solo dígitos: así puede ingresar escribiendo su celular
+            Role = UserRole.Guardian,
+            Status = UserStatus.Active
+        };
+        var tempPassword = AuthService.AssignTemporaryPassword(newGuardian);
+        _context.Users.Add(newGuardian);
+        credentials.Add(new GeneratedCredentialDto
+        {
+            Role = "Apoderado",
+            FullName = $"{newGuardian.FirstName} {newGuardian.LastName}".Trim(),
+            Login = hasEmail ? email : phone,
+            TemporaryPassword = tempPassword
+        });
+        return newGuardian.Id;
+    }
+
     // ─────────────────────────────────────────────────────────────
     private static string NormalizeEmail(string email) => email.Trim().ToLowerInvariant();
 
@@ -334,7 +450,7 @@ public class StudentService
             EmergencyContactPhone  = student.MedicalRecord?.EmergencyContactPhone,
         };
     }
-    public async Task<StudentDto> UpdateStudentAsync(Guid academyId, Guid id, CreateStudentDto dto)
+    public async Task<StudentDto> UpdateStudentAsync(Guid academyId, Guid id, CreateStudentDto dto, bool canEditFinancials = true)
     {
         var student = await _context.Students
             .Include(s => s.MedicalRecord)
@@ -352,6 +468,10 @@ public class StudentService
         // En edición solo se valida que sede y categoría sean de la academia: hay registros antiguos
         // cuya categoría no coincide con la sede y no deben quedar bloqueados para editar.
         await ValidateHeadquarterAndCategoryAsync(academyId, dto.HeadquarterId, dto.CategoryId, requireSameHeadquarter: false);
+        ValidateStudentInput(dto, isCreate: false);
+        await EnsureNotDuplicateAsync(academyId, dto, id);
+        _audit?.Add(academyId, student.IsActive && !dto.IsActive ? "students.withdraw" : !student.IsActive && dto.IsActive ? "students.reactivate" : "students.update",
+            nameof(Student), student.Id, new { dto.FirstName, dto.LastName, dto.CategoryId, dto.IsActive, financialsApplied = canEditFinancials });
         var credentials = new List<GeneratedCredentialDto>();
 
         student.FirstName = dto.FirstName;
@@ -365,14 +485,23 @@ public class StudentService
         if (dto.EnrollmentDate.HasValue)
             student.EnrollmentDate = dto.EnrollmentDate.Value.ToUniversalTime();
             
-        student.PaymentStartDate = dto.PaymentStartDate?.ToUniversalTime();
+        if (canEditFinancials)
+            student.PaymentStartDate = dto.PaymentStartDate?.ToUniversalTime();
         student.WithdrawalDate = dto.WithdrawalDate?.ToUniversalTime();
+        // Baja sin fecha: se registra hoy. Reactivación: se limpia la fecha de retiro pasada.
+        var todayUtc = DateTime.SpecifyKind(AcademyClock.Today, DateTimeKind.Utc);
+        if (!dto.IsActive && student.WithdrawalDate == null) student.WithdrawalDate = todayUtc;
+        if (dto.IsActive && student.WithdrawalDate.HasValue && student.WithdrawalDate.Value.Date <= todayUtc.Date) student.WithdrawalDate = null;
 
-        student.PreferentialFee = dto.PreferentialFee;
-        student.IsGuest = dto.IsGuest;
-        student.IsScholarship = dto.IsScholarship;
-        student.ScholarshipPercentage = dto.ScholarshipPercentage;
-        
+        // Condiciones económicas: solo quien gestiona finanzas puede cambiarlas.
+        if (canEditFinancials)
+        {
+            student.PreferentialFee = dto.PreferentialFee;
+            student.IsGuest = dto.IsGuest;
+            student.IsScholarship = dto.IsScholarship;
+            student.ScholarshipPercentage = dto.ScholarshipPercentage;
+        }
+
         var newEmail = string.IsNullOrWhiteSpace(dto.Email) ? null : NormalizeEmail(dto.Email);
         if (!string.Equals(student.Email, newEmail, StringComparison.OrdinalIgnoreCase))
         {
@@ -418,7 +547,13 @@ public class StudentService
                     guardian.Email = guardianEmail;
                 }
             }
-            if (!string.IsNullOrWhiteSpace(dto.GuardianPhone)) guardian.Phone = dto.GuardianPhone;
+            if (!string.IsNullOrWhiteSpace(dto.GuardianPhone)) guardian.Phone = Digits(dto.GuardianPhone); // solo dígitos: login por celular
+        }
+        else
+        {
+            // El alumno no tenía apoderado: si ahora se registran sus datos, se crea o vincula.
+            var newGuardianId = await ResolveGuardianAsync(academyId, dto, credentials);
+            if (newGuardianId.HasValue) student.GuardianId = newGuardianId;
         }
 
         var previousWeight = student.MedicalRecord?.WeightKg;
@@ -494,9 +629,9 @@ public class StudentService
             CategoryName = s.Category?.Name ?? "",
             Email = s.Email,
             GuardianId = s.GuardianId,
-            GuardianName = s.Guardian != null ? s.Guardian.FirstName + " " + s.Guardian.LastName : "",
+            GuardianName = s.Guardian != null ? s.Guardian.FirstName + " " + s.Guardian.LastName : "", GuardianFirstName = s.Guardian != null ? s.Guardian.FirstName : "", GuardianLastName = s.Guardian != null ? s.Guardian.LastName : "",
             GuardianPhone = s.Guardian?.Phone ?? "",
-            GuardianEmail = s.Guardian?.Email ?? "",
+            GuardianEmail = IsPlaceholderEmail(s.Guardian?.Email) ? "" : s.Guardian?.Email ?? "",
             IsActive = s.IsActive,
             EnrollmentDate = s.EnrollmentDate,
             PaymentStartDate = s.PaymentStartDate,

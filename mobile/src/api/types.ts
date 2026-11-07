@@ -36,12 +36,36 @@ export interface StudentSummary {
   headquarterName: string;
   categoryId: string;
   categoryName: string;
+  guardianId?: string | null;
   guardianName: string;
+  guardianFirstName?: string;
+  guardianLastName?: string;
   guardianPhone: string;
+  guardianEmail?: string;
   isActive: boolean;
+  enrollmentDate?: string;
+  paymentStartDate?: string | null;
+  withdrawalDate?: string | null;
+  preferentialFee?: number | null;
+  isGuest?: boolean;
   isScholarship?: boolean;
   scholarshipPercentage?: number | null;
 }
+
+export interface Headquarter { id: string; name: string; address?: string | null; isActive: boolean }
+
+export interface Category {
+  id: string;
+  headquarterId: string;
+  headquarterName: string;
+  name: string;
+  startDateOfBirth: string;
+  endDateOfBirth: string;
+  monthlyFee: number;
+  isActive: boolean;
+}
+
+export interface GeneratedCredential { role: string; fullName: string; login: string; temporaryPassword: string }
 
 export interface Debt {
   id: string;
@@ -190,6 +214,8 @@ export interface MedicalRecord {
   weightKg?: number | null;
   heightCm?: number | null;
   bmi?: number | null;
+  nutritionPlan?: string | null;
+  nextNutritionConsultation?: string | null;
 }
 
 export interface MatchResult {

@@ -206,7 +206,7 @@ public class AcademyConfigurationService
                 Id = u.Id,
                 FirstName = u.FirstName,
                 LastName = u.LastName,
-                Email = u.Email,
+                Email = StudentService.IsPlaceholderEmail(u.Email) ? "" : u.Email,
                 Phone = u.Phone,
                 SystemRole = u.Role.ToString(),
                 AcademyRoleId = u.AcademyRoleId,
@@ -300,6 +300,8 @@ public class AcademyConfigurationService
             .Include(u => u.AssignedCategories)
             .FirstOrDefaultAsync(u => u.Id == id && u.AcademyId == academyId);
         if (user == null) throw new Exception("Usuario no encontrado.");
+        // Apoderados sin correo: si el formulario lo deja vacío, se conserva su correo interno.
+        if (string.IsNullOrWhiteSpace(dto.Email) && StudentService.IsPlaceholderEmail(user.Email)) dto.Email = user.Email;
         if (string.IsNullOrWhiteSpace(dto.Email)) throw new Exception("El correo es obligatorio.");
         if (await EmailInUseAsync(dto.Email, user.Id))
             throw new Exception("El correo ya está en uso por otro usuario.");
