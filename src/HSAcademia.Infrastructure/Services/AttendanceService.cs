@@ -10,10 +10,12 @@ namespace HSAcademia.Infrastructure.Services;
 public class AttendanceService : IAttendanceService
 {
     private readonly AppDbContext _context;
+    private readonly FamilyNoticeService _notices;
 
-    public AttendanceService(AppDbContext context)
+    public AttendanceService(AppDbContext context, FamilyNoticeService notices)
     {
         _context = context;
+        _notices = notices;
     }
 
     // =========================================================
@@ -146,6 +148,7 @@ public class AttendanceService : IAttendanceService
         var eventDate = ev.StartTime.Date;
         var existing = await LoadSessionMarksAsync(academyId, dto.EventId, eventDate, validStudentIds);
         var marker = await MarkerAsync(markedByUserId);
+        var saved = new List<Attendance>();
 
         foreach (var record in dto.Records)
         {
@@ -157,6 +160,7 @@ public class AttendanceService : IAttendanceService
                 existAtt.EventId = dto.EventId;
                 existAtt.Notes  = record.Notes;
                 _context.Attendances.Update(existAtt);
+                saved.Add(existAtt);
             }
             else
             {
@@ -170,8 +174,10 @@ public class AttendanceService : IAttendanceService
                 };
                 ApplyMark(att, record.Status, AttendanceSource.List, marker, isNew: true);
                 _context.Attendances.Add(att);
+                saved.Add(att);
             }
         }
+        await _notices.SyncArrivalsAsync(academyId, ev, saved);
         await _context.SaveChangesAsync();
     }
 
@@ -327,6 +333,8 @@ public class AttendanceService : IAttendanceService
             ApplyMark(record, Domain.Enums.AttendanceStatus.Present, AttendanceSource.Qr, marker, isNew: true);
             _context.Attendances.Add(record);
         }
+
+        if (session != null) await _notices.SyncArrivalsAsync(academyId, session, new[] { record });
 
         try
         {
@@ -586,7 +594,7 @@ public class AttendanceService : IAttendanceService
     }
 
     /// <summary>Registra el estado y quién lo marcó. Guardar la lista sin cambiar el estado no borra el origen (ej. QR).</summary>
-    private static void ApplyMark(Attendance row, Domain.Enums.AttendanceStatus status, AttendanceSource source, Marker marker, bool isNew = false)
+    private static void ApplyMark(Attendance row, Domain.Enums.AttendanceStatus status, AttendanceSource source, Marker marker, bool isNew = false, DateTime? markedAt = null)
     {
         var now = DateTime.UtcNow;
         row.UpdatedAt = now;
@@ -595,7 +603,8 @@ public class AttendanceService : IAttendanceService
         row.Source = source;
         row.MarkedByUserId = marker.UserId;
         row.MarkedByName = marker.Name;
-        row.MarkedAt = now;
+        // Hora del celular si se marcó sin señal; nunca una hora futura por un reloj mal configurado.
+        row.MarkedAt = markedAt.HasValue && markedAt.Value.ToUniversalTime() < now ? markedAt.Value.ToUniversalTime() : now;
     }
 
     private static StudentAttendanceDto ToRosterDto(Student s, Attendance? att) => new()
@@ -823,12 +832,14 @@ public class AttendanceService : IAttendanceService
         var assignedCategoryIds = userWithCategories.AssignedCategories.Select(c => c.Id).ToList();
 
         List<Guid> targetCategoryIds;
+        Event? session = null;
 
         if (dto.EventId.HasValue)
         {
             var ev = await _context.Events
                 .FirstOrDefaultAsync(e => e.AcademyId == academyId && e.Id == dto.EventId.Value && !e.IsDeleted);
             if (ev == null) throw new Exception("Evento no encontrado.");
+            session = ev;
             if (ev.AttendanceClosed)
                 throw new Exception("La asistencia de este evento está cerrada. Solo un administrador puede reabrirla.");
 
@@ -868,17 +879,21 @@ public class AttendanceService : IAttendanceService
             ? await LoadSessionMarksAsync(academyId, dto.EventId.Value, dto.Date.Date, validStudentIds)
             : await LoadDayMarksAsync(academyId, dto.Date.Date, validStudentIds);
         var marker = await MarkerAsync(staffUserId);
+        var saved = new List<Attendance>();
 
         foreach (var record in dto.Records)
         {
             if (!validStudentIds.Contains(record.StudentId)) continue;
+            var source = string.Equals(record.Via, "QR", StringComparison.OrdinalIgnoreCase) ? AttendanceSource.Qr : AttendanceSource.List;
 
             if (existing.TryGetValue(record.StudentId, out var existAtt))
             {
-                ApplyMark(existAtt, record.Status, AttendanceSource.List, marker);
+                if (record.IfUnmarked) continue;
+                ApplyMark(existAtt, record.Status, source, marker, markedAt: record.MarkedAt);
                 existAtt.Notes  = record.Notes ?? existAtt.Notes;
                 if (dto.EventId.HasValue) existAtt.EventId = dto.EventId;
                 _context.Attendances.Update(existAtt);
+                saved.Add(existAtt);
             }
             else
             {
@@ -890,10 +905,12 @@ public class AttendanceService : IAttendanceService
                     EventId   = dto.EventId,
                     Notes     = record.Notes
                 };
-                ApplyMark(att, record.Status, AttendanceSource.List, marker, isNew: true);
+                ApplyMark(att, record.Status, source, marker, isNew: true, markedAt: record.MarkedAt);
                 _context.Attendances.Add(att);
+                saved.Add(att);
             }
         }
+        if (session != null) await _notices.SyncArrivalsAsync(academyId, session, saved);
         await _context.SaveChangesAsync();
     }
 

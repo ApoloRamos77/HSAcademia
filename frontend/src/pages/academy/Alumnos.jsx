@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import api from '../../api/axios';
 import AppLayout from '../../components/AppLayout';
-import { PlusCircle, Search, Users, Activity, FileText, Calendar, MapPin, UserPlus, X, Filter, Download } from 'lucide-react';
+import { PlusCircle, Search, Users, Activity, FileText, Calendar, MapPin, UserPlus, X, Filter, Download, QrCode } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import CredentialsDialog from '../../components/CredentialsDialog';
@@ -43,6 +43,7 @@ export default function Alumnos() {
   const [filterCat, setFilterCat] = useState('');
   const [filterStatus, setFilterStatus] = useState(''); // '' | 'active' | 'inactive'
   const [showFilters, setShowFilters] = useState(false);
+  const [printingCards, setPrintingCards] = useState(false);
 
   const initialForm = {
     firstName: '', lastName: '', email: '', phone: '', dateOfBirth: '', documentNumber: '', headquarterId: '', categoryId: '',
@@ -139,6 +140,20 @@ export default function Alumnos() {
   });
 
   const activeFiltersCount = [filterSede, filterCat, filterStatus].filter(Boolean).length;
+
+  const handlePrintCards = async () => {
+    const selected = filteredAlumnos.filter(a => a.isActive !== false);
+    if (selected.length === 0) { toast.error('No hay alumnos activos con estos filtros.'); return; }
+    setPrintingCards(true);
+    try {
+      const { printStudentCards } = await import('../../utils/studentCards');
+      await printStudentCards(selected, user?.academyName);
+    } catch {
+      toast.error('No se pudieron generar los carnés.');
+    } finally {
+      setPrintingCards(false);
+    }
+  };
 
   // Pagination Logic
   const indexOfLastItem = currentPage * itemsPerPage;
@@ -321,6 +336,10 @@ export default function Alumnos() {
             <div className="flex gap-2">
               <button onClick={handleExportCSV} className="btn btn-outline flex items-center gap-2">
                 <Download size={16} /> Exportar
+              </button>
+              <button onClick={handlePrintCards} disabled={printingCards} className="btn btn-outline flex items-center gap-2"
+                title="Genera un PDF con los carnés QR de los alumnos activos filtrados">
+                <QrCode size={16} /> {printingCards ? 'Generando…' : 'Imprimir carnés'}
               </button>
               {user?.role !== 'Staff' && (
                 <button onClick={() => { setFormData(initialForm); setEditingId(null); setCurrentStep(1); setShowModal(true); }} className="btn btn-primary flex items-center gap-2">

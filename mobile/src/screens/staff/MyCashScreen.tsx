@@ -6,11 +6,10 @@ import type { CashHandover, MyCash } from '../../api/types';
 import { Badge, Banner, Button, Card, Divider, Empty, Input, Loading, Row, Screen, SectionTitle } from '../../components/ui';
 import { useApi } from '../../hooks/useApi';
 import { colors, font, spacing } from '../../theme';
-import { instantDate, money } from '../../utils/format';
+import { clockTime as time, instantDate, money } from '../../utils/format';
 
 const METHOD: Record<string, string> = { Cash: 'Efectivo', Yape: 'Yape', Plin: 'Plin', BankTransfer: 'Transferencia', Card: 'Tarjeta', Mixed: 'Mixto', Other: 'Otro' };
 const num = (v: string) => { const n = Number(v.replace(',', '.')); return Number.isFinite(n) ? n : NaN; };
-const time = (iso: string) => { const d = new Date(iso); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
 
 function DiffBadge({ value }: { value?: number | null }) {
   if (value == null) return null;

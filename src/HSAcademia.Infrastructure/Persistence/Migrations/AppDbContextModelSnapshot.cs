@@ -1080,6 +1080,60 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.ToTable("expenses", (string)null);
                 });
 
+            modelBuilder.Entity("HSAcademia.Domain.Entities.FamilyNotice", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AcademyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("academy_id");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("body");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("EventId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("event_id");
+
+                    b.Property<DateTime?>("ReadAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("read_at");
+
+                    b.Property<Guid>("StudentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("student_id");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("title");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("integer")
+                        .HasColumnName("type");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AcademyId");
+
+                    b.HasIndex("EventId", "StudentId");
+
+                    b.HasIndex("StudentId", "CreatedAt");
+
+                    b.ToTable("family_notices", (string)null);
+                });
+
             modelBuilder.Entity("HSAcademia.Domain.Entities.FinancialGoal", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3105,6 +3159,24 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.Navigation("Academy");
 
                     b.Navigation("RegisteredBy");
+                });
+
+            modelBuilder.Entity("HSAcademia.Domain.Entities.FamilyNotice", b =>
+                {
+                    b.HasOne("HSAcademia.Domain.Entities.Academy", null)
+                        .WithMany()
+                        .HasForeignKey("AcademyId")
+                        .HasPrincipalKey("AcademyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("HSAcademia.Domain.Entities.Student", "Student")
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Student");
                 });
 
             modelBuilder.Entity("HSAcademia.Domain.Entities.FinancialGoal", b =>

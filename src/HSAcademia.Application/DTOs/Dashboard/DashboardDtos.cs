@@ -73,6 +73,19 @@ public class AttendanceKpiDto
     public decimal? RateLast30Days { get; set; }
     public int RecordsLast30Days { get; set; }
     public List<LowAttendanceStudentDto> LowAttendance { get; set; } = new();
+    /// <summary>Alumnos activos con varias faltas seguidas: a quién llamar antes de que se retire.</summary>
+    public List<AbsenceStreakDto> AbsenceStreaks { get; set; } = new();
+}
+
+public class AbsenceStreakDto
+{
+    public Guid StudentId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Category { get; set; } = string.Empty;
+    public int Absences { get; set; }
+    /// <summary>Fecha de la primera falta de la racha.</summary>
+    public DateTime AbsentSince { get; set; }
+    public string? ContactPhone { get; set; }
 }
 
 public class LowAttendanceStudentDto
