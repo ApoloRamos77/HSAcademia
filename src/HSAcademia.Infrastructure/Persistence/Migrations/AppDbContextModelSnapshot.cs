@@ -477,10 +477,27 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("event_id");
 
+                    b.Property<DateTime?>("MarkedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("marked_at");
+
+                    b.Property<string>("MarkedByName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("marked_by_name");
+
+                    b.Property<Guid?>("MarkedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("marked_by_user_id");
+
                     b.Property<string>("Notes")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)")
                         .HasColumnName("notes");
+
+                    b.Property<int?>("Source")
+                        .HasColumnType("integer")
+                        .HasColumnName("source");
 
                     b.Property<int>("Status")
                         .HasColumnType("integer")

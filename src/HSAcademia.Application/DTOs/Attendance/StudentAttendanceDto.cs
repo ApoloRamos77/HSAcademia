@@ -13,4 +13,9 @@ public class StudentAttendanceDto
     public Guid? AttendanceId { get; set; }
     public AttendanceStatus? Status { get; set; }
     public string? Notes { get; set; }
+
+    /// <summary>"QR" | "Lista" (null en registros anteriores a este control).</summary>
+    public string? MarkedVia { get; set; }
+    public string? MarkedByName { get; set; }
+    public DateTime? MarkedAt { get; set; }
 }

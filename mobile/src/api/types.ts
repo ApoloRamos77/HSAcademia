@@ -217,6 +217,9 @@ export interface RosterStudent {
   attendanceId?: string | null;
   status?: AttendanceCode | null;
   notes?: string | null;
+  markedVia?: 'QR' | 'Lista' | null;
+  markedByName?: string | null;
+  markedAt?: string | null;
 }
 
 export interface MedicalRecord {

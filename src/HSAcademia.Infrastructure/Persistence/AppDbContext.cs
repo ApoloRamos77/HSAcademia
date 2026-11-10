@@ -527,6 +527,10 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Status).HasColumnName("status").HasConversion<int>().IsRequired();
             entity.Property(e => e.Notes).HasColumnName("notes").HasMaxLength(500);
             entity.Property(e => e.EventId).HasColumnName("event_id");
+            entity.Property(e => e.Source).HasColumnName("source").HasConversion<int?>();
+            entity.Property(e => e.MarkedByUserId).HasColumnName("marked_by_user_id");
+            entity.Property(e => e.MarkedByName).HasColumnName("marked_by_name").HasMaxLength(200);
+            entity.Property(e => e.MarkedAt).HasColumnName("marked_at");
 
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");

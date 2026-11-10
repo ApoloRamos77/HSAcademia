@@ -17,6 +17,12 @@ public class Attendance
     /// </summary>
     public Guid? EventId { get; set; }
 
+    // Quién marcó el estado actual, cuándo y cómo (null en registros anteriores a este control).
+    public AttendanceSource? Source { get; set; }
+    public Guid? MarkedByUserId { get; set; }
+    public string? MarkedByName { get; set; }
+    public DateTime? MarkedAt { get; set; }
+
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 
