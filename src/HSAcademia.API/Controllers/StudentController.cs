@@ -23,7 +23,7 @@ public class StudentController : ControllerBase
 
     /// <summary>Listado de alumnos. Lo usan los módulos Alumnos, Apoderados, Tienda y Finanzas.</summary>
     [HttpGet]
-    [RequirePermission(Permissions.ViewStudents, Permissions.ManageStore, Permissions.ManageFinances, Permissions.ManageAttendance)]
+    [RequirePermission(Permissions.StudentsView, Permissions.CollectionsView, Permissions.CollectionsCollect, Permissions.StoreSell, Permissions.AttendanceTake)]
     public async Task<IActionResult> GetStudents()
     {
         var academyId = User.GetAcademyId();
@@ -35,14 +35,15 @@ public class StudentController : ControllerBase
     }
 
     [HttpPost]
-    [RequirePermission(Permissions.ViewStudents)]
+    [RequirePermission(Permissions.StudentsEdit)]
     public async Task<IActionResult> CreateStudent([FromBody] CreateStudentDto dto)
     {
         var academyId = User.GetAcademyId();
         if (academyId == Guid.Empty) return Unauthorized();
+        if (!await ScopeChecker.CanPlaceStudentAsync(HttpContext, dto.CategoryId, dto.HeadquarterId)) return ScopeChecker.Denied();
         try
         {
-            var canFinance = await PermissionChecker.HasAsync(HttpContext, Permissions.ManageFinances);
+            var canFinance = await PermissionChecker.HasAsync(HttpContext, Permissions.StudentsBilling);
             return Ok(await _studentService.CreateStudentAsync(academyId, dto, canFinance));
         }
         catch (Exception ex)
@@ -52,14 +53,16 @@ public class StudentController : ControllerBase
     }
 
     [HttpPut("{id}")]
-    [RequirePermission(Permissions.ViewStudents)]
+    [RequirePermission(Permissions.StudentsEdit)]
+    [RequireScope(ScopeTarget.Student, "id", Permissions.CollectionsView, Permissions.CollectionsCollect, Permissions.StoreSell)]
     public async Task<IActionResult> UpdateStudent(Guid id, [FromBody] CreateStudentDto dto)
     {
         var academyId = User.GetAcademyId();
         if (academyId == Guid.Empty) return Unauthorized();
+        if (!await ScopeChecker.CanPlaceStudentAsync(HttpContext, dto.CategoryId, dto.HeadquarterId)) return ScopeChecker.Denied();
         try
         {
-            var canFinance = await PermissionChecker.HasAsync(HttpContext, Permissions.ManageFinances);
+            var canFinance = await PermissionChecker.HasAsync(HttpContext, Permissions.StudentsBilling);
             return Ok(await _studentService.UpdateStudentAsync(academyId, id, dto, canFinance));
         }
         catch (Exception ex)
@@ -69,7 +72,8 @@ public class StudentController : ControllerBase
     }
 
     [HttpGet("{id}/medical-record")]
-    [RequirePermission(Permissions.ViewStudents)]
+    [RequirePermission(Permissions.StudentsMedical)]
+    [RequireScope(ScopeTarget.Student, "id")]
     public async Task<IActionResult> GetMedicalRecord(Guid id)
     {
         var academyId = User.GetAcademyId();
@@ -78,7 +82,8 @@ public class StudentController : ControllerBase
     }
 
     [HttpGet("{id}/nutrition-records")]
-    [RequirePermission(Permissions.ViewStudents)]
+    [RequirePermission(Permissions.StudentsMedical)]
+    [RequireScope(ScopeTarget.Student, "id")]
     public async Task<IActionResult> GetNutritionRecords(Guid id)
     {
         var academyId = User.GetAcademyId();
@@ -87,7 +92,8 @@ public class StudentController : ControllerBase
     }
 
     [HttpPost("{id}/nutrition-records")]
-    [RequirePermission(Permissions.ViewStudents)]
+    [RequirePermission(Permissions.StudentsMedical)]
+    [RequireScope(ScopeTarget.Student, "id")]
     public async Task<IActionResult> AddNutritionRecord(Guid id, [FromBody] CreateStudentNutritionRecordDto dto)
     {
         var academyId = User.GetAcademyId();
@@ -106,7 +112,8 @@ public class StudentController : ControllerBase
     }
 
     [HttpGet("{id}/financial-history")]
-    [RequirePermission(Permissions.ViewStudents, Permissions.ManageFinances)]
+    [RequirePermission(Permissions.StudentsPayments, Permissions.CollectionsView)]
+    [RequireScope(ScopeTarget.Student, "id", Permissions.CollectionsView)]
     public async Task<IActionResult> GetFinancialHistory(Guid id, [FromServices] FinancesService financesService, [FromServices] StoreService storeService, [FromQuery] int? year, [FromQuery] int? month)
     {
         var academyId = User.GetAcademyId();

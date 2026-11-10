@@ -11,7 +11,8 @@ import { Apple, Activity as ActivityIcon } from 'lucide-react';
 import { todayISO } from '../../utils/dates';
 
 export default function Alumnos() {
-  const { user } = useAuth();
+  const { user, can } = useAuth();
+  const canEdit = can('students.edit');
   const [alumnos, setAlumnos] = useState([]);
   const [sedes, setSedes] = useState([]);
   const [categorias, setCategorias] = useState([]);
@@ -341,7 +342,7 @@ export default function Alumnos() {
                 title="Genera un PDF con los carnés QR de los alumnos activos filtrados">
                 <QrCode size={16} /> {printingCards ? 'Generando…' : 'Imprimir carnés'}
               </button>
-              {user?.role !== 'Staff' && (
+              {canEdit && (
                 <button onClick={() => { setFormData(initialForm); setEditingId(null); setCurrentStep(1); setShowModal(true); }} className="btn btn-primary flex items-center gap-2">
                   <PlusCircle size={16} /> Registrar Alumno
                 </button>
@@ -456,21 +457,24 @@ export default function Alumnos() {
                     </td>
                     <td className="text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <button className="btn btn-ghost btn-sm text-primary" onClick={() => openFinancialModal(alumno)} title="Finanzas">
-                          <FileText size={15} />
-                        </button>
-                        <button className="btn btn-ghost btn-sm text-success" onClick={() => openNutritionModal(alumno)} title="Nutrición">
-                          <Apple size={15} />
-                        </button>
-                        <button className="btn btn-ghost btn-sm text-primary" onClick={() => setEvalStudent(alumno)} title="Evaluación deportiva" aria-label="Evaluación deportiva">
-                          <Star size={15} />
-                        </button>
-                        <button className="btn btn-ghost btn-sm text-primary" onClick={() => setEvalStudent(alumno)} title="Evaluación deportiva" aria-label="Evaluación deportiva">
-                          <Star size={15} />
-                        </button>
+                        {can('students.payments', 'collections.view') && (
+                          <button className="btn btn-ghost btn-sm text-primary" onClick={() => openFinancialModal(alumno)} title="Finanzas">
+                            <FileText size={15} />
+                          </button>
+                        )}
+                        {can('students.medical') && (
+                          <button className="btn btn-ghost btn-sm text-success" onClick={() => openNutritionModal(alumno)} title="Nutrición">
+                            <Apple size={15} />
+                          </button>
+                        )}
+                        {can('students.evaluate') && (
+                          <button className="btn btn-ghost btn-sm text-primary" onClick={() => setEvalStudent(alumno)} title="Evaluación deportiva" aria-label="Evaluación deportiva">
+                            <Star size={15} />
+                          </button>
+                        )}
                         <button className="btn btn-ghost btn-sm text-warning" onClick={async () => {
                             try {
-                              const recRes = await api.get(`/students/${alumno.id}/medical-record`);
+                              const recRes = can('students.medical') ? await api.get(`/students/${alumno.id}/medical-record`) : { data: {} };
                               setFormData({
                                 firstName: alumno.firstName,
                                 lastName: alumno.lastName,
@@ -507,8 +511,8 @@ export default function Alumnos() {
                               setCurrentStep(1);
                               setShowModal(true);
                             } catch(e) { toast.error("Error al cargar datos"); }
-                        }} title={user?.role === 'Staff' ? "Ver Alumno" : "Editar Alumno"}>
-                          {user?.role === 'Staff' ? <Search size={15} /> : <Users size={15} />}
+                        }} title={canEdit ? "Editar Alumno" : "Ver Alumno"}>
+                          {canEdit ? <Users size={15} /> : <Search size={15} />}
                         </button>
                       </div>
                     </td>
@@ -545,7 +549,7 @@ export default function Alumnos() {
           <div className="modal-overlay" onClick={() => setShowModal(false)}>
             <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '700px' }}>
               <div className="flex justify-between items-center mb-6 border-b border-border pb-4">
-                <h3 className="modal-title m-0 text-lg font-bold">{user?.role === 'Staff' ? 'Detalles del Alumno' : (editingId ? 'Editar Alumno' : 'Registrar Nuevo Alumno')}</h3>
+                <h3 className="modal-title m-0 text-lg font-bold">{!canEdit ? 'Detalles del Alumno' : (editingId ? 'Editar Alumno' : 'Registrar Nuevo Alumno')}</h3>
                 <div className="flex items-center gap-4">
                   {/* Pestañas (Tabs) con estilo elegante */}
                   <div className="tabs m-0">
@@ -554,7 +558,7 @@ export default function Alumnos() {
                     <button type="button" onClick={() => setCurrentStep(3)} className={`tab-pill ${currentStep === 3 ? 'active' : ''}`}>3. Ficha Médica</button>
                   </div>
                   {/* Botón Guardar Principal */}
-                  {user?.role !== 'Staff' && (
+                  {canEdit && (
                     <button type="button" onClick={handleSave} className="btn btn-success px-6" style={{ height: '44px', borderRadius: '10px' }}>
                       <FileText size={16} /> Guardar
                     </button>
@@ -563,7 +567,7 @@ export default function Alumnos() {
               </div>
               
               <form onSubmit={handleSave}>
-                <fieldset disabled={user?.role === 'Staff'} style={{ border: 'none', padding: 0, margin: 0 }}>
+                <fieldset disabled={!canEdit} style={{ border: 'none', padding: 0, margin: 0 }}>
                 {/* STEP 1: ALUMNO */}
                 {currentStep === 1 && (
                   <div className="fade-in">

@@ -26,12 +26,12 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("overdue")]
-    [RequirePermission(Permissions.ManageFinances)]
+    [RequirePermission(Permissions.ReportsFinance)]
     public async Task<IActionResult> Overdue() =>
         Csv(await _reports.OverdueAgingCsvAsync(User.GetAcademyId()), "morosidad");
 
     [HttpGet("payments")]
-    [RequirePermission(Permissions.ManageFinances)]
+    [RequirePermission(Permissions.ReportsFinance)]
     public async Task<IActionResult> Payments([FromQuery] int year, [FromQuery] int month)
     {
         ValidatePeriod(year, month);
@@ -39,12 +39,12 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("students")]
-    [RequirePermission(Permissions.ViewStudents)]
+    [RequirePermission(Permissions.ReportsStudents)]
     public async Task<IActionResult> Students([FromQuery] bool includeInactive = false) =>
         Csv(await _reports.StudentsCsvAsync(User.GetAcademyId(), includeInactive), "padron_alumnos");
 
     [HttpGet("attendance")]
-    [RequirePermission(Permissions.ManageAttendance, Permissions.ViewStudents)]
+    [RequirePermission(Permissions.ReportsAttendance)]
     public async Task<IActionResult> Attendance([FromQuery] int year, [FromQuery] int month, [FromServices] AppDbContext db)
     {
         ValidatePeriod(year, month);

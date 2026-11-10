@@ -14,7 +14,7 @@ const isoDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,
 /** Historial de comprobantes: reimpresión, búsqueda por número (incluye recibos antiguos) y anulación completa. */
 export default function ReceiptsTab({ onChanged }) {
   const { user } = useAuth();
-  const canVoid = user?.role === 'AcademyAdmin' || (user?.permissions || []).includes('manage_finances');
+  const canVoid = user?.role === 'AcademyAdmin' || (user?.permissions || []).includes('collections.void');
   const today = new Date();
   const [from, setFrom] = useState(isoDay(new Date(today.getFullYear(), today.getMonth(), 1)));
   const [to, setTo] = useState(isoDay(today));

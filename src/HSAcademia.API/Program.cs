@@ -54,6 +54,7 @@ builder.Services.AddScoped<ReceiptService>();
 builder.Services.AddScoped<DiscountService>();
 builder.Services.AddScoped<CashService>();
 builder.Services.AddScoped<AccessControlService>();
+builder.Services.AddScoped<AccessScopeService>();
 builder.Services.AddScoped<FinancialPeriodGuard>();
 builder.Services.AddScoped<AuditService>();
 builder.Services.AddScoped<DashboardService>();
@@ -96,6 +97,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateLifetime = true,
             ClockSkew = TimeSpan.Zero
         };
+        opts.Events = new JwtBearerEvents { OnTokenValidated = ActiveSessionValidator.ValidateAsync };
     });
 
 builder.Services.AddAuthorization();

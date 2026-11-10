@@ -369,6 +369,11 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasColumnName("permissions")
                         .HasDefaultValueSql("'[]'::jsonb");
 
+                    b.Property<string>("SystemKey")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("system_key");
+
                     b.Property<DateTime>("UpdatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -378,6 +383,10 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("AcademyId");
+
+                    b.HasIndex(new[] { "AcademyId", "SystemKey" }, "IX_academy_roles_system_key")
+                        .IsUnique()
+                        .HasFilter("system_key IS NOT NULL");
 
                     b.ToTable("academy_roles", (string)null);
                 });
@@ -2811,9 +2820,6 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("academy_id");
 
-                    b.Property<Guid?>("AcademyRoleId")
-                        .HasColumnType("uuid");
-
                     b.Property<string>("AvatarUrl")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)")
@@ -2856,6 +2862,12 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(false)
                         .HasColumnName("is_deleted");
+
+                    b.Property<bool>("IsOwner")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_owner");
 
                     b.Property<DateTime?>("LastLoginAt")
                         .HasColumnType("timestamp with time zone")
@@ -2934,14 +2946,16 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("AcademyId");
 
-                    b.HasIndex("AcademyRoleId");
-
                     b.HasIndex("Email")
                         .IsUnique();
 
                     b.HasIndex("HeadquarterId");
 
                     b.HasIndex("Role");
+
+                    b.HasIndex(new[] { "AcademyId" }, "IX_users_single_owner")
+                        .IsUnique()
+                        .HasFilter("is_owner AND NOT is_deleted");
 
                     b.ToTable("users", (string)null);
 
@@ -2953,6 +2967,7 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                             Email = "superadmin@adhsoft.com",
                             FirstName = "Super",
                             IsDeleted = false,
+                            IsOwner = false,
                             LastName = "Admin",
                             MustChangePassword = false,
                             PasswordHash = "$2a$11$G7Z3P7d1G3kMhY1S1iR5M.O5X9W8G2m5T4c5lR2p5n8v1M3s1x2eO",
@@ -2962,6 +2977,36 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                             Status = 1,
                             UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc)
                         });
+                });
+
+            modelBuilder.Entity("user_academy_roles", b =>
+                {
+                    b.Property<Guid>("academy_role_id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("user_id")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("academy_role_id", "user_id");
+
+                    b.HasIndex("user_id");
+
+                    b.ToTable("user_academy_roles");
+                });
+
+            modelBuilder.Entity("user_headquarters", b =>
+                {
+                    b.Property<Guid>("headquarter_id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("user_id")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("headquarter_id", "user_id");
+
+                    b.HasIndex("user_id");
+
+                    b.ToTable("user_headquarters");
                 });
 
             modelBuilder.Entity("CategoryUser", b =>
@@ -3639,11 +3684,6 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasPrincipalKey("AcademyId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("HSAcademia.Domain.Entities.AcademyRole", "AcademyRole")
-                        .WithMany("Users")
-                        .HasForeignKey("AcademyRoleId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("HSAcademia.Domain.Entities.Headquarter", "Headquarter")
                         .WithMany("Users")
                         .HasForeignKey("HeadquarterId")
@@ -3651,9 +3691,37 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
 
                     b.Navigation("Academy");
 
-                    b.Navigation("AcademyRole");
-
                     b.Navigation("Headquarter");
+                });
+
+            modelBuilder.Entity("user_academy_roles", b =>
+                {
+                    b.HasOne("HSAcademia.Domain.Entities.AcademyRole", null)
+                        .WithMany()
+                        .HasForeignKey("academy_role_id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("HSAcademia.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("user_id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("user_headquarters", b =>
+                {
+                    b.HasOne("HSAcademia.Domain.Entities.Headquarter", null)
+                        .WithMany()
+                        .HasForeignKey("headquarter_id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("HSAcademia.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("user_id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("HSAcademia.Domain.Entities.Academy", b =>
@@ -3666,11 +3734,6 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
 
                     b.Navigation("Roles");
 
-                    b.Navigation("Users");
-                });
-
-            modelBuilder.Entity("HSAcademia.Domain.Entities.AcademyRole", b =>
-                {
                     b.Navigation("Users");
                 });
 

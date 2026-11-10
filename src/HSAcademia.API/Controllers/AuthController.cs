@@ -63,6 +63,17 @@ public class AuthController : ControllerBase
         return Ok(academies);
     }
 
+    /// <summary>Permisos y alcance vigentes: permite actualizarlos sin volver a iniciar sesión.</summary>
+    [Authorize]
+    [HttpGet("me")]
+    public async Task<IActionResult> Me()
+    {
+        var userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (!Guid.TryParse(userIdStr, out var userId)) return Unauthorized();
+        var me = await _auth.GetCurrentAsync(userId);
+        return me == null ? Unauthorized() : Ok(me);
+    }
+
     [Authorize]
     [HttpPost("change-password")]
     [EnableRateLimiting("login")]

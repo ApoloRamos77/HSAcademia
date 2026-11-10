@@ -167,6 +167,7 @@ public class SuperAdminService
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(tempPassword),
             MustChangePassword = true,
             Role = UserRole.AcademyAdmin,
+            IsOwner = true,
             Status = UserStatus.Active
         };
         _db.Users.Add(adminUser);

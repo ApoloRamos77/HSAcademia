@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import AppLayout from '../../components/AppLayout';
-import { PlusCircle, Users, Mail, Phone, MapPin, Shield, Edit2, CheckSquare } from 'lucide-react';
+import { PlusCircle, Users, Mail, Phone, MapPin, Shield, Edit2, CheckSquare, Crown } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useAuth } from '../../context/AuthContext';
 
 export default function Usuarios() {
+  const { user: me } = useAuth();
   const [usuarios, setUsuarios] = useState([]);
   const [roles, setRoles] = useState([]);
   const [sedes, setSedes] = useState([]);
@@ -14,7 +16,7 @@ export default function Usuarios() {
   const [editingId, setEditingId] = useState(null);
   
   const initialForm = {
-    firstName: '', lastName: '', email: '', password: '', phone: '', systemRole: 'Staff', academyRoleId: '', headquarterIds: [], categoryIds: [],
+    firstName: '', lastName: '', email: '', password: '', phone: '', systemRole: 'Staff', academyRoleIds: [], headquarterIds: [], categoryIds: [],
     paymentType: 0, paymentRate: '', status: 'Active'
   };
   const [formData, setFormData] = useState(initialForm);
@@ -52,11 +54,9 @@ export default function Usuarios() {
       password: '', // Leave empty unless changing
       phone: user.phone || '',
       systemRole: user.systemRole,
-      // If AcademyAdmin with no custom role, pre-select the virtual admin option
-      academyRoleId: user.academyRoleId || (user.systemRole === 'AcademyAdmin' ? '__admin__' : ''),
+      academyRoleIds: user.academyRoleIds || [],
       headquarterIds: (() => {
-        const hSet = new Set();
-        if (user.headquarterId) hSet.add(user.headquarterId);
+        const hSet = new Set(user.headquarterIds || []);
         if (user.categoryIds) {
           user.categoryIds.forEach(catId => {
             const cat = categorias.find(c => c.id === catId);
@@ -77,11 +77,15 @@ export default function Usuarios() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      // __admin__ is a UI-only sentinel: AcademyAdmin users don't need a custom academyRoleId
+      if (formData.systemRole === 'Staff' && formData.academyRoleIds.length === 0) {
+        toast.error('Asigna al menos un rol.');
+        return;
+      }
       const payload = {
         ...formData,
-        academyRoleId: (formData.academyRoleId === '__admin__' || formData.academyRoleId === '') ? null : formData.academyRoleId,
-        headquarterId: formData.headquarterIds.length === 1 ? formData.headquarterIds[0] : null,
+        // El administrador tiene acceso completo: los roles solo aplican al personal.
+        academyRoleIds: formData.systemRole === 'Staff' ? formData.academyRoleIds : [],
+        headquarterIds: formData.headquarterIds,
         paymentType: parseInt(formData.paymentType),
         paymentRate: parseFloat(formData.paymentRate) || 0,
         status: formData.status
@@ -100,6 +104,26 @@ export default function Usuarios() {
     } catch (err) {
       toast.error(err.response?.data?.message || 'Error al guardar usuario.');
     }
+  };
+
+  const transferOwnership = async (target) => {
+    if (!window.confirm(`¿Transferir la propiedad de la academia a ${target.firstName} ${target.lastName}? Dejarás de ser el propietario.`)) return;
+    try {
+      await api.post(`/academy-config/users/${target.id}/transfer-ownership`);
+      toast.success('Propiedad transferida');
+      window.location.reload();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'No se pudo transferir la propiedad.');
+    }
+  };
+
+  const toggleRole = (roleId) => {
+    setFormData(prev => ({
+      ...prev,
+      academyRoleIds: prev.academyRoleIds.includes(roleId)
+        ? prev.academyRoleIds.filter(id => id !== roleId)
+        : [...prev.academyRoleIds, roleId]
+    }));
   };
 
   const toggleCategory = (catId) => {
@@ -174,8 +198,9 @@ export default function Usuarios() {
                         <div>
                           <div className="font-bold text-text-primary text-sm">{user.firstName} {user.lastName}</div>
                           <div className="text-xs mt-0.5">
-                            <span className={`badge inline-block ${user.systemRole === 'AcademyAdmin' ? 'badge-info' : 'badge-muted'}`}>
-                              {user.systemRole === 'AcademyAdmin' ? 'Admin' : 'Staff'}
+                            <span className={`badge inline-flex items-center gap-1 ${user.systemRole === 'AcademyAdmin' ? 'badge-info' : 'badge-muted'}`}>
+                              {user.isOwner && <Crown size={11} />}
+                              {user.isOwner ? 'Propietario' : user.systemRole === 'AcademyAdmin' ? 'Administrador' : 'Personal'}
                             </span>
                           </div>
                         </div>
@@ -189,8 +214,8 @@ export default function Usuarios() {
                     </td>
                     <td>
                       <div className="text-sm text-text-secondary flex flex-col gap-1">
-                        <div className="flex items-center gap-1.5"><Shield size={13} className="text-warning"/> {user.academyRoleName || 'Sin Cargo'}</div>
-                        <div className="flex items-center gap-1.5"><MapPin size={13} className="text-success"/> <span className="truncate max-w-[150px]">{user.headquarterName || 'Todas las Sedes'}</span></div>
+                        <div className="flex items-center gap-1.5"><Shield size={13} className="text-warning"/> <span className="truncate max-w-[150px]" title={user.academyRoleNames?.join(', ')}>{user.systemRole === 'AcademyAdmin' ? 'Acceso completo' : (user.academyRoleNames?.join(', ') || 'Sin rol')}</span></div>
+                        <div className="flex items-center gap-1.5"><MapPin size={13} className="text-success"/> <span className="truncate max-w-[150px]" title={user.headquarterNames?.join(', ')}>{user.headquarterNames?.length ? user.headquarterNames.join(', ') : 'Todas las Sedes'}</span></div>
                       </div>
                     </td>
                     <td>
@@ -204,6 +229,9 @@ export default function Usuarios() {
                       </div>
                     </td>
                     <td className="text-right align-middle">
+                      {me?.isOwner && user.systemRole === 'AcademyAdmin' && !user.isOwner && user.status === 'Active' && (
+                        <button onClick={() => transferOwnership(user)} className="btn btn-ghost btn-sm" title="Transferir la propiedad"><Crown size={16}/></button>
+                      )}
                       <button onClick={() => handleEdit(user)} className="btn btn-ghost btn-sm" title="Editar"><Edit2 size={16}/></button>
                     </td>
                   </tr>
@@ -248,50 +276,31 @@ export default function Usuarios() {
                   </div>
                   <div className="form-group">
                     <label className="form-label">Nivel de Acceso *</label>
-                    <select className="form-control" value={formData.systemRole} onChange={e => {
-                      const newRole = e.target.value;
-                      setFormData(prev => ({
-                        ...prev,
-                        systemRole: newRole,
-                        // Auto-select admin cargo when switching to AcademyAdmin
-                        academyRoleId: newRole === 'AcademyAdmin'
-                          ? (prev.academyRoleId && prev.academyRoleId !== '__admin__' ? prev.academyRoleId : '__admin__')
-                          : (prev.academyRoleId === '__admin__' ? '' : prev.academyRoleId)
-                      }));
-                    }}>
-                      <option value="Staff">Personal Normal (Staff)</option>
-                      <option value="AcademyAdmin">Administrador Total (AcademyAdmin)</option>
+                    <select className="form-control" value={formData.systemRole} disabled={!me?.isOwner} onChange={e => setFormData({ ...formData, systemRole: e.target.value })}>
+                      <option value="Staff">Personal (según sus roles)</option>
+                      <option value="AcademyAdmin">Administrador (acceso completo)</option>
                     </select>
                   </div>
                 </div>
 
                 <div className="form-row">
                   <div className="form-group">
-                    <label className="form-label">
-                      Cargo / Tipo de Personal
-                      {formData.systemRole !== 'AcademyAdmin' && ' *'}
-                    </label>
-                    <select
-                      required={formData.systemRole !== 'AcademyAdmin'}
-                      className="form-control"
-                      value={formData.academyRoleId}
-                      onChange={e => setFormData({...formData, academyRoleId: e.target.value})}
-                    >
-                      <option value="">-- Seleccione un Cargo --</option>
-                      {/* Opción fija para administradores de academia */}
-                      {formData.systemRole === 'AcademyAdmin' && (
-                        <option value="__admin__">👑 Administrador de Academia</option>
-                      )}
-                      {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                    </select>
-                    {formData.systemRole === 'AcademyAdmin' && (
-                      <p className="text-xs text-primary-400 mt-1" style={{ opacity: 0.8 }}>
-                        El administrador tiene acceso completo a la academia.
-                      </p>
+                    <label className="form-label mb-2">Roles {formData.systemRole === 'Staff' && '*'}</label>
+                    {formData.systemRole === 'AcademyAdmin' ? (
+                      <p className="text-xs text-primary-400 mt-1" style={{ opacity: 0.8 }}>El administrador tiene acceso completo a la academia.</p>
+                    ) : (
+                      <div className="grid grid-cols-1 gap-1 bg-bg-dark p-3 rounded-lg border border-border/50 max-h-32 overflow-y-auto">
+                        {roles.filter(r => r.isActive || formData.academyRoleIds.includes(r.id)).map(r => (
+                          <label key={r.id} className="flex items-center gap-2 cursor-pointer hover:bg-bg-surface p-1 rounded transition-colors text-sm" title={r.description || ''}>
+                            <input type="checkbox" className="rounded border-border bg-bg-surface text-primary h-4 w-4" checked={formData.academyRoleIds.includes(r.id)} onChange={() => toggleRole(r.id)} />
+                            <span className="truncate flex-1">{r.name}{r.isSystem ? '' : ' (propio)'}{r.isActive ? '' : ' · inactivo'}</span>
+                          </label>
+                        ))}
+                      </div>
                     )}
                   </div>
                   <div className="form-group">
-                    <label className="form-label mb-2">Sedes Asignadas (Opcional o Todas)</label>
+                    <label className="form-label mb-2">Sedes asignadas (sin marcar = todas)</label>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-bg-dark p-3 rounded-lg border border-border/50 max-h-32 overflow-y-auto">
                       {sedes.map(s => (
                         <label key={s.id} className="flex items-center gap-2 cursor-pointer hover:bg-bg-surface p-1.5 rounded transition-colors text-sm">

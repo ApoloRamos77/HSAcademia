@@ -1,3 +1,4 @@
+using HSAcademia.API.Authorization;
 using System;
 using System.Threading.Tasks;
 using HSAcademia.Application.DTOs.Announcement;
@@ -43,6 +44,7 @@ public class AnnouncementController : ControllerBase
 
     [HttpPost]
     [Authorize(Roles = "AcademyAdmin,Staff")]
+    [RequirePermission(Permissions.AnnouncementsPublish)]
     public async Task<IActionResult> CreateAnnouncement([FromBody] CreateAnnouncementDto dto)
     {
         var academyId = GetAcademyId();
@@ -60,6 +62,7 @@ public class AnnouncementController : ControllerBase
 
     [HttpDelete("{id}")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
+    [RequirePermission(Permissions.AnnouncementsPublish)]
     public async Task<IActionResult> DeleteAnnouncement(Guid id)
     {
         var academyId = GetAcademyId();

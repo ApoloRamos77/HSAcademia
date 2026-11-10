@@ -32,8 +32,8 @@ export default function CheckoutModal({ open, onClose, onDone, initialStudentId,
   const { user } = useAuth();
   const isAdmin = user?.role === 'AcademyAdmin';
   const perms = user?.permissions || [];
-  const canDebts = isAdmin || perms.includes('manage_finances');
-  const canProducts = canDebts || perms.includes('manage_store');
+  const canDebts = isAdmin || perms.includes('collections.collect');
+  const canProducts = canDebts || perms.includes('store.sell');
 
   const [students, setStudents] = useState([]);
   const [products, setProducts] = useState([]);

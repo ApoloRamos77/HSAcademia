@@ -21,4 +21,5 @@ public class Headquarter
     public virtual Academy? Academy { get; set; }
     public virtual ICollection<Category> Categories { get; set; } = new List<Category>();
     public virtual ICollection<User> Users { get; set; } = new List<User>();
+    public virtual ICollection<User> AssignedUsers { get; set; } = new List<User>();
 }

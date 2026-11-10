@@ -75,7 +75,7 @@ public class CalendarController : ControllerBase
     /// </summary>
     [HttpPost("events")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
-    [RequirePermission(Permissions.ManageEvents)]
+    [RequirePermission(Permissions.EventsManage)]
     public async Task<IActionResult> CreateEvent([FromBody] CreateEventDto dto)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -96,7 +96,7 @@ public class CalendarController : ControllerBase
     /// </summary>
     [HttpDelete("events/{id:guid}")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
-    [RequirePermission(Permissions.ManageEvents)]
+    [RequirePermission(Permissions.EventsManage)]
     public async Task<IActionResult> DeleteEvent(Guid id)
     {
         try
@@ -116,7 +116,7 @@ public class CalendarController : ControllerBase
     /// </summary>
     [HttpPut("events/{id:guid}")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
-    [RequirePermission(Permissions.ManageEvents)]
+    [RequirePermission(Permissions.EventsManage)]
     public async Task<IActionResult> UpdateEvent(Guid id, [FromBody] UpdateEventDto dto)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -165,7 +165,7 @@ public class CalendarController : ControllerBase
     /// </summary>
     [HttpPost("tournaments")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
-    [RequirePermission(Permissions.ManageEvents)]
+    [RequirePermission(Permissions.EventsManage)]
     public async Task<IActionResult> CreateTournament([FromBody] CreateTournamentDto dto)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -176,7 +176,7 @@ public class CalendarController : ControllerBase
 
     [HttpPut("tournaments/{id:guid}")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
-    [RequirePermission(Permissions.ManageEvents)]
+    [RequirePermission(Permissions.EventsManage)]
     public async Task<IActionResult> UpdateTournament(Guid id, [FromBody] UpdateTournamentDto dto)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -191,7 +191,7 @@ public class CalendarController : ControllerBase
 
     [HttpDelete("tournaments/{id:guid}")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
-    [RequirePermission(Permissions.ManageEvents)]
+    [RequirePermission(Permissions.EventsManage)]
     public async Task<IActionResult> DeleteTournament(Guid id)
     {
         try
@@ -217,7 +217,7 @@ public class CalendarController : ControllerBase
 
     [HttpPost("events/{eventId:guid}/calls/auto-generate")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
-    [RequirePermission(Permissions.ManageEvents)]
+    [RequirePermission(Permissions.EventsManage)]
     public async Task<IActionResult> AutoGenerateEventCalls(Guid eventId)
     {
         try

@@ -14,9 +14,11 @@ public class PaymentProofService
     private readonly AppDbContext _db;
     private readonly FinancesService _finances;
     private readonly AuditService _audit;
+    private readonly AccessScopeService _scope;
 
-    public PaymentProofService(AppDbContext db, FinancesService finances, AuditService audit)
+    public PaymentProofService(AppDbContext db, FinancesService finances, AuditService audit, AccessScopeService scope)
     {
+        _scope = scope;
         _db = db;
         _finances = finances;
         _audit = audit;
@@ -70,16 +72,20 @@ public class PaymentProofService
             .OrderByDescending(p => p.CreatedAt).Take(100).ToListAsync();
 
     // ── Academia ───────────────────────────────────────────────
-    public Task<List<PaymentProofDto>> GetForReviewAsync(Guid academyId, PaymentProofStatus? status)
+    public async Task<List<PaymentProofDto>> GetForReviewAsync(Guid academyId, PaymentProofStatus? status)
     {
-        var q = status.HasValue
-            ? QueryDtos(academyId, p => p.Status == status.Value)
-            : QueryDtos(academyId);
-        return q.OrderBy(p => p.Status == "Pending" ? 0 : 1).ThenByDescending(p => p.CreatedAt).Take(300).ToListAsync();
+        var headquarters = await _scope.StaffHeadquartersAsync();
+        return await QueryDtos(academyId, p => (!status.HasValue || p.Status == status.Value)
+                && (headquarters == null || headquarters.Contains(p.Student.HeadquarterId)))
+            .OrderBy(p => p.Status == "Pending" ? 0 : 1).ThenByDescending(p => p.CreatedAt).Take(300).ToListAsync();
     }
 
-    public Task<int> CountPendingAsync(Guid academyId) =>
-        _db.PaymentProofs.CountAsync(p => p.AcademyId == academyId && p.Status == PaymentProofStatus.Pending);
+    public async Task<int> CountPendingAsync(Guid academyId)
+    {
+        var headquarters = await _scope.StaffHeadquartersAsync();
+        return await _db.PaymentProofs.CountAsync(p => p.AcademyId == academyId && p.Status == PaymentProofStatus.Pending
+            && (headquarters == null || headquarters.Contains(p.Student.HeadquarterId)));
+    }
 
     public async Task<PaymentProofDto> ApproveAsync(Guid academyId, Guid reviewerId, Guid proofId, ApprovePaymentProofDto dto)
     {

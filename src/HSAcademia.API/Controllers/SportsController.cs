@@ -27,13 +27,13 @@ public class SportsController : ControllerBase
     // ── Horarios recurrentes ─────────────────────────────────────
     /// <summary>POST /api/sports/schedules — crea una serie de entrenamientos (rango de fechas + días de la semana).</summary>
     [HttpPost("schedules")]
-    [RequirePermission(Permissions.ManageEvents)]
+    [RequirePermission(Permissions.EventsManage)]
     public async Task<IActionResult> CreateSchedule([FromBody] CreateRecurringEventsDto dto) =>
         Ok(await _sports.CreateRecurringAsync(User.GetAcademyId(), dto));
 
     /// <summary>DELETE /api/sports/schedules/{seriesId} — elimina los entrenamientos FUTUROS de la serie sin asistencia.</summary>
     [HttpDelete("schedules/{seriesId:guid}")]
-    [RequirePermission(Permissions.ManageEvents)]
+    [RequirePermission(Permissions.EventsManage)]
     public async Task<IActionResult> DeleteSchedule(Guid seriesId)
     {
         var deleted = await _sports.DeleteFutureSeriesAsync(User.GetAcademyId(), seriesId);
@@ -42,7 +42,7 @@ public class SportsController : ControllerBase
 
     /// <summary>PUT /api/sports/schedules/{seriesId} — cambia esta y las siguientes o toda la serie. O se aplica todo o nada.</summary>
     [HttpPut("schedules/{seriesId:guid}")]
-    [RequirePermission(Permissions.ManageEvents)]
+    [RequirePermission(Permissions.EventsManage)]
     public async Task<IActionResult> UpdateSchedule(Guid seriesId, [FromBody] UpdateSeriesDto dto)
     {
         try { return Ok(await _sports.UpdateSeriesAsync(User.GetAcademyId(), seriesId, dto)); }
@@ -52,7 +52,7 @@ public class SportsController : ControllerBase
 
     /// <summary>POST /api/sports/schedules/{seriesId}/repeat-next-month — crea el mes siguiente a la última sesión de la serie.</summary>
     [HttpPost("schedules/{seriesId:guid}/repeat-next-month")]
-    [RequirePermission(Permissions.ManageEvents)]
+    [RequirePermission(Permissions.EventsManage)]
     public async Task<IActionResult> RepeatSchedule(Guid seriesId)
     {
         try { return Ok(await _sports.RepeatNextMonthAsync(User.GetAcademyId(), seriesId)); }
@@ -65,33 +65,35 @@ public class SportsController : ControllerBase
         Ok(await _sports.GetMatchResultAsync(User.GetAcademyId(), eventId));
 
     [HttpPut("matches/{eventId:guid}")]
-    [RequirePermission(Permissions.ManageEvents)]
+    [RequirePermission(Permissions.EventsManage)]
     public async Task<IActionResult> SaveMatch(Guid eventId, [FromBody] SaveMatchResultDto dto) =>
         Ok(await _sports.SaveMatchResultAsync(User.GetAcademyId(), eventId, dto));
 
     [HttpGet("students/{studentId:guid}/summary")]
-    [RequirePermission(Permissions.ViewStudents, Permissions.ManageEvents)]
+    [RequirePermission(Permissions.StudentsView, Permissions.EventsManage)]
+    [RequireScope(ScopeTarget.Student, "studentId", Permissions.EventsManage)]
     public async Task<IActionResult> StudentSummary(Guid studentId) =>
         Ok(await _sports.GetStudentSummaryAsync(User.GetAcademyId(), studentId));
 
     // ── Evaluaciones ─────────────────────────────────────────────
     [HttpGet("students/{studentId:guid}/evaluations")]
-    [RequirePermission(Permissions.ViewStudents)]
+    [RequirePermission(Permissions.StudentsEvaluate)]
+    [RequireScope(ScopeTarget.Student, "studentId")]
     public async Task<IActionResult> GetEvaluations(Guid studentId) =>
         Ok(await _evaluations.GetByStudentAsync(User.GetAcademyId(), studentId, onlyVisibleToFamily: false));
 
     [HttpPost("students/{studentId:guid}/evaluations")]
-    [RequirePermission(Permissions.ViewStudents)]
+    [RequirePermission(Permissions.StudentsEvaluate)]
     public async Task<IActionResult> CreateEvaluation(Guid studentId, [FromBody] SaveEvaluationDto dto) =>
         Ok(await _evaluations.CreateAsync(User.GetAcademyId(), User.GetUserId(), IsAdmin, studentId, dto));
 
     [HttpPut("evaluations/{id:guid}")]
-    [RequirePermission(Permissions.ViewStudents)]
+    [RequirePermission(Permissions.StudentsEvaluate)]
     public async Task<IActionResult> UpdateEvaluation(Guid id, [FromBody] SaveEvaluationDto dto) =>
         Ok(await _evaluations.UpdateAsync(User.GetAcademyId(), User.GetUserId(), IsAdmin, id, dto));
 
     [HttpDelete("evaluations/{id:guid}")]
-    [RequirePermission(Permissions.ViewStudents)]
+    [RequirePermission(Permissions.StudentsEvaluate)]
     public async Task<IActionResult> DeleteEvaluation(Guid id)
     {
         await _evaluations.DeleteAsync(User.GetAcademyId(), User.GetUserId(), IsAdmin, id);

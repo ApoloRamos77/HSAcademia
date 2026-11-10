@@ -1,9 +1,7 @@
 using HSAcademia.API.Authorization;
-using HSAcademia.Infrastructure.Persistence;
 using HSAcademia.Infrastructure.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace HSAcademia.API.Controllers;
 
@@ -13,12 +11,12 @@ namespace HSAcademia.API.Controllers;
 public class DashboardController : ControllerBase
 {
     private readonly DashboardService _dashboard;
-    private readonly AppDbContext _db;
+    private readonly AccessScopeService _scope;
 
-    public DashboardController(DashboardService dashboard, AppDbContext db)
+    public DashboardController(DashboardService dashboard, AccessScopeService scope)
     {
         _dashboard = dashboard;
-        _db = db;
+        _scope = scope;
     }
 
     /// <summary>GET /api/dashboard — indicadores del panel principal de la academia.</summary>
@@ -30,10 +28,8 @@ public class DashboardController : ControllerBase
         if (academyId == Guid.Empty || userId == Guid.Empty) return Unauthorized();
 
         var isAdmin = User.IsInRole("AcademyAdmin");
-        var canSeeFinances = isAdmin || await _db.Users.AsNoTracking()
-            .Where(u => u.Id == userId && u.AcademyId == academyId && u.AcademyRole != null && u.AcademyRole.IsActive)
-            .Select(u => u.AcademyRole!.Permissions)
-            .FirstOrDefaultAsync() is { } perms && perms.Contains(Permissions.ManageFinances);
+        var scope = await _scope.CurrentAsync();
+        var canSeeFinances = isAdmin || (scope.Has(Permissions.FinancesSummary) && scope.IsAcademyWide);
 
         return Ok(await _dashboard.GetAcademyDashboardAsync(academyId, userId, isAdmin, canSeeFinances));
     }

@@ -20,19 +20,19 @@ public class DiscountsController : ControllerBase
 
     /// <summary>Todas las reglas (configuración). ?active=true para solo las activas (cobro).</summary>
     [HttpGet]
-    [RequirePermission(Permissions.ManageFinances, Permissions.ManageStore)]
+    [RequirePermission(Permissions.CollectionsCollect, Permissions.StoreSell, Permissions.FinancesConfig)]
     public Task<IActionResult> List([FromQuery] bool active = false) => Run(a => _discounts.ListAsync(a, active));
 
     [HttpPost]
-    [RequirePermission(Permissions.ManageFinances)]
+    [RequirePermission(Permissions.FinancesConfig, AcademyWide = true)]
     public Task<IActionResult> Create([FromBody] SaveDiscountRuleDto dto) => Run(a => _discounts.SaveAsync(a, null, dto));
 
     [HttpPut("{id:guid}")]
-    [RequirePermission(Permissions.ManageFinances)]
+    [RequirePermission(Permissions.FinancesConfig, AcademyWide = true)]
     public Task<IActionResult> Update(Guid id, [FromBody] SaveDiscountRuleDto dto) => Run(a => _discounts.SaveAsync(a, id, dto));
 
     [HttpDelete("{id:guid}")]
-    [RequirePermission(Permissions.ManageFinances)]
+    [RequirePermission(Permissions.FinancesConfig, AcademyWide = true)]
     public Task<IActionResult> Delete(Guid id) => Run(async a => { await _discounts.DeleteAsync(a, id); return new { ok = true }; });
 
     private async Task<IActionResult> Run<T>(Func<Guid, Task<T>> action)

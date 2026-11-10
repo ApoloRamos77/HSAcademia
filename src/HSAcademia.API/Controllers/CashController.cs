@@ -20,31 +20,31 @@ public class CashController : ControllerBase
 
     /// <summary>Mi caja: recibos que cobré y aún no rindo.</summary>
     [HttpGet("mine")]
-    [RequirePermission(Permissions.ManageFinances, Permissions.ManageStore)]
+    [RequirePermission(Permissions.CollectionsCollect, Permissions.StoreSell)]
     public Task<IActionResult> Mine() => Run(a => _cash.MyCashAsync(a, User.GetUserId()));
 
     /// <summary>Rendir caja: declaro el efectivo que entrego.</summary>
     [HttpPost("handovers")]
-    [RequirePermission(Permissions.ManageFinances, Permissions.ManageStore)]
+    [RequirePermission(Permissions.CollectionsCollect, Permissions.StoreSell)]
     public Task<IActionResult> Declare([FromBody] DeclareHandoverDto dto) => Run(a => _cash.DeclareAsync(a, User.GetUserId(), dto));
 
     /// <summary>Cuadre del día (fecha local; por defecto hoy).</summary>
     [HttpGet("summary")]
-    [RequirePermission(Permissions.ManageFinances)]
+    [RequirePermission(Permissions.CashReceive, AcademyWide = true)]
     public Task<IActionResult> Summary([FromQuery] DateTime? date) => Run(a => _cash.DaySummaryAsync(a, date ?? AcademyClock.Today));
 
     [HttpGet("handovers")]
-    [RequirePermission(Permissions.ManageFinances)]
+    [RequirePermission(Permissions.CashReceive, AcademyWide = true)]
     public Task<IActionResult> List([FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] string? status) =>
         Run(a => _cash.ListAsync(a, from, to, status));
 
     [HttpGet("handovers/{id:guid}/receipts")]
-    [RequirePermission(Permissions.ManageFinances)]
+    [RequirePermission(Permissions.CashReceive, AcademyWide = true)]
     public Task<IActionResult> Receipts(Guid id) => Run(a => _cash.HandoverReceiptsAsync(a, id));
 
     /// <summary>Finanzas recibe y cuenta el efectivo de una rendición.</summary>
     [HttpPost("handovers/{id:guid}/receive")]
-    [RequirePermission(Permissions.ManageFinances)]
+    [RequirePermission(Permissions.CashReceive, AcademyWide = true)]
     public Task<IActionResult> Receive(Guid id, [FromBody] ReceiveHandoverDto dto) =>
         Run(a => _cash.ReceiveAsync(a, User.GetUserId(), User.IsInRole("AcademyAdmin"), id, dto));
 

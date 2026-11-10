@@ -14,9 +14,11 @@ public class StudentService
 {
     private readonly AppDbContext _context;
     private readonly AuditService? _audit;
+    private readonly AccessScopeService _scope;
 
-    public StudentService(AppDbContext context, AuditService? audit = null)
+    public StudentService(AppDbContext context, AccessScopeService scope, AuditService? audit = null)
     {
+        _scope = scope;
         _context = context;
         _audit = audit;
     }
@@ -31,22 +33,7 @@ public class StudentService
             .Where(s => s.AcademyId == academyId);
 
         if (userRole == "Staff" && userId.HasValue)
-        {
-            var userWithCategories = await _context.Users
-                .Include(u => u.AssignedCategories)
-                .FirstOrDefaultAsync(u => u.Id == userId.Value);
-
-            if (userWithCategories != null && userWithCategories.AssignedCategories.Any())
-            {
-                var assignedCategoryIds = userWithCategories.AssignedCategories.Select(c => c.Id).ToList();
-                query = query.Where(s => assignedCategoryIds.Contains(s.CategoryId));
-            }
-            else
-            {
-                // Si es staff pero no tiene categorias asignadas, no ve ningun alumno.
-                return new List<StudentDto>();
-            }
-        }
+            query = AccessScopeService.ApplyStudents(query, await _scope.ForUserAsync(userId.Value));
 
         var students = await query.ToListAsync();
 

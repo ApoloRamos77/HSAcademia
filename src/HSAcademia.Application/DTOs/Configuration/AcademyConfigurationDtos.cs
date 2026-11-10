@@ -47,6 +47,13 @@ public class AcademyRoleDto
     public string? Description { get; set; }
     public List<string> Permissions { get; set; } = new List<string>();
     public bool IsActive { get; set; }
+    public bool IsSystem { get; set; }
+    public int UserCount { get; set; }
+}
+
+public class SetAcademyRoleStatusDto
+{
+    public bool IsActive { get; set; }
 }
 
 public class CreateAcademyRoleDto
@@ -64,10 +71,13 @@ public class AcademyUserDto
     public string Email { get; set; } = string.Empty;
     public string? Phone { get; set; }
     public string SystemRole { get; set; } = string.Empty;
-    public Guid? AcademyRoleId { get; set; }
-    public string? AcademyRoleName { get; set; }
+    public bool IsOwner { get; set; }
+    public List<Guid> AcademyRoleIds { get; set; } = new List<Guid>();
+    public List<string> AcademyRoleNames { get; set; } = new List<string>();
     public Guid? HeadquarterId { get; set; }
     public string? HeadquarterName { get; set; }
+    public List<Guid> HeadquarterIds { get; set; } = new List<Guid>();
+    public List<string> HeadquarterNames { get; set; } = new List<string>();
     public string Status { get; set; } = string.Empty;
     public List<Guid> CategoryIds { get; set; } = new List<Guid>();
     public List<string> CategoryNames { get; set; } = new List<string>();
@@ -83,8 +93,11 @@ public class CreateAcademyUserDto
     public string Password { get; set; } = string.Empty;
     public string? Phone { get; set; }
     public string SystemRole { get; set; } = "Staff"; // e.g. Staff, AcademyAdmin
-    public Guid? AcademyRoleId { get; set; }
+    /// <summary>Roles asignados. Si no se envía, se conservan los actuales.</summary>
+    public List<Guid>? AcademyRoleIds { get; set; }
     public Guid? HeadquarterId { get; set; }
+    /// <summary>Sedes asignadas; vacío = todas. Si no se envía, se usa HeadquarterId.</summary>
+    public List<Guid>? HeadquarterIds { get; set; }
     public List<Guid>? CategoryIds { get; set; }
     public int PaymentType { get; set; } = 0; // 0: Monthly, 1: PerSession
     public decimal PaymentRate { get; set; } = 0m;
