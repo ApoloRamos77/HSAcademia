@@ -30,7 +30,7 @@ public class FinancesController : ControllerBase
     // ── Config ────────────────────────────────────────────────────
     [HttpGet("config")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
-    [RequirePermission(Permissions.ManageFinances)]
+    [RequirePermission(Permissions.FinancesConfig, Permissions.CollectionsView, Permissions.CollectionsCollect)]
     public async Task<IActionResult> GetConfig()
     {
         var academyId = GetAcademyId();
@@ -40,7 +40,7 @@ public class FinancesController : ControllerBase
 
     [HttpPut("config")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
-    [RequirePermission(Permissions.ManageFinances)]
+    [RequirePermission(Permissions.FinancesConfig, AcademyWide = true)]
     public async Task<IActionResult> UpdateConfig([FromBody] UpdateFinancialConfigDto dto)
     {
         var academyId = GetAcademyId();
@@ -51,7 +51,7 @@ public class FinancesController : ControllerBase
     // ── Generate Debts ──────────────────────────────────────
     [HttpPost("generate-debts")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
-    [RequirePermission(Permissions.ManageFinances)]
+    [RequirePermission(Permissions.CollectionsGenerate, AcademyWide = true)]
     public async Task<IActionResult> GenerateDebts([FromBody] GenerateDebtsRequestDto? dto = null)
     {
         var academyId = GetAcademyId();
@@ -71,7 +71,8 @@ public class FinancesController : ControllerBase
     // ── Generate next-month debt for a specific student ───────────
     [HttpPost("debts/{studentId}/generate-next-month")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
-    [RequirePermission(Permissions.ManageFinances)]
+    [RequirePermission(Permissions.CollectionsGenerate)]
+    [RequireScope(ScopeTarget.Student, "studentId", Permissions.CollectionsGenerate)]
     public async Task<IActionResult> GenerateNextMonthDebt(Guid studentId)
     {
         var academyId = GetAcademyId();
@@ -90,7 +91,7 @@ public class FinancesController : ControllerBase
     // ── Query Debts ──────────────────────────────────────
     [HttpGet("debts/pending")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
-    [RequirePermission(Permissions.ManageFinances, Permissions.ManageStore)] // Tienda: recibo combinado
+    [RequirePermission(Permissions.CollectionsView, Permissions.CollectionsCollect, Permissions.StoreSell)]
     public async Task<IActionResult> GetPendingDebts([FromQuery] int? year, [FromQuery] int? month, [FromQuery] Guid? studentId)
     {
         var academyId = GetAcademyId();
@@ -100,7 +101,7 @@ public class FinancesController : ControllerBase
 
     [HttpGet("debts/all")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
-    [RequirePermission(Permissions.ManageFinances)]
+    [RequirePermission(Permissions.CollectionsView)]
     public async Task<IActionResult> GetAllDebts([FromQuery] int? year, [FromQuery] int? month)
     {
         var academyId = GetAcademyId();
@@ -111,9 +112,10 @@ public class FinancesController : ControllerBase
     // ── Register Payment (partial/full + method + voucher) ────────
     [HttpPost("debts/pay")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
-    [RequirePermission(Permissions.ManageFinances)]
+    [RequirePermission(Permissions.CollectionsCollect)]
     public async Task<IActionResult> RegisterPayment([FromBody] RegisterPaymentDto dto)
     {
+        if (!await ScopeChecker.IsAllowedAsync(HttpContext, ScopeTarget.Debt, dto.PaymentRecordId)) return ScopeChecker.Denied();
         var academyId = GetAcademyId();
         if (academyId == Guid.Empty) return Unauthorized();
         try
@@ -129,7 +131,8 @@ public class FinancesController : ControllerBase
     /// <summary>Regulariza una mensualidad vencida: con o sin mora, con observación obligatoria.</summary>
     [HttpPost("debts/{id:guid}/regularize")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
-    [RequirePermission(Permissions.ManageFinances)]
+    [RequirePermission(Permissions.CollectionsAdjust)]
+    [RequireScope(ScopeTarget.Debt, "id")]
     public async Task<IActionResult> Regularize(Guid id, [FromBody] RegularizeDebtDto dto)
     {
         var academyId = GetAcademyId();
@@ -146,7 +149,7 @@ public class FinancesController : ControllerBase
     // ── Upload Voucher ───────────────────────────────────────────────
     [HttpPost("upload-voucher")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
-    [RequirePermission(Permissions.ManageFinances, Permissions.ManageStore)]
+    [RequirePermission(Permissions.CollectionsCollect, Permissions.StoreSell)]
     [RequestSizeLimit(UploadStorage.MaxVoucherBytes + 64 * 1024)]
     public async Task<IActionResult> UploadVoucher(Microsoft.AspNetCore.Http.IFormFile file, [FromServices] UploadStorage storage)
     {
@@ -160,7 +163,8 @@ public class FinancesController : ControllerBase
     // ── Quick-pay (legacy full cash) ──────────────────────────────
     [HttpPost("debts/{id}/pay")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
-    [RequirePermission(Permissions.ManageFinances)]
+    [RequirePermission(Permissions.CollectionsCollect)]
+    [RequireScope(ScopeTarget.Debt, "id")]
     public async Task<IActionResult> MarkAsPaid(Guid id)
     {
         var academyId = GetAcademyId();
@@ -178,9 +182,10 @@ public class FinancesController : ControllerBase
     // ── Recalculate / Proration ───────────────────────────────────
     [HttpPost("debts/recalculate")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
-    [RequirePermission(Permissions.ManageFinances)]
+    [RequirePermission(Permissions.CollectionsAdjust)]
     public async Task<IActionResult> RecalculatePayment([FromBody] RecalculatePaymentDto dto)
     {
+        if (!await ScopeChecker.IsAllowedAsync(HttpContext, ScopeTarget.Debt, dto.PaymentRecordId)) return ScopeChecker.Denied();
         var academyId = GetAcademyId();
         if (academyId == Guid.Empty) return Unauthorized();
         try
@@ -196,9 +201,10 @@ public class FinancesController : ControllerBase
     // ── Exclude / Exonerate ───────────────────────────────────────
     [HttpPost("debts/exclude")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
-    [RequirePermission(Permissions.ManageFinances)]
+    [RequirePermission(Permissions.CollectionsAdjust)]
     public async Task<IActionResult> ExcludePayment([FromBody] ExcludePaymentDto dto)
     {
+        if (!await ScopeChecker.IsAllowedAsync(HttpContext, ScopeTarget.Debt, dto.PaymentRecordId)) return ScopeChecker.Denied();
         var academyId = GetAcademyId();
         if (academyId == Guid.Empty) return Unauthorized();
         try

@@ -30,22 +30,22 @@ export default function Reportes() {
   const ym = `${period.year}-${String(period.month).padStart(2, '0')}`;
   const reports = [
     {
-      key: 'overdue', icon: AlertTriangle, perm: 'manage_finances', title: 'Morosidad por antigüedad',
+      key: 'overdue', icon: AlertTriangle, perm: 'reports.finance', title: 'Morosidad por antigüedad',
       desc: 'Deuda vencida por alumno en tramos de 0-30, 31-60, 61-90 y más de 90 días, con datos del apoderado para gestionar la cobranza.',
       action: () => download('overdue', '/reports/overdue', 'morosidad.csv'),
     },
     {
-      key: 'payments', icon: Wallet, perm: 'manage_finances', usesPeriod: true, title: 'Cobros del mes',
+      key: 'payments', icon: Wallet, perm: 'reports.finance', usesPeriod: true, title: 'Cobros del mes',
       desc: 'Libro de caja: cada abono de mensualidad y venta de tienda con fecha, recibo, medio de pago y N° de operación.',
       action: () => download('payments', `/reports/payments?year=${period.year}&month=${period.month}`, `cobros_${ym}.csv`),
     },
     {
-      key: 'attendance', icon: CalendarCheck, perm: 'manage_attendance', usesPeriod: true, title: 'Asistencia mensual',
+      key: 'attendance', icon: CalendarCheck, perm: 'reports.attendance', usesPeriod: true, title: 'Asistencia mensual',
       desc: 'Presentes, tardanzas, faltas y justificadas por alumno, con alerta de asistencia menor al 70%.',
       action: () => download('attendance', `/reports/attendance?year=${period.year}&month=${period.month}`, `asistencia_${ym}.csv`),
     },
     {
-      key: 'students', icon: Users, perm: 'view_students', title: 'Padrón de alumnos',
+      key: 'students', icon: Users, perm: 'reports.students', title: 'Padrón de alumnos',
       desc: 'Listado completo con categoría, sede, apoderado, contactos, beneficio, mensualidad y contacto de emergencia.',
       action: () => download('students', `/reports/students?includeInactive=${includeInactive}`, 'padron_alumnos.csv'),
       extra: (

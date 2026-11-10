@@ -15,10 +15,12 @@ public class FinancesService
     private readonly AppDbContext _context;
     private readonly FinancialPeriodGuard _periods;
     private readonly AuditService _audit;
+    private readonly AccessScopeService _scope;
     private readonly ReceiptRecorder? _receipts;
 
-    public FinancesService(AppDbContext context, FinancialPeriodGuard periods, AuditService audit, ReceiptRecorder? receipts = null)
+    public FinancesService(AppDbContext context, FinancialPeriodGuard periods, AuditService audit, AccessScopeService scope, ReceiptRecorder? receipts = null)
     {
+        _scope = scope;
         _receipts = receipts;
         _context = context;
         _periods = periods;
@@ -516,6 +518,9 @@ public class FinancesService
             .Include(p => p.Installments)
             .Where(p => p.AcademyId == academyId && !p.IsPaid && (studentId == null || p.StudentId == studentId));
 
+        var headquarters = await _scope.StaffHeadquartersAsync();
+        if (headquarters != null) query = query.Where(p => headquarters.Contains(p.Student.HeadquarterId));
+
         if (year.HasValue && month.HasValue)
             query = WhereInMonth(query, year.Value, month.Value);
 
@@ -529,6 +534,9 @@ public class FinancesService
             .Include(p => p.Student).ThenInclude(s => s.Category)
             .Include(p => p.Installments)
             .Where(p => p.AcademyId == academyId);
+
+        var headquarters = await _scope.StaffHeadquartersAsync();
+        if (headquarters != null) query = query.Where(p => headquarters.Contains(p.Student.HeadquarterId));
 
         if (year.HasValue && month.HasValue)
             query = WhereInMonth(query, year.Value, month.Value);

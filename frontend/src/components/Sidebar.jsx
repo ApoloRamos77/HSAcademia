@@ -1,12 +1,13 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { FINANCE_ACCESS, STORE_ACCESS, REPORTS_ACCESS } from '../utils/permissions';
 import {
   LayoutDashboard, Building2, Users, ClipboardList, LogOut,
   ShieldCheck, ShoppingCart, DollarSign, CalendarCheck, CalendarDays, Crown, X, Megaphone, FileSpreadsheet
 } from 'lucide-react';
 
 export default function Sidebar({ isOpen, onClose }) {
-  const { user, logout } = useAuth();
+  const { user, logout, can } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = () => { logout(); navigate('/login'); };
@@ -143,12 +144,12 @@ export default function Sidebar({ isOpen, onClose }) {
               <NavLink to="/academy/comunicados" className={navCls} onClick={onClose}>
                 <Megaphone size={16} /> Comunicados
               </NavLink>
-              {['view_students', 'manage_finances', 'manage_attendance'].some(p => user.permissions?.includes(p)) && (
+              {can(...REPORTS_ACCESS) && (
                 <NavLink to="/academy/reportes" className={navCls} onClick={onClose}>
                   <FileSpreadsheet size={16} /> Reportes
                 </NavLink>
               )}
-              {(user.permissions?.includes('view_students')) && (
+              {can('students.view') && (
                 <>
                   <NavLink to="/academy/alumnos" className={navCls} onClick={onClose}>
                     <Users size={16} /> Alumnos
@@ -158,27 +159,27 @@ export default function Sidebar({ isOpen, onClose }) {
                   </NavLink>
                 </>
               )}
-              {(user.permissions?.includes('manage_attendance')) && (
+              {can('attendance.take') && (
                 <NavLink to="/academy/asistencia" className={navCls} onClick={onClose}>
                   <CalendarCheck size={16} /> Asistencia
                 </NavLink>
               )}
-              {(user.permissions?.includes('manage_staff_attendance')) && (
+              {can('staff_attendance.mark') && (
                 <NavLink to="/academy/asistencia-entrenadores" className={navCls} onClick={onClose}>
                   <CalendarCheck size={16} /> Asistencia entrenadores
                 </NavLink>
               )}
-              {(user.permissions?.includes('manage_events')) && (
+              {can('events.manage') && (
                 <NavLink to="/academy/calendario" className={navCls} onClick={onClose}>
                   <CalendarDays size={16} /> Calendario
                 </NavLink>
               )}
-              {(user.permissions?.includes('manage_store')) && (
+              {can(...STORE_ACCESS) && (
                 <NavLink to="/academy/tienda" className={navCls} onClick={onClose}>
                   <ShoppingCart size={16} /> Tienda
                 </NavLink>
               )}
-              {(user.permissions?.includes('manage_finances')) && (
+              {can(...FINANCE_ACCESS) && (
                 <NavLink to="/academy/finanzas" className={navCls} onClick={onClose}>
                   <DollarSign size={16} /> Finanzas
                 </NavLink>
@@ -210,7 +211,7 @@ export default function Sidebar({ isOpen, onClose }) {
               <span className="superadmin-pill"><Crown size={10} /> SuperAdmin</span>
             ) : (
               <div className="user-role">
-                {user?.role === 'AcademyAdmin' ? 'Admin Academia' : 
+                {user?.isOwner ? 'Propietario' : user?.role === 'AcademyAdmin' ? 'Administrador' : 
                  user?.role === 'Staff' ? 'Personal' : 
                  user?.role === 'Student' ? 'Alumno' : 
                  user?.role === 'Guardian' ? 'Apoderado' : 'Usuario'}

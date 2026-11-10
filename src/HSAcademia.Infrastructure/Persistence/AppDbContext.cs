@@ -147,12 +147,16 @@ public class AppDbContext : DbContext
                   .OnDelete(DeleteBehavior.Restrict)
                   .IsRequired(false);
 
-            // Relationship to AcademyRole
-            entity.HasOne(e => e.AcademyRole)
+            entity.Property(e => e.IsOwner).HasColumnName("is_owner").HasDefaultValue(false);
+            entity.HasIndex(e => e.AcademyId, "IX_users_single_owner").IsUnique().HasFilter("is_owner AND NOT is_deleted");
+
+            // Roles asignados al personal (varios: los permisos se suman)
+            entity.HasMany(e => e.AssignedRoles)
                   .WithMany(r => r.Users)
-                  .HasForeignKey(e => e.AcademyRoleId)
-                  .OnDelete(DeleteBehavior.SetNull)
-                  .IsRequired(false);
+                  .UsingEntity<Dictionary<string, object>>(
+                      "user_academy_roles",
+                      r => r.HasOne<AcademyRole>().WithMany().HasForeignKey("academy_role_id").OnDelete(DeleteBehavior.Cascade),
+                      l => l.HasOne<User>().WithMany().HasForeignKey("user_id").OnDelete(DeleteBehavior.Cascade));
 
             // Relationship to Headquarter
             entity.HasOne(e => e.Headquarter)
@@ -160,6 +164,14 @@ public class AppDbContext : DbContext
                   .HasForeignKey(e => e.HeadquarterId)
                   .OnDelete(DeleteBehavior.SetNull)
                   .IsRequired(false);
+
+            // Sedes asignadas al personal (varias)
+            entity.HasMany(e => e.AssignedHeadquarters)
+                  .WithMany(h => h.AssignedUsers)
+                  .UsingEntity<Dictionary<string, object>>(
+                      "user_headquarters",
+                      r => r.HasOne<Headquarter>().WithMany().HasForeignKey("headquarter_id").OnDelete(DeleteBehavior.Cascade),
+                      l => l.HasOne<User>().WithMany().HasForeignKey("user_id").OnDelete(DeleteBehavior.Cascade));
         });
 
         // ----------------------------------------------------------------
@@ -233,6 +245,8 @@ public class AppDbContext : DbContext
         {
             entity.ToTable("academy_roles");
             entity.HasKey(e => e.Id);
+            entity.Property(e => e.SystemKey).HasColumnName("system_key").HasMaxLength(50);
+            entity.HasIndex(e => new { e.AcademyId, e.SystemKey }, "IX_academy_roles_system_key").IsUnique().HasFilter("system_key IS NOT NULL");
             entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.AcademyId).HasColumnName("academy_id").IsRequired();
             entity.Property(e => e.Name).HasColumnName("name").HasMaxLength(100).IsRequired();

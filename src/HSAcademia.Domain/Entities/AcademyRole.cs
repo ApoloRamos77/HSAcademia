@@ -14,6 +14,9 @@ public class AcademyRole
 
     public bool IsActive { get; set; } = true;
 
+    /// <summary>Clave del rol predefinido por Clubio; null en los roles propios de la academia.</summary>
+    public string? SystemKey { get; set; }
+
     // Audit fields
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

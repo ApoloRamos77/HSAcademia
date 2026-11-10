@@ -77,7 +77,7 @@ public class PaymentProofsController : ControllerBase
     /// <summary>GET /api/finances/proofs?status=Pending|Approved|Rejected</summary>
     [HttpGet("proofs")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
-    [RequirePermission(Permissions.ManageFinances)]
+    [RequirePermission(Permissions.CollectionsApproveProofs)]
     public async Task<IActionResult> List([FromQuery] string? status = null)
     {
         PaymentProofStatus? filter = Enum.TryParse<PaymentProofStatus>(status, true, out var s) ? s : null;
@@ -86,19 +86,21 @@ public class PaymentProofsController : ControllerBase
 
     [HttpGet("proofs/pending-count")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
-    [RequirePermission(Permissions.ManageFinances)]
+    [RequirePermission(Permissions.CollectionsApproveProofs)]
     public async Task<IActionResult> PendingCount() =>
         Ok(new { count = await _proofs.CountPendingAsync(User.GetAcademyId()) });
 
     [HttpPost("proofs/{id:guid}/approve")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
-    [RequirePermission(Permissions.ManageFinances)]
+    [RequirePermission(Permissions.CollectionsApproveProofs)]
+    [RequireScope(ScopeTarget.Proof, "id")]
     public async Task<IActionResult> Approve(Guid id, [FromBody] ApprovePaymentProofDto? dto) =>
         Ok(await _proofs.ApproveAsync(User.GetAcademyId(), User.GetUserId(), id, dto ?? new ApprovePaymentProofDto()));
 
     [HttpPost("proofs/{id:guid}/reject")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
-    [RequirePermission(Permissions.ManageFinances)]
+    [RequirePermission(Permissions.CollectionsApproveProofs)]
+    [RequireScope(ScopeTarget.Proof, "id")]
     public async Task<IActionResult> Reject(Guid id, [FromBody] RejectPaymentProofDto dto) =>
         Ok(await _proofs.RejectAsync(User.GetAcademyId(), User.GetUserId(), id, dto.Reason));
 }

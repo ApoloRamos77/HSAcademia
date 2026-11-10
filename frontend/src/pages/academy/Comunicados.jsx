@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Megaphone, Pin, PlusCircle, Trash2, X } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
 import AppLayout from '../../components/AppLayout';
 import ConfirmDialog from '../../components/ConfirmDialog';
@@ -12,6 +13,8 @@ const emptyForm = { title: '', content: '', isPinned: false };
  * Comunicados de la academia: los ven alumnos y apoderados en la app móvil y en su portal.
  */
 export default function Comunicados() {
+  const { can } = useAuth();
+  const canPublish = can('announcements.publish');
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -66,9 +69,11 @@ export default function Comunicados() {
               <h3 className="card-title flex items-center gap-2"><Megaphone size={20} className="text-primary" /> Comunicados</h3>
               <p className="text-muted mt-1">Avisos para alumnos y apoderados (se muestran en la app y en su portal). Los fijados aparecen primero.</p>
             </div>
-            <button className="btn btn-primary" onClick={() => setShowForm(true)}>
-              <PlusCircle size={16} /> Nuevo comunicado
-            </button>
+            {canPublish && (
+              <button className="btn btn-primary" onClick={() => setShowForm(true)}>
+                <PlusCircle size={16} /> Nuevo comunicado
+              </button>
+            )}
           </div>
 
           {loading ? (
@@ -87,9 +92,11 @@ export default function Comunicados() {
                       </h4>
                       <p className="text-xs text-text-muted mt-1 mb-0">{dateFmt.format(new Date(a.datePosted))} · {a.authorName}</p>
                     </div>
-                    <button className="btn btn-ghost btn-sm" title="Eliminar" aria-label="Eliminar comunicado" onClick={() => setToDelete(a)}>
-                      <Trash2 size={14} />
-                    </button>
+                    {canPublish && (
+                      <button className="btn btn-ghost btn-sm" title="Eliminar" aria-label="Eliminar comunicado" onClick={() => setToDelete(a)}>
+                        <Trash2 size={14} />
+                      </button>
+                    )}
                   </div>
                   <p className="text-sm text-text-secondary mt-3 mb-0" style={{ whiteSpace: 'pre-wrap' }}>{a.content}</p>
                 </li>

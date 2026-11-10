@@ -21,6 +21,8 @@ import CheckoutModal from '../../components/finances/CheckoutModal';
 import RegularizeModal from '../../components/finances/RegularizeModal';
 import { Receipt } from 'lucide-react';
 import { Inbox } from 'lucide-react';
+import MyCashPanel from '../../components/finances/MyCashPanel';
+import { useAuth } from '../../context/AuthContext';
 
 const PAYMENT_METHODS = [
   { value: 'Cash', label: '💵 Efectivo' },
@@ -47,7 +49,25 @@ const statusBadge = (d) => {
 };
 
 export default function Finanzas() {
-  const [activeTab, setActiveTab] = useState('debts');
+  const { can, academyWide } = useAuth();
+  const canSeeDebts = can('collections.view', 'collections.collect');
+  const canCollect = can('collections.collect');
+  const canAdjust = can('collections.adjust');
+  const canReceiveCash = can('cash.receive') && academyWide;
+  // La contabilidad general no se puede acotar a una sede.
+  const tabs = {
+    debts: canSeeDebts,
+    dashboard: can('finances.summary') && academyWide,
+    receipts: canSeeDebts,
+    cash: canReceiveCash || canCollect,
+    discounts: can('finances.config') && academyWide,
+    proofs: can('collections.approve_proofs'),
+    expenses: can('finances.expenses') && academyWide,
+    petty: can('finances.expenses') && academyWide,
+    staff: can('finances.staff_payments') && academyWide,
+    config: can('finances.config', 'collections.generate') && academyWide,
+  };
+  const [activeTab, setActiveTab] = useState(() => Object.keys(tabs).find(t => tabs[t]) || 'debts');
   const [pendingProofs, setPendingProofs] = useState(0);
   const refreshPendingProofs = useCallback(() => {
     api.get('/finances/proofs/pending-count').then(r => setPendingProofs(r.data.count)).catch(() => {});
@@ -87,6 +107,7 @@ export default function Finanzas() {
   const [excludeForm, setExcludeForm] = useState({ exclusionType: 'FreeClass', exclusionNote: '' });
 
   const fetchData = useCallback(async () => {
+    if (!canSeeDebts) { setLoading(false); return; }
     try {
       const endpoint = showAll
         ? `/finances/debts/all?year=${filterYear}&month=${filterMonth}`
@@ -96,7 +117,7 @@ export default function Finanzas() {
       setDebts(dRes.data);
     } catch { toast.error('Error al cargar datos financieros.'); }
     finally { setLoading(false); }
-  }, [showAll, filterYear, filterMonth]);
+  }, [canSeeDebts, showAll, filterYear, filterMonth]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -236,37 +257,37 @@ export default function Finanzas() {
 
         {/* Tabs */}
         <div className="flex flex-wrap gap-2 mb-6 bg-bg-surface p-1 rounded-xl w-max max-w-full overflow-x-auto">
-          <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='dashboard'?'bg-primary text-white shadow-md':'text-text-muted hover:text-text-primary hover:bg-white'}`} onClick={()=>setActiveTab('dashboard')}>
+          {tabs.dashboard && <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='dashboard'?'bg-primary text-white shadow-md':'text-text-muted hover:text-text-primary hover:bg-white'}`} onClick={()=>setActiveTab('dashboard')}>
             <BarChart3 size={16}/> Resumen P&amp;L
-          </button>
-          <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='debts'?'bg-primary text-white shadow-md':'text-text-muted hover:text-text-primary hover:bg-white'}`} onClick={()=>setActiveTab('debts')}>
+          </button>}
+          {tabs.debts && <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='debts'?'bg-primary text-white shadow-md':'text-text-muted hover:text-text-primary hover:bg-white'}`} onClick={()=>setActiveTab('debts')}>
             <DollarSign size={16}/> Cobranzas
-          </button>
-          <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='receipts'?'bg-primary text-white shadow-md':'text-text-muted hover:text-text-primary hover:bg-white'}`} onClick={()=>setActiveTab('receipts')}>
+          </button>}
+          {tabs.receipts && <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='receipts'?'bg-primary text-white shadow-md':'text-text-muted hover:text-text-primary hover:bg-white'}`} onClick={()=>setActiveTab('receipts')}>
             <Receipt size={16}/> Recibos
-          </button>
-          <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='cash'?'bg-primary text-white shadow-md':'text-text-muted hover:text-text-primary hover:bg-white'}`} onClick={()=>setActiveTab('cash')}>
+          </button>}
+          {tabs.cash && <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='cash'?'bg-primary text-white shadow-md':'text-text-muted hover:text-text-primary hover:bg-white'}`} onClick={()=>setActiveTab('cash')}>
             <Wallet size={16}/> Caja
-          </button>
-          <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='discounts'?'bg-primary text-white shadow-md':'text-text-muted hover:text-text-primary hover:bg-white'}`} onClick={()=>setActiveTab('discounts')}>
+          </button>}
+          {tabs.discounts && <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='discounts'?'bg-primary text-white shadow-md':'text-text-muted hover:text-text-primary hover:bg-white'}`} onClick={()=>setActiveTab('discounts')}>
             <Tag size={16}/> Descuentos
-          </button>
-          <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='proofs'?'bg-primary text-white shadow-md':'text-text-muted hover:text-text-primary hover:bg-white'}`} onClick={()=>setActiveTab('proofs')}>
+          </button>}
+          {tabs.proofs && <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='proofs'?'bg-primary text-white shadow-md':'text-text-muted hover:text-text-primary hover:bg-white'}`} onClick={()=>setActiveTab('proofs')}>
             <Inbox size={16}/> Comprobantes
             {pendingProofs > 0 && <span className="badge badge-danger" style={{ marginLeft: 4 }}>{pendingProofs}</span>}
-          </button>
-          <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='expenses'?'bg-primary text-white shadow-md':'text-text-muted hover:text-text-primary hover:bg-white'}`} onClick={()=>setActiveTab('expenses')}>
+          </button>}
+          {tabs.expenses && <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='expenses'?'bg-primary text-white shadow-md':'text-text-muted hover:text-text-primary hover:bg-white'}`} onClick={()=>setActiveTab('expenses')}>
             <TrendingDown size={16}/> Egresos
-          </button>
-          <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='petty'?'bg-primary text-white shadow-md':'text-text-muted hover:text-text-primary hover:bg-white'}`} onClick={()=>setActiveTab('petty')}>
+          </button>}
+          {tabs.petty && <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='petty'?'bg-primary text-white shadow-md':'text-text-muted hover:text-text-primary hover:bg-white'}`} onClick={()=>setActiveTab('petty')}>
             <Archive size={16}/> Caja Chica
-          </button>
-          <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='staff'?'bg-primary text-white shadow-md':'text-text-muted hover:text-text-primary hover:bg-white'}`} onClick={()=>setActiveTab('staff')}>
+          </button>}
+          {tabs.staff && <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='staff'?'bg-primary text-white shadow-md':'text-text-muted hover:text-text-primary hover:bg-white'}`} onClick={()=>setActiveTab('staff')}>
             <Users size={16}/> Nómina
-          </button>
-          <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='config'?'bg-primary text-white shadow-md':'text-text-muted hover:text-text-primary hover:bg-white'}`} onClick={()=>setActiveTab('config')}>
+          </button>}
+          {tabs.config && <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='config'?'bg-primary text-white shadow-md':'text-text-muted hover:text-text-primary hover:bg-white'}`} onClick={()=>setActiveTab('config')}>
             <Settings size={16}/> Configuración
-          </button>
+          </button>}
         </div>
 
         {/* DEBTS TAB */}
@@ -425,20 +446,26 @@ export default function Finanzas() {
                                       </span>
                                     ) : (
                                       <>
-                                        <button onClick={()=>openPay(d)} className="btn btn-sm btn-success flex items-center gap-1" title={d.requiresRegularization ? 'Venció: al cobrar decides la mora' : 'Registrar Pago'}>
-                                          <CreditCard size={13}/> Cobrar
-                                        </button>
-                                        {d.requiresRegularization && (
+                                        {canCollect && (
+                                          <button onClick={()=>openPay(d)} className="btn btn-sm btn-success flex items-center gap-1" title={d.requiresRegularization ? 'Venció: al cobrar decides la mora' : 'Registrar Pago'}>
+                                            <CreditCard size={13}/> Cobrar
+                                          </button>
+                                        )}
+                                        {canAdjust && d.requiresRegularization && (
                                           <button onClick={()=>setRegularizing(d)} className="btn btn-sm btn-ghost text-warning flex items-center gap-1" title="Decidir la mora sin cobrar ahora">
                                             <AlertTriangle size={13}/>
                                           </button>
                                         )}
-                                        <button onClick={()=>openRecalc(d)} className="btn btn-sm btn-ghost text-warning flex items-center gap-1" title="Recalcular">
-                                          <RefreshCw size={13}/>
-                                        </button>
-                                        <button onClick={()=>openExclude(d)} className="btn btn-sm btn-ghost text-text-muted flex items-center gap-1" title="Exonerar">
-                                          <Ban size={13}/>
-                                        </button>
+                                        {canAdjust && (
+                                          <>
+                                            <button onClick={()=>openRecalc(d)} className="btn btn-sm btn-ghost text-warning flex items-center gap-1" title="Recalcular">
+                                              <RefreshCw size={13}/>
+                                            </button>
+                                            <button onClick={()=>openExclude(d)} className="btn btn-sm btn-ghost text-text-muted flex items-center gap-1" title="Exonerar">
+                                              <Ban size={13}/>
+                                            </button>
+                                          </>
+                                        )}
                                       </>
                                     )
                                   )}
@@ -574,7 +601,7 @@ export default function Finanzas() {
         )}
 
         {/* EXPENSES TAB */}
-        {activeTab === 'cash' && <CashTab />}
+        {activeTab === 'cash' && (canReceiveCash ? <CashTab /> : <MyCashPanel />)}
         {activeTab === 'discounts' && <DiscountsTab />}
 
         {activeTab === 'receipts' && (

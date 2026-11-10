@@ -41,6 +41,8 @@ public class AttendanceController : ControllerBase
     /// </summary>
     [HttpGet("category/{categoryId}")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
+    [RequirePermission(Permissions.AttendanceTake)]
+    [RequireScope(ScopeTarget.Category, "categoryId")]
     public async Task<IActionResult> GetAttendanceByCategory(Guid categoryId, [FromQuery] DateTime date)
     {
         var academyId = GetAcademyId();
@@ -82,6 +84,8 @@ public class AttendanceController : ControllerBase
     /// </summary>
     [HttpGet("event/{eventId}")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
+    [RequirePermission(Permissions.AttendanceTake)]
+    [RequireScope(ScopeTarget.Event, "eventId")]
     public async Task<IActionResult> GetAttendanceByEvent(Guid eventId)
     {
         var academyId = GetAcademyId();
@@ -105,11 +109,13 @@ public class AttendanceController : ControllerBase
     /// </summary>
     [HttpPost("event")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
+    [RequirePermission(Permissions.AttendanceTake)]
     public async Task<IActionResult> MarkAttendanceByEvent([FromBody] MarkAttendanceByEventDto dto)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
         var academyId = GetAcademyId();
         if (academyId == Guid.Empty) return Unauthorized();
+        if (!await ScopeChecker.IsAllowedAsync(HttpContext, ScopeTarget.Event, dto.EventId)) return ScopeChecker.Denied();
         try
         {
             await _attendanceService.MarkAttendanceByEventAsync(academyId, User.GetUserId(), dto);
@@ -133,6 +139,8 @@ public class AttendanceController : ControllerBase
     /// </summary>
     [HttpGet("metrics/category/{categoryId}")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
+    [RequirePermission(Permissions.AttendanceMetrics)]
+    [RequireScope(ScopeTarget.Category, "categoryId")]
     public async Task<IActionResult> GetMonthlyMetrics(
         Guid categoryId,
         [FromQuery] int year,
@@ -163,11 +171,15 @@ public class AttendanceController : ControllerBase
     /// </summary>
     [HttpPost("scan")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
+    [RequirePermission(Permissions.AttendanceTake)]
     public async Task<IActionResult> ScanQr([FromBody] QrScanDto dto)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
         var academyId = GetAcademyId();
         if (academyId == Guid.Empty) return Unauthorized();
+        // Con sesión indicada, el servicio valida el alcance; sin ella solo queda validarlo por el alumno.
+        if (!dto.EventId.HasValue && !await ScopeChecker.IsAllowedAsync(HttpContext, ScopeTarget.Student, dto.StudentUserId))
+            return ScopeChecker.Denied();
         try
         {
             var result = await _attendanceService.ScanQrAsync(academyId, User.GetUserId(), dto);
@@ -202,6 +214,14 @@ public class AttendanceController : ControllerBase
         months = Math.Clamp(months, 1, 60);
         var academyId = GetAcademyId();
         if (academyId == Guid.Empty) return Unauthorized();
+
+        // El personal necesita permiso y que el alumno esté en sus categorías.
+        if (User.IsInRole("Staff") && (!studentId.HasValue
+            || !(await PermissionChecker.HasAsync(HttpContext, Permissions.AttendanceTake) || await PermissionChecker.HasAsync(HttpContext, Permissions.StudentsView))
+            || !await ScopeChecker.IsAllowedAsync(HttpContext, ScopeTarget.Student, studentId.Value)))
+        {
+            return ScopeChecker.Denied();
+        }
 
         // Alumno/Apoderado solo puede consultar a sus propios alumnos (evita IDOR por ?studentId=).
         if (studentId.HasValue && User.IsEndUser() &&
@@ -273,6 +293,7 @@ public class AttendanceController : ControllerBase
 
     [HttpGet("mobile/my-students")]
     [Authorize(Roles = "Staff,AcademyAdmin")]
+    [RequirePermission(Permissions.AttendanceTake)]
     public async Task<IActionResult> GetMyStudentsAttendance(
         [FromQuery] DateTime? date = null,
         [FromQuery] Guid? categoryId = null,
@@ -296,6 +317,7 @@ public class AttendanceController : ControllerBase
 
     [HttpPost("mobile/my-students")]
     [Authorize(Roles = "Staff,AcademyAdmin")]
+    [RequirePermission(Permissions.AttendanceTake)]
     public async Task<IActionResult> SaveMyStudentsAttendance([FromBody] MarkAttendanceDto dto)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -316,6 +338,8 @@ public class AttendanceController : ControllerBase
 
     [HttpPost("events/{eventId}/close")]
     [Authorize(Roles = "Staff,AcademyAdmin")]
+    [RequirePermission(Permissions.AttendanceTake)]
+    [RequireScope(ScopeTarget.Event, "eventId")]
     public async Task<IActionResult> CloseAttendance(Guid eventId)
     {
         var academyId = GetAcademyId();
@@ -333,7 +357,9 @@ public class AttendanceController : ControllerBase
     }
 
     [HttpPost("events/{eventId}/reopen")]
-    [Authorize(Roles = "AcademyAdmin")]
+    [Authorize(Roles = "AcademyAdmin,Staff")]
+    [RequirePermission(Permissions.AttendanceReopen)]
+    [RequireScope(ScopeTarget.Event, "eventId")]
     public async Task<IActionResult> ReopenAttendance(Guid eventId, [FromBody] ReopenAttendanceDto dto)
     {
         var academyId = GetAcademyId();

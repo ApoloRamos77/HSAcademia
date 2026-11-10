@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using HSAcademia.API.Authorization;
 using HSAcademia.Application.DTOs.Configuration;
 using HSAcademia.Infrastructure.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -98,6 +99,40 @@ public class AcademyConfigurationController : ControllerBase
     }
 
     // Role endpoints
+    [HttpGet("permissions")]
+    [Authorize(Roles = "AcademyAdmin")]
+    public IActionResult GetPermissionCatalog() => Ok(Permissions.Catalog);
+
+    [HttpPost("roles/{id}/clone")]
+    [Authorize(Roles = "AcademyAdmin")]
+    public async Task<IActionResult> CloneRole(Guid id)
+    {
+        var academyId = GetAcademyId();
+        if (academyId == Guid.Empty) return Unauthorized();
+        try { return Ok(await _service.CloneRoleAsync(academyId, id)); }
+        catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
+    }
+
+    [HttpPut("roles/{id}/status")]
+    [Authorize(Roles = "AcademyAdmin")]
+    public async Task<IActionResult> SetRoleStatus(Guid id, [FromBody] SetAcademyRoleStatusDto dto)
+    {
+        var academyId = GetAcademyId();
+        if (academyId == Guid.Empty) return Unauthorized();
+        try { return Ok(await _service.SetRoleStatusAsync(academyId, id, dto.IsActive)); }
+        catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
+    }
+
+    [HttpDelete("roles/{id}")]
+    [Authorize(Roles = "AcademyAdmin")]
+    public async Task<IActionResult> DeleteRole(Guid id)
+    {
+        var academyId = GetAcademyId();
+        if (academyId == Guid.Empty) return Unauthorized();
+        try { await _service.DeleteRoleAsync(academyId, id); return NoContent(); }
+        catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
+    }
+
     [HttpGet("roles")]
     [Authorize(Roles = "AcademyAdmin")]
     public async Task<IActionResult> GetRoles()
@@ -128,12 +163,13 @@ public class AcademyConfigurationController : ControllerBase
 
     // User endpoints
     [HttpGet("users")]
-    [Authorize(Roles = "AcademyAdmin")]
+    [RequirePermission(Permissions.FinancesStaffPayments)]
     public async Task<IActionResult> GetUsers()
     {
         var academyId = GetAcademyId();
         if (academyId == Guid.Empty) return Unauthorized();
-        return Ok(await _service.GetUsersAsync(academyId));
+        // Quien lleva la planilla solo necesita al personal, no a las familias.
+        return Ok(await _service.GetUsersAsync(academyId, staffOnly: !User.IsInRole("AcademyAdmin")));
     }
 
     [HttpPost("users")]
@@ -142,7 +178,7 @@ public class AcademyConfigurationController : ControllerBase
     {
         var academyId = GetAcademyId();
         if (academyId == Guid.Empty) return Unauthorized();
-        try { return Ok(await _service.CreateUserAsync(academyId, dto)); }
+        try { return Ok(await _service.CreateUserAsync(academyId, dto, User.GetUserId())); }
         catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
     }
 
@@ -152,7 +188,17 @@ public class AcademyConfigurationController : ControllerBase
     {
         var academyId = GetAcademyId();
         if (academyId == Guid.Empty) return Unauthorized();
-        try { return Ok(await _service.UpdateUserAsync(academyId, id, dto)); }
+        try { return Ok(await _service.UpdateUserAsync(academyId, id, dto, User.GetUserId())); }
+        catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
+    }
+
+    [HttpPost("users/{id}/transfer-ownership")]
+    [Authorize(Roles = "AcademyAdmin")]
+    public async Task<IActionResult> TransferOwnership(Guid id)
+    {
+        var academyId = GetAcademyId();
+        if (academyId == Guid.Empty) return Unauthorized();
+        try { await _service.TransferOwnershipAsync(academyId, User.GetUserId(), id); return NoContent(); }
         catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
     }
 
@@ -164,7 +210,7 @@ public class AcademyConfigurationController : ControllerBase
         if (academyId == Guid.Empty) return Unauthorized();
         try
         {
-            var temporaryPassword = await _service.ResetUserPasswordAsync(academyId, id);
+            var temporaryPassword = await _service.ResetUserPasswordAsync(academyId, id, User.GetUserId());
             return Ok(new
             {
                 message = "Contraseña reseteada. Entrega la contraseña temporal al usuario: deberá cambiarla al ingresar.",

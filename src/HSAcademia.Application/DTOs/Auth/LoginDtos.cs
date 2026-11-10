@@ -22,6 +22,9 @@ public class LoginResponseDto
     public bool RequirePasswordChange { get; set; }
     public Guid? CategoryId { get; set; } // For Student/Guardian: their category
     public List<string> Permissions { get; set; } = new List<string>();
+    public bool IsOwner { get; set; }
+    /// <summary>False si el usuario está limitado a ciertas sedes.</summary>
+    public bool AcademyWide { get; set; } = true;
 }
 
 public class ChangePasswordRequestDto

@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import { FINANCE_ACCESS, STORE_ACCESS, REPORTS_ACCESS } from './utils/permissions';
 import LandingProduct from './pages/public/LandingProduct';
 import LandingAcademy from './pages/public/LandingAcademy';
 import LoginPage from './pages/LoginPage';
@@ -90,12 +91,12 @@ export default function App() {
             </ProtectedRoute>
           } />
           <Route path="/academy/alumnos" element={
-            <ProtectedRoute roles={['AcademyAdmin', 'Staff']} permissions={['view_students']}>
+            <ProtectedRoute roles={['AcademyAdmin', 'Staff']} permissions={['students.view']}>
               <Alumnos />
             </ProtectedRoute>
           } />
           <Route path="/academy/apoderados" element={
-            <ProtectedRoute roles={['AcademyAdmin', 'Staff']} permissions={['view_students']}>
+            <ProtectedRoute roles={['AcademyAdmin', 'Staff']} permissions={['students.view']}>
               <Padres />
             </ProtectedRoute>
           } />
@@ -105,37 +106,37 @@ export default function App() {
             </ProtectedRoute>
           } />
           <Route path="/academy/asistencia" element={
-            <ProtectedRoute roles={['AcademyAdmin', 'Staff']} permissions={['manage_attendance']}>
+            <ProtectedRoute roles={['AcademyAdmin', 'Staff']} permissions={['attendance.take']}>
               <Asistencia />
             </ProtectedRoute>
           } />
           <Route path="/academy/asistencia-entrenadores" element={
-            <ProtectedRoute roles={['AcademyAdmin', 'Staff']} permissions={['manage_staff_attendance']}>
+            <ProtectedRoute roles={['AcademyAdmin', 'Staff']} permissions={['staff_attendance.mark']}>
               <AsistenciaEntrenadores />
             </ProtectedRoute>
           } />
           <Route path="/academy/asistencia-metricas" element={
-            <ProtectedRoute roles={['AcademyAdmin', 'Staff']} permissions={['manage_attendance']}>
+            <ProtectedRoute roles={['AcademyAdmin', 'Staff']} permissions={['attendance.metrics']}>
               <AsistenciaMetricas />
             </ProtectedRoute>
           } />
           <Route path="/academy/calendario" element={
-            <ProtectedRoute roles={['AcademyAdmin', 'Staff']} permissions={['manage_events']}>
+            <ProtectedRoute roles={['AcademyAdmin', 'Staff']} permissions={['events.manage']}>
               <Calendario />
             </ProtectedRoute>
           } />
           <Route path="/academy/torneos" element={
-            <ProtectedRoute roles={['AcademyAdmin', 'Staff']} permissions={['manage_events']}>
+            <ProtectedRoute roles={['AcademyAdmin', 'Staff']} permissions={['events.manage']}>
               <Torneos />
             </ProtectedRoute>
           } />
           <Route path="/academy/tienda" element={
-            <ProtectedRoute roles={['AcademyAdmin', 'Staff']} permissions={['manage_store']}>
+            <ProtectedRoute roles={['AcademyAdmin', 'Staff']} permissions={STORE_ACCESS}>
               <Tienda />
             </ProtectedRoute>
           } />
           <Route path="/academy/reportes" element={
-            <ProtectedRoute roles={['AcademyAdmin', 'Staff']}>
+            <ProtectedRoute roles={['AcademyAdmin', 'Staff']} permissions={REPORTS_ACCESS}>
               <Reportes />
             </ProtectedRoute>
           } />
@@ -145,7 +146,7 @@ export default function App() {
             </ProtectedRoute>
           } />
           <Route path="/academy/finanzas" element={
-            <ProtectedRoute roles={['AcademyAdmin', 'Staff']} permissions={['manage_finances']}>
+            <ProtectedRoute roles={['AcademyAdmin', 'Staff']} permissions={FINANCE_ACCESS}>
               <Finanzas />
             </ProtectedRoute>
           } />

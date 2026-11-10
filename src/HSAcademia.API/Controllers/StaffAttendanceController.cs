@@ -10,7 +10,7 @@ namespace HSAcademia.API.Controllers;
 [ApiController]
 [Route("api/staff-attendance")]
 [Authorize(Roles = "AcademyAdmin,Staff")]
-[RequirePermission(Permissions.ManageStaffAttendance)]
+[RequirePermission(Permissions.StaffAttendanceMark)]
 public class StaffAttendanceController : ControllerBase
 {
     private readonly StaffAttendanceService _service;

@@ -19,9 +19,11 @@ public class DashboardService
 
     private readonly AppDbContext _db;
     private readonly IFinancesPremiumService _finances;
+    private readonly AccessScopeService _scope;
 
-    public DashboardService(AppDbContext db, IFinancesPremiumService finances)
+    public DashboardService(AppDbContext db, IFinancesPremiumService finances, AccessScopeService scope)
     {
+        _scope = scope;
         _db = db;
         _finances = finances;
     }
@@ -44,7 +46,7 @@ public class DashboardService
         }
 
         var studentsQuery = _db.Students.AsNoTracking().Where(s => s.AcademyId == academyId);
-        if (scope != null) studentsQuery = studentsQuery.Where(s => scope.Contains(s.CategoryId));
+        if (!isAdmin) studentsQuery = AccessScopeService.ApplyStudents(studentsQuery, await _scope.ForUserAsync(userId));
 
         var students = await studentsQuery
             .Select(s => new

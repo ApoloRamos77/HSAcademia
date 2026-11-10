@@ -105,9 +105,11 @@ public class ReceiptService
     private readonly FinancialPeriodGuard _periods;
     private readonly AuditService _audit;
     private readonly ReceiptRecorder _recorder;
+    private readonly AccessScopeService _scope;
 
-    public ReceiptService(AppDbContext db, FinancesService finances, FinancialPeriodGuard periods, AuditService audit, ReceiptRecorder recorder)
+    public ReceiptService(AppDbContext db, FinancesService finances, FinancialPeriodGuard periods, AuditService audit, ReceiptRecorder recorder, AccessScopeService scope)
     {
+        _scope = scope;
         _db = db;
         _finances = finances;
         _periods = periods;
@@ -577,7 +579,20 @@ public class ReceiptService
         }
         if (!string.IsNullOrWhiteSpace(dto.PayerName)) plan.PayerName = dto.PayerName.Trim();
         if (!string.IsNullOrWhiteSpace(dto.PayerDocument)) plan.PayerDocument = dto.PayerDocument.Trim();
+        await EnsureStudentsInScopeAsync(plan);
         return plan;
+    }
+
+    /// <summary>Quien está limitado a ciertas sedes solo cobra a alumnos de esas sedes.</summary>
+    private async Task EnsureStudentsInScopeAsync(CheckoutPlan plan)
+    {
+        var headquarters = await _scope.StaffHeadquartersAsync();
+        if (headquarters == null) return;
+        var ids = plan.Debts.Select(d => d.Record.StudentId)
+            .Concat(plan.Products.Where(p => p.Student != null).Select(p => p.Student!.Id))
+            .Distinct().ToList();
+        if (await _db.Students.AsNoTracking().AnyAsync(s => ids.Contains(s.Id) && !headquarters.Contains(s.HeadquarterId)))
+            throw new UnauthorizedAccessException("Este cobro incluye alumnos de una sede que no tienes asignada.");
     }
 
     private static string? NameOf(Student? s) => s == null ? null : $"{s.FirstName} {s.LastName}".Trim();
@@ -842,6 +857,10 @@ public class ReceiptService
         if (from.HasValue) { var start = LocalDayStartUtc(from.Value); q = q.Where(r => r.IssuedAt >= start); }
         if (to.HasValue) { var end = LocalDayStartUtc(to.Value.AddDays(1)); q = q.Where(r => r.IssuedAt < end); }
         if (studentId.HasValue) q = q.Where(r => r.Lines.Any(l => l.StudentId == studentId));
+        var headquarters = await _scope.StaffHeadquartersAsync();
+        if (headquarters != null)
+            q = q.Where(r => !r.Lines.Any(l => l.StudentId != null)
+                || r.Lines.Any(l => _db.Students.Any(s => s.Id == l.StudentId && headquarters.Contains(s.HeadquarterId))));
         if (!string.IsNullOrWhiteSpace(search))
         {
             var term = $"%{search.Trim()}%";
@@ -850,6 +869,17 @@ public class ReceiptService
         }
         var list = await q.OrderByDescending(r => r.IssuedAt).Take(300).ToListAsync();
         return list.Select(Map).ToList();
+    }
+
+    /// <summary>Oculta un recibo de otra sede como si no existiera. Las ventas al público no pertenecen a ninguna.</summary>
+    public async Task EnsureVisibleAsync(ReceiptDto receipt)
+    {
+        var headquarters = await _scope.StaffHeadquartersAsync();
+        if (headquarters == null) return;
+        var studentIds = receipt.Lines.Where(l => l.StudentId != null).Select(l => l.StudentId!.Value).Distinct().ToList();
+        if (studentIds.Count == 0) return;
+        if (!await _db.Students.AsNoTracking().AnyAsync(s => studentIds.Contains(s.Id) && headquarters.Contains(s.HeadquarterId)))
+            throw new KeyNotFoundException("Comprobante no encontrado.");
     }
 
     public async Task<ReceiptDto> GetAsync(Guid academyId, Guid id)

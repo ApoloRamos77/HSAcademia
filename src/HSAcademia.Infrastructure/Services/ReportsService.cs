@@ -15,15 +15,23 @@ public class ReportsService
     private static readonly CultureInfo Es = new("es-PE");
     private readonly AppDbContext _db;
 
-    public ReportsService(AppDbContext db) => _db = db;
+    private readonly AccessScopeService _scope;
+
+    public ReportsService(AppDbContext db, AccessScopeService scope)
+    {
+        _db = db;
+        _scope = scope;
+    }
 
     // ── Morosidad con antigüedad de deuda ──────────────────────────
     public async Task<byte[]> OverdueAgingCsvAsync(Guid academyId)
     {
         var today = AcademyClock.Today;
         var todayUtc = DateTime.SpecifyKind(today, DateTimeKind.Utc);
+        var headquarters = await _scope.StaffHeadquartersAsync();
         var rows = await _db.PaymentRecords.AsNoTracking()
-            .Where(p => p.AcademyId == academyId && !p.IsPaid && p.Type != PaymentType.ProductSale && p.DueDate < todayUtc)
+            .Where(p => p.AcademyId == academyId && !p.IsPaid && p.Type != PaymentType.ProductSale && p.DueDate < todayUtc
+                && (headquarters == null || headquarters.Contains(p.Student.HeadquarterId)))
             .Select(p => new
             {
                 p.StudentId,
@@ -60,6 +68,7 @@ public class ReportsService
         var today = AcademyClock.Today;
         var q = _db.Students.AsNoTracking().Where(s => s.AcademyId == academyId);
         if (!includeInactive) q = q.Where(s => s.IsActive);
+        q = AccessScopeService.ApplyStudents(q, await _scope.CurrentAsync());
         var rows = await q
             .OrderBy(s => s.Headquarter.Name).ThenBy(s => s.Category.Name).ThenBy(s => s.LastName)
             .Select(s => new
@@ -104,8 +113,10 @@ public class ReportsService
     public async Task<byte[]> PaymentsCsvAsync(Guid academyId, int year, int month)
     {
         var (startUtc, endUtc) = AcademyClock.MonthRangeUtc(year, month);
+        var headquarters = await _scope.StaffHeadquartersAsync();
         var rows = await _db.PaymentInstallments.AsNoTracking()
-            .Where(i => i.PaymentRecord.AcademyId == academyId && !i.PaymentRecord.IsDeleted && i.PaidAt >= startUtc && i.PaidAt < endUtc)
+            .Where(i => i.PaymentRecord.AcademyId == academyId && !i.PaymentRecord.IsDeleted && i.PaidAt >= startUtc && i.PaidAt < endUtc
+                && (headquarters == null || headquarters.Contains(i.PaymentRecord.Student.HeadquarterId)))
             .OrderBy(i => i.PaidAt)
             .Select(i => new
             {
@@ -115,7 +126,8 @@ public class ReportsService
             .ToListAsync();
 
         var sales = await _db.ProductSales.AsNoTracking()
-            .Where(s => s.AcademyId == academyId && s.SaleDate >= startUtc && s.SaleDate < endUtc && !s.IsGift)
+            .Where(s => s.AcademyId == academyId && s.SaleDate >= startUtc && s.SaleDate < endUtc && !s.IsGift
+                && (headquarters == null || s.Student == null || headquarters.Contains(s.Student.HeadquarterId)))
             .OrderBy(s => s.SaleDate)
             .Select(s => new
             {

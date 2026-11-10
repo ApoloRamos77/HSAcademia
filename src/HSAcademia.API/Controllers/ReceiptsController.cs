@@ -24,47 +24,55 @@ public class ReceiptsController : ControllerBase
 
     /// <summary>Apoderado, hermanos inscritos y todas sus deudas pendientes (para armar el cobro).</summary>
     [HttpGet("family/{studentId:guid}")]
-    [RequirePermission(Permissions.ManageFinances, Permissions.ManageStore)]
+    [RequirePermission(Permissions.CollectionsView, Permissions.CollectionsCollect, Permissions.StoreSell)]
+    [RequireScope(ScopeTarget.Student, "studentId", Permissions.CollectionsView, Permissions.CollectionsCollect, Permissions.StoreSell)]
     public Task<IActionResult> Family(Guid studentId) =>
         Run(academyId => _receipts.GetFamilyAccountAsync(academyId, studentId));
 
     /// <summary>Registra el cobro y emite un solo comprobante con todos los ítems.</summary>
     [HttpPost]
-    [RequirePermission(Permissions.ManageFinances, Permissions.ManageStore)]
+    [RequirePermission(Permissions.CollectionsCollect, Permissions.StoreSell)]
     public async Task<IActionResult> Checkout([FromBody] CheckoutDto dto)
     {
-        var canDebts = await PermissionChecker.HasAsync(HttpContext, Permissions.ManageFinances);
-        var canProducts = canDebts || await PermissionChecker.HasAsync(HttpContext, Permissions.ManageStore);
+        var canDebts = await PermissionChecker.HasAsync(HttpContext, Permissions.CollectionsCollect);
+        var canProducts = canDebts || await PermissionChecker.HasAsync(HttpContext, Permissions.StoreSell);
         return await Run(academyId => _receipts.CheckoutAsync(academyId, dto, canDebts, canProducts));
     }
 
     /// <summary>Calcula el comprobante con sus descuentos (pronto pago, promoción) sin registrar nada.</summary>
     [HttpPost("preview")]
-    [RequirePermission(Permissions.ManageFinances, Permissions.ManageStore)]
+    [RequirePermission(Permissions.CollectionsCollect, Permissions.StoreSell)]
     public async Task<IActionResult> Preview([FromBody] CheckoutDto dto)
     {
-        var canDebts = await PermissionChecker.HasAsync(HttpContext, Permissions.ManageFinances);
-        var canProducts = canDebts || await PermissionChecker.HasAsync(HttpContext, Permissions.ManageStore);
+        var canDebts = await PermissionChecker.HasAsync(HttpContext, Permissions.CollectionsCollect);
+        var canProducts = canDebts || await PermissionChecker.HasAsync(HttpContext, Permissions.StoreSell);
         return await Run(academyId => _receipts.PreviewAsync(academyId, dto, canDebts, canProducts));
     }
 
     [HttpGet]
-    [RequirePermission(Permissions.ManageFinances, Permissions.ManageStore)]
+    [RequirePermission(Permissions.CollectionsView, Permissions.CollectionsCollect, Permissions.StoreSell)]
     public Task<IActionResult> List([FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] string? search, [FromQuery] Guid? studentId) =>
         Run(academyId => _receipts.ListAsync(academyId, from, to, search, studentId));
 
     [HttpGet("{id:guid}")]
-    [RequirePermission(Permissions.ManageFinances, Permissions.ManageStore)]
+    [RequirePermission(Permissions.CollectionsView, Permissions.CollectionsCollect, Permissions.StoreSell)]
+    [RequireScope(ScopeTarget.Receipt, "id")]
     public Task<IActionResult> Get(Guid id) => Run(academyId => _receipts.GetAsync(academyId, id));
 
     /// <summary>Busca por número (incluye recibos anteriores a esta versión, para reimprimirlos).</summary>
     [HttpGet("by-number/{number}")]
-    [RequirePermission(Permissions.ManageFinances, Permissions.ManageStore)]
-    public Task<IActionResult> ByNumber(string number) => Run(academyId => _receipts.GetByNumberAsync(academyId, number));
+    [RequirePermission(Permissions.CollectionsView, Permissions.CollectionsCollect, Permissions.StoreSell)]
+    public Task<IActionResult> ByNumber(string number) => Run(async academyId =>
+        {
+            var receipt = await _receipts.GetByNumberAsync(academyId, number);
+            await _receipts.EnsureVisibleAsync(receipt);
+            return receipt;
+        });
 
     /// <summary>Anula el comprobante completo: revierte los abonos, las ventas y el stock.</summary>
     [HttpPost("{id:guid}/void")]
-    [RequirePermission(Permissions.ManageFinances)]
+    [RequirePermission(Permissions.CollectionsVoid)]
+    [RequireScope(ScopeTarget.Receipt, "id")]
     public Task<IActionResult> Void(Guid id, [FromBody] VoidReceiptDto dto) =>
         Run(academyId => _receipts.VoidAsync(academyId, id, dto?.Reason ?? ""));
 

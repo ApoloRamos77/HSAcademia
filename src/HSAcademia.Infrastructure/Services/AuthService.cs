@@ -1,6 +1,7 @@
 using HSAcademia.Application.Common;
 using HSAcademia.Application.DTOs.Auth;
 using HSAcademia.Application.Interfaces;
+using HSAcademia.Domain.Authorization;
 using HSAcademia.Domain.Entities;
 using HSAcademia.Domain.Enums;
 using HSAcademia.Infrastructure.Persistence;
@@ -14,11 +15,13 @@ public class AuthService
 
     private readonly AppDbContext _db;
     private readonly IJwtService _jwt;
+    private readonly AccessScopeService _scope;
 
-    public AuthService(AppDbContext db, IJwtService jwt)
+    public AuthService(AppDbContext db, IJwtService jwt, AccessScopeService scope)
     {
         _db = db;
         _jwt = jwt;
+        _scope = scope;
     }
 
     public async Task<Result<LoginResponseDto>> LoginAsync(LoginRequestDto dto)
@@ -31,7 +34,6 @@ public class AuthService
         // y se elige el que coincide con la contraseña (y con la academia, si se indicó).
         var candidatesQuery = _db.Users
             .Include(u => u.Academy)
-            .Include(u => u.AcademyRole)
             .Where(u => u.Email.ToLower() == query || u.Phone == query || u.DocumentNumber == query);
 
         if (dto.AcademyId.HasValue && dto.AcademyId.Value != Guid.Empty)
@@ -97,6 +99,18 @@ public class AuthService
 
         var token = await _jwt.GenerateTokenAsync(user);
 
+        return Result<LoginResponseDto>.Success(await BuildResponseAsync(user, token));
+    }
+
+    /// <summary>Datos y permisos vigentes del usuario, sin emitir un token nuevo.</summary>
+    public async Task<LoginResponseDto?> GetCurrentAsync(Guid userId)
+    {
+        var user = await _db.Users.AsNoTracking().Include(u => u.Academy).FirstOrDefaultAsync(u => u.Id == userId);
+        return user == null ? null : await BuildResponseAsync(user, string.Empty);
+    }
+
+    private async Task<LoginResponseDto> BuildResponseAsync(User user, string token)
+    {
         // Para Alumno/Apoderado: categoría del alumno vinculado
         Guid? categoryId = null;
         if (user.Role == UserRole.Student || user.Role == UserRole.Guardian)
@@ -107,7 +121,8 @@ public class AuthService
                 .FirstOrDefaultAsync();
         }
 
-        return Result<LoginResponseDto>.Success(new LoginResponseDto
+        var scope = await _scope.ForUserAsync(user.Id);
+        return new LoginResponseDto
         {
             Token = token,
             UserId = user.Id,
@@ -118,8 +133,10 @@ public class AuthService
             AcademyName = user.Academy?.Name,
             RequirePasswordChange = user.MustChangePassword,
             CategoryId = categoryId,
-            Permissions = user.AcademyRole?.Permissions ?? new List<string>()
-        });
+            Permissions = Permissions.WithLegacyAliases(scope.Permissions),
+            IsOwner = user.IsOwner,
+            AcademyWide = scope.IsAcademyWide
+        };
     }
 
     private static bool RoleMatches(string? requested, UserRole role)

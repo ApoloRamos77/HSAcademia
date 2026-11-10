@@ -35,11 +35,17 @@ public class User
     public Academy? Academy { get; set; }
     public ICollection<AuditLog> AuditLogs { get; set; } = new List<AuditLog>();
 
-    public Guid? AcademyRoleId { get; set; }
-    public AcademyRole? AcademyRole { get; set; }
+    /// <summary>Roles asignados: sus permisos se suman.</summary>
+    public ICollection<AcademyRole> AssignedRoles { get; set; } = new List<AcademyRole>();
+
+    /// <summary>Único por academia. Gestiona a los administradores y no puede ser retirado por ellos.</summary>
+    public bool IsOwner { get; set; } = false;
     
     public Guid? HeadquarterId { get; set; }
     public Headquarter? Headquarter { get; set; }
+
+    /// <summary>Sedes asignadas. Vacío = todas las sedes. HeadquarterId conserva la sede cuando es una sola.</summary>
+    public ICollection<Headquarter> AssignedHeadquarters { get; set; } = new List<Headquarter>();
 
     public ICollection<Category> AssignedCategories { get; set; } = new List<Category>();
 
