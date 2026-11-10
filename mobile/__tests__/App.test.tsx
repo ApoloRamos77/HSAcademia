@@ -1,7 +1,7 @@
 /**
  * Pruebas de utilidades puras (no requieren módulos nativos).
  */
-import { eventParts, initials, money, shortDay } from '../src/utils/format';
+import { eventParts, initials, markingBlock, money, shortDay } from '../src/utils/format';
 
 describe('format', () => {
   test('money usa soles con separador de miles y 2 decimales', () => {
@@ -17,6 +17,24 @@ describe('format', () => {
 
   test('fechas calendario no cambian de día por la zona horaria', () => {
     expect(shortDay('2026-11-10')).toBe('mar 10 nov');
+  });
+
+  test('plazo para marcar asistencia', () => {
+    const session = { markFrom: '2026-11-10T17:45:00Z', markUntil: '2026-11-12T00:00:00Z' };
+    jest.useFakeTimers();
+    try {
+      jest.setSystemTime(new Date(2026, 10, 10, 17, 44));
+      expect(markingBlock(session)).toContain('17:45');
+      jest.setSystemTime(new Date(2026, 10, 10, 17, 45));
+      expect(markingBlock(session)).toBeNull();
+      jest.setSystemTime(new Date(2026, 10, 11, 23, 59));
+      expect(markingBlock(session)).toBeNull();
+      jest.setSystemTime(new Date(2026, 10, 12, 0, 0));
+      expect(markingBlock(session)).toContain('venció');
+      expect(markingBlock({ markFrom: session.markFrom, markUntil: null })).toBeNull();
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   test('iniciales', () => {

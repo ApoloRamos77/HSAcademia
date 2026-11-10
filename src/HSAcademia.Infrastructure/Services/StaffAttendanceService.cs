@@ -12,7 +12,6 @@ namespace HSAcademia.Infrastructure.Services;
 /// </summary>
 public class StaffAttendanceService
 {
-    private const int MinutesBeforeStart = 15;
     private const string OwnSessionMessage = "Otra persona debe registrar tu propia asistencia.";
 
     private readonly AppDbContext _db;
@@ -35,8 +34,6 @@ public class StaffAttendanceService
 
     private static bool IsSession(Event e) =>
         e.Type is EventType.Training or EventType.FriendlyMatch or EventType.TournamentMatch;
-
-    private static bool HasStarted(Event ev) => ev.StartTime <= AcademyClock.WallNow.AddMinutes(MinutesBeforeStart);
 
     private Task<Dictionary<Guid, string>> NamesAsync(Guid academyId, IEnumerable<Guid> ids)
     {
@@ -70,9 +67,8 @@ public class StaffAttendanceService
         {
             var mark = marks.GetValueOrDefault(ev.Id);
             var staffId = mark?.StaffId ?? ev.TeacherId;
-            string? blocked = null;
-            if (!HasStarted(ev)) blocked = $"Se podrá marcar desde {MinutesBeforeStart} minutos antes del inicio.";
-            else if (!scope.IsAdmin && staffId == userId) blocked = OwnSessionMessage;
+            var blocked = AttendanceWindow.BlockReason(ev, scope.IsAdmin);
+            if (blocked == null && !scope.IsAdmin && staffId == userId) blocked = OwnSessionMessage;
 
             return new StaffSessionDto
             {
@@ -120,7 +116,8 @@ public class StaffAttendanceService
             if (!events.TryGetValue(record.EventId, out var ev)) throw new KeyNotFoundException("Sesión no encontrada.");
             if (!IsSession(ev)) throw new Exception("Este evento no lleva asistencia de entrenador.");
             if (!scope.Supervises(ev)) throw new Exception($"\"{ev.Title}\" no pertenece a tus categorías asignadas.");
-            if (!HasStarted(ev)) throw new Exception($"\"{ev.Title}\" aún no inicia.");
+            var blocked = AttendanceWindow.BlockReason(ev, scope.IsAdmin, record.MarkedAt);
+            if (blocked != null) throw new Exception($"\"{ev.Title}\": {blocked}");
             if (!Enum.IsDefined(record.Status)) throw new Exception("El estado de asistencia no es válido.");
 
             marks.TryGetValue(record.EventId, out var mark);

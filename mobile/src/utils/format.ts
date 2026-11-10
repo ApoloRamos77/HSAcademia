@@ -72,6 +72,15 @@ export function monthName(month: number): string {
   return MONTHS[month - 1] ?? '';
 }
 
+/** Plazo para marcar asistencia: por qué no se puede ahora, o null. Compara en "hora de pared", como los eventos. */
+export function markingBlock(s: { markFrom?: string | null; markUntil?: string | null }): string | null {
+  const d = new Date();
+  const now = `${todayISO()}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  if (s.markFrom && now < s.markFrom.slice(0, 16)) return `La lista abre a las ${s.markFrom.slice(11, 16)}, 15 minutos antes del inicio.`;
+  if (s.markUntil && now >= s.markUntil.slice(0, 16)) return 'El plazo para marcar venció. Solo un administrador puede modificarla.';
+  return null;
+}
+
 /** Saludo según la hora local. */
 export function greeting(): string {
   const h = new Date().getHours();

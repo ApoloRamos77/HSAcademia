@@ -55,10 +55,10 @@ public class AttendanceController : ControllerBase
 
     /// <summary>
     /// POST /api/attendance/category/{categoryId}
-    /// Saves bulk attendance for a date (no event required).
+    /// Saves bulk attendance for a date (no event required). Admin only: it has no session to enforce the window.
     /// </summary>
     [HttpPost("category/{categoryId}")]
-    [Authorize(Roles = "AcademyAdmin,Staff")]
+    [Authorize(Roles = "AcademyAdmin")]
     public async Task<IActionResult> MarkAttendance(Guid categoryId, [FromBody] MarkAttendanceDto dto)
     {
         var academyId = GetAcademyId();
@@ -334,13 +334,13 @@ public class AttendanceController : ControllerBase
 
     [HttpPost("events/{eventId}/reopen")]
     [Authorize(Roles = "AcademyAdmin")]
-    public async Task<IActionResult> ReopenAttendance(Guid eventId)
+    public async Task<IActionResult> ReopenAttendance(Guid eventId, [FromBody] ReopenAttendanceDto dto)
     {
         var academyId = GetAcademyId();
         if (academyId == Guid.Empty) return Unauthorized();
         try
         {
-            await _attendanceService.ReopenAttendanceAsync(academyId, eventId);
+            await _attendanceService.ReopenAttendanceAsync(academyId, eventId, User.GetUserId(), dto.Reason);
             return Ok(new { message = "Asistencia reabierta correctamente." });
         }
         catch (KeyNotFoundException ex)     { return NotFound(new { message = ex.Message }); }

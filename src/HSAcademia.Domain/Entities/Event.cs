@@ -39,6 +39,8 @@ public class Event
     public bool AttendanceClosed { get; set; } = false;
     public DateTime? AttendanceClosedAt { get; set; }
     public Guid? AttendanceClosedBy { get; set; }
+    /// <summary>Reapertura por un administrador: el cierre automático ya no vuelve a tocar esta lista.</summary>
+    public DateTime? AttendanceReopenedAt { get; set; }
 
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }

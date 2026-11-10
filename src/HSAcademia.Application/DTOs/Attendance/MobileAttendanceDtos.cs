@@ -19,6 +19,11 @@ public class QrScanDto
     public Guid? EventId { get; set; }
 }
 
+public class ReopenAttendanceDto
+{
+    public string Reason { get; set; } = string.Empty;
+}
+
 /// <summary>Aviso para la familia dentro de la app.</summary>
 public class FamilyNoticeDto
 {
@@ -97,6 +102,10 @@ public class StaffTrainingSessionDto
     public string HeadquarterName { get; set; } = string.Empty;
     public bool AttendanceClosed { get; set; }
     public DateTime? AttendanceClosedAt { get; set; }
+    /// <summary>Desde cuándo se puede marcar (hora de pared, como los eventos).</summary>
+    public DateTime MarkFrom { get; set; }
+    /// <summary>Hasta cuándo se puede marcar; null para el administrador, que no tiene vencimiento.</summary>
+    public DateTime? MarkUntil { get; set; }
     // Attendance counters (0 if not yet taken)
     public int PresentCount { get; set; }
     public int AbsentCount { get; set; }

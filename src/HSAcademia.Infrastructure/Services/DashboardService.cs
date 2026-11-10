@@ -15,6 +15,7 @@ public class DashboardService
 {
     private const int AbsenceStreakAlert = 3;
     private const int MaxAbsenceStreaks = 10;
+    private const int NotTakenLookbackDays = 14;
 
     private readonly AppDbContext _db;
     private readonly IFinancesPremiumService _finances;
@@ -197,6 +198,10 @@ public class DashboardService
                 p.Type == PaymentType.MonthlyFee && p.PeriodYear == now.Year && p.PeriodMonth == now.Month);
             if (!debtsThisMonth && active.Count > 0)
                 dto.Alerts.Add(new DashboardAlertDto { Level = "warning", Message = "Aún no se generaron las mensualidades de este mes.", Link = "/academy/finanzas" });
+
+            var notTaken = await CountSessionsNotTakenAsync(academyId, today);
+            if (notTaken > 0)
+                dto.Alerts.Add(new DashboardAlertDto { Level = "warning", Message = $"{notTaken} sesión(es) vencida(s) sin asistencia tomada en los últimos {NotTakenLookbackDays} días.", Link = "/academy/asistencia" });
         }
 
         var noContact = active.Count(s => s.GuardianId == null && string.IsNullOrWhiteSpace(s.Phone));
@@ -214,6 +219,20 @@ public class DashboardService
             dto.Alerts.Add(new DashboardAlertDto { Level = "info", Message = $"{dto.Attendance.LowAttendance.Count} alumno(s) con asistencia menor al 70% en los últimos 30 días.", Link = "/academy/asistencia-metricas" });
 
         return dto;
+    }
+
+    /// <summary>Sesiones con el plazo vencido en las que nadie tomó asistencia.</summary>
+    private async Task<int> CountSessionsNotTakenAsync(Guid academyId, DateTime today)
+    {
+        var expiredBefore = DateTime.SpecifyKind(today.AddDays(-1), DateTimeKind.Utc);
+        var notBefore = expiredBefore.AddDays(-NotTakenLookbackDays);
+        var sessions = await _db.Events.AsNoTracking()
+            .Where(e => e.AcademyId == academyId && !e.IsDeleted && !e.AttendanceClosed &&
+                        e.StartTime >= notBefore && e.StartTime < expiredBefore &&
+                        (e.Type == EventType.Training || e.Type == EventType.FriendlyMatch || e.Type == EventType.TournamentMatch) &&
+                        !_db.Attendances.Any(a => a.EventId == e.Id))
+            .CountAsync();
+        return sessions;
     }
 
     private async Task<FinanceKpiDto> BuildFinanceAsync(Guid academyId, DateTime now, DateTime today)

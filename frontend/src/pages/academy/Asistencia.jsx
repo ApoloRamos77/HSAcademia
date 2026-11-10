@@ -23,7 +23,8 @@ export default function Asistencia() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'AcademyAdmin';
 
-  const [mode, setMode] = useState('date'); // 'date' | 'event'
+  const [mode, setMode] = useState(isAdmin ? 'date' : 'event'); // 'date' (solo administrador) | 'event'
+  const [reopenReason, setReopenReason] = useState('');
 
   // Filters/meta
   const [categorias,       setCategorias]       = useState([]);
@@ -145,6 +146,19 @@ export default function Asistencia() {
     } finally { setSaving(false); }
   };
 
+  const closedEvent = mode === 'event' ? events.find(e => e.id === selectedEvent && e.attendanceClosed) : null;
+
+  const handleReopen = async () => {
+    if (reopenReason.trim().length < 5) { toast.error('Indica el motivo de la reapertura.'); return; }
+    try {
+      await api.post(`/attendance/events/${selectedEvent}/reopen`, { reason: reopenReason.trim() });
+      toast.success('Lista reabierta.');
+      setReopenReason('');
+      loadUpcomingEvents();
+      fetchByEvent();
+    } catch (err) { toast.error(err.response?.data?.message || 'No se pudo reabrir la lista.'); }
+  };
+
   // ── Filter events ─────────────────────────────────────────────
   const filteredEvents = events.filter(e => {
     const matchSede   = !selectedSede     || e.headquarterId?.toString() === selectedSede.toString();
@@ -187,10 +201,12 @@ export default function Asistencia() {
 
         {/* Mode tabs */}
         <div className="tabs" style={{ maxWidth:400 }}>
-          <button className={`tab-pill ${mode === 'date' ? 'active' : ''}`}
-            onClick={() => { setMode('date'); setStudents([]); setWindowBlocked(null); }}>
-            📅 Por Fecha
-          </button>
+          {isAdmin && (
+            <button className={`tab-pill ${mode === 'date' ? 'active' : ''}`}
+              onClick={() => { setMode('date'); setStudents([]); setWindowBlocked(null); }}>
+              📅 Por Fecha
+            </button>
+          )}
           <button className={`tab-pill ${mode === 'event' ? 'active' : ''}`}
             onClick={() => { setMode('event'); setStudents([]); setWindowBlocked(null); }}>
             🗓️ Por Evento
@@ -369,6 +385,22 @@ export default function Asistencia() {
               <strong>Lista no disponible aún</strong>
               <p style={{ marginTop:4, fontSize:13 }}>{windowBlocked}</p>
             </div>
+          </div>
+        )}
+
+        {/* Lista cerrada */}
+        {closedEvent && (
+          <div className="alert alert-warning" style={{ alignItems:'center', flexWrap:'wrap', gap:10 }}>
+            <AlertTriangle size={18} style={{ flexShrink:0 }}/>
+            <strong>Esta lista está cerrada.</strong>
+            {isAdmin ? (
+              <>
+                <input className="form-control" style={{ flex:'1 1 240px', fontSize:13 }} maxLength={300}
+                  placeholder="Motivo de la reapertura (obligatorio)" aria-label="Motivo de la reapertura"
+                  value={reopenReason} onChange={e => setReopenReason(e.target.value)}/>
+                <button className="btn btn-sm btn-primary" onClick={handleReopen}>Reabrir lista</button>
+              </>
+            ) : <span style={{ fontSize:13 }}>Solo un administrador puede reabrirla.</span>}
           </div>
         )}
 

@@ -40,6 +40,25 @@ public class SportsController : ControllerBase
         return Ok(new { deleted, message = $"Se eliminaron {deleted} entrenamiento(s) futuros de la serie." });
     }
 
+    /// <summary>PUT /api/sports/schedules/{seriesId} — cambia esta y las siguientes o toda la serie. O se aplica todo o nada.</summary>
+    [HttpPut("schedules/{seriesId:guid}")]
+    [RequirePermission(Permissions.ManageEvents)]
+    public async Task<IActionResult> UpdateSchedule(Guid seriesId, [FromBody] UpdateSeriesDto dto)
+    {
+        try { return Ok(await _sports.UpdateSeriesAsync(User.GetAcademyId(), seriesId, dto)); }
+        catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
+        catch (InvalidOperationException ex) { return Conflict(new { message = ex.Message }); }
+    }
+
+    /// <summary>POST /api/sports/schedules/{seriesId}/repeat-next-month — crea el mes siguiente a la última sesión de la serie.</summary>
+    [HttpPost("schedules/{seriesId:guid}/repeat-next-month")]
+    [RequirePermission(Permissions.ManageEvents)]
+    public async Task<IActionResult> RepeatSchedule(Guid seriesId)
+    {
+        try { return Ok(await _sports.RepeatNextMonthAsync(User.GetAcademyId(), seriesId)); }
+        catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
+    }
+
     // ── Partidos ─────────────────────────────────────────────────
     [HttpGet("matches/{eventId:guid}")]
     public async Task<IActionResult> GetMatch(Guid eventId) =>
