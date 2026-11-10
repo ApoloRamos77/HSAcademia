@@ -222,6 +222,10 @@ export interface RosterStudent {
   markedAt?: string | null;
 }
 
+export interface AbsenceStreak { studentId: string; name: string; category: string; absences: number; absentSince: string; contactPhone?: string | null }
+
+export interface FamilyNotice { id: string; studentId: string; title: string; body: string; createdAt: string; isRead: boolean }
+
 export interface MedicalRecord {
   allergies?: string | null;
   medicalConditions?: string | null;
@@ -267,7 +271,7 @@ export interface Dashboard {
     billed: number; collected: number; pending: number; collectionRate: number; overdueAmount: number; overdueStudents: number;
     topOverdue: { studentId: string; name: string; category: string; amount: number; maxDaysOverdue: number }[];
   } | null;
-  attendance: { rateLast30Days?: number | null; recordsLast30Days: number; lowAttendance: { studentId: string; name: string; category: string; rate: number }[] };
+  attendance: { rateLast30Days?: number | null; recordsLast30Days: number; lowAttendance: { studentId: string; name: string; category: string; rate: number }[]; absenceStreaks?: AbsenceStreak[] };
   upcomingEvents: { id: string; title: string; type: number; startTime: string; categories?: string | null; opponent?: string | null }[];
   birthdays: { studentId: string; name: string; category: string; date: string; turnsAge: number; isToday: boolean }[];
   alerts: { level: 'danger' | 'warning' | 'info'; message: string }[];

@@ -1,28 +1,44 @@
 import React from 'react';
 import { Text, View } from 'react-native';
-import { CheckCircle2, ChevronRight, ClipboardCheck, Lock, QrCode } from 'lucide-react-native';
+import { CheckCircle2, ChevronRight, ClipboardCheck, CloudOff, Lock, QrCode, TriangleAlert } from 'lucide-react-native';
 import { api } from '../../api/client';
-import type { TrainingSession } from '../../api/types';
+import type { Dashboard, TrainingSession } from '../../api/types';
 import { useAuth } from '../../auth/AuthContext';
-import { Badge, Button, Card, Empty, Loading, Row, Screen, SectionTitle } from '../../components/ui';
+import AbsenceStreaks from '../../components/AbsenceStreaks';
+import { Badge, Banner, Button, Card, Empty, Loading, Row, Screen, SectionTitle } from '../../components/ui';
 import { useApi } from '../../hooks/useApi';
+import { discardPending, isOfflineError, preloadRosters, readSessions, saveSessions, syncQueue, usePendingAttendance } from '../../offline/attendanceOffline';
 import { colors, font, spacing } from '../../theme';
-import { firstName, greeting, longDay, shortDay, todayISO } from '../../utils/format';
+import { clockTime, firstName, greeting, longDay, shortDay, todayISO } from '../../utils/format';
 
 /** Panel del entrenador: entrenamientos de hoy y de los próximos días, con el estado de la asistencia. */
 export default function CoachTodayScreen({ navigation }: any) {
-  const { session } = useAuth();
+  const { session, role } = useAuth();
+  const pending = usePendingAttendance();
   const { data, loading, refreshing, refresh } = useApi(async () => {
-    const res = await api.get<TrainingSession[]>('/attendance/mobile/my-training-history', { params: { months: 2 } });
-    return res.data;
+    syncQueue();
+    try {
+      const res = await api.get<TrainingSession[]>('/attendance/mobile/my-training-history', { params: { months: 2 } });
+      await saveSessions(res.data);
+      preloadRosters(res.data.filter(s => s.date === todayISO()));
+      const dashboard = role === 'Staff' ? await api.get<Dashboard>('/dashboard').then(r => r.data).catch(() => null) : null;
+      return { sessions: res.data, offlineSince: null as number | null, streaks: dashboard?.attendance.absenceStreaks ?? [] };
+    } catch (e) {
+      const cached = isOfflineError(e) ? await readSessions() : null;
+      if (!cached) throw e;
+      return { sessions: cached.value, offlineSince: cached.cachedAt, streaks: [] };
+    }
   }, []);
 
   if (loading && !data) return <Loading />;
   const today = todayISO();
-  const all = (data ?? []).slice().sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime));
+  const all = (data?.sessions ?? []).slice().sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime));
   const todays = all.filter(s => s.date === today);
   const upcoming = all.filter(s => s.date > today).slice(0, 6);
   const pendingPast = all.filter(s => s.date < today && !s.attendanceTaken).slice(-5).reverse();
+  const waiting = pending.filter(p => !p.error);
+  const rejected = pending.filter(p => p.error);
+  const isWaiting = (s: TrainingSession) => waiting.some(p => p.eventId === s.eventId);
 
   const open = (s: TrainingSession) => navigation.navigate('Attendance', { session: s });
 
@@ -33,32 +49,52 @@ export default function CoachTodayScreen({ navigation }: any) {
         <Text style={[font.small, { textTransform: 'capitalize' }]}>{longDay(today)}</Text>
       </View>
 
+      {data?.offlineSince != null && (
+        <Banner tone="warning" icon={<CloudOff color={colors.warning} size={18} />}
+          text={`Sin señal: datos guardados a las ${clockTime(new Date(data.offlineSince).toISOString())}. Puedes tomar asistencia de las listas de hoy.`} />
+      )}
+      {waiting.length > 0 && (
+        <Banner tone="info" icon={<CloudOff color={colors.info} size={18} />}
+          text={`${waiting.length} lista(s) guardada(s) en este celular. Se enviarán solas cuando vuelva la señal.`} />
+      )}
+      {rejected.map(p => (
+        <Card key={p.eventId}>
+          <Row><TriangleAlert color={colors.danger} size={18} /><Text style={[font.h3, { flex: 1 }]}>No se pudo enviar: {p.title}</Text></Row>
+          <Text style={[font.small, { marginVertical: spacing.sm }]}>{p.error}</Text>
+          <Button compact variant="ghost" title="Descartar estas marcas" onPress={() => discardPending(p.eventId)} />
+        </Card>
+      ))}
+
       <Button title="Escanear carné QR" icon={<QrCode color={colors.white} size={20} />} onPress={() => navigation.navigate('Scan')} />
+
+      <AbsenceStreaks items={data?.streaks ?? []} />
 
       <SectionTitle title="Hoy" />
       {todays.length === 0 ? (
         <Card><Empty icon={<CheckCircle2 color={colors.textMuted} />} text="No tienes entrenamientos programados para hoy." /></Card>
-      ) : todays.map(s => <SessionCard key={s.eventId} s={s} onPress={() => open(s)} highlight />)}
+      ) : todays.map(s => <SessionCard key={s.eventId} s={s} waiting={isWaiting(s)} onPress={() => open(s)} highlight />)}
 
       {pendingPast.length > 0 && (
         <>
           <SectionTitle title="Asistencias pendientes" />
-          {pendingPast.map(s => <SessionCard key={s.eventId} s={s} onPress={() => open(s)} />)}
+          {pendingPast.map(s => <SessionCard key={s.eventId} s={s} waiting={isWaiting(s)} onPress={() => open(s)} />)}
         </>
       )}
 
       <SectionTitle title="Próximos días" />
       {upcoming.length === 0 ? (
         <Card><Empty text="Sin entrenamientos programados." /></Card>
-      ) : upcoming.map(s => <SessionCard key={s.eventId} s={s} onPress={() => open(s)} />)}
+      ) : upcoming.map(s => <SessionCard key={s.eventId} s={s} waiting={isWaiting(s)} onPress={() => open(s)} />)}
     </Screen>
   );
 }
 
-function SessionCard({ s, onPress, highlight }: { s: TrainingSession; onPress: () => void; highlight?: boolean }) {
-  const status = s.attendanceClosed
-    ? <Badge tone="muted" text="Cerrada" />
-    : s.attendanceTaken ? <Badge tone="success" text={`${s.presentCount}/${s.totalStudents} presentes`} /> : <Badge tone="warning" text="Sin tomar" />;
+function SessionCard({ s, onPress, highlight, waiting }: { s: TrainingSession; onPress: () => void; highlight?: boolean; waiting: boolean }) {
+  const status = waiting
+    ? <Badge tone="info" text="Por enviar" />
+    : s.attendanceClosed
+      ? <Badge tone="muted" text="Cerrada" />
+      : s.attendanceTaken ? <Badge tone="success" text={`${s.presentCount}/${s.totalStudents} presentes`} /> : <Badge tone="warning" text="Sin tomar" />;
   return (
     <Card onPress={onPress} style={highlight ? { borderLeftWidth: 4, borderLeftColor: colors.primary } : undefined}>
       <Row style={{ justifyContent: 'space-between' }}>

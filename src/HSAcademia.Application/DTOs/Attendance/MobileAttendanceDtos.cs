@@ -19,6 +19,17 @@ public class QrScanDto
     public Guid? EventId { get; set; }
 }
 
+/// <summary>Aviso para la familia dentro de la app.</summary>
+public class FamilyNoticeDto
+{
+    public Guid Id { get; set; }
+    public Guid StudentId { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public string Body { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; }
+    public bool IsRead { get; set; }
+}
+
 /// <summary>
 /// Response returned after a successful QR scan.
 /// </summary>

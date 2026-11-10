@@ -1,13 +1,13 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { CalendarDays, CheckCircle2, CreditCard, Megaphone, Pin, QrCode, Trophy, ChevronRight, UserCircle2 } from 'lucide-react-native';
+import { Bell, CalendarDays, CheckCircle2, CreditCard, Megaphone, Pin, QrCode, Trophy, ChevronRight, UserCircle2 } from 'lucide-react-native';
 import { api } from '../../api/client';
-import type { Announcement, AttendanceMonth, Debt, MyCall } from '../../api/types';
+import type { Announcement, AttendanceMonth, Debt, FamilyNotice, MyCall } from '../../api/types';
 import { useAuth } from '../../auth/AuthContext';
 import { Badge, Banner, Card, Empty, Loading, Row, Screen, SectionTitle } from '../../components/ui';
 import { useApi } from '../../hooks/useApi';
 import { colors, font, radius, spacing } from '../../theme';
-import { firstName, greeting, instantDate, money } from '../../utils/format';
+import { clockTime, firstName, greeting, instantDate, money } from '../../utils/format';
 import { useFamily } from './FamilyContext';
 import StudentPicker from './StudentPicker';
 
@@ -19,14 +19,16 @@ export default function FamilyHomeScreen({ navigation }: any) {
 
   const { data, loading, refreshing, refresh } = useApi(async () => {
     if (!student) return null;
-    const [debts, calls, history, news, next] = await Promise.all([
+    const [debts, calls, history, news, next, notices] = await Promise.all([
       api.get<Debt[]>('/finances/my-debts').then(r => r.data),
       api.get<MyCall[]>('/calendar/mobile/my-calls').then(r => r.data).catch(() => [] as MyCall[]),
       api.get<AttendanceMonth[]>('/attendance/my-history', { params: { studentId: student.id, months: 1 } }).then(r => r.data).catch(() => []),
       api.get<Announcement[]>('/announcement').then(r => r.data).catch(() => [] as Announcement[]),
       api.get<NextEvent>('/calendar/mobile/next', { params: { categoryId: student.categoryId } }).then(r => (r.status === 204 ? null : r.data)).catch(() => null),
+      api.get<FamilyNotice[]>('/notices/mine').then(r => r.data).catch(() => [] as FamilyNotice[]),
     ]);
-    return { debts, calls, history, news, next };
+    if (notices.some(n => !n.isRead)) api.post('/notices/mine/read').catch(() => {});
+    return { debts, calls, history, news, next, notices };
   }, [student?.id]);
 
   if (loadingFamily || (loading && !data)) return <Loading text="Cargando…" />;
@@ -51,6 +53,18 @@ export default function FamilyHomeScreen({ navigation }: any) {
         <Text style={font.small}>{student.firstName} {student.lastName} · {student.categoryName} · Sede {student.headquarterName}</Text>
       </View>
       <StudentPicker />
+
+      {/* Avisos de llegada */}
+      {(data?.notices ?? []).slice(0, 3).map(n => (
+        <Card key={n.id} style={n.isRead ? undefined : styles.cardNew}>
+          <Row style={{ justifyContent: 'space-between' }}>
+            <Row style={{ flex: 1 }}><Bell color={colors.primaryDark} size={18} /><Text style={[font.h3, { flexShrink: 1 }]}>{n.title}</Text></Row>
+            {!n.isRead && <Badge tone="info" text="Nuevo" />}
+          </Row>
+          <Text style={[font.body, { marginTop: 4 }]}>{n.body}</Text>
+          <Text style={[font.tiny, { marginTop: 6 }]}>{instantDate(n.createdAt)} · {clockTime(n.createdAt)}</Text>
+        </Card>
+      ))}
 
       {/* Estado de cuenta */}
       <Card onPress={() => navigation.navigate('Pagos')} style={pending.length ? (overdue.length ? styles.cardDanger : undefined) : styles.cardOk}>
@@ -135,6 +149,7 @@ const styles = StyleSheet.create({
   big: { fontSize: 28, fontWeight: '700', color: colors.text, marginTop: spacing.sm },
   cardDanger: { borderColor: colors.danger, borderLeftWidth: 4 },
   cardOk: { borderColor: colors.successBg },
+  cardNew: { borderLeftWidth: 4, borderLeftColor: colors.primary },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   quick: { width: '48%', flexGrow: 1, backgroundColor: colors.card, borderRadius: radius.lg, padding: spacing.md, borderWidth: 1, borderColor: colors.border, gap: 6 },
   quickIcon: { width: 40, height: 40, borderRadius: radius.md, backgroundColor: colors.primaryLight, alignItems: 'center', justifyContent: 'center' },

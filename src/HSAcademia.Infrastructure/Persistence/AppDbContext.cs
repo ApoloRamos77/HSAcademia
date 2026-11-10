@@ -37,6 +37,7 @@ public class AppDbContext : DbContext
     public DbSet<Receipt> Receipts => Set<Receipt>();
     public DbSet<ReceiptLine> ReceiptLines => Set<ReceiptLine>();
     public DbSet<ReceiptPayment> ReceiptPayments => Set<ReceiptPayment>();
+    public DbSet<FamilyNotice> FamilyNotices => Set<FamilyNotice>();
     public DbSet<DiscountRule> DiscountRules => Set<DiscountRule>();
     public DbSet<CashHandover> CashHandovers => Set<CashHandover>();
     public DbSet<StudentEvaluation> StudentEvaluations => Set<StudentEvaluation>();
@@ -1090,6 +1091,25 @@ public class AppDbContext : DbContext
             entity.Property(e => e.ReceivedNotes).HasColumnName("received_notes").HasMaxLength(500);
             entity.HasIndex(e => new { e.AcademyId, e.Status });
             entity.HasIndex(e => new { e.AcademyId, e.CollectorUserId, e.DeclaredAt });
+            entity.HasOne<Academy>().WithMany().HasForeignKey(e => e.AcademyId).HasPrincipalKey(a => a.AcademyId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<FamilyNotice>(entity =>
+        {
+            entity.ToTable("family_notices");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.AcademyId).HasColumnName("academy_id").IsRequired();
+            entity.Property(e => e.StudentId).HasColumnName("student_id").IsRequired();
+            entity.Property(e => e.EventId).HasColumnName("event_id");
+            entity.Property(e => e.Type).HasColumnName("type").HasConversion<int>();
+            entity.Property(e => e.Title).HasColumnName("title").HasMaxLength(150).IsRequired();
+            entity.Property(e => e.Body).HasColumnName("body").HasMaxLength(300).IsRequired();
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.Property(e => e.ReadAt).HasColumnName("read_at");
+            entity.HasIndex(e => new { e.StudentId, e.CreatedAt });
+            entity.HasIndex(e => new { e.EventId, e.StudentId });
+            entity.HasOne(e => e.Student).WithMany().HasForeignKey(e => e.StudentId).OnDelete(DeleteBehavior.Cascade);
             entity.HasOne<Academy>().WithMany().HasForeignKey(e => e.AcademyId).HasPrincipalKey(a => a.AcademyId).OnDelete(DeleteBehavior.Cascade);
         });
 

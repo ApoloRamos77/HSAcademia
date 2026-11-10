@@ -8,6 +8,7 @@ import {
 } from 'lucide-react-native';
 import { useAuth } from '../auth/AuthContext';
 import { Loading } from '../components/ui';
+import { useAttendanceSync } from '../offline/attendanceOffline';
 import { colors } from '../theme';
 
 import AcademySelectScreen from '../screens/auth/AcademySelectScreen';
@@ -116,6 +117,8 @@ function StaffTabs() {
 }
 
 function StaffStack() {
+  const { session } = useAuth();
+  useAttendanceSync(session!.userId);
   return (
     <Stack.Navigator screenOptions={header}>
       <Stack.Screen name="Tabs" component={StaffTabs} options={{ headerShown: false }} />

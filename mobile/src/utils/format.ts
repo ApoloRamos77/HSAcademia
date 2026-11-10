@@ -62,6 +62,12 @@ export function instantDate(iso: string): string {
   return `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}`;
 }
 
+/** Instante real (UTC) → hora local, ej. "18:05". */
+export function clockTime(iso: string): string {
+  const d = new Date(iso);
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 export function monthName(month: number): string {
   return MONTHS[month - 1] ?? '';
 }

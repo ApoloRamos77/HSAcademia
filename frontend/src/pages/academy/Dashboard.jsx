@@ -252,6 +252,24 @@ export default function Dashboard() {
             </Panel>
           )}
 
+          {/* ── Faltas seguidas ─────────────────────── */}
+          {attendance.absenceStreaks?.length > 0 && (
+            <Panel title="Faltas seguidas: llamar a la familia" icon={Activity}>
+              <table className="dash-table">
+                <thead><tr><th>Alumno</th><th>Teléfono</th><th className="num">Faltas</th></tr></thead>
+                <tbody>
+                  {attendance.absenceStreaks.map(s => (
+                    <tr key={s.studentId}>
+                      <td>{s.name}<small>{s.category}</small></td>
+                      <td>{s.contactPhone ? <a href={`tel:${s.contactPhone}`}>{s.contactPhone}</a> : '—'}</td>
+                      <td className="num"><strong>{s.absences}</strong></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </Panel>
+          )}
+
           {/* ── Baja asistencia ─────────────────────── */}
           <Panel title="Asistencia menor al 70%" icon={Activity}
             action={<Link to="/academy/asistencia-metricas" className="dash-link">Ver métricas</Link>}>

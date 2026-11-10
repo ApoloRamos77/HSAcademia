@@ -4,6 +4,7 @@ import { Camera, CameraType } from 'react-native-camera-kit';
 import { useIsFocused } from '@react-navigation/native';
 import { CheckCircle2, XCircle } from 'lucide-react-native';
 import { api, errorMessage } from '../api/client';
+import { isOfflineError } from '../offline/attendanceOffline';
 import { colors, font, radius, spacing } from '../theme';
 import { Button, Loading, useBottomInset } from './ui';
 
@@ -25,8 +26,10 @@ export type ScanResult = { studentId: string; studentName: string; category: str
  * Lector de carnés: marca "Presente" uno tras otro.
  * Con eventId marca en esa sesión; sin él, el servidor usa la sesión de hoy más cercana a la hora actual.
  */
-export default function QrScanner({ eventId, onScanned, onClose }: {
+export default function QrScanner({ eventId, onScanned, onClose, resolveOffline }: {
   eventId?: string; onScanned?: (r: ScanResult) => void; onClose?: () => void;
+  /** Sin señal, marca en la lista guardada. Devuelve 'already' si ya tenía marca y null si no pertenece a la lista. */
+  resolveOffline?: (studentId: string) => Promise<ScanResult | 'already' | null>;
 }) {
   const focused = useIsFocused();
   const bottomInset = useBottomInset();
@@ -69,13 +72,29 @@ export default function QrScanner({ eventId, onScanned, onClose }: {
       Vibration.vibrate(80);
       onScanned?.(data);
     } catch (e: any) {
+      if (isOfflineError(e)) {
+        const local = resolveOffline ? await resolveOffline(studentId) : null;
+        if (local && local !== 'already') {
+          setResult({ ok: true, title: local.studentName, detail: 'Guardado sin señal: se enviará solo' });
+          setCount(c => c + 1);
+          Vibration.vibrate(80);
+          onScanned?.(local);
+        } else {
+          const detail = local === 'already' ? 'Este alumno ya está marcado en la lista.'
+            : resolveOffline ? 'Este alumno no está en la lista de esta sesión.'
+            : 'Sin señal: escanea desde la lista de la sesión.';
+          setResult({ ok: false, title: local === 'already' ? 'Ya registrado' : 'No se pudo registrar', detail });
+          Vibration.vibrate(local === 'already' ? 150 : 400);
+        }
+        return;
+      }
       const already = e?.response?.status === 409;
       setResult({ ok: false, title: already ? 'Ya registrado' : 'No se pudo registrar', detail: errorMessage(e) });
       Vibration.vibrate(already ? 150 : 400);
     } finally {
       busy.current = false;
     }
-  }, [eventId, onScanned]);
+  }, [eventId, onScanned, resolveOffline]);
 
   if (permission === 'checking') return <Loading />;
   if (permission === 'denied') {

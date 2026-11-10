@@ -4,6 +4,7 @@ import { AlertTriangle, Cake, ChevronRight, Info, Inbox, UserPlus } from 'lucide
 import { api } from '../../api/client';
 import type { Dashboard } from '../../api/types';
 import { useAuth } from '../../auth/AuthContext';
+import AbsenceStreaks from '../../components/AbsenceStreaks';
 import { Badge, Banner, Button, Card, Divider, Loading, Row, Screen, SectionTitle, Stat } from '../../components/ui';
 import { useApi } from '../../hooks/useApi';
 import { colors, font, radius, spacing } from '../../theme';
@@ -71,6 +72,8 @@ export default function AdminHomeScreen({ navigation }: any) {
           ))}
         </>
       )}
+
+      <AbsenceStreaks items={d?.attendance.absenceStreaks ?? []} />
 
       {f && f.topOverdue.length > 0 && (
         <>

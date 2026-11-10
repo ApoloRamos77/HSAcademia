@@ -13,6 +13,9 @@ namespace HSAcademia.Infrastructure.Services;
 /// </summary>
 public class DashboardService
 {
+    private const int AbsenceStreakAlert = 3;
+    private const int MaxAbsenceStreaks = 10;
+
     private readonly AppDbContext _db;
     private readonly IFinancesPremiumService _finances;
 
@@ -48,6 +51,7 @@ public class DashboardService
                 s.Id, s.FirstName, s.LastName, s.IsActive, s.EnrollmentDate, s.WithdrawalDate,
                 s.DateOfBirth, s.CategoryId, s.GuardianId, s.Phone, s.IsScholarship, s.ScholarshipPercentage,
                 Category = s.Category.Name, Headquarter = s.Headquarter.Name,
+                GuardianPhone = s.Guardian != null ? s.Guardian.Phone : null,
                 HasEmergencyContact = s.MedicalRecord != null && s.MedicalRecord.EmergencyContactPhone != null
             })
             .ToListAsync();
@@ -78,7 +82,7 @@ public class DashboardService
         var visibleIds = students.Select(s => s.Id).ToList();
         var attendance = await _db.Attendances.AsNoTracking()
             .Where(a => a.AcademyId == academyId && a.Date >= from && a.Date <= today && visibleIds.Contains(a.StudentId))
-            .Select(a => new { a.StudentId, a.Status })
+            .Select(a => new { a.StudentId, a.Status, a.Date, a.CreatedAt })
             .ToListAsync();
 
         static bool Attended(AttendanceStatus s) => s == AttendanceStatus.Present || s == AttendanceStatus.Late;
@@ -102,6 +106,35 @@ public class DashboardService
                 })
                 .ToList()
         };
+
+        // Las justificadas ni suman a la racha ni la cortan.
+        var activeById = active.ToDictionary(s => s.Id);
+        dto.Attendance.AbsenceStreaks = countable
+            .Where(a => activeById.ContainsKey(a.StudentId))
+            .GroupBy(a => a.StudentId)
+            .Select(g =>
+            {
+                var streak = g.OrderByDescending(a => a.Date).ThenByDescending(a => a.CreatedAt)
+                    .TakeWhile(a => a.Status == AttendanceStatus.Absent).ToList();
+                return new { StudentId = g.Key, Streak = streak };
+            })
+            .Where(x => x.Streak.Count >= AbsenceStreakAlert)
+            .OrderByDescending(x => x.Streak.Count)
+            .Take(MaxAbsenceStreaks)
+            .Select(x =>
+            {
+                var s = activeById[x.StudentId];
+                return new AbsenceStreakDto
+                {
+                    StudentId = s.Id,
+                    Name = $"{s.FirstName} {s.LastName}",
+                    Category = s.Category,
+                    Absences = x.Streak.Count,
+                    AbsentSince = x.Streak[^1].Date,
+                    ContactPhone = s.GuardianPhone ?? s.Phone
+                };
+            })
+            .ToList();
 
         // ── Próximos eventos ───────────────────────────────────────
         var categoryNames = await _db.Categories.AsNoTracking().Where(c => c.AcademyId == academyId)
@@ -173,6 +206,9 @@ public class DashboardService
         var noEmergency = active.Count(s => !s.HasEmergencyContact);
         if (noEmergency > 0)
             dto.Alerts.Add(new DashboardAlertDto { Level = "info", Message = $"{noEmergency} alumno(s) sin contacto de emergencia en la ficha médica.", Link = "/academy/alumnos" });
+
+        if (dto.Attendance.AbsenceStreaks.Count > 0)
+            dto.Alerts.Add(new DashboardAlertDto { Level = "warning", Message = $"{dto.Attendance.AbsenceStreaks.Count} alumno(s) con {AbsenceStreakAlert} o más faltas seguidas: conviene llamar a la familia.", Link = "/academy/asistencia-metricas" });
 
         if (dto.Attendance.LowAttendance.Count > 0)
             dto.Alerts.Add(new DashboardAlertDto { Level = "info", Message = $"{dto.Attendance.LowAttendance.Count} alumno(s) con asistencia menor al 70% en los últimos 30 días.", Link = "/academy/asistencia-metricas" });
