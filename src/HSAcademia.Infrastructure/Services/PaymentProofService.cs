@@ -144,6 +144,14 @@ public class PaymentProofService
             tracked.ReceiptNumber = receipt;
             tracked.UpdatedAt = DateTime.UtcNow;
             _audit.Add(academyId, "finances.proof.approve", nameof(PaymentProof), proofId, new { amount, receipt });
+            _db.FamilyNotices.Add(new FamilyNotice
+            {
+                AcademyId = academyId,
+                StudentId = tracked.StudentId,
+                Type = FamilyNoticeType.PaymentProof,
+                Title = "Comprobante aprobado",
+                Body = receipt == null ? $"Validamos tu pago de S/ {amount:0.00}." : $"Validamos tu pago de S/ {amount:0.00}. Recibo N° {receipt}."
+            });
             await _db.SaveChangesAsync();
             return true;
         });
@@ -165,6 +173,15 @@ public class PaymentProofService
         proof.ReviewedAt = DateTime.UtcNow;
         proof.UpdatedAt = DateTime.UtcNow;
         _audit.Add(academyId, "finances.proof.reject", nameof(PaymentProof), proofId, new { reason = proof.RejectionReason });
+        var rejected = $"No pudimos validar tu pago: {proof.RejectionReason}";
+        _db.FamilyNotices.Add(new FamilyNotice
+        {
+            AcademyId = academyId,
+            StudentId = proof.StudentId,
+            Type = FamilyNoticeType.PaymentProof,
+            Title = "Comprobante rechazado",
+            Body = rejected.Length <= 300 ? rejected : rejected[..300]
+        });
         await _db.SaveChangesAsync();
 
         return await QueryDtos(academyId).FirstAsync(p => p.Id == proofId);

@@ -1,6 +1,9 @@
 package com.adhsoftsport.app
 
 import android.app.Application
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.os.Build
 import com.facebook.react.PackageList
 import com.facebook.react.ReactApplication
 import com.facebook.react.ReactHost
@@ -25,5 +28,13 @@ class MainApplication : Application(), ReactApplication {
   override fun onCreate() {
     super.onCreate()
     loadReactNative(this)
+    createNoticesChannel()
+  }
+
+  /** Canal de las notificaciones que envía el servidor (FCM exige que exista). */
+  private fun createNoticesChannel() {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+    val channel = NotificationChannel("avisos", "Avisos de la academia", NotificationManager.IMPORTANCE_HIGH)
+    getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
   }
 }

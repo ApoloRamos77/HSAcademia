@@ -2,7 +2,9 @@ namespace HSAcademia.Domain.Entities;
 
 public enum FamilyNoticeType
 {
-    Arrival = 1
+    Arrival = 1,
+    PaymentProof = 2,
+    EventCall = 3
 }
 
 /// <summary>Aviso para la familia de un alumno, visible en su app (ej. "Tomás llegó").</summary>
@@ -20,4 +22,6 @@ public class FamilyNotice
     public string Body { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? ReadAt { get; set; }
+    /// <summary>Vacío mientras la notificación esté por enviar.</summary>
+    public DateTime? PushedAt { get; set; }
 }

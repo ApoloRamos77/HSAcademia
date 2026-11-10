@@ -401,6 +401,21 @@ public class CalendarService : ICalendarService
         if (newCalls.Any())
         {
             _db.EventCalls.AddRange(newCalls);
+            // Solo se avisa de partidos por jugar. StartTime guarda la hora de pared de la academia.
+            if (ev.StartTime >= AcademyClock.WallNow)
+            {
+                var title = ev.Title.Length <= 200 ? ev.Title : ev.Title[..200];
+                var firstNames = students.ToDictionary(s => s.Id, s => s.FirstName);
+                _db.FamilyNotices.AddRange(newCalls.Select(call => new FamilyNotice
+                {
+                    AcademyId = academyId,
+                    StudentId = call.StudentId,
+                    EventId = eventId,
+                    Type = FamilyNoticeType.EventCall,
+                    Title = $"Convocatoria de {firstNames[call.StudentId]}",
+                    Body = $"{title} · {ev.StartTime:dd/MM HH:mm}. Confirma su asistencia en la app."
+                }));
+            }
             await _db.SaveChangesAsync();
         }
 

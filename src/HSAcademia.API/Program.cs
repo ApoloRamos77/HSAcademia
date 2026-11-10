@@ -66,6 +66,24 @@ builder.Services.AddScoped<ReportsService>();
 builder.Services.AddScoped<FamilyNoticeService>();
 builder.Services.AddScoped<StaffAttendanceService>();
 builder.Services.AddHostedService<HSAcademia.API.Workers.AttendanceAutoCloseWorker>();
+builder.Services.AddHostedService<HSAcademia.API.Workers.PushDispatchWorker>();
+builder.Services.AddScoped<HSAcademia.Infrastructure.Services.Push.PushDispatchService>();
+builder.Services.AddSingleton<HSAcademia.Infrastructure.Services.Push.IPushSender>(sp =>
+{
+    var json = builder.Configuration["Firebase:ServiceAccountJson"];
+    var loggers = sp.GetRequiredService<ILoggerFactory>();
+    if (!string.IsNullOrWhiteSpace(json))
+    {
+        try { return new HSAcademia.Infrastructure.Services.Push.FirebasePushSender(json); }
+        catch (Exception ex)
+        {
+            // Una clave mal copiada no debe impedir que la API arranque.
+            loggers.CreateLogger("Push").LogError(ex, "La clave de Firebase no es válida: las notificaciones quedan desactivadas.");
+        }
+    }
+    return new HSAcademia.Infrastructure.Services.Push.LoggingPushSender(
+        loggers.CreateLogger<HSAcademia.Infrastructure.Services.Push.LoggingPushSender>());
+});
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IAttendanceService, AttendanceService>();
 builder.Services.AddScoped<ICalendarService, CalendarService>();

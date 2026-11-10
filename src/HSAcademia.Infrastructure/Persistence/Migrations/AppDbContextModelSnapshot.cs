@@ -440,6 +440,10 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasDefaultValue(false)
                         .HasColumnName("is_pinned");
 
+                    b.Property<DateTime?>("PushedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("pushed_at");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -457,6 +461,9 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.HasIndex("AcademyId");
 
                     b.HasIndex("AuthorId");
+
+                    b.HasIndex(new[] { "CreatedAt" }, "IX_announcements_pending_push")
+                        .HasFilter("pushed_at IS NULL");
 
                     b.ToTable("announcements", (string)null);
                 });
@@ -751,6 +758,53 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.HasIndex("HeadquarterId");
 
                     b.ToTable("categories", (string)null);
+                });
+
+            modelBuilder.Entity("HSAcademia.Domain.Entities.DeviceToken", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AcademyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("academy_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTime>("LastSeenAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_seen_at");
+
+                    b.Property<string>("Platform")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("platform");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)")
+                        .HasColumnName("token");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AcademyId");
+
+                    b.HasIndex("Token")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("device_tokens", (string)null);
                 });
 
             modelBuilder.Entity("HSAcademia.Domain.Entities.DiscountRule", b =>
@@ -1117,6 +1171,10 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("event_id");
 
+                    b.Property<DateTime?>("PushedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("pushed_at");
+
                     b.Property<DateTime?>("ReadAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("read_at");
@@ -1142,6 +1200,9 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.HasIndex("EventId", "StudentId");
 
                     b.HasIndex("StudentId", "CreatedAt");
+
+                    b.HasIndex(new[] { "CreatedAt" }, "IX_family_notices_pending_push")
+                        .HasFilter("pushed_at IS NULL");
 
                     b.ToTable("family_notices", (string)null);
                 });
@@ -3134,6 +3195,17 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.Navigation("Academy");
 
                     b.Navigation("Headquarter");
+                });
+
+            modelBuilder.Entity("HSAcademia.Domain.Entities.DeviceToken", b =>
+                {
+                    b.HasOne("HSAcademia.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("HSAcademia.Domain.Entities.DiscountRule", b =>

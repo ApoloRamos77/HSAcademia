@@ -3,6 +3,7 @@ import { AppState } from 'react-native';
 import * as Keychain from 'react-native-keychain';
 import { api, setAuthToken, setUnauthorizedHandler } from '../api/client';
 import type { LoginResponse, PublicAcademy, Role } from '../api/types';
+import { unregisterDevice } from '../notifications/push';
 import { clearPaymentReminders } from '../utils/reminders';
 
 /**
@@ -71,15 +72,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.remove();
   }, [refreshSession]);
 
-  const logout = useCallback(async () => {
+  // Sesión vencida o revocada: el servidor ya no aceptaría ninguna llamada.
+  const clearSession = useCallback(async () => {
     clearPaymentReminders();
     setAuthToken(null);
     setSession(null);
     await Keychain.resetGenericPassword({ service: SESSION_SERVICE }).catch(() => {});
   }, []);
 
+  const logout = useCallback(async () => {
+    await unregisterDevice();
+    await clearSession();
+  }, [clearSession]);
+
   useEffect(() => {
-    setUnauthorizedHandler(() => { logout(); });
+    setUnauthorizedHandler(() => { clearSession(); });
     (async () => {
       const [s, a] = await Promise.all([readJson<Session>(SESSION_SERVICE), readJson<PublicAcademy>(ACADEMY_SERVICE)]);
       if (a) setAcademy(a);
@@ -92,7 +99,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setReady(true);
     })();
     return () => setUnauthorizedHandler(null);
-  }, [logout, refreshSession]);
+  }, [clearSession, refreshSession]);
 
   const selectAcademy = useCallback(async (a: PublicAcademy | null) => {
     setAcademy(a);
