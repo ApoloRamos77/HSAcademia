@@ -24,7 +24,8 @@ public class AuditService
         _http = http;
     }
 
-    public void Add(Guid? academyId, string action, string entityType, Guid? entityId, object? data = null)
+    /// <param name="actorUserId">Autor explícito, para cuando aún no hay sesión (inicio de sesión).</param>
+    public void Add(Guid? academyId, string action, string entityType, Guid? entityId, object? data = null, Guid? actorUserId = null)
     {
         var ctx = _http.HttpContext;
         var userIdValue = ctx?.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? ctx?.User.FindFirstValue("sub");
@@ -32,7 +33,7 @@ public class AuditService
         _db.AuditLogs.Add(new AuditLog
         {
             AcademyId = academyId,
-            UserId = Guid.TryParse(userIdValue, out var uid) ? uid : null,
+            UserId = actorUserId ?? (Guid.TryParse(userIdValue, out var uid) ? uid : null),
             Action = action,
             EntityType = entityType,
             EntityId = entityId?.ToString(),

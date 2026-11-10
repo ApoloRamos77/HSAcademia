@@ -1,4 +1,5 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 import * as Keychain from 'react-native-keychain';
 import { api, setAuthToken, setUnauthorizedHandler } from '../api/client';
 import type { LoginResponse, PublicAcademy, Role } from '../api/types';
@@ -23,7 +24,8 @@ interface AuthState {
   login: (emailOrPhone: string, password: string) => Promise<Session>;
   logout: () => Promise<void>;
   markPasswordChanged: () => Promise<void>;
-  can: (permission: string) => boolean;
+  refreshSession: () => Promise<void>;
+  can: (...permissions: string[]) => boolean;
   role: Role | null;
 }
 
@@ -49,6 +51,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const [academy, setAcademy] = useState<PublicAcademy | null>(null);
+  const sessionRef = useRef<Session | null>(null);
+  sessionRef.current = session;
+
+  // Permisos y datos vigentes: un cambio de roles llega sin volver a iniciar sesión.
+  const refreshSession = useCallback(async () => {
+    const current = sessionRef.current;
+    if (!current || current.requirePasswordChange) return;
+    try {
+      const { data } = await api.get<LoginResponse>('/auth/me');
+      const updated = { ...current, ...data, token: current.token };
+      setSession(updated);
+      await writeJson(SESSION_SERVICE, updated);
+    } catch { /* sin señal: se conservan los permisos conocidos */ }
+  }, []);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', state => { if (state === 'active') refreshSession(); });
+    return () => subscription.remove();
+  }, [refreshSession]);
 
   const logout = useCallback(async () => {
     clearPaymentReminders();
@@ -64,12 +85,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (a) setAcademy(a);
       if (s?.token && !isExpired(s.token)) {
         setAuthToken(s.token);
+        sessionRef.current = s;
         setSession(s);
+        refreshSession();
       }
       setReady(true);
     })();
     return () => setUnauthorizedHandler(null);
-  }, [logout]);
+  }, [logout, refreshSession]);
 
   const selectAcademy = useCallback(async (a: PublicAcademy | null) => {
     setAcademy(a);
@@ -110,8 +133,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     logout,
     markPasswordChanged,
     role: session?.role ?? null,
-    can: (p: string) => session?.role === 'AcademyAdmin' || !!session?.permissions?.includes(p),
-  }), [ready, session, academy, selectAcademy, login, logout, markPasswordChanged]);
+    refreshSession,
+    can: (...permissions: string[]) => session?.role === 'AcademyAdmin' || permissions.some(p => session?.permissions?.includes(p)),
+  }), [ready, session, academy, selectAcademy, login, logout, markPasswordChanged, refreshSession]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

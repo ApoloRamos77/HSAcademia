@@ -14,10 +14,12 @@ namespace HSAcademia.API.Controllers;
 public class AcademyConfigurationController : ControllerBase
 {
     private readonly AcademyConfigurationService _service;
+    private readonly ActivityService _activity;
 
-    public AcademyConfigurationController(AcademyConfigurationService service)
+    public AcademyConfigurationController(AcademyConfigurationService service, ActivityService activity)
     {
         _service = service;
+        _activity = activity;
     }
 
     private Guid GetAcademyId()
@@ -190,6 +192,28 @@ public class AcademyConfigurationController : ControllerBase
         if (academyId == Guid.Empty) return Unauthorized();
         try { return Ok(await _service.UpdateUserAsync(academyId, id, dto, User.GetUserId())); }
         catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
+    }
+
+    [HttpPut("users/{id}/employment")]
+    [RequirePermission(Permissions.FinancesStaffPayments, AcademyWide = true)]
+    public async Task<IActionResult> UpdateEmployment(Guid id, [FromBody] UpdateEmploymentDto dto)
+    {
+        var academyId = GetAcademyId();
+        if (academyId == Guid.Empty) return Unauthorized();
+        try { await _service.UpdateEmploymentAsync(academyId, id, dto); return NoContent(); }
+        catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
+    }
+
+    /// <summary>Bitácora de la academia, de lo más reciente a lo más antiguo.</summary>
+    [HttpGet("activity")]
+    [Authorize(Roles = "AcademyAdmin")]
+    public async Task<IActionResult> GetActivity(
+        [FromQuery] string? module, [FromQuery] DateTime? from, [FromQuery] DateTime? to,
+        [FromQuery] string? search, [FromQuery] int page = 1, [FromQuery] int pageSize = 30)
+    {
+        var academyId = GetAcademyId();
+        if (academyId == Guid.Empty) return Unauthorized();
+        return Ok(await _activity.GetAsync(academyId, module, from, to, search, page, pageSize));
     }
 
     [HttpPost("users/{id}/transfer-ownership")]

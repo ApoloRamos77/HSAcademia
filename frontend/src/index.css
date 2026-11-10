@@ -161,7 +161,7 @@ body {
 }
 
 /* ══════════ MAIN CONTENT ══════════ */
-.main-content { margin-left: var(--sidebar-w); flex: 1; min-height: 100vh; }
+.main-content { margin-left: var(--sidebar-w); flex: 1; min-width: 0; min-height: 100vh; }
 
 .topbar {
   background: rgba(255,255,255,0.95);
@@ -268,7 +268,7 @@ body {
 .badge-success { background: rgba(106,182,87,0.15); color: var(--accent); border: 1px solid rgba(106,182,87,0.25); }
 .badge-warning { background: rgba(245,158,11,0.15); color: #f59e0b; border: 1px solid rgba(245,158,11,0.25); }
 .badge-danger  { background: rgba(239,68,68,0.15);  color: #ef4444; border: 1px solid rgba(239,68,68,0.25); }
-.badge-info    { background: rgba(66,176,230,0.15);  color: var(--primary-light); border: 1px solid rgba(66,176,230,0.25); }
+.badge-info    { background: rgba(66,176,230,0.15);  color: var(--primary-dark); border: 1px solid rgba(66,176,230,0.25); }
 .badge-muted   { background: rgba(100,116,139,0.15); color: #94a3b8; }
 
 /* ══════════ TABLE ══════════ */
@@ -703,3 +703,32 @@ select.form-control { cursor: pointer; }
 
 /* Buscador: el ícono queda dentro del campo, a la izquierda, sin tapar el texto ni recibir clics. */
 .relative > svg.absolute { pointer-events: none; z-index: 1; }
+
+/* ══════════ ACCESOS Y SEGURIDAD ══════════
+   El reinicio global de márgenes gana a las utilidades de Tailwind: aquí se restituyen para estas pantallas. */
+.access-scope .mt-1 { margin-top: 4px; }
+.access-scope .mt-2 { margin-top: 8px; }
+.access-scope .mt-3 { margin-top: 12px; }
+.access-scope .mt-4 { margin-top: 16px; }
+.access-scope .mb-1 { margin-bottom: 4px; }
+.access-scope .mb-2 { margin-bottom: 8px; }
+.access-scope .mb-3 { margin-bottom: 12px; }
+.access-scope .mb-4 { margin-bottom: 16px; }
+.access-scope .p-3 { padding: 12px; }
+.access-scope .p-5 { padding: 20px; }
+.access-scope .p-8 { padding: 32px; }
+.access-scope .pt-3 { padding-top: 12px; }
+.access-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+.access-filters { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+.access-filters > * { flex: 1 1 170px; min-width: 0; }
+.access-filters > .access-search { flex: 2 1 260px; position: relative; }
+.access-section { margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid var(--border); }
+.access-section h4 { font-size: 13px; font-weight: 700; color: var(--primary-dark); margin-bottom: 12px; }
+.access-box { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 10px; padding: 8px; max-height: 176px; overflow-y: auto; }
+.access-check { display: flex; align-items: center; gap: 8px; padding: 6px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+.access-check:hover { background: var(--bg-card); }
+.access-warning { display: flex; align-items: flex-start; gap: 8px; margin-top: 12px; padding: 12px; border-radius: 10px; font-size: 13px; background: rgba(245,158,11,0.12); color: #92400e; }
+.access-scope .card + .card, .access-gap > * + * { margin-top: 0; }
+@media (max-width: 480px) {
+  .access-scope .card-header { flex-direction: column; align-items: flex-start; }
+}

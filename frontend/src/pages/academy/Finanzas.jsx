@@ -69,9 +69,11 @@ export default function Finanzas() {
   };
   const [activeTab, setActiveTab] = useState(() => Object.keys(tabs).find(t => tabs[t]) || 'debts');
   const [pendingProofs, setPendingProofs] = useState(0);
+  const canReviewProofs = tabs.proofs;
   const refreshPendingProofs = useCallback(() => {
+    if (!canReviewProofs) return;
     api.get('/finances/proofs/pending-count').then(r => setPendingProofs(r.data.count)).catch(() => {});
-  }, []);
+  }, [canReviewProofs]);
   useEffect(() => { refreshPendingProofs(); }, [refreshPendingProofs]);
   const [showAll, setShowAll] = useState(false);
   const [config, setConfig] = useState({ defaultPaymentDay: 5 });

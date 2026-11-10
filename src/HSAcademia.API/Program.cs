@@ -55,6 +55,7 @@ builder.Services.AddScoped<DiscountService>();
 builder.Services.AddScoped<CashService>();
 builder.Services.AddScoped<AccessControlService>();
 builder.Services.AddScoped<AccessScopeService>();
+builder.Services.AddScoped<ActivityService>();
 builder.Services.AddScoped<FinancialPeriodGuard>();
 builder.Services.AddScoped<AuditService>();
 builder.Services.AddScoped<DashboardService>();

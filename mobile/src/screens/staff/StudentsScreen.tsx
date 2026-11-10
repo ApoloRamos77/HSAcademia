@@ -38,7 +38,7 @@ export default function StudentsScreen({ navigation }: any) {
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <View style={{ padding: spacing.lg, paddingBottom: 0 }}>
-        {can('view_students') && (
+        {can('students.edit') && (
           <Button title="Inscribir alumno" icon={<UserPlus color={colors.white} size={18} />} style={{ marginBottom: spacing.md }}
             onPress={() => navigation.navigate('StudentForm')} />
         )}

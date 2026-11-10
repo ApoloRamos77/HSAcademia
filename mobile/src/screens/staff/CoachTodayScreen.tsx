@@ -14,7 +14,7 @@ import { clockTime, firstName, greeting, longDay, shortDay, todayISO } from '../
 /** Panel del entrenador: entrenamientos de hoy y de los próximos días, con el estado de la asistencia. */
 export default function CoachTodayScreen({ navigation }: any) {
   const { session, role, can } = useAuth();
-  const canMarkStaff = can('manage_staff_attendance');
+  const canMarkStaff = can('staff_attendance.mark');
   const pending = usePendingAttendance();
   const { data, loading, refreshing, refresh } = useApi(async () => {
     syncQueue();

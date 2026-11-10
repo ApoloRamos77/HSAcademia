@@ -75,6 +75,26 @@ public class AuthController : ControllerBase
     }
 
     [Authorize]
+    [HttpGet("profile")]
+    public async Task<IActionResult> Profile()
+    {
+        var userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (!Guid.TryParse(userIdStr, out var userId)) return Unauthorized();
+        var profile = await _auth.GetProfileAsync(userId);
+        return profile == null ? Unauthorized() : Ok(profile);
+    }
+
+    [Authorize]
+    [HttpPut("profile")]
+    public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileDto dto)
+    {
+        var userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (!Guid.TryParse(userIdStr, out var userId)) return Unauthorized();
+        var result = await _auth.UpdateProfileAsync(userId, dto);
+        return result.IsSuccess ? Ok(new { message = "Perfil actualizado." }) : BadRequest(new { message = result.Error });
+    }
+
+    [Authorize]
     [HttpPost("change-password")]
     [EnableRateLimiting("login")]
     public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequestDto dto)

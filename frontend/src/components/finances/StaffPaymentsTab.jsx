@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../api/axios';
-import { Users, Plus, CheckCircle, Clock, X, DollarSign } from 'lucide-react';
+import { Users, Plus, CheckCircle, Clock, X, DollarSign, Edit2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const MONTHS = [
@@ -16,6 +16,7 @@ export default function StaffPaymentsTab() {
   const [staffList, setStaffList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(false);
+  const [terms, setTerms] = useState(null); // ficha laboral en edición
   const [form, setForm] = useState({
     staffId: '', periodMonth: now.getMonth() + 1, periodYear: now.getFullYear(),
     baseAmount: '', bonuses: '0', deductions: '0', notes: ''
@@ -73,6 +74,16 @@ export default function StaffPaymentsTab() {
       console.error(err);
       toast.error('Error al calcular el pago del personal');
     }
+  };
+
+  const saveTerms = async (e) => {
+    e.preventDefault();
+    try {
+      await api.put(`/academy-config/users/${terms.id}/employment`, { paymentType: parseInt(terms.paymentType), paymentRate: parseFloat(terms.paymentRate) || 0 });
+      toast.success('Ficha laboral actualizada');
+      setTerms(null);
+      fetchAll();
+    } catch (err) { toast.error(err.response?.data?.message || 'Error al guardar la ficha laboral'); }
   };
 
   const handleMarkPaid = async (id) => {
@@ -176,6 +187,58 @@ export default function StaffPaymentsTab() {
           </table>
         </div>
       </div>
+
+      {/* Fichas laborales: sueldo y tipo de pago, separados de los accesos */}
+      <div className="card overflow-hidden">
+        <div className="card-header">
+          <div>
+            <h3 className="card-title">Fichas laborales</h3>
+            <p className="text-muted mt-1">Sueldo o tarifa con que se calcula la nómina de cada persona.</p>
+          </div>
+        </div>
+        <div className="table-wrap">
+          <table>
+            <thead><tr><th>Personal</th><th>Tipo de pago</th><th>Monto</th><th className="text-right">Acción</th></tr></thead>
+            <tbody>
+              {staffList.map(s => (
+                <tr key={s.id}>
+                  <td>{s.firstName} {s.lastName}</td>
+                  <td>{s.paymentType === 1 ? 'Por sesión' : 'Mensual'}</td>
+                  <td>S/. {Number(s.paymentRate ?? 0).toFixed(2)}</td>
+                  <td className="text-right">
+                    <button className="btn-icon inline-flex" title="Editar ficha laboral" aria-label={`Editar ficha laboral de ${s.firstName} ${s.lastName}`} onClick={() => setTerms({ id: s.id, name: `${s.firstName} ${s.lastName}`, paymentType: s.paymentType ?? 0, paymentRate: s.paymentRate?.toString() ?? '0' })}><Edit2 size={15}/></button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {terms && (
+        <div className="modal-overlay" onClick={() => setTerms(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 440 }}>
+            <h3 className="modal-title">Ficha laboral de {terms.name}</h3>
+            <form onSubmit={saveTerms}>
+              <div className="form-group">
+                <label className="block"><span className="form-label">Tipo de pago</span><select className="form-control" value={terms.paymentType} onChange={e => setTerms({ ...terms, paymentType: parseInt(e.target.value) })}>
+                    <option value={0}>Mensual (sueldo fijo)</option>
+                    <option value={1}>Por sesión</option>
+                  </select>
+                </label>
+              </div>
+              <div className="form-group">
+                <label className="block"><span className="form-label">{terms.paymentType === 1 ? 'Tarifa por sesión (S/)' : 'Sueldo mensual (S/)'}</span><input required type="number" step="0.01" min="0" className="form-control" value={terms.paymentRate} onChange={e => setTerms({ ...terms, paymentRate: e.target.value })} />
+                </label>
+              </div>
+              <div className="modal-footer">
+                <button type="button" onClick={() => setTerms(null)} className="btn btn-ghost">Cancelar</button>
+                <button type="submit" className="btn btn-primary">Guardar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Modal Crear */}
       {modal && (

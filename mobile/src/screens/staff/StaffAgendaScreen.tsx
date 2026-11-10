@@ -35,7 +35,7 @@ export default function StaffAgendaScreen({ navigation }: any) {
           </Text>
           {byDay[day].map(e => {
             const isMatch = e.type === 'Tournament';
-            const canRecord = isMatch && can('manage_events');
+            const canRecord = isMatch && can('events.manage');
             return (
               <Card key={e.id} style={{ padding: spacing.md }} onPress={canRecord ? () => navigation.navigate('Match', { eventId: e.id, title: e.title }) : undefined}>
                 <Row>

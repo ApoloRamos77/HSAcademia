@@ -63,7 +63,8 @@ public class StudentController : ControllerBase
         try
         {
             var canFinance = await PermissionChecker.HasAsync(HttpContext, Permissions.StudentsBilling);
-            return Ok(await _studentService.UpdateStudentAsync(academyId, id, dto, canFinance));
+            return Ok(await _studentService.UpdateStudentAsync(academyId, id, dto, canFinance,
+                await PermissionChecker.HasAsync(HttpContext, Permissions.StudentsMedical)));
         }
         catch (Exception ex)
         {

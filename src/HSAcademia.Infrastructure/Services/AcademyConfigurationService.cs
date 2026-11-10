@@ -352,7 +352,10 @@ public class AcademyConfigurationService
                 CategoryIds = u.AssignedCategories.Select(c => c.Id).ToList(),
                 CategoryNames = u.AssignedCategories.Select(c => c.Name).ToList(),
                 PaymentType = (int)u.PaymentType,
-                PaymentRate = u.PaymentRate
+                PaymentRate = u.PaymentRate,
+                LastLoginAt = u.LastLoginAt,
+                MustChangePassword = u.MustChangePassword,
+                SuspensionReason = u.SuspensionReason
             })
             .ToListAsync();
     }
@@ -435,6 +438,7 @@ public class AcademyConfigurationService
         ["nivelAcceso"] = user.Role.ToString(),
         ["roles"] = string.Join(", ", user.AssignedRoles.Select(r => r.Name).OrderBy(n => n)),
         ["estado"] = user.Status.ToString(),
+        ["motivoSuspension"] = user.SuspensionReason,
         ["sedes"] = string.Join(", ", user.AssignedHeadquarters.Select(h => h.Name).OrderBy(n => n)),
         ["categorias"] = string.Join(", ", user.AssignedCategories.Select(c => c.Name).OrderBy(n => n)),
         ["tipoPago"] = user.PaymentType.ToString(),
@@ -452,7 +456,10 @@ public class AcademyConfigurationService
         await EnsureCanManageAsync(academyId, actorUserId, null, sysRole);
         var (roles, headquarters) = await ResolveUserReferencesAsync(academyId, (dto.AcademyRoleIds ?? new List<Guid>()).Distinct().ToList(), requestedHeadquarters);
 
-        if (string.IsNullOrWhiteSpace(dto.Password) || dto.Password.Length < 6)
+        // Sin contraseña indicada se genera una temporal segura, que se muestra una sola vez.
+        var temporaryPassword = string.IsNullOrWhiteSpace(dto.Password) ? PasswordPolicy.GenerateTemporary() : null;
+        var initialPassword = temporaryPassword ?? dto.Password;
+        if (initialPassword.Length < 6)
             throw new Exception("La contraseña inicial debe tener al menos 6 caracteres.");
 
         var user = new User
@@ -461,7 +468,7 @@ public class AcademyConfigurationService
             FirstName = dto.FirstName,
             LastName = dto.LastName,
             Email = dto.Email.Trim().ToLower(),
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(initialPassword),
             // La contraseña la definió el administrador: el usuario debe cambiarla al ingresar.
             MustChangePassword = true,
             Phone = dto.Phone,
@@ -470,8 +477,8 @@ public class AcademyConfigurationService
             HeadquarterId = requestedHeadquarters.Count == 1 ? requestedHeadquarters[0] : null,
             AssignedHeadquarters = headquarters,
             Status = UserStatus.Active,
-            PaymentType = (StaffPaymentType)dto.PaymentType,
-            PaymentRate = dto.PaymentRate
+            PaymentType = (StaffPaymentType)(dto.PaymentType ?? 0),
+            PaymentRate = dto.PaymentRate ?? 0m
         };
 
         if (dto.CategoryIds != null && dto.CategoryIds.Any())
@@ -486,7 +493,7 @@ public class AcademyConfigurationService
         _audit.Add(academyId, "users.created", nameof(User), user.Id, AccessSnapshot(user));
         await _context.SaveChangesAsync();
 
-        return new AcademyUserDto { Id = user.Id, FirstName = user.FirstName, LastName = user.LastName, Email = user.Email };
+        return new AcademyUserDto { Id = user.Id, FirstName = user.FirstName, LastName = user.LastName, Email = user.Email, TemporaryPassword = temporaryPassword };
     }
 
     public async Task<AcademyUserDto> UpdateUserAsync(Guid academyId, Guid id, CreateAcademyUserDto dto, Guid actorUserId)
@@ -533,8 +540,18 @@ public class AcademyConfigurationService
         user.HeadquarterId = requestedHeadquarters.Count == 1 ? requestedHeadquarters[0] : null;
         user.AssignedHeadquarters.Clear();
         foreach (var headquarter in headquarters) user.AssignedHeadquarters.Add(headquarter);
-        user.PaymentType = (StaffPaymentType)dto.PaymentType;
-        user.PaymentRate = dto.PaymentRate;
+        if (dto.PaymentType.HasValue) user.PaymentType = (StaffPaymentType)dto.PaymentType.Value;
+        if (dto.PaymentRate.HasValue) user.PaymentRate = dto.PaymentRate.Value;
+        if (newStatus == UserStatus.Suspended)
+        {
+            if (user.Status != UserStatus.Suspended) user.SuspendedAt = DateTime.UtcNow;
+            user.SuspensionReason = string.IsNullOrWhiteSpace(dto.SuspensionReason) ? user.SuspensionReason : dto.SuspensionReason.Trim();
+        }
+        else
+        {
+            user.SuspendedAt = null;
+            user.SuspensionReason = null;
+        }
         user.Status = newStatus;
 
         if (dto.CategoryIds != null)
@@ -558,6 +575,31 @@ public class AcademyConfigurationService
 
         await _context.SaveChangesAsync();
         return new AcademyUserDto { Id = user.Id, FirstName = user.FirstName, LastName = user.LastName, Email = user.Email };
+    }
+
+    /// <summary>Sueldo y tipo de pago: datos laborales, independientes de los accesos.</summary>
+    public async Task UpdateEmploymentAsync(Guid academyId, Guid id, UpdateEmploymentDto dto)
+    {
+        if (!Enum.IsDefined(typeof(StaffPaymentType), dto.PaymentType)) throw new Exception("Tipo de pago no válido.");
+        if (dto.PaymentRate < 0) throw new Exception("La tarifa no puede ser negativa.");
+
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == id && u.AcademyId == academyId
+                && (u.Role == UserRole.Staff || u.Role == UserRole.AcademyAdmin))
+            ?? throw new Exception("Usuario no encontrado.");
+
+        var type = (StaffPaymentType)dto.PaymentType;
+        if (user.PaymentType == type && user.PaymentRate == dto.PaymentRate) return;
+        _audit.Add(academyId, "users.employment.updated", nameof(User), user.Id, new
+        {
+            changes = new
+            {
+                tipoPago = new { from = user.PaymentType.ToString(), to = type.ToString() },
+                tarifa = new { from = user.PaymentRate, to = dto.PaymentRate }
+            }
+        });
+        user.PaymentType = type;
+        user.PaymentRate = dto.PaymentRate;
+        await _context.SaveChangesAsync();
     }
 
     /// <summary>Genera una contraseña temporal aleatoria, obliga a cambiarla y la devuelve para entregarla al usuario.</summary>

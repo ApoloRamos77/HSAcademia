@@ -38,6 +38,7 @@ import ProofsReviewScreen from '../screens/admin/ProofsReviewScreen';
 import NewsScreen from '../screens/shared/NewsScreen';
 import MyPaymentsScreen from '../screens/shared/MyPaymentsScreen';
 import AccountScreen from '../screens/shared/AccountScreen';
+import ProfileScreen from '../screens/shared/ProfileScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -93,6 +94,7 @@ function FamilyStack() {
         <Stack.Screen name="News" component={NewsScreen} options={{ title: 'Comunicados' }} />
         <Stack.Screen name="Account" component={AccountScreen} options={{ title: 'Mi cuenta' }} />
         <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} options={{ title: 'Cambiar contraseña' }} />
+        <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: 'Mi perfil' }} />
       </Stack.Navigator>
     </FamilyProvider>
   );
@@ -109,8 +111,8 @@ function StaffTabs() {
       <Tab.Screen name="Hoy" component={CoachTodayScreen} options={{ tabBarIcon: icon(ClipboardCheck), title: isAdmin ? 'Asistencia' : 'Hoy' }} />
       {isAdmin
         ? <Tab.Screen name="Comprobantes" component={ProofsReviewScreen} options={{ tabBarIcon: icon(Inbox) }} />
-        : <Tab.Screen name="Escanear" component={ScanScreen} options={{ tabBarIcon: icon(QrCode), title: 'Escanear QR' }} />}
-      {can('view_students') && <Tab.Screen name="Alumnos" component={StudentsScreen} options={{ tabBarIcon: icon(Users) }} />}
+        : can('attendance.take') && <Tab.Screen name="Escanear" component={ScanScreen} options={{ tabBarIcon: icon(QrCode), title: 'Escanear QR' }} />}
+      {can('students.view', 'collections.collect', 'store.sell') && <Tab.Screen name="Alumnos" component={StudentsScreen} options={{ tabBarIcon: icon(Users) }} />}
       {!isAdmin && <Tab.Screen name="Agenda" component={StaffAgendaScreen} options={{ tabBarIcon: icon(CalendarDays) }} />}
       <Tab.Screen name="Más" component={AccountScreen} options={{ tabBarIcon: icon(Menu), title: 'Más' }} />
     </Tab.Navigator>
@@ -136,6 +138,7 @@ function StaffStack() {
       <Stack.Screen name="News" component={NewsScreen} options={{ title: 'Comunicados' }} />
       <Stack.Screen name="MyPayments" component={MyPaymentsScreen} options={{ title: 'Mis pagos' }} />
       <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} options={{ title: 'Cambiar contraseña' }} />
+      <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: 'Mi perfil' }} />
     </Stack.Navigator>
   );
 }

@@ -21,6 +21,23 @@ export interface LoginResponse {
   requirePasswordChange: boolean;
   categoryId?: string | null;
   permissions: string[];
+  isOwner?: boolean;
+  academyWide?: boolean;
+}
+
+export interface Profile {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string | null;
+  role: Role;
+  isOwner: boolean;
+  fullAccess: boolean;
+  roles: string[];
+  headquarters: string[];
+  categories: string[];
+  permissionGroups: { name: string; items: string[] }[];
+  recentLogins: { at: string; device: string }[];
 }
 
 export interface StudentSummary {
