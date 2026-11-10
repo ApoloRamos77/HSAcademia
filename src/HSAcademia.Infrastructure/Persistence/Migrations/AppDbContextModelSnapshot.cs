@@ -771,6 +771,11 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("academy_id");
 
+                    b.Property<string>("AppVersion")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("app_version");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -1167,9 +1172,18 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<string>("DedupeKey")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("dedupe_key");
+
                     b.Property<Guid?>("EventId")
                         .HasColumnType("uuid")
                         .HasColumnName("event_id");
+
+                    b.Property<Guid?>("PaymentRecordId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("payment_record_id");
 
                     b.Property<DateTime?>("PushedAt")
                         .HasColumnType("timestamp with time zone")
@@ -1196,6 +1210,10 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("AcademyId");
+
+                    b.HasIndex("DedupeKey")
+                        .IsUnique()
+                        .HasFilter("dedupe_key IS NOT NULL");
 
                     b.HasIndex("EventId", "StudentId");
 

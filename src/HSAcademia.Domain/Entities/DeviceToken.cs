@@ -9,6 +9,8 @@ public class DeviceToken
     public Guid AcademyId { get; set; }
     public string Token { get; set; } = string.Empty;
     public string Platform { get; set; } = "android";
+    /// <summary>Versión de la app. Vacía en la 1.0.11, que aún programa sus propios recordatorios de pago.</summary>
+    public string? AppVersion { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime LastSeenAt { get; set; } = DateTime.UtcNow;
 }

@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace HSAcademia.API.Controllers;
 
-public sealed record DeviceTokenRequest(string? Token, string? Platform);
+public sealed record DeviceTokenRequest(string? Token, string? Platform, string? AppVersion = null);
 
 /// <summary>Registro de los celulares que reciben notificaciones.</summary>
 [ApiController]
@@ -34,6 +34,7 @@ public class DevicesController : ControllerBase
         if (string.IsNullOrEmpty(token) || token.Length > MaxTokenLength)
             return BadRequest(new { message = "Identificador de celular no válido." });
 
+        var appVersion = string.IsNullOrWhiteSpace(request.AppVersion) ? null : request.AppVersion.Trim()[..Math.Min(request.AppVersion.Trim().Length, 20)];
         var userId = User.GetUserId();
         var academyId = User.GetAcademyId();
         if (userId == Guid.Empty || academyId == Guid.Empty) return Unauthorized();
@@ -42,19 +43,20 @@ public class DevicesController : ControllerBase
         var device = await _db.DeviceTokens.FirstOrDefaultAsync(d => d.Token == token);
         if (device == null)
         {
-            _db.DeviceTokens.Add(new DeviceToken { Token = token, UserId = userId, AcademyId = academyId, Platform = "android" });
+            _db.DeviceTokens.Add(new DeviceToken { Token = token, UserId = userId, AcademyId = academyId, Platform = "android", AppVersion = appVersion });
         }
         else
         {
             device.UserId = userId;
             device.AcademyId = academyId;
             device.LastSeenAt = DateTime.UtcNow;
+            device.AppVersion = appVersion;
         }
 
         try { await _db.SaveChangesAsync(); }
         catch (DbUpdateException) { /* la app lo envió dos veces a la vez: ya quedó registrado */ }
-        _logger.LogInformation("Celular registrado para notificaciones. Usuario {UserId}, academia {AcademyId}, {State}.",
-            userId, academyId, device == null ? "nuevo" : "ya conocido");
+        _logger.LogInformation("Celular registrado para notificaciones. Usuario {UserId}, academia {AcademyId}, app {AppVersion}, {State}.",
+            userId, academyId, appVersion ?? "1.0.11 o anterior", device == null ? "nuevo" : "ya conocido");
         return NoContent();
     }
 

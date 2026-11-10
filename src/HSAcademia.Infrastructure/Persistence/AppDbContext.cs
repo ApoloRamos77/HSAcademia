@@ -1129,6 +1129,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Platform).HasColumnName("platform").HasMaxLength(20).IsRequired();
             entity.Property(e => e.CreatedAt).HasColumnName("created_at");
             entity.Property(e => e.LastSeenAt).HasColumnName("last_seen_at");
+            entity.Property(e => e.AppVersion).HasColumnName("app_version").HasMaxLength(20);
             entity.HasIndex(e => e.Token).IsUnique();
             entity.HasIndex(e => e.UserId);
             entity.HasIndex(e => e.AcademyId);
@@ -1149,6 +1150,9 @@ public class AppDbContext : DbContext
             entity.Property(e => e.CreatedAt).HasColumnName("created_at");
             entity.Property(e => e.ReadAt).HasColumnName("read_at");
             entity.Property(e => e.PushedAt).HasColumnName("pushed_at");
+            entity.Property(e => e.PaymentRecordId).HasColumnName("payment_record_id");
+            entity.Property(e => e.DedupeKey).HasColumnName("dedupe_key").HasMaxLength(80);
+            entity.HasIndex(e => e.DedupeKey).IsUnique().HasFilter("dedupe_key IS NOT NULL");
             entity.HasIndex(e => e.CreatedAt, "IX_family_notices_pending_push").HasFilter("pushed_at IS NULL");
             entity.HasIndex(e => new { e.StudentId, e.CreatedAt });
             entity.HasIndex(e => new { e.EventId, e.StudentId });
