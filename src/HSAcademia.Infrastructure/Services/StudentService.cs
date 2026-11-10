@@ -437,7 +437,7 @@ public class StudentService
             EmergencyContactPhone  = student.MedicalRecord?.EmergencyContactPhone,
         };
     }
-    public async Task<StudentDto> UpdateStudentAsync(Guid academyId, Guid id, CreateStudentDto dto, bool canEditFinancials = true)
+    public async Task<StudentDto> UpdateStudentAsync(Guid academyId, Guid id, CreateStudentDto dto, bool canEditFinancials = true, bool canEditMedical = true)
     {
         var student = await _context.Students
             .Include(s => s.MedicalRecord)
@@ -546,7 +546,8 @@ public class StudentService
         var previousWeight = student.MedicalRecord?.WeightKg;
         var previousHeight = student.MedicalRecord?.HeightCm;
 
-        if (dto.MedicalRecord != null)
+        // Sin permiso de salud la ficha no llega al formulario: guardarla en blanco la borraría.
+        if (dto.MedicalRecord != null && canEditMedical)
         {
             if (student.MedicalRecord == null)
             {

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Building2, ChevronRight, KeyRound, LogOut, Mail, Megaphone, QrCode, Wallet, CalendarDays, Banknote } from 'lucide-react-native';
+import { Building2, ChevronRight, KeyRound, LogOut, Mail, Megaphone, QrCode, Wallet, CalendarDays, Banknote, UserRound } from 'lucide-react-native';
 import { getVersion } from '../../utils/appInfo';
 import { useAuth } from '../../auth/AuthContext';
 import { Card, Row, Screen } from '../../components/ui';
@@ -15,8 +15,9 @@ export default function AccountScreen({ navigation }: any) {
   const isStaff = role === 'Staff' || role === 'AcademyAdmin';
 
   const items = [
-    isStaff && (can('manage_finances') || can('manage_store')) && { icon: <Banknote color={colors.primaryDark} />, label: 'Mi caja (cobros por rendir)', go: () => navigation.navigate('MyCash') },
-    isStaff && { icon: <QrCode color={colors.primaryDark} />, label: 'Escanear carné', go: () => navigation.navigate('Scan') },
+    { icon: <UserRound color={colors.primaryDark} />, label: 'Mi perfil', go: () => navigation.navigate('Profile') },
+    isStaff && can('collections.collect', 'store.sell') && { icon: <Banknote color={colors.primaryDark} />, label: 'Mi caja (cobros por rendir)', go: () => navigation.navigate('MyCash') },
+    isStaff && can('attendance.take') && { icon: <QrCode color={colors.primaryDark} />, label: 'Escanear carné', go: () => navigation.navigate('Scan') },
     role === 'AcademyAdmin' && { icon: <CalendarDays color={colors.primaryDark} />, label: 'Agenda y partidos', go: () => navigation.navigate('Agenda') },
     { icon: <Megaphone color={colors.primaryDark} />, label: 'Comunicados', go: () => navigation.navigate('News') },
     isStaff && { icon: <Wallet color={colors.primaryDark} />, label: 'Mis pagos', go: () => navigation.navigate('MyPayments') },
@@ -40,7 +41,7 @@ export default function AccountScreen({ navigation }: any) {
           <View style={styles.avatar}><Text style={styles.avatarText}>{initials(session?.fullName)}</Text></View>
           <View style={{ flex: 1 }}>
             <Text style={font.h2}>{session?.fullName}</Text>
-            <Text style={font.small}>{ROLE_LABEL[role ?? ''] ?? role}</Text>
+            <Text style={font.small}>{session?.isOwner ? 'Propietario' : ROLE_LABEL[role ?? ''] ?? role}</Text>
           </View>
         </Row>
         <View style={{ marginTop: spacing.md, gap: 6 }}>

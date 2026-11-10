@@ -83,6 +83,11 @@ public class AcademyUserDto
     public List<string> CategoryNames { get; set; } = new List<string>();
     public int PaymentType { get; set; }
     public decimal PaymentRate { get; set; }
+    public DateTime? LastLoginAt { get; set; }
+    public bool MustChangePassword { get; set; }
+    public string? SuspensionReason { get; set; }
+    /// <summary>Solo al crear sin contraseña: se muestra una única vez.</summary>
+    public string? TemporaryPassword { get; set; }
 }
 
 public class CreateAcademyUserDto
@@ -99,7 +104,37 @@ public class CreateAcademyUserDto
     /// <summary>Sedes asignadas; vacío = todas. Si no se envía, se usa HeadquarterId.</summary>
     public List<Guid>? HeadquarterIds { get; set; }
     public List<Guid>? CategoryIds { get; set; }
-    public int PaymentType { get; set; } = 0; // 0: Monthly, 1: PerSession
-    public decimal PaymentRate { get; set; } = 0m;
+    /// <summary>Se gestionan en la ficha laboral; si no se envían, se conservan.</summary>
+    public int? PaymentType { get; set; } // 0: Monthly, 1: PerSession
+    public decimal? PaymentRate { get; set; }
     public string Status { get; set; } = "Active";
+    public string? SuspensionReason { get; set; }
+}
+
+public class UpdateEmploymentDto
+{
+    public int PaymentType { get; set; }
+    public decimal PaymentRate { get; set; }
+}
+
+public class ActivityItemDto
+{
+    public Guid Id { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public string Action { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public string Module { get; set; } = string.Empty;
+    public string ActorName { get; set; } = string.Empty;
+    public string? TargetName { get; set; }
+    public string? IpAddress { get; set; }
+    public string Device { get; set; } = string.Empty;
+    public System.Text.Json.JsonElement? Details { get; set; }
+}
+
+public class ActivityPageDto
+{
+    public int Total { get; set; }
+    public int Page { get; set; }
+    public int PageSize { get; set; }
+    public List<ActivityItemDto> Items { get; set; } = new();
 }

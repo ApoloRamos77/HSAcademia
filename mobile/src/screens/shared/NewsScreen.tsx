@@ -11,8 +11,8 @@ import { instantDate } from '../../utils/format';
 
 /** Comunicados de la academia. El personal y el administrador también pueden publicar. */
 export default function NewsScreen() {
-  const { role } = useAuth();
-  const canPublish = role === 'AcademyAdmin' || role === 'Staff';
+  const { can } = useAuth();
+  const canPublish = can('announcements.publish');
   const { data, loading, refreshing, refresh, reload } = useApi(() => api.get<Announcement[]>('/announcement').then(r => r.data), []);
   const [writing, setWriting] = useState(false);
   const [title, setTitle] = useState('');

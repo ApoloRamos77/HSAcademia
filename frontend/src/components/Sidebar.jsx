@@ -84,9 +84,6 @@ export default function Sidebar({ isOpen, onClose }) {
               <NavLink to="/academy/asistencia-entrenadores" className={navCls} onClick={onClose}>
                 <CalendarCheck size={16} /> Asistencia entrenadores
               </NavLink>
-              <NavLink to="/academy/usuarios" className={navCls} onClick={onClose}>
-                <ShieldCheck size={16} /> Personal
-              </NavLink>
               <NavLink to="/academy/directorio" className={navCls} onClick={onClose}>
                 <ClipboardList size={16} /> Directorio
               </NavLink>
@@ -109,15 +106,19 @@ export default function Sidebar({ isOpen, onClose }) {
             </div>
 
             <div className="nav-section">
+              <div className="nav-label">🔐 Seguridad</div>
+              <NavLink to="/academy/accesos" className={navCls} onClick={onClose}>
+                <ShieldCheck size={16} /> Accesos y seguridad
+              </NavLink>
+            </div>
+
+            <div className="nav-section">
               <div className="nav-label">📋 Configuración</div>
               <NavLink to="/academy/sedes" className={navCls} onClick={onClose}>
                 <Building2 size={16} /> Sedes
               </NavLink>
               <NavLink to="/academy/categorias" className={navCls} onClick={onClose}>
                 <ClipboardList size={16} /> Categorías
-              </NavLink>
-              <NavLink to="/academy/roles" className={navCls} onClick={onClose}>
-                <ShieldCheck size={16} /> Roles
               </NavLink>
               <NavLink to="/academy/torneos" className={navCls} onClick={onClose}>
                 <Crown size={16} /> Torneos
@@ -202,6 +203,7 @@ export default function Sidebar({ isOpen, onClose }) {
       {/* ── FOOTER ── */}
       <div className="sidebar-footer">
         <div className="user-info">
+          <NavLink to="/mi-perfil" onClick={onClose} title="Mi perfil" style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, color: 'inherit', textDecoration: 'none' }}>
           <div className="avatar">{initials}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className="user-name" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -218,6 +220,7 @@ export default function Sidebar({ isOpen, onClose }) {
               </div>
             )}
           </div>
+          </NavLink>
           <button onClick={handleLogout} className="btn btn-ghost btn-sm" title="Cerrar sesión" style={{ padding: '6px' }}>
             <LogOut size={15} />
           </button>

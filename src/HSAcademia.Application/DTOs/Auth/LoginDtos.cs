@@ -27,6 +27,46 @@ public class LoginResponseDto
     public bool AcademyWide { get; set; } = true;
 }
 
+public class ProfilePermissionGroupDto
+{
+    public string Name { get; set; } = string.Empty;
+    public List<string> Items { get; set; } = new();
+}
+
+public class ProfileLoginDto
+{
+    public DateTime At { get; set; }
+    public string Device { get; set; } = string.Empty;
+    public string? IpAddress { get; set; }
+}
+
+public class ProfileDto
+{
+    public string FirstName { get; set; } = string.Empty;
+    public string LastName { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string? Phone { get; set; }
+    public string? DocumentNumber { get; set; }
+    public string Role { get; set; } = string.Empty;
+    public bool IsOwner { get; set; }
+    public string? AcademyName { get; set; }
+    /// <summary>Administrador o propietario: no depende de roles.</summary>
+    public bool FullAccess { get; set; }
+    public List<string> Roles { get; set; } = new();
+    /// <summary>Vacío = todas las sedes.</summary>
+    public List<string> Headquarters { get; set; } = new();
+    public List<string> Categories { get; set; } = new();
+    public List<ProfilePermissionGroupDto> PermissionGroups { get; set; } = new();
+    public List<ProfileLoginDto> RecentLogins { get; set; } = new();
+}
+
+public class UpdateProfileDto
+{
+    public string FirstName { get; set; } = string.Empty;
+    public string LastName { get; set; } = string.Empty;
+    public string? Phone { get; set; }
+}
+
 public class ChangePasswordRequestDto
 {
     public string CurrentPassword { get; set; } = string.Empty;

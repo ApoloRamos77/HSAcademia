@@ -16,21 +16,24 @@ const waNumber = (s?: string | null) => { const d = digits(s); return d.length =
 export default function StudentDetailScreen({ route, navigation }: any) {
   const initial: StudentSummary = route.params.student;
   const { can } = useAuth();
-  const canFinance = can('manage_finances');
+  const canSeeDebts = can('collections.view', 'collections.collect');
+  const canCollect = can('collections.collect', 'store.sell');
+  const canSeeMedical = can('students.medical');
+  const canEvaluate = can('students.evaluate');
 
   const { data, loading, refreshing, refresh } = useApi(async () => {
     const id = initial.id;
     const [medical, evaluations, sports, fresh, debts] = await Promise.all([
-      api.get<MedicalRecord>(`/students/${id}/medical-record`).then(r => r.data).catch(() => null),
-      api.get<Evaluation[]>(`/sports/students/${id}/evaluations`).then(r => r.data).catch(() => [] as Evaluation[]),
+      canSeeMedical ? api.get<MedicalRecord>(`/students/${id}/medical-record`).then(r => r.data).catch(() => null) : Promise.resolve(null),
+      canEvaluate ? api.get<Evaluation[]>(`/sports/students/${id}/evaluations`).then(r => r.data).catch(() => [] as Evaluation[]) : Promise.resolve([] as Evaluation[]),
       api.get<SportsSummary>(`/sports/students/${id}/summary`).then(r => r.data).catch(() => null),
       api.get<StudentSummary[]>('/students').then(r => r.data.find(s => s.id === id) ?? null).catch(() => null),
-      canFinance
+      canSeeDebts
         ? api.get<Debt[]>('/finances/debts/pending', { params: { studentId: id } }).then(r => r.data.filter(d => d.studentId === id)).catch(() => null)
         : Promise.resolve(null),
     ]);
     return { medical, evaluations, sports, fresh, debts };
-  }, [initial.id]);
+  }, [initial.id, canSeeMedical, canEvaluate, canSeeDebts]);
 
   // Datos frescos del alumno (se recargan al volver de editar o cobrar).
   const student = data?.fresh ?? initial;
@@ -51,17 +54,17 @@ export default function StudentDetailScreen({ route, navigation }: any) {
       </View>
 
       <Row>
-        {can('view_students') && (
+        {can('students.edit') && (
           <Button compact title="Editar datos" variant="secondary" icon={<Pencil color={colors.primaryDark} size={16} />} style={{ flex: 1 }}
             onPress={() => navigation.navigate('StudentForm', { student })} />
         )}
-        {canFinance && (
+        {canCollect && (
           <Button compact title="Cobrar" variant="success" icon={<Wallet color={colors.white} size={16} />} style={{ flex: 1 }}
             onPress={() => navigation.navigate('FieldPayment', { student })} />
         )}
       </Row>
 
-      {canFinance && data?.debts && (
+      {canSeeDebts && data?.debts && (
         data.debts.length === 0
           ? <Banner tone="success" text="Al día: sin deudas pendientes." />
           : <Banner tone={data.debts.some(d => d.status === 'Vencido') ? 'danger' : 'warning'}
@@ -103,7 +106,7 @@ export default function StudentDetailScreen({ route, navigation }: any) {
       )}
 
       <SectionTitle title="Evaluaciones"
-        action={can('view_students') ? <Button compact title="Evaluar" icon={<Star color={colors.white} size={16} />}
+        action={canEvaluate ? <Button compact title="Evaluar" icon={<Star color={colors.white} size={16} />}
           onPress={() => navigation.navigate('Evaluation', { student })} /> : undefined} />
       {(data?.evaluations ?? []).length === 0 ? (
         <Card><Text style={font.small}>Sin evaluaciones registradas.</Text></Card>

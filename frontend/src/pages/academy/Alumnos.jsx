@@ -13,6 +13,7 @@ import { todayISO } from '../../utils/dates';
 export default function Alumnos() {
   const { user, can } = useAuth();
   const canEdit = can('students.edit');
+  const canSeeMedical = can('students.medical');
   const [alumnos, setAlumnos] = useState([]);
   const [sedes, setSedes] = useState([]);
   const [categorias, setCategorias] = useState([]);
@@ -555,7 +556,7 @@ export default function Alumnos() {
                   <div className="tabs m-0">
                     <button type="button" onClick={() => setCurrentStep(1)} className={`tab-pill ${currentStep === 1 ? 'active' : ''}`}>1. Alumno</button>
                     <button type="button" onClick={() => setCurrentStep(2)} className={`tab-pill ${currentStep === 2 ? 'active' : ''}`}>2. Apoderado</button>
-                    <button type="button" onClick={() => setCurrentStep(3)} className={`tab-pill ${currentStep === 3 ? 'active' : ''}`}>3. Ficha Médica</button>
+                    {(!editingId || canSeeMedical) && <button type="button" onClick={() => setCurrentStep(3)} className={`tab-pill ${currentStep === 3 ? 'active' : ''}`}>3. Ficha Médica</button>}
                   </div>
                   {/* Botón Guardar Principal */}
                   {canEdit && (
@@ -812,7 +813,7 @@ export default function Alumnos() {
                     {currentStep > 1 && (
                       <button type="button" onClick={() => setCurrentStep(currentStep - 1)} className="btn bg-white border border-border text-text-secondary hover:border-primary-light hover:text-primary-dark transition-all rounded-xl px-6 py-2 shadow-sm font-medium">Atrás</button>
                     )}
-                    {currentStep < 3 && (
+                    {currentStep < ((!editingId || canSeeMedical) ? 3 : 2) && (
                       <button type="button" onClick={() => setCurrentStep(currentStep + 1)} className="btn bg-primary-light/40 border border-primary-light/50 text-primary-dark hover:bg-primary-light hover:text-primary-dark transition-all rounded-xl px-6 py-2 shadow-sm font-bold">Siguiente Pestaña</button>
                     )}
                   </div>

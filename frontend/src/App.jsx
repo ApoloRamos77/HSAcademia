@@ -14,8 +14,8 @@ import UsuariosPage from './pages/superadmin/Usuarios';
 import Dashboard from './pages/academy/Dashboard';
 import Sedes from './pages/academy/Sedes';
 import Categorias from './pages/academy/Categorias';
-import Roles from './pages/academy/Roles';
-import Usuarios from './pages/academy/Usuarios';
+import Accesos from './pages/academy/Accesos';
+import MiPerfil from './pages/MiPerfil';
 import Alumnos from './pages/academy/Alumnos';
 import Padres from './pages/academy/Padres';
 import Directorio from './pages/academy/Directorio';
@@ -80,14 +80,16 @@ export default function App() {
               <Categorias />
             </ProtectedRoute>
           } />
-          <Route path="/academy/roles" element={
+          <Route path="/academy/accesos" element={
             <ProtectedRoute roles={['AcademyAdmin']}>
-              <Roles />
+              <Accesos />
             </ProtectedRoute>
           } />
-          <Route path="/academy/usuarios" element={
-            <ProtectedRoute roles={['AcademyAdmin']}>
-              <Usuarios />
+          <Route path="/academy/roles" element={<Navigate to="/academy/accesos?tab=roles" replace />} />
+          <Route path="/academy/usuarios" element={<Navigate to="/academy/accesos" replace />} />
+          <Route path="/mi-perfil" element={
+            <ProtectedRoute roles={['SuperAdmin', 'AcademyAdmin', 'Staff', 'Student', 'Guardian']}>
+              <MiPerfil />
             </ProtectedRoute>
           } />
           <Route path="/academy/alumnos" element={

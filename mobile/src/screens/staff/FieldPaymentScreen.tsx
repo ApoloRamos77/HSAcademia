@@ -41,8 +41,8 @@ type Line = { key: number; product: Product; studentId: string | null; quantity:
 export default function FieldPaymentScreen({ route, navigation }: any) {
   const student: StudentSummary = route.params.student;
   const { academy, can } = useAuth();
-  const canDebts = can('manage_finances');
-  const canProducts = canDebts || can('manage_store');
+  const canDebts = can('collections.collect');
+  const canProducts = canDebts || can('store.sell');
   useEffect(() => { navigation.setOptions({ title: 'Cobrar' }); }, [navigation]);
 
   const { data, loading, refreshing, refresh } = useApi(async () => {

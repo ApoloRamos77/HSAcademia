@@ -34,8 +34,8 @@ function matchesCategory(c: Category, isoDob: string) {
  */
 export default function StudentFormScreen({ route, navigation }: any) {
   const editing: StudentSummary | undefined = route.params?.student;
-  const { can, role } = useAuth();
-  const canFinance = role === 'AcademyAdmin' || can('manage_finances');
+  const { can } = useAuth();
+  const canFinance = can('students.billing');
 
   const [hqs, setHqs] = useState<Headquarter[]>([]);
   const [cats, setCats] = useState<Category[]>([]);
@@ -59,6 +59,8 @@ export default function StudentFormScreen({ route, navigation }: any) {
   });
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setF(p => ({ ...p, [k]: v }));
   const hasGuardian = !!editing?.guardianId;
+  // Sin permiso de salud no se muestra la ficha de un alumno existente; al inscribir sí se registra.
+  const canEditMedical = !editing || can('students.medical');
 
   useEffect(() => {
     navigation.setOptions({ title: editing ? 'Editar alumno' : 'Nuevo alumno' });
@@ -67,7 +69,7 @@ export default function StudentFormScreen({ route, navigation }: any) {
         const [h, c, m] = await Promise.all([
           api.get<Headquarter[]>('/academy-config/headquarters').then(r => r.data.filter(x => x.isActive)),
           api.get<Category[]>('/academy-config/categories').then(r => r.data.filter(x => x.isActive)),
-          editing ? api.get<MedicalRecord>(`/students/${editing.id}/medical-record`).then(r => r.data).catch(() => null) : Promise.resolve(null),
+          editing && canEditMedical ? api.get<MedicalRecord>(`/students/${editing.id}/medical-record`).then(r => r.data).catch(() => null) : Promise.resolve(null),
         ]);
         setHqs(h);
         setCats(c);
@@ -85,7 +87,7 @@ export default function StudentFormScreen({ route, navigation }: any) {
         setLoading(false);
       }
     })();
-  }, [editing, navigation]);
+  }, [editing, navigation, canEditMedical]);
 
   const isoDob = parseDmy(f.dob);
   const hqCats = useMemo(() => cats.filter(c => c.headquarterId === f.headquarterId).sort((a, b) => a.name.localeCompare(b.name)), [cats, f.headquarterId]);
@@ -251,8 +253,8 @@ export default function StudentFormScreen({ route, navigation }: any) {
           hint={hasGuardian ? undefined : 'Sin correo, el apoderado ingresa a la app con su celular.'} />
       </Card>
 
-      <SectionTitle title="Salud y emergencia" />
-      <Card>
+      {canEditMedical && <SectionTitle title="Salud y emergencia" />}
+      {canEditMedical && <Card>
         <Input label="Alergias" value={f.allergies} onChangeText={v => set('allergies', v)} placeholder="Ej. penicilina, maní" />
         <Input label="Condiciones médicas" value={f.medicalConditions} onChangeText={v => set('medicalConditions', v)} placeholder="Ej. asma" />
         <Row style={{ justifyContent: 'space-between', marginBottom: spacing.sm }}>
@@ -267,7 +269,7 @@ export default function StudentFormScreen({ route, navigation }: any) {
           <View style={{ flex: 1 }}><Input label="Nombre" value={f.emergencyName} onChangeText={v => set('emergencyName', v)} /></View>
           <View style={{ flex: 1 }}><Input label="Teléfono" value={f.emergencyPhone} onChangeText={v => set('emergencyPhone', v)} keyboardType="phone-pad" maxLength={15} /></View>
         </Row>
-      </Card>
+      </Card>}
 
       <SectionTitle title="Inscripción" />
       <Card>
