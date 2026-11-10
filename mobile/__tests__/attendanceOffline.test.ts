@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from '../src/api/client';
-import { discardPending, enqueue, isOfflineError, pendingFor, saveAndSend, setOfflineOwner } from '../src/offline/attendanceOffline';
+import { discardPending, enqueue, isOfflineError, pendingFor, saveAndSend, saveStaffMark, setOfflineOwner, staffQueueKey } from '../src/offline/attendanceOffline';
 
 jest.mock('@react-native-async-storage/async-storage', () => require('@react-native-async-storage/async-storage/jest/async-storage-mock'));
 jest.mock('../src/api/client', () => ({
@@ -86,6 +86,16 @@ describe('asistencia sin conexión', () => {
     expect(await pendingFor('e1')).toBeNull();
     setOfflineOwner('coach-1');
     expect(await pendingFor('e1')).not.toBeNull();
+  });
+
+  test('la marca de entrenador va a su propio servicio y se reintenta', async () => {
+    const session = { eventId: 'e9', date: '2026-11-10', title: 'Sub-12', startTime: '18:00', categoryName: 'Sub-12', headquarterName: 'Principal' };
+    post.mockRejectedValueOnce(noSignal);
+    expect(await saveStaffMark(session, { status: 2, substituteStaffId: 'coach-3' })).toEqual({ state: 'queued' });
+    post.mockResolvedValue({});
+    expect(await saveStaffMark(session, { status: 2, substituteStaffId: 'coach-4' })).toEqual({ state: 'sent' });
+    expect(post).toHaveBeenLastCalledWith('/staff-attendance/sessions', { records: [{ eventId: 'e9', status: 2, substituteStaffId: 'coach-4' }] });
+    expect(await pendingFor(staffQueueKey('e9'))).toBeNull();
   });
 
   test('distingue falta de señal de una respuesta del servidor', () => {

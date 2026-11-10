@@ -20,6 +20,7 @@ import Padres from './pages/academy/Padres';
 import Directorio from './pages/academy/Directorio';
 import Asistencia from './pages/academy/Asistencia';
 import AsistenciaMetricas from './pages/academy/AsistenciaMetricas';
+import AsistenciaEntrenadores from './pages/academy/AsistenciaEntrenadores';
 import Calendario from './pages/academy/Calendario';
 import Tienda from './pages/academy/Tienda';
 import Finanzas from './pages/academy/Finanzas';
@@ -106,6 +107,11 @@ export default function App() {
           <Route path="/academy/asistencia" element={
             <ProtectedRoute roles={['AcademyAdmin', 'Staff']} permissions={['manage_attendance']}>
               <Asistencia />
+            </ProtectedRoute>
+          } />
+          <Route path="/academy/asistencia-entrenadores" element={
+            <ProtectedRoute roles={['AcademyAdmin', 'Staff']} permissions={['manage_staff_attendance']}>
+              <AsistenciaEntrenadores />
             </ProtectedRoute>
           } />
           <Route path="/academy/asistencia-metricas" element={

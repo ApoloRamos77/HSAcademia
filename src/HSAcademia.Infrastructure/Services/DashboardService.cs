@@ -262,13 +262,7 @@ public class DashboardService
         };
     }
 
-    private static List<Guid> EventCategories(Event e)
-    {
-        var list = new List<Guid>();
-        if (e.CategoryId.HasValue) list.Add(e.CategoryId.Value);
-        if (e.CategoryIds != null) list.AddRange(e.CategoryIds);
-        return list.Distinct().ToList();
-    }
+    private static List<Guid> EventCategories(Event e) => e.AllCategoryIds();
 
     private static DateTime SafeDate(int year, int month, int day) =>
         new(year, month, Math.Min(day, DateTime.DaysInMonth(year, month)));

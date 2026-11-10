@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api, errorMessage } from '../api/client';
-import type { AttendanceCode, RosterStudent, TrainingSession } from '../api/types';
+import type { AttendanceCode, RosterStudent, StaffDay, StaffOption, StaffSession, TrainingSession } from '../api/types';
 
 /**
  * Asistencia sin señal: guarda en el celular las listas de hoy y una cola de marcas por enviar.
@@ -19,6 +19,9 @@ export interface QueuedRecord {
   markedAt?: string;
   /** Falta automática al cerrar: el servidor la ignora si el alumno ya tiene marca. */
   ifUnmarked?: boolean;
+  /** Asistencia de entrenadores: quién dictó (sesión sin entrenador) y quién reemplazó. */
+  staffId?: string | null;
+  substituteStaffId?: string | null;
 }
 
 export interface QueuedSave {
@@ -27,6 +30,8 @@ export interface QueuedSave {
   title: string;
   records: Record<string, QueuedRecord>;
   close: boolean;
+  /** 'staff': marca de entrenador; sus registros van por id de sesión. */
+  kind?: 'staff';
   rev: number;
   /** Motivo por el que el servidor la rechazó: no se reintenta hasta que el usuario decida. */
   error?: string;
@@ -105,11 +110,11 @@ async function pruneRosters() {
 
 export const pendingFor = async (eventId: string) => (await readQueue()).find(i => i.eventId === eventId) ?? null;
 
-export function enqueue(save: { eventId: string; date: string; title: string; records: Record<string, QueuedRecord>; close: boolean }) {
+export function enqueue(save: { eventId: string; date: string; title: string; records: Record<string, QueuedRecord>; close: boolean; kind?: 'staff' }) {
   return withQueue(items => {
     let item = items.find(i => i.eventId === save.eventId);
     if (!item) {
-      item = { eventId: save.eventId, date: save.date, title: save.title, records: {}, close: false, rev: 0 };
+      item = { eventId: save.eventId, date: save.date, title: save.title, records: {}, close: false, kind: save.kind, rev: 0 };
       items.push(item);
     }
     for (const [studentId, record] of Object.entries(save.records)) {
@@ -129,6 +134,10 @@ export const discardPending = (eventId: string) => withQueue(items => {
 });
 
 async function send(item: QueuedSave) {
+  if (item.kind === 'staff') {
+    await api.post('/staff-attendance/sessions', { records: Object.entries(item.records).map(([eventId, r]) => ({ eventId, ...r })) });
+    return;
+  }
   const records = Object.entries(item.records).map(([studentId, r]) => ({ studentId, ...r }));
   if (records.length > 0) await api.post('/attendance/mobile/my-students', { date: item.date, eventId: item.eventId, records });
   if (item.close) {
@@ -183,6 +192,31 @@ export async function saveAndSend(save: Parameters<typeof enqueue>[0]): Promise<
   if (!left) return { state: 'sent' };
   return left.error ? { state: 'rejected', message: left.error } : { state: 'queued' };
 }
+
+// ── Asistencia de entrenadores ───────────────────────────────────
+export const staffQueueKey = (eventId: string) => `staff:${eventId}`;
+
+/** Cada sesión va en su propia entrada: un rechazo del servidor no arrastra a las demás. */
+export const saveStaffMark = (session: StaffSession, record: QueuedRecord) => saveAndSend({
+  eventId: staffQueueKey(session.eventId),
+  date: session.date,
+  title: `Entrenador · ${session.title}`,
+  close: false,
+  kind: 'staff',
+  records: { [session.eventId]: record },
+});
+
+export async function fetchStaffDay(date: string): Promise<StaffDay> {
+  const [sessions, trainers] = await Promise.all([
+    api.get<StaffSession[]>('/staff-attendance/sessions', { params: { date } }).then(r => r.data),
+    api.get<StaffOption[]>('/staff-attendance/trainers').then(r => r.data),
+  ]);
+  const day = { sessions, trainers };
+  await writeCached(`staff.${date}`, day);
+  return day;
+}
+
+export const readStaffDay = (date: string) => readJson<Cached<StaffDay>>(`staff.${date}`);
 
 /** Mantiene el envío automático mientras la sesión del personal esté abierta. */
 export function useAttendanceSync(userId: string) {

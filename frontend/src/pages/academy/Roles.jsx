@@ -14,6 +14,7 @@ export default function Roles() {
   const availablePermissions = [
     { id: 'view_students', label: 'Ver Alumnos / Apoderados' },
     { id: 'manage_attendance', label: 'Tomar / Ver Asistencia' },
+    { id: 'manage_staff_attendance', label: 'Marcar Asistencia de Entrenadores' },
     { id: 'manage_events', label: 'Gestionar Calendario / Eventos' },
     { id: 'manage_store', label: 'Acceso a Tienda / Ventas' },
     { id: 'manage_finances', label: 'Gestión Financiera / Pagos' }

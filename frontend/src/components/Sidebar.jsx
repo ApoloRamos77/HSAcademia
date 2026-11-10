@@ -80,6 +80,9 @@ export default function Sidebar({ isOpen, onClose }) {
               <NavLink to="/academy/asistencia" className={navCls} onClick={onClose}>
                 <CalendarCheck size={16} /> Asistencia
               </NavLink>
+              <NavLink to="/academy/asistencia-entrenadores" className={navCls} onClick={onClose}>
+                <CalendarCheck size={16} /> Asistencia entrenadores
+              </NavLink>
               <NavLink to="/academy/usuarios" className={navCls} onClick={onClose}>
                 <ShieldCheck size={16} /> Personal
               </NavLink>
@@ -158,6 +161,11 @@ export default function Sidebar({ isOpen, onClose }) {
               {(user.permissions?.includes('manage_attendance')) && (
                 <NavLink to="/academy/asistencia" className={navCls} onClick={onClose}>
                   <CalendarCheck size={16} /> Asistencia
+                </NavLink>
+              )}
+              {(user.permissions?.includes('manage_staff_attendance')) && (
+                <NavLink to="/academy/asistencia-entrenadores" className={navCls} onClick={onClose}>
+                  <CalendarCheck size={16} /> Asistencia entrenadores
                 </NavLink>
               )}
               {(user.permissions?.includes('manage_events')) && (
