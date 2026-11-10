@@ -28,8 +28,9 @@ public class CashService
     }
 
     private static List<CashMethodTotalDto> ByMethod(IEnumerable<Receipt> receipts) =>
-        receipts.GroupBy(r => r.Method)
-            .Select(g => new CashMethodTotalDto { Method = g.Key.ToString(), Count = g.Count(), Total = g.Sum(r => r.Total) })
+        receipts.SelectMany(r => r.PaymentParts())
+            .GroupBy(p => p.Method)
+            .Select(g => new CashMethodTotalDto { Method = g.Key.ToString(), Count = g.Count(), Total = g.Sum(p => p.Amount) })
             .OrderByDescending(m => m.Total)
             .ToList();
 
@@ -42,7 +43,7 @@ public class CashService
     // ── Mi caja (cobrador) ────────────────────────────────────────
     public async Task<MyCashDto> MyCashAsync(Guid academyId, Guid userId)
     {
-        var pending = await _db.Receipts.AsNoTracking().Include(r => r.Lines)
+        var pending = await _db.Receipts.AsNoTracking().Include(r => r.Lines).Include(r => r.Payments)
             .Where(r => r.AcademyId == academyId && r.CreatedByUserId == userId &&
                         r.Status == ReceiptStatus.Issued && r.CashHandoverId == null)
             .OrderByDescending(r => r.IssuedAt)
@@ -55,8 +56,8 @@ public class CashService
         {
             CollectorName = await UserNameAsync(userId),
             PendingReceipts = pending.Count,
-            PendingCash = pending.Where(r => r.Method == PaymentMethod.Cash).Sum(r => r.Total),
-            PendingDigital = pending.Where(r => r.Method != PaymentMethod.Cash).Sum(r => r.Total),
+            PendingCash = pending.Sum(r => r.CashAmount()),
+            PendingDigital = pending.Sum(r => r.DigitalAmount()),
             ByMethod = ByMethod(pending),
             Receipts = pending.Select(ReceiptService.Map).ToList(),
             RecentHandovers = recent.Select(Map).ToList()
@@ -70,15 +71,14 @@ public class CashService
 
         return await _db.InTransactionAsync(async () =>
         {
-            var pending = await _db.Receipts.AsNoTracking()
+            var pending = await _db.Receipts.AsNoTracking().Include(r => r.Payments)
                 .Where(r => r.AcademyId == academyId && r.CreatedByUserId == userId &&
                             r.Status == ReceiptStatus.Issued && r.CashHandoverId == null)
-                .Select(r => new { r.Id, r.Method, r.Total })
                 .ToListAsync();
             if (pending.Count == 0) throw new Exception("No tienes cobros pendientes de rendir.");
 
-            var expected = pending.Where(r => r.Method == PaymentMethod.Cash).Sum(r => r.Total);
-            var digital = pending.Where(r => r.Method != PaymentMethod.Cash).Sum(r => r.Total);
+            var expected = pending.Sum(r => r.CashAmount());
+            var digital = pending.Sum(r => r.DigitalAmount());
             var diff = dto.DeclaredCash - expected;
             if (Math.Abs(diff) >= 0.01m && string.IsNullOrWhiteSpace(dto.Notes))
                 throw new Exception($"El efectivo declarado no coincide con lo cobrado (S/ {expected:N2}). Explica la diferencia en la nota.");
@@ -144,7 +144,7 @@ public class CashService
         var start = LocalDayStartUtc(localDate);
         var end = LocalDayStartUtc(localDate.Date.AddDays(1));
 
-        var day = await _db.Receipts.AsNoTracking()
+        var day = await _db.Receipts.AsNoTracking().Include(r => r.Payments)
             .Where(r => r.AcademyId == academyId && r.IssuedAt >= start && r.IssuedAt < end)
             .ToListAsync();
         var issued = day.Where(r => r.Status == ReceiptStatus.Issued).ToList();
@@ -153,7 +153,14 @@ public class CashService
         var notHanded = await _db.Receipts.AsNoTracking()
             .Where(r => r.AcademyId == academyId && r.Status == ReceiptStatus.Issued && r.CashHandoverId == null &&
                         r.Channel != ReceiptRecorder.HistoricChannel)
-            .Select(r => new { r.CreatedByUserId, r.CreatedByName, r.Method, r.Total })
+            .Select(r => new
+            {
+                r.CreatedByUserId,
+                r.CreatedByName,
+                Cash = r.Method == PaymentMethod.Mixed
+                    ? r.Payments.Where(p => p.Method == PaymentMethod.Cash).Sum(p => p.Amount)
+                    : r.Method == PaymentMethod.Cash ? r.Total : 0m
+            })
             .ToListAsync();
         var inTransit = await _db.CashHandovers.AsNoTracking()
             .Where(h => h.AcademyId == academyId && h.Status == CashHandoverStatus.Pending)
@@ -183,10 +190,10 @@ public class CashService
                 CollectorName = name,
                 ReceiptsCount = mine.Count,
                 Total = mine.Sum(r => r.Total),
-                Cash = mine.Where(r => r.Method == PaymentMethod.Cash).Sum(r => r.Total),
-                Digital = mine.Where(r => r.Method != PaymentMethod.Cash).Sum(r => r.Total),
+                Cash = mine.Sum(r => r.CashAmount()),
+                Digital = mine.Sum(r => r.DigitalAmount()),
                 ByMethod = ByMethod(mine),
-                PendingCash = pend.Where(r => r.Method == PaymentMethod.Cash).Sum(r => r.Total),
+                PendingCash = pend.Sum(r => r.Cash),
                 PendingReceipts = pend.Count,
                 InTransitCash = inTransit.Where(h => h.CollectorUserId == id).Sum(h => h.DeclaredCash)
             };
@@ -198,8 +205,8 @@ public class CashService
         {
             Date = localDate.Date,
             Total = issued.Sum(r => r.Total),
-            Cash = issued.Where(r => r.Method == PaymentMethod.Cash).Sum(r => r.Total),
-            Digital = issued.Where(r => r.Method != PaymentMethod.Cash).Sum(r => r.Total),
+            Cash = issued.Sum(r => r.CashAmount()),
+            Digital = issued.Sum(r => r.DigitalAmount()),
             ReceiptsCount = issued.Count,
             VoidedCount = day.Count - issued.Count,
             ByMethod = ByMethod(issued),
@@ -219,7 +226,7 @@ public class CashService
 
     public async Task<List<ReceiptDto>> HandoverReceiptsAsync(Guid academyId, Guid handoverId)
     {
-        var list = await _db.Receipts.AsNoTracking().Include(r => r.Lines)
+        var list = await _db.Receipts.AsNoTracking().Include(r => r.Lines).Include(r => r.Payments)
             .Where(r => r.AcademyId == academyId && r.CashHandoverId == handoverId)
             .OrderBy(r => r.IssuedAt).ToListAsync();
         return list.Select(ReceiptService.Map).ToList();
@@ -234,9 +241,10 @@ public class CashService
         if (!receipt.CashHandoverId.HasValue) return;
         var h = await db.CashHandovers.FirstOrDefaultAsync(x => x.Id == receipt.CashHandoverId);
         if (h == null || h.Status != CashHandoverStatus.Pending) return;
+        await db.Entry(receipt).Collection(r => r.Payments).LoadAsync();
         h.ReceiptsCount = Math.Max(0, h.ReceiptsCount - 1);
-        if (receipt.Method == PaymentMethod.Cash) h.ExpectedCash -= receipt.Total;
-        else h.DigitalTotal -= receipt.Total;
+        h.ExpectedCash -= receipt.CashAmount();
+        h.DigitalTotal -= receipt.DigitalAmount();
         receipt.CashHandoverId = null;
     }
 

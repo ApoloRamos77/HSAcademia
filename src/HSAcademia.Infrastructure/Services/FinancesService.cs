@@ -603,6 +603,8 @@ public class FinancesService
 
             if (!Enum.TryParse<PaymentMethod>(dto.Method, true, out var method))
                 method = PaymentMethod.Cash;
+            if (method == PaymentMethod.Mixed)
+                throw new Exception("El pago mixto se registra desde Nuevo cobro.");
 
             var receiptNum = await ReserveReceiptNumberAsync(academyId);
 

@@ -36,6 +36,7 @@ public class AppDbContext : DbContext
     public DbSet<PaymentProof> PaymentProofs => Set<PaymentProof>();
     public DbSet<Receipt> Receipts => Set<Receipt>();
     public DbSet<ReceiptLine> ReceiptLines => Set<ReceiptLine>();
+    public DbSet<ReceiptPayment> ReceiptPayments => Set<ReceiptPayment>();
     public DbSet<DiscountRule> DiscountRules => Set<DiscountRule>();
     public DbSet<CashHandover> CashHandovers => Set<CashHandover>();
     public DbSet<StudentEvaluation> StudentEvaluations => Set<StudentEvaluation>();
@@ -1086,6 +1087,21 @@ public class AppDbContext : DbContext
             entity.HasIndex(e => new { e.AcademyId, e.Status });
             entity.HasIndex(e => new { e.AcademyId, e.CollectorUserId, e.DeclaredAt });
             entity.HasOne<Academy>().WithMany().HasForeignKey(e => e.AcademyId).HasPrincipalKey(a => a.AcademyId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ReceiptPayment>(entity =>
+        {
+            entity.ToTable("receipt_payments");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.ReceiptId).HasColumnName("receipt_id").IsRequired();
+            entity.Property(e => e.Position).HasColumnName("position");
+            entity.Property(e => e.Method).HasColumnName("method").HasConversion<int>();
+            entity.Property(e => e.Amount).HasColumnName("amount").HasColumnType("numeric(10,2)");
+            entity.Property(e => e.OperationNumber).HasColumnName("operation_number").HasMaxLength(100);
+            entity.Property(e => e.VoucherUrl).HasColumnName("voucher_url").HasMaxLength(500);
+            entity.HasIndex(e => e.ReceiptId);
+            entity.HasOne(e => e.Receipt).WithMany(r => r.Payments).HasForeignKey(e => e.ReceiptId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<ReceiptLine>(entity =>

@@ -21,6 +21,8 @@ public enum PaymentMethod
     Yape = 3,
     Plin = 4,
     Card = 5,
+    /// <summary>Un mismo recibo pagado con varios medios: el reparto está en Receipt.Payments.</summary>
+    Mixed = 6,
     Other = 9
 }
 

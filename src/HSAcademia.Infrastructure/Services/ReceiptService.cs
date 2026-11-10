@@ -98,6 +98,8 @@ public class ReceiptRecorder
 /// <summary>Comprobantes con varios ítems: cuenta familiar, cobro, consulta, reimpresión y anulación.</summary>
 public class ReceiptService
 {
+    private const int MaxPaymentParts = 4;
+
     private readonly AppDbContext _db;
     private readonly FinancesService _finances;
     private readonly FinancialPeriodGuard _periods;
@@ -287,16 +289,76 @@ public class ReceiptService
             if (p.Discount < 0) throw new Exception("El descuento no puede ser negativo.");
         }
 
+        if (dto.Payments is { Count: > 0 })
+            return requireOperation ? ValidateMixedPayment(dto) : PaymentMethod.Mixed;
+
         if (!Enum.TryParse<PaymentMethod>(dto.Method, true, out var method)) method = PaymentMethod.Cash;
-        var isDigital = method is PaymentMethod.Yape or PaymentMethod.Plin or PaymentMethod.BankTransfer;
-        if (requireOperation && isDigital && string.IsNullOrWhiteSpace(dto.OperationNumber) && string.IsNullOrWhiteSpace(dto.VoucherUrl))
+        if (method == PaymentMethod.Mixed) throw new Exception("Indica cómo se reparte el pago mixto.");
+        if (requireOperation && RequiresOperation(method) && string.IsNullOrWhiteSpace(dto.OperationNumber) && string.IsNullOrWhiteSpace(dto.VoucherUrl))
             throw new Exception("Para pagos con Yape, Plin o transferencia indica el número de operación.");
         return method;
     }
 
+    private static bool RequiresOperation(PaymentMethod method) =>
+        method is PaymentMethod.Yape or PaymentMethod.Plin or PaymentMethod.BankTransfer;
+
+    /// <summary>
+    /// Revisa el reparto y deja en la cabecera las operaciones y el primer voucher, para que abonos y recibo los muestren.
+    /// Que el reparto sume el total se comprueba al armar el recibo, cuando el servidor ya calculó los descuentos.
+    /// </summary>
+    private static PaymentMethod ValidateMixedPayment(CheckoutDto dto)
+    {
+        var parts = dto.Payments!;
+        if (parts.Count < 2) throw new Exception("Un pago mixto necesita al menos dos medios de pago.");
+        if (parts.Count > MaxPaymentParts) throw new Exception($"Un pago mixto admite como máximo {MaxPaymentParts} medios de pago.");
+
+        var cashParts = 0;
+        foreach (var part in parts)
+        {
+            if (!Enum.TryParse<PaymentMethod>(part.Method, true, out var method) || !Enum.IsDefined(method) || method == PaymentMethod.Mixed)
+                throw new Exception("Uno de los medios de pago no es válido.");
+            if (part.Amount <= 0 || decimal.Round(part.Amount, 2) != part.Amount)
+                throw new Exception("Cada medio de pago debe tener un monto mayor a cero, con dos decimales como máximo.");
+            if (RequiresOperation(method) && string.IsNullOrWhiteSpace(part.OperationNumber) && string.IsNullOrWhiteSpace(part.VoucherUrl))
+                throw new Exception("Para cada pago con Yape, Plin o transferencia indica el número de operación.");
+            if (method == PaymentMethod.Cash) cashParts++;
+        }
+        if (cashParts > 1) throw new Exception("El efectivo debe registrarse en una sola parte del pago.");
+
+        var operations = parts.Select(p => p.OperationNumber?.Trim()).Where(o => !string.IsNullOrEmpty(o)).ToList();
+        if (operations.Distinct(StringComparer.OrdinalIgnoreCase).Count() != operations.Count)
+            throw new Exception("Un número de operación aparece dos veces en el pago.");
+
+        dto.OperationNumber = operations.Count == 0 ? null : ReceiptRecorder.Truncate(string.Join(" / ", operations), 100);
+        dto.VoucherUrl = parts.Select(p => p.VoucherUrl).FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
+        return PaymentMethod.Mixed;
+    }
+
+    private void AddMixedPayments(Receipt receipt, List<CheckoutPaymentDto> parts)
+    {
+        var paid = parts.Sum(p => p.Amount);
+        var total = Math.Round(receipt.Total, 2);
+        if (paid != total)
+            throw new Exception($"Los pagos suman S/ {paid:N2} y el total del recibo es S/ {total:N2}. Ajusta los montos.");
+
+        var position = 0;
+        foreach (var part in parts)
+        {
+            _db.ReceiptPayments.Add(new ReceiptPayment
+            {
+                ReceiptId = receipt.Id,
+                Position = ++position,
+                Method = Enum.Parse<PaymentMethod>(part.Method, true),
+                Amount = part.Amount,
+                OperationNumber = ReceiptRecorder.Truncate(part.OperationNumber?.Trim(), 100),
+                VoucherUrl = part.VoucherUrl
+            });
+        }
+    }
+
     private async Task<ReceiptDto?> FindByRequestIdAsync(Guid academyId, string requestId)
     {
-        var r = await _db.Receipts.AsNoTracking().Include(x => x.Lines)
+        var r = await _db.Receipts.AsNoTracking().Include(x => x.Lines).Include(x => x.Payments)
             .FirstOrDefaultAsync(x => x.AcademyId == academyId && x.ClientRequestId == requestId);
         return r == null ? null : Map(r);
     }
@@ -657,9 +719,12 @@ public class ReceiptService
                 });
             }
 
+            if (method == PaymentMethod.Mixed) AddMixedPayments(receipt, dto.Payments!);
+
             _audit.Add(academyId, "finances.receipt.create", nameof(Receipt), receipt.Id,
                 new { number, receipt.Total, receipt.DiscountTotal, promotion = plan.Promotion?.Name, method = method.ToString(),
-                      dto.OperationNumber, lines = receipt.Lines.Count, payer = plan.PayerName });
+                      dto.OperationNumber, payments = dto.Payments?.Select(p => new { p.Method, p.Amount, p.OperationNumber }),
+                      lines = receipt.Lines.Count, payer = plan.PayerName });
 
             await _db.SaveChangesAsync();
             return Map(receipt);
@@ -773,7 +838,7 @@ public class ReceiptService
     // ─────────────────────────────────────────────────────────────
     public async Task<List<ReceiptDto>> ListAsync(Guid academyId, DateTime? from, DateTime? to, string? search, Guid? studentId)
     {
-        var q = _db.Receipts.AsNoTracking().Include(r => r.Lines).Where(r => r.AcademyId == academyId);
+        var q = _db.Receipts.AsNoTracking().Include(r => r.Lines).Include(r => r.Payments).Where(r => r.AcademyId == academyId);
         if (from.HasValue) { var start = LocalDayStartUtc(from.Value); q = q.Where(r => r.IssuedAt >= start); }
         if (to.HasValue) { var end = LocalDayStartUtc(to.Value.AddDays(1)); q = q.Where(r => r.IssuedAt < end); }
         if (studentId.HasValue) q = q.Where(r => r.Lines.Any(l => l.StudentId == studentId));
@@ -789,7 +854,7 @@ public class ReceiptService
 
     public async Task<ReceiptDto> GetAsync(Guid academyId, Guid id)
     {
-        var receipt = await _db.Receipts.AsNoTracking().Include(r => r.Lines)
+        var receipt = await _db.Receipts.AsNoTracking().Include(r => r.Lines).Include(r => r.Payments)
             .FirstOrDefaultAsync(r => r.Id == id && r.AcademyId == academyId)
             ?? throw new KeyNotFoundException("Comprobante no encontrado.");
         return Map(receipt);
@@ -804,7 +869,7 @@ public class ReceiptService
         number = (number ?? "").Trim();
         if (number.All(char.IsDigit) && number.Length is > 0 and < 6) number = number.PadLeft(6, '0');
 
-        var receipt = await _db.Receipts.AsNoTracking().Include(r => r.Lines)
+        var receipt = await _db.Receipts.AsNoTracking().Include(r => r.Lines).Include(r => r.Payments)
             .FirstOrDefaultAsync(r => r.AcademyId == academyId && r.Number == number);
         if (receipt != null) return Map(receipt);
 
@@ -898,6 +963,13 @@ public class ReceiptService
             PaymentRecordId = l.PaymentRecordId,
             ProductId = l.ProductId
         }).ToList(),
-        CashHandoverId = r.CashHandoverId
+        CashHandoverId = r.CashHandoverId,
+        Payments = r.Payments.OrderBy(p => p.Position).Select(p => new ReceiptPaymentDto
+        {
+            Method = p.Method.ToString(),
+            Amount = p.Amount,
+            OperationNumber = p.OperationNumber,
+            VoucherUrl = p.VoucherUrl
+        }).ToList()
     };
 }

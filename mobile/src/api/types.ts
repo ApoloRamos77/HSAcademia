@@ -297,6 +297,8 @@ export interface Receipt {
   status: 'Issued' | 'Voided';
   isPreview?: boolean;
   cashHandoverId?: string | null;
+  /** Reparto del pago (solo en recibos mixtos). */
+  payments?: { method: string; amount: number; operationNumber?: string | null }[];
   lines: {
     type: 'Debt' | 'Product'; description: string; studentId?: string | null; studentName?: string | null; quantity: number;
     unitPrice: number; discount: number; discountLabel?: string | null; total: number; paymentRecordId?: string | null; productId?: string | null;

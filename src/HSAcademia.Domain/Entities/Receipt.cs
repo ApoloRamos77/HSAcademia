@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace HSAcademia.Domain.Entities;
 
@@ -68,6 +69,35 @@ public class Receipt
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public virtual ICollection<ReceiptLine> Lines { get; set; } = new List<ReceiptLine>();
+
+    /// <summary>Reparto del pago. Solo tiene filas cuando Method es Mixed.</summary>
+    public virtual ICollection<ReceiptPayment> Payments { get; set; } = new List<ReceiptPayment>();
+
+    /// <summary>Cuánto entró por cada medio de pago. En recibos mixtos requiere haber cargado Payments.</summary>
+    public IReadOnlyList<(PaymentMethod Method, decimal Amount)> PaymentParts()
+    {
+        if (Method != PaymentMethod.Mixed) return new[] { (Method, Total) };
+        if (Payments.Count == 0)
+            throw new InvalidOperationException($"No se cargó el detalle de pagos del recibo mixto N° {Number}.");
+        return Payments.OrderBy(p => p.Position).Select(p => (p.Method, p.Amount)).ToList();
+    }
+
+    public decimal CashAmount() => PaymentParts().Where(p => p.Method == PaymentMethod.Cash).Sum(p => p.Amount);
+
+    public decimal DigitalAmount() => Total - CashAmount();
+}
+
+/// <summary>Parte de un recibo mixto pagada con un medio concreto (ej. S/ 60 en efectivo y S/ 40 por Yape).</summary>
+public class ReceiptPayment
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid ReceiptId { get; set; }
+    public virtual Receipt Receipt { get; set; } = null!;
+    public int Position { get; set; }
+    public PaymentMethod Method { get; set; }
+    public decimal Amount { get; set; }
+    public string? OperationNumber { get; set; }
+    public string? VoucherUrl { get; set; }
 }
 
 /// <summary>

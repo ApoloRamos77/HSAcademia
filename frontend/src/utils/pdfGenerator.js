@@ -185,7 +185,11 @@ export const generateReceiptPDF = (data) => {
   if (win) win.addEventListener('unload', () => URL.revokeObjectURL(blobUrl));
 };
 
-const METHOD_LABELS = { Cash: 'Efectivo', BankTransfer: 'Transferencia', Yape: 'Yape', Plin: 'Plin', Card: 'Tarjeta', Other: 'Otro' };
+const METHOD_LABELS = { Cash: 'Efectivo', BankTransfer: 'Transferencia', Yape: 'Yape', Plin: 'Plin', Card: 'Tarjeta', Mixed: 'Mixto', Other: 'Otro' };
+
+const paymentLabel = (r) => r.payments?.length
+  ? r.payments.map(p => [`${METHOD_LABELS[p.method] || p.method} S/ ${Number(p.amount).toFixed(2)}`, p.operationNumber ? `Op. ${p.operationNumber}` : ''].filter(Boolean).join(' ')).join(' + ')
+  : [METHOD_LABELS[r.method] || r.method, r.operationNumber ? `Op. ${r.operationNumber}` : ''].filter(Boolean).join(' · ');
 
 /** Imprime un comprobante con varios ítems tal como lo devuelve la API (/api/receipts). */
 export const printReceipt = (r) => {
@@ -198,7 +202,7 @@ export const printReceipt = (r) => {
     ].filter(Boolean).join(' '),
     total: l.total,
   }));
-  const payment = [METHOD_LABELS[r.method] || r.method, r.operationNumber ? `Op. ${r.operationNumber}` : ''].filter(Boolean).join(' · ');
+  const payment = paymentLabel(r);
   generateReceiptPDF({
     receiptNumber: r.number,
     customerName: r.payerName,

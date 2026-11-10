@@ -473,7 +473,7 @@ export default function Finanzas() {
                                       <div key={i.id} className="flex items-center gap-3 text-sm bg-bg-surface rounded p-2">
                                         <span className="text-success font-bold">S/. {i.amountPaid.toFixed(2)}</span>
                                         <span className="text-text-muted">{new Date(i.paidAt).toLocaleDateString('es-PE')} {new Date(i.paidAt).toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'})}</span>
-                                        <span className="badge badge-primary text-xs">{PAYMENT_METHODS.find(m=>m.value===i.method)?.label || i.method}</span>
+                                        <span className="badge badge-primary text-xs">{i.method === 'Mixed' ? 'Mixto' : PAYMENT_METHODS.find(m=>m.value===i.method)?.label || i.method}</span>
                                         {i.operationNumber && <span className="text-text-muted text-xs">Op: {i.operationNumber}</span>}
                                         {i.notes && <span className="text-text-muted text-xs italic">{i.notes}</span>}
                                         {i.voucherUrl && <a href={i.voucherUrl} target="_blank" rel="noreferrer" className="text-primary-400 text-xs underline">Ver voucher</a>}
