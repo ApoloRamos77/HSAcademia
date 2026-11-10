@@ -9,6 +9,7 @@ import {
 } from '@react-native-firebase/messaging';
 import { createNavigationContainerRef } from '@react-navigation/native';
 import { api } from '../api/client';
+import { getVersion } from '../utils/appInfo';
 
 type RemoteMessage = Parameters<Parameters<typeof onMessage>[1]>[0];
 
@@ -27,7 +28,7 @@ export function routeFor(type: string | undefined, isFamily: boolean): { name: s
   if (type === 'announcement') return { name: 'News' };
   if (!isFamily) return null;
   if (type === 'arrival') return familyTab('Inicio');
-  if (type === 'proof') return familyTab('Pagos');
+  if (type === 'proof' || type === 'payment') return familyTab('Pagos');
   if (type === 'call') return familyTab('Agenda');
   return null;
 }
@@ -54,7 +55,7 @@ async function ensurePermission(): Promise<boolean> {
 
 async function sendToken(token: string) {
   registeredToken = token;
-  await api.post('/devices', { token, platform: Platform.OS }).catch(() => {});
+  await api.post('/devices', { token, platform: Platform.OS, appVersion: getVersion() }).catch(() => {});
 }
 
 /** Registra el celular para la cuenta actual. Devuelve cómo dejar de escuchar cambios del identificador. */

@@ -49,8 +49,10 @@ public class PushDispatchService
             {
                 var recipients = new[] { notice.Student.GuardianId, notice.Student.UserId }
                     .Where(id => id != null).Select(id => id!.Value).Distinct().ToList();
+                // La app 1.0.11 programa sus propios recordatorios de pago: enviárselos los duplicaría.
+                var isPayment = notice.Type == FamilyNoticeType.PaymentReminder;
                 var tokens = await _db.DeviceTokens.AsNoTracking()
-                    .Where(d => recipients.Contains(d.UserId) && d.User.Status == UserStatus.Active)
+                    .Where(d => recipients.Contains(d.UserId) && d.User.Status == UserStatus.Active && (!isPayment || d.AppVersion != null))
                     .Select(d => d.Token)
                     .ToListAsync(cancellationToken);
                 await SendAsync(tokens, new PushMessage(TypeOf(notice.Type), notice.Title, Shorten(notice.Body),
@@ -105,6 +107,7 @@ public class PushDispatchService
         FamilyNoticeType.Arrival => "arrival",
         FamilyNoticeType.PaymentProof => "proof",
         FamilyNoticeType.EventCall => "call",
+        FamilyNoticeType.PaymentReminder => "payment",
         _ => "notice"
     };
 

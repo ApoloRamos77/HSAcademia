@@ -4,7 +4,8 @@ public enum FamilyNoticeType
 {
     Arrival = 1,
     PaymentProof = 2,
-    EventCall = 3
+    EventCall = 3,
+    PaymentReminder = 4
 }
 
 /// <summary>Aviso para la familia de un alumno, visible en su app (ej. "Tomás llegó").</summary>
@@ -17,6 +18,10 @@ public class FamilyNotice
 
     /// <summary>Sesión que originó el aviso.</summary>
     public Guid? EventId { get; set; }
+    /// <summary>Mensualidad que originó un recordatorio de pago.</summary>
+    public Guid? PaymentRecordId { get; set; }
+    /// <summary>Evita crear dos veces el mismo aviso programado (ej. "pay:{mensualidad}:-4").</summary>
+    public string? DedupeKey { get; set; }
     public FamilyNoticeType Type { get; set; }
     public string Title { get; set; } = string.Empty;
     public string Body { get; set; } = string.Empty;

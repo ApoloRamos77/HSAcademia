@@ -67,6 +67,8 @@ builder.Services.AddScoped<FamilyNoticeService>();
 builder.Services.AddScoped<StaffAttendanceService>();
 builder.Services.AddHostedService<HSAcademia.API.Workers.AttendanceAutoCloseWorker>();
 builder.Services.AddHostedService<HSAcademia.API.Workers.PushDispatchWorker>();
+builder.Services.AddScoped<HSAcademia.Infrastructure.Services.PaymentReminderService>();
+builder.Services.AddHostedService<HSAcademia.API.Workers.PaymentReminderWorker>();
 builder.Services.AddScoped<HSAcademia.Infrastructure.Services.Push.PushDispatchService>();
 builder.Services.AddSingleton<HSAcademia.Infrastructure.Services.Push.IPushSender>(sp =>
 {
