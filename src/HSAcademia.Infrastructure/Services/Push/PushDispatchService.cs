@@ -2,6 +2,7 @@ using HSAcademia.Domain.Entities;
 using HSAcademia.Domain.Enums;
 using HSAcademia.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace HSAcademia.Infrastructure.Services.Push;
 
@@ -18,11 +19,13 @@ public class PushDispatchService
 
     private readonly AppDbContext _db;
     private readonly IPushSender _sender;
+    private readonly ILogger<PushDispatchService> _logger;
 
-    public PushDispatchService(AppDbContext db, IPushSender sender)
+    public PushDispatchService(AppDbContext db, IPushSender sender, ILogger<PushDispatchService> logger)
     {
         _db = db;
         _sender = sender;
+        _logger = logger;
     }
 
     public async Task DispatchPendingAsync(CancellationToken cancellationToken)
@@ -86,7 +89,12 @@ public class PushDispatchService
 
     private async Task SendAsync(List<string> tokens, PushMessage message, CancellationToken cancellationToken)
     {
-        if (tokens.Count == 0) return;
+        if (tokens.Count == 0)
+        {
+            _logger.LogInformation("Notificación sin celulares registrados para recibirla: {Type}.", message.Type);
+            return;
+        }
+
         var invalid = await _sender.SendAsync(tokens, message, cancellationToken);
         if (invalid.Count > 0)
             await _db.DeviceTokens.Where(d => invalid.Contains(d.Token)).ExecuteDeleteAsync(cancellationToken);

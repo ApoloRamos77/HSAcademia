@@ -74,12 +74,20 @@ builder.Services.AddSingleton<HSAcademia.Infrastructure.Services.Push.IPushSende
     var loggers = sp.GetRequiredService<ILoggerFactory>();
     if (!string.IsNullOrWhiteSpace(json))
     {
-        try { return new HSAcademia.Infrastructure.Services.Push.FirebasePushSender(json); }
+        try
+        {
+            return new HSAcademia.Infrastructure.Services.Push.FirebasePushSender(json,
+                loggers.CreateLogger<HSAcademia.Infrastructure.Services.Push.FirebasePushSender>());
+        }
         catch (Exception ex)
         {
             // Una clave mal copiada no debe impedir que la API arranque.
             loggers.CreateLogger("Push").LogError(ex, "La clave de Firebase no es válida: las notificaciones quedan desactivadas.");
         }
+    }
+    else
+    {
+        loggers.CreateLogger("Push").LogWarning("Firebase sin configurar: las notificaciones no se envían.");
     }
     return new HSAcademia.Infrastructure.Services.Push.LoggingPushSender(
         loggers.CreateLogger<HSAcademia.Infrastructure.Services.Push.LoggingPushSender>());

@@ -19,7 +19,13 @@ public class DevicesController : ControllerBase
 
     private readonly AppDbContext _db;
 
-    public DevicesController(AppDbContext db) => _db = db;
+    private readonly ILogger<DevicesController> _logger;
+
+    public DevicesController(AppDbContext db, ILogger<DevicesController> logger)
+    {
+        _db = db;
+        _logger = logger;
+    }
 
     [HttpPost]
     public async Task<IActionResult> Register([FromBody] DeviceTokenRequest request)
@@ -47,6 +53,8 @@ public class DevicesController : ControllerBase
 
         try { await _db.SaveChangesAsync(); }
         catch (DbUpdateException) { /* la app lo envió dos veces a la vez: ya quedó registrado */ }
+        _logger.LogInformation("Celular registrado para notificaciones. Usuario {UserId}, academia {AcademyId}, {State}.",
+            userId, academyId, device == null ? "nuevo" : "ya conocido");
         return NoContent();
     }
 
