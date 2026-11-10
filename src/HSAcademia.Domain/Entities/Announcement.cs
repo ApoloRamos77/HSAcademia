@@ -20,4 +20,6 @@ public class Announcement
     
     public bool IsDeleted { get; set; } = false;
     public DateTime? DeletedAt { get; set; }
+    /// <summary>Vacío mientras la notificación esté por enviar.</summary>
+    public DateTime? PushedAt { get; set; }
 }

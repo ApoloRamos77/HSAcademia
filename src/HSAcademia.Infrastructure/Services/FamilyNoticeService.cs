@@ -7,8 +7,8 @@ using Microsoft.EntityFrameworkCore;
 namespace HSAcademia.Infrastructure.Services;
 
 /// <summary>
-/// Avisos a la familia dentro de la app. Todo aviso nuevo nace en SyncArrivalsAsync:
-/// ahí se conectará el envío push cuando exista el proyecto de Firebase.
+/// Avisos a la familia dentro de la app. Cada aviso nuevo se envía además como notificación
+/// (PushDispatchService); corregir una marca antes del envío lo retira y no llega a salir.
 /// </summary>
 public class FamilyNoticeService
 {

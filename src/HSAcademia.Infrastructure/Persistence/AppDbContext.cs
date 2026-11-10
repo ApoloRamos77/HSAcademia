@@ -18,6 +18,7 @@ public class AppDbContext : DbContext
     public DbSet<Headquarter> Headquarters => Set<Headquarter>();
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<AcademyRole> AcademyRoles => Set<AcademyRole>();
+    public DbSet<DeviceToken> DeviceTokens => Set<DeviceToken>();
     public DbSet<Student> Students => Set<Student>();
     public DbSet<StudentMedicalRecord> StudentMedicalRecords => Set<StudentMedicalRecord>();
     public DbSet<StudentNutritionRecord> StudentNutritionRecords => Set<StudentNutritionRecord>();
@@ -766,6 +767,8 @@ public class AppDbContext : DbContext
             entity.Property(e => e.IsPinned).HasColumnName("is_pinned").HasDefaultValue(false);
             entity.Property(e => e.AuthorId).HasColumnName("author_id").IsRequired();
             entity.Property(e => e.DatePosted).HasColumnName("date_posted").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.PushedAt).HasColumnName("pushed_at");
+            entity.HasIndex(e => e.CreatedAt, "IX_announcements_pending_push").HasFilter("pushed_at IS NULL");
 
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
@@ -1115,6 +1118,23 @@ public class AppDbContext : DbContext
             entity.HasOne<Academy>().WithMany().HasForeignKey(e => e.AcademyId).HasPrincipalKey(a => a.AcademyId).OnDelete(DeleteBehavior.Cascade);
         });
 
+        modelBuilder.Entity<DeviceToken>(entity =>
+        {
+            entity.ToTable("device_tokens");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.UserId).HasColumnName("user_id").IsRequired();
+            entity.Property(e => e.AcademyId).HasColumnName("academy_id").IsRequired();
+            entity.Property(e => e.Token).HasColumnName("token").HasMaxLength(512).IsRequired();
+            entity.Property(e => e.Platform).HasColumnName("platform").HasMaxLength(20).IsRequired();
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.Property(e => e.LastSeenAt).HasColumnName("last_seen_at");
+            entity.HasIndex(e => e.Token).IsUnique();
+            entity.HasIndex(e => e.UserId);
+            entity.HasIndex(e => e.AcademyId);
+            entity.HasOne(e => e.User).WithMany().HasForeignKey(e => e.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<FamilyNotice>(entity =>
         {
             entity.ToTable("family_notices");
@@ -1128,6 +1148,8 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Body).HasColumnName("body").HasMaxLength(300).IsRequired();
             entity.Property(e => e.CreatedAt).HasColumnName("created_at");
             entity.Property(e => e.ReadAt).HasColumnName("read_at");
+            entity.Property(e => e.PushedAt).HasColumnName("pushed_at");
+            entity.HasIndex(e => e.CreatedAt, "IX_family_notices_pending_push").HasFilter("pushed_at IS NULL");
             entity.HasIndex(e => new { e.StudentId, e.CreatedAt });
             entity.HasIndex(e => new { e.EventId, e.StudentId });
             entity.HasOne(e => e.Student).WithMany().HasForeignKey(e => e.StudentId).OnDelete(DeleteBehavior.Cascade);

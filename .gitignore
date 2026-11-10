@@ -488,3 +488,7 @@ $RECYCLE.BIN/
 # Archivos subidos por usuarios (comprobantes de pago): nunca al repositorio.
 # En producciÃ³n deben ir en un volumen persistente (Uploads:Path).
 **/wwwroot/uploads/
+
+# Firebase: configuración local de la app y claves del servidor
+mobile/android/app/google-services.json
+*firebase-adminsdk*.json

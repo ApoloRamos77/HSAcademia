@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { View } from 'react-native';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -10,6 +11,8 @@ import { useAuth } from '../auth/AuthContext';
 import { Loading } from '../components/ui';
 import { useAttendanceSync } from '../offline/attendanceOffline';
 import { colors } from '../theme';
+import PushBanner from '../notifications/PushBanner';
+import { flushPendingRoute, listenForNotices, navigationRef, openRoute, registerDevice, routeFor, type PushNotice } from '../notifications/push';
 
 import AcademySelectScreen from '../screens/auth/AcademySelectScreen';
 import LoginScreen from '../screens/auth/LoginScreen';
@@ -146,10 +149,27 @@ function StaffStack() {
 // ── Raíz ─────────────────────────────────────────────────────────
 export default function RootNavigator() {
   const { ready, session, academy } = useAuth();
+  const [notice, setNotice] = useState<PushNotice | null>(null);
+  const userId = session?.userId;
+  const canReceive = !!session && !session.requirePasswordChange;
+  const isFamily = session?.role === 'Guardian' || session?.role === 'Student';
+  const hideNotice = useCallback(() => setNotice(null), []);
+
+  // Las notificaciones empiezan cuando la cuenta ya puede usar la app.
+  useEffect(() => {
+    if (!canReceive) return;
+    let stopRefresh = () => {};
+    let cancelled = false;
+    registerDevice().then(stop => { if (cancelled) stop(); else stopRefresh = stop; }).catch(() => {});
+    const stopListening = listenForNotices(isFamily, setNotice);
+    return () => { cancelled = true; stopRefresh(); stopListening(); };
+  }, [canReceive, userId, isFamily]);
+
   if (!ready) return <Loading />;
 
   return (
-    <NavigationContainer theme={navTheme}>
+    <View style={{ flex: 1 }}>
+    <NavigationContainer ref={navigationRef} onReady={flushPendingRoute} theme={navTheme}>
       {!session ? (
         <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName={academy ? 'Login' : 'AcademySelect'}>
           <Stack.Screen name="AcademySelect" component={AcademySelectScreen} />
@@ -165,5 +185,7 @@ export default function RootNavigator() {
         <StaffStack />
       )}
     </NavigationContainer>
+    <PushBanner notice={notice} onHide={hideNotice} onPress={() => { openRoute(routeFor(notice?.type, isFamily)); hideNotice(); }} />
+    </View>
   );
 }
