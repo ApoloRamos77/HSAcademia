@@ -16,12 +16,16 @@ const METHODS = [
 const DIGITAL = ['Yape', 'Plin', 'BankTransfer'];
 const money = (n) => `S/. ${(Number(n) || 0).toFixed(2)}`;
 const num = (v) => { const n = parseFloat(String(v).replace(',', '.')); return Number.isFinite(n) ? n : 0; };
+const cents = (v) => Math.round(num(v) * 100);
 const newKey = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
 let lineKey = 0;
+let partKey = 0;
+const MAX_PARTS = 4;
+const newPart = (method) => ({ key: ++partKey, method, amount: '', operationNumber: '' });
 
 /**
  * Cobro con varios ítems en UN comprobante: mensualidades de todos los hermanos (mismo apoderado),
- * productos de tienda y abonos parciales, con un solo medio de pago.
+ * productos de tienda y abonos parciales, con un medio de pago o repartido entre varios (pago mixto).
  * Los descuentos (pronto pago, promoción) los calcula el servidor en la vista previa: lo que se ve es lo que se cobra.
  */
 export default function CheckoutModal({ open, onClose, onDone, initialStudentId, initialDebtIds = [] }) {
@@ -41,6 +45,8 @@ export default function CheckoutModal({ open, onClose, onDone, initialStudentId,
   const [promotionId, setPromotionId] = useState('');
   const [payer, setPayer] = useState({ name: '', document: '' });
   const [pay, setPay] = useState({ method: 'Cash', operationNumber: '', voucherUrl: '', notes: '' });
+  const [mixed, setMixed] = useState(false);
+  const [parts, setParts] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [preview, setPreview] = useState(null);
@@ -58,6 +64,7 @@ export default function CheckoutModal({ open, onClose, onDone, initialStudentId,
     setRequestId(newKey());
     setPayer({ name: '', document: '' });
     setPay({ method: 'Cash', operationNumber: '', voucherUrl: '', notes: '' });
+    setMixed(false); setParts([]);
     api.get('/students').then(r => setStudents(r.data)).catch(() => {});
     if (canDebts) api.get('/finances/config').then(r => setLateFeeDefault(Number(r.data.lateFeeAmount) || 0)).catch(() => {});
     api.get('/discounts', { params: { active: true } })
@@ -150,6 +157,16 @@ export default function CheckoutModal({ open, onClose, onDone, initialStudentId,
 
   const previewOf = (debtId) => preview?.lines.find(l => l.paymentRecordId === debtId);
 
+  // Pago mixto: lo que falta repartir, en céntimos para no arrastrar errores de redondeo.
+  const remainingCents = cents(preview?.total) - parts.reduce((sum, p) => sum + cents(p.amount), 0);
+  const setPart = (key, patch) => setParts(prev => prev.map(p => p.key === key ? { ...p, ...patch } : p));
+  const toggleMixed = (on) => {
+    setMixed(on);
+    setParts(on ? [newPart('Cash'), newPart('Yape')] : []);
+  };
+  const fillRemaining = (part) => setPart(part.key, { amount: ((cents(part.amount) + remainingCents) / 100).toFixed(2) });
+  const nextMethod = () => (METHODS.find(m => m.value !== 'Cash' && !parts.some(p => p.method === m.value)) || METHODS[1]).value;
+
   const uploadVoucher = async (file) => {
     if (!file) return;
     setUploading(true);
@@ -170,10 +187,21 @@ export default function CheckoutModal({ open, onClose, onDone, initialStudentId,
     if (previewError) { toast.error(previewError); return; }
     const missing = allDebts.find(d => d.requiresRegularization && debtSel[d.id]?.on && ((debtSel[d.id].reg?.note || '').trim().length < 5 || (debtSel[d.id].reg?.charge && !(num(debtSel[d.id].reg?.amount) > 0))));
     if (missing) { toast.error(`${missing.description} (${missing.studentName}) venció: indica la mora (o sin mora) y la observación.`); return; }
-    if (DIGITAL.includes(pay.method) && !pay.operationNumber.trim() && !pay.voucherUrl) { toast.error('Indica el número de operación del pago digital.'); return; }
+    if (mixed) {
+      if (parts.some(p => cents(p.amount) <= 0)) { toast.error('Indica el monto de cada medio de pago.'); return; }
+      if (remainingCents !== 0) { toast.error('Los montos deben sumar exactamente el total.'); return; }
+      if (parts.some(p => DIGITAL.includes(p.method) && !p.operationNumber.trim())) { toast.error('Indica el número de operación de cada pago digital.'); return; }
+    } else if (DIGITAL.includes(pay.method) && !pay.operationNumber.trim() && !pay.voucherUrl) { toast.error('Indica el número de operación del pago digital.'); return; }
+    const firstDigitalKey = parts.find(p => p.method !== 'Cash')?.key;
+    const payments = mixed ? parts.map(p => ({
+      method: p.method,
+      amount: cents(p.amount) / 100,
+      operationNumber: p.operationNumber.trim() || null,
+      voucherUrl: p.key === firstDigitalKey ? pay.voucherUrl || null : null,
+    })) : null;
     setSaving(true);
     try {
-      const { data } = await api.post('/receipts', { ...body, clientRequestId: requestId });
+      const { data } = await api.post('/receipts', { ...body, payments, clientRequestId: requestId });
       toast.success(`Recibo N° ${data.number} emitido.`);
       printReceipt(data);
       onDone?.(data);
@@ -346,18 +374,43 @@ export default function CheckoutModal({ open, onClose, onDone, initialStudentId,
           )}
 
           {/* Pago */}
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">Medio de pago *</label>
-              <select className="form-control" value={pay.method} onChange={e => setPay({ ...pay, method: e.target.value })}>
-                {METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-              </select>
+          <label className="text-sm flex items-center gap-2 mb-2 cursor-pointer">
+            <input type="checkbox" checked={mixed} onChange={e => toggleMixed(e.target.checked)} /> Pago mixto (repartir entre varios medios)
+          </label>
+          {mixed ? (
+            <div className="mb-3">
+              {parts.map(p => (
+                <div key={p.key} className="grid gap-2 items-center mb-2" style={{ gridTemplateColumns: '1.3fr 110px 1.3fr auto auto' }}>
+                  <select className="form-control py-1 text-sm" value={p.method} aria-label="Medio de pago" onChange={e => setPart(p.key, { method: e.target.value })}>
+                    {METHODS.map(m => <option key={m.value} value={m.value} disabled={m.value === 'Cash' && p.method !== 'Cash' && parts.some(x => x.method === 'Cash')}>{m.label}</option>)}
+                  </select>
+                  <input type="number" step="0.01" min="0.01" className="form-control py-1 text-sm font-bold" placeholder="Monto" aria-label="Monto" value={p.amount} onChange={e => setPart(p.key, { amount: e.target.value })} />
+                  <input className="form-control py-1 text-sm" placeholder={DIGITAL.includes(p.method) ? 'N° de operación *' : 'N° de operación (opcional)'} aria-label="Número de operación" disabled={p.method === 'Cash'} value={p.operationNumber} onChange={e => setPart(p.key, { operationNumber: e.target.value })} />
+                  <button type="button" className="btn btn-sm btn-ghost text-xs" disabled={remainingCents === 0 || cents(p.amount) + remainingCents <= 0} onClick={() => fillRemaining(p)}>Saldo</button>
+                  <button type="button" className="btn btn-sm btn-ghost text-danger" disabled={parts.length <= 2} aria-label="Quitar medio de pago" onClick={() => setParts(x => x.filter(y => y.key !== p.key))}><Trash2 size={13} /></button>
+                </div>
+              ))}
+              <div className="flex items-center justify-between gap-3">
+                <button type="button" className="btn btn-sm btn-ghost text-primary flex items-center gap-1" disabled={parts.length >= MAX_PARTS} onClick={() => setParts(x => [...x, newPart(nextMethod())])}><Plus size={13} /> Agregar otro medio</button>
+                <span className={`text-sm font-bold ${remainingCents === 0 ? 'text-success' : 'text-danger'}`}>
+                  {remainingCents === 0 ? 'Reparto completo' : remainingCents > 0 ? `Falta repartir ${money(remainingCents / 100)}` : `Sobran ${money(-remainingCents / 100)}`}
+                </span>
+              </div>
             </div>
-            <div className="form-group">
-              <label className="form-label">N° de operación {DIGITAL.includes(pay.method) ? '*' : '(opcional)'}</label>
-              <input className="form-control" value={pay.operationNumber} onChange={e => setPay({ ...pay, operationNumber: e.target.value })} />
+          ) : (
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Medio de pago *</label>
+                <select className="form-control" value={pay.method} onChange={e => setPay({ ...pay, method: e.target.value })}>
+                  {METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">N° de operación {DIGITAL.includes(pay.method) ? '*' : '(opcional)'}</label>
+                <input className="form-control" value={pay.operationNumber} onChange={e => setPay({ ...pay, operationNumber: e.target.value })} />
+              </div>
             </div>
-          </div>
+          )}
           <div className="form-row">
             <div className="form-group">
               <label className="form-label">Nota (opcional)</label>
@@ -386,7 +439,7 @@ export default function CheckoutModal({ open, onClose, onDone, initialStudentId,
 
           <div className="modal-footer mt-4 flex justify-end gap-2">
             <button type="button" onClick={onClose} className="btn btn-ghost text-danger">Cancelar</button>
-            <button type="submit" disabled={saving || itemCount === 0 || !preview || previewing || !!previewError} className="btn btn-success flex items-center gap-2">
+            <button type="submit" disabled={saving || itemCount === 0 || !preview || previewing || !!previewError || (mixed && remainingCents !== 0)} className="btn btn-success flex items-center gap-2">
               <CheckCircle size={15} /> {saving ? 'Registrando…' : `Cobrar ${money(preview?.total)} y emitir recibo`}
             </button>
           </div>

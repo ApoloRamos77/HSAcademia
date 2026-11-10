@@ -4,7 +4,7 @@ import MyCashPanel from './MyCashPanel';
 import toast from 'react-hot-toast';
 import api from '../../api/axios';
 
-const METHOD = { Cash: 'Efectivo', BankTransfer: 'Transferencia', Yape: 'Yape', Plin: 'Plin', Card: 'Tarjeta', Other: 'Otro' };
+const METHOD = { Cash: 'Efectivo', BankTransfer: 'Transferencia', Yape: 'Yape', Plin: 'Plin', Card: 'Tarjeta', Mixed: 'Mixto', Other: 'Otro' };
 const money = (n) => `S/. ${(Number(n) || 0).toFixed(2)}`;
 const isoDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const when = (d) => d ? `${new Date(d).toLocaleDateString('es-PE')} ${new Date(d).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })}` : '';
@@ -122,7 +122,7 @@ export default function CashTab() {
                     <tr><td colSpan={8} className="bg-bg-dark/50 text-xs">
                       {(detail[h.id] || []).map(r => (
                         <div key={r.id} className="flex gap-3 py-0.5">
-                          <b>N° {r.number}</b><span>{when(r.issuedAt)}</span><span>{r.payerName}</span><span>{METHOD[r.method]}</span><b>{money(r.total)}</b>
+                          <b>N° {r.number}</b><span>{when(r.issuedAt)}</span><span>{r.payerName}</span><span>{r.payments?.length ? r.payments.map(p => `${METHOD[p.method] || p.method} ${money(p.amount)}`).join(' + ') : METHOD[r.method]}</span><b>{money(r.total)}</b>
                           {r.status === 'Voided' && <span className="badge badge-danger">Anulado</span>}
                         </div>
                       ))}

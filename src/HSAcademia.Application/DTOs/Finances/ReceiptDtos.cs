@@ -22,8 +22,27 @@ public class CheckoutDto
     /// <summary>Promoción elegida por el cajero (opcional). Pronto pago se aplica solo.</summary>
     public Guid? PromotionId { get; set; }
 
+    /// <summary>Pago mixto: reparto entre medios. Si viene, reemplaza a Method, OperationNumber y VoucherUrl.</summary>
+    public List<CheckoutPaymentDto>? Payments { get; set; }
+
     public List<CheckoutDebtItemDto> Debts { get; set; } = new();
     public List<CheckoutProductItemDto> Products { get; set; } = new();
+}
+
+public class CheckoutPaymentDto
+{
+    public string Method { get; set; } = "Cash";
+    public decimal Amount { get; set; }
+    public string? OperationNumber { get; set; }
+    public string? VoucherUrl { get; set; }
+}
+
+public class ReceiptPaymentDto
+{
+    public string Method { get; set; } = string.Empty;
+    public decimal Amount { get; set; }
+    public string? OperationNumber { get; set; }
+    public string? VoucherUrl { get; set; }
 }
 
 public class CheckoutDebtItemDto
@@ -82,6 +101,8 @@ public class ReceiptDto
     public bool IsLegacy { get; set; }
     public Guid? CashHandoverId { get; set; }
     public bool IsPreview { get; set; }
+    /// <summary>Reparto del pago (solo en recibos mixtos).</summary>
+    public List<ReceiptPaymentDto> Payments { get; set; } = new();
     public List<ReceiptLineDto> Lines { get; set; } = new();
 }
 

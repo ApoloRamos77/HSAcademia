@@ -124,10 +124,21 @@ public class ReportsService
             })
             .ToListAsync();
 
+        // Un abono de recibo mixto no se puede atribuir a un solo medio: se muestra el reparto del recibo.
+        var mixedNumbers = rows.Where(r => r.Method == PaymentMethod.Mixed && r.ReceiptNumber != null)
+            .Select(r => r.ReceiptNumber!).Distinct().ToList();
+        var mixedReceipts = await _db.Receipts.AsNoTracking().Include(r => r.Payments)
+            .Where(r => r.AcademyId == academyId && mixedNumbers.Contains(r.Number))
+            .ToListAsync();
+        var mixedDetail = mixedReceipts.ToDictionary(
+            r => r.Number,
+            r => "Mixto (" + string.Join(" + ", r.PaymentParts().Select(p => $"{MethodName(p.Method)} {p.Amount.ToString("0.00", Es)}")) + ")");
+
         var csv = new Csv("Fecha", "Recibo", "Alumno", "DNI", "Concepto", "Tipo", "Medio de pago", "N° operación", "Monto", "Notas");
         foreach (var r in rows)
             csv.Row(AcademyClock.ToLocalDate(r.PaidAt), r.ReceiptNumber, r.Student, r.DocumentNumber, r.Concept, "Mensualidad",
-                MethodName(r.Method), r.OperationNumber, r.AmountPaid, r.Notes);
+                r.ReceiptNumber != null && mixedDetail.TryGetValue(r.ReceiptNumber, out var detail) ? detail : MethodName(r.Method),
+                r.OperationNumber, r.AmountPaid, r.Notes);
         foreach (var s in sales)
             csv.Row(AcademyClock.ToLocalDate(s.SaleDate), s.ReceiptNumber, s.Student, null, s.Concept, "Tienda", null, null, s.TotalPrice, s.Notes);
         csv.Row(null, null, null, null, null, null, null, "TOTAL", rows.Sum(r => r.AmountPaid) + sales.Sum(s => s.TotalPrice), null);
@@ -169,6 +180,7 @@ public class ReportsService
         PaymentMethod.Yape => "Yape",
         PaymentMethod.Plin => "Plin",
         PaymentMethod.Card => "Tarjeta",
+        PaymentMethod.Mixed => "Mixto",
         _ => "Otro"
     };
 

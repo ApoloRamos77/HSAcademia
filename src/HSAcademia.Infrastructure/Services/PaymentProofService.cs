@@ -51,7 +51,7 @@ public class PaymentProofService
             StudentId = debt.StudentId,
             SubmittedByUserId = userId,
             Amount = Math.Round(amount, 2),
-            Method = Enum.TryParse<PaymentMethod>(method, true, out var m) && m != PaymentMethod.Cash ? m : PaymentMethod.Yape,
+            Method = Enum.TryParse<PaymentMethod>(method, true, out var m) && m != PaymentMethod.Cash && m != PaymentMethod.Mixed ? m : PaymentMethod.Yape,
             OperationNumber = operationNumber?.Trim(),
             VoucherUrl = voucherUrl,
             PaidOn = day,

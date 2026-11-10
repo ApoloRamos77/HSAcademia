@@ -8,7 +8,7 @@ import { useApi } from '../../hooks/useApi';
 import { colors, font, spacing } from '../../theme';
 import { instantDate, money } from '../../utils/format';
 
-const METHOD: Record<string, string> = { Cash: 'Efectivo', Yape: 'Yape', Plin: 'Plin', BankTransfer: 'Transferencia', Card: 'Tarjeta', Other: 'Otro' };
+const METHOD: Record<string, string> = { Cash: 'Efectivo', Yape: 'Yape', Plin: 'Plin', BankTransfer: 'Transferencia', Card: 'Tarjeta', Mixed: 'Mixto', Other: 'Otro' };
 const num = (v: string) => { const n = Number(v.replace(',', '.')); return Number.isFinite(n) ? n : NaN; };
 const time = (iso: string) => { const d = new Date(iso); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
 
@@ -99,7 +99,7 @@ export default function MyCashScreen() {
                 <Row style={{ justifyContent: 'space-between' }}>
                   <View style={{ flex: 1 }}>
                     <Text style={[font.body, { color: colors.text, fontWeight: '600' }]}>N° {r.number} · {r.payerName}</Text>
-                    <Text style={font.tiny}>{instantDate(r.issuedAt)} {time(r.issuedAt)} · {METHOD[r.method] ?? r.method}</Text>
+                    <Text style={font.tiny}>{instantDate(r.issuedAt)} {time(r.issuedAt)} · {r.payments?.length ? r.payments.map(p => `${METHOD[p.method] ?? p.method} ${money(p.amount)}`).join(' + ') : METHOD[r.method] ?? r.method}</Text>
                   </View>
                   <Text style={[font.h3, { color: colors.text }]}>{money(r.total)}</Text>
                 </Row>

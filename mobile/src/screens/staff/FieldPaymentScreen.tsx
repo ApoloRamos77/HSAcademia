@@ -17,6 +17,12 @@ const METHODS: { value: Method; label: string }[] = [
   { value: 'BankTransfer', label: 'Transferencia' },
 ];
 const methodLabel = (m: string) => METHODS.find(x => x.value === m)?.label ?? m;
+const receiptPayment = (r: Receipt) => r.payments?.length
+  ? r.payments.map(p => `${methodLabel(p.method)} ${money(p.amount)}`).join(' + ')
+  : methodLabel(r.method);
+const cents = (v: string | number | undefined) => Math.round(num(String(v ?? 0)) * 100);
+const MAX_PARTS = 4;
+type Part = { key: number; method: Method; amount: string; operation: string };
 const newRequestId = () => `app-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 const num = (v: string) => { const n = Number(v.replace(',', '.')); return Number.isFinite(n) ? n : 0; };
 
@@ -56,6 +62,8 @@ export default function FieldPaymentScreen({ route, navigation }: any) {
   const [payerName, setPayerName] = useState('');
   const [method, setMethod] = useState<Method>('Cash');
   const [operation, setOperation] = useState('');
+  const [mixed, setMixed] = useState(false);
+  const [parts, setParts] = useState<Part[]>([]);
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,6 +73,7 @@ export default function FieldPaymentScreen({ route, navigation }: any) {
   const [done, setDone] = useState<Receipt | null>(null);
   const requestId = useRef(newRequestId());
   const lineKey = useRef(0);
+  const partKey = useRef(0);
   const previewSeq = useRef(0);
   // Al cargar: marca las deudas del alumno elegido; las de los hermanos quedan disponibles.
   useEffect(() => {
@@ -84,7 +93,18 @@ export default function FieldPaymentScreen({ route, navigation }: any) {
   const family = data?.family.students ?? [];
   const chosen = debts.filter(d => sel[d.id]?.on);
   const itemCount = chosen.length + lines.length;
-  const needsOperation = method !== 'Cash';
+  const needsOperation = !mixed && method !== 'Cash';
+  // Pago mixto: lo que falta repartir, en céntimos para no arrastrar errores de redondeo.
+  const remainingCents = cents(preview?.total) - parts.reduce((sum, p) => sum + cents(p.amount), 0);
+  const receivesCash = mixed ? parts.some(p => p.method === 'Cash') : method === 'Cash';
+  const newPart = (m: Method): Part => ({ key: ++partKey.current, method: m, amount: '', operation: '' });
+  const setPart = (key: number, patch: Partial<Part>) => setParts(p => p.map(x => (x.key === key ? { ...x, ...patch } : x)));
+  const switchMode = (toMixed: boolean) => {
+    setMixed(toMixed);
+    setParts(toMixed ? [newPart('Cash'), newPart('Yape')] : []);
+  };
+  const addPart = () => setParts(p => [...p, newPart(METHODS.find(m => m.value !== 'Cash' && !p.some(x => x.method === m.value))?.value ?? 'Yape')]);
+  const methodsFor = (part: Part) => METHODS.filter(m => m.value !== 'Cash' || part.method === 'Cash' || !parts.some(x => x.method === 'Cash'));
 
   const body = useMemo(() => ({
     guardianId: data?.family.guardianId ?? null,
@@ -156,6 +176,11 @@ export default function FieldPaymentScreen({ route, navigation }: any) {
     if (needsOperation && !operation.trim()) return 'Ingresa el número de operación del pago digital.';
     if (previewError) return previewError;
     if (!preview || previewing) return 'Espera a que se calcule el total.';
+    if (mixed) {
+      if (parts.some(p => cents(p.amount) <= 0)) return 'Indica el monto de cada medio de pago.';
+      if (remainingCents !== 0) return 'Los montos deben sumar exactamente el total.';
+      if (parts.some(p => p.method !== 'Cash' && !p.operation.trim())) return 'Ingresa el número de operación de cada pago digital.';
+    }
     return null;
   };
 
@@ -165,7 +190,8 @@ export default function FieldPaymentScreen({ route, navigation }: any) {
     setError(null);
     const detail = preview!.lines.map(l =>
       `• ${l.quantity > 1 ? `${l.quantity}× ` : ''}${l.description}${l.studentName ? ` — ${l.studentName}` : ''}: ${money(l.total)}${l.discount > 0 ? ` (${l.discountLabel ?? 'desc.'} -${money(l.discount)})` : ''}`).join('\n');
-    Alert.alert('Confirmar cobro', `${detail}\n\nTotal ${money(preview!.total)} en ${methodLabel(method)}`, [
+    const paidWith = mixed ? parts.map(p => `${methodLabel(p.method)} ${money(cents(p.amount) / 100)}`).join(' + ') : methodLabel(method);
+    Alert.alert('Confirmar cobro', `${detail}\n\nTotal ${money(preview!.total)} en ${paidWith}`, [
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Registrar', onPress: submit },
     ]);
@@ -174,13 +200,18 @@ export default function FieldPaymentScreen({ route, navigation }: any) {
   const submit = async () => {
     setSaving(true);
     try {
-      const { data: receipt } = await api.post<Receipt>('/receipts', { ...body, clientRequestId: requestId.current });
+      const payments = mixed
+        ? parts.map(p => ({ method: p.method, amount: cents(p.amount) / 100, operationNumber: p.operation.trim() || null }))
+        : null;
+      const { data: receipt } = await api.post<Receipt>('/receipts', { ...body, payments, clientRequestId: requestId.current });
       setDone(receipt);
       requestId.current = newRequestId(); // el próximo cobro es un intento nuevo
       setLines([]);
       setSel({});
       setPromotionId('');
       setOperation('');
+      setMixed(false);
+      setParts([]);
       setNotes('');
       refresh();
     } catch (e) {
@@ -200,7 +231,7 @@ export default function FieldPaymentScreen({ route, navigation }: any) {
         done.lines.map(l => `• ${l.quantity > 1 ? `${l.quantity}× ` : ''}${l.description}${l.studentName ? ` — ${l.studentName}` : ''}: ${money(l.total)}` +
           (l.discount > 0 ? ` (${l.discountLabel ?? 'descuento'} -${money(l.discount)})` : '')).join('\n') +
         (done.discountTotal > 0 ? `\n\nAhorro total: ${money(done.discountTotal)}` : '') +
-        `\nTotal pagado: ${money(done.total)} (${methodLabel(done.method)}${done.operationNumber ? ` · Op. ${done.operationNumber}` : ''})\n` +
+        `\nTotal pagado: ${money(done.total)} (${receiptPayment(done)}${done.operationNumber ? ` · Op. ${done.operationNumber}` : ''})\n` +
         `Fecha: ${new Date(done.issuedAt).toLocaleDateString('es-PE')}\n\nGracias por su pago.`,
     });
   };
@@ -215,7 +246,7 @@ export default function FieldPaymentScreen({ route, navigation }: any) {
           <Text style={font.h2}>Cobro registrado</Text>
           <Badge tone="info" text={`Recibo N° ${done.number}`} />
           <Text style={[font.h1, { color: colors.accentDark }]}>{money(done.total)}</Text>
-          <Text style={font.small}>{done.payerName} · {methodLabel(done.method)}</Text>
+          <Text style={font.small}>{done.payerName} · {receiptPayment(done)}</Text>
           {done.discountTotal > 0 && <Badge tone="success" text={`Descuentos ${money(done.discountTotal)}`} />}
         </Card>
         <Card>
@@ -369,8 +400,42 @@ export default function FieldPaymentScreen({ route, navigation }: any) {
           <SectionTitle title="Pago" />
           <Card>
             <Input label="Pagador" value={payerName} onChangeText={setPayerName} autoCapitalize="words" />
-            <Text style={[font.small, { fontWeight: '600', color: colors.textSecondary, marginBottom: 6 }]}>Medio de pago</Text>
-            <Chips options={METHODS} value={method} onChange={setMethod} />
+            <Text style={[font.small, { fontWeight: '600', color: colors.textSecondary, marginBottom: 6 }]}>Forma de pago</Text>
+            <Chips options={[{ value: 'single', label: 'Un solo medio' }, { value: 'mixed', label: 'Pago mixto' }]}
+              value={mixed ? 'mixed' : 'single'} onChange={v => switchMode(v === 'mixed')} />
+            {!mixed && (
+              <View style={{ marginTop: spacing.sm }}>
+                <Text style={[font.small, { fontWeight: '600', color: colors.textSecondary, marginBottom: 6 }]}>Medio de pago</Text>
+                <Chips options={METHODS} value={method} onChange={setMethod} />
+              </View>
+            )}
+            {mixed && parts.map(p => (
+              <View key={p.key} style={{ marginTop: spacing.md, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.border }}>
+                <Row style={{ justifyContent: 'space-between' }}>
+                  <View style={{ flex: 1 }}><Chips options={methodsFor(p)} value={p.method} onChange={m => setPart(p.key, { method: m, operation: m === 'Cash' ? '' : p.operation })} /></View>
+                  {parts.length > 2 && (
+                    <Pressable onPress={() => setParts(x => x.filter(y => y.key !== p.key))} hitSlop={10} accessibilityRole="button" accessibilityLabel="Quitar medio de pago">
+                      <Trash2 color={colors.danger} size={18} />
+                    </Pressable>
+                  )}
+                </Row>
+                <View style={{ marginTop: spacing.sm }}>
+                  <Input label="Monto (S/)" value={p.amount} onChangeText={v => setPart(p.key, { amount: v.replace(',', '.') })} keyboardType="decimal-pad" />
+                </View>
+                {p.method !== 'Cash' && <Input label="N° de operación *" value={p.operation} onChangeText={v => setPart(p.key, { operation: v })} keyboardType="number-pad" maxLength={30} />}
+                {remainingCents !== 0 && cents(p.amount) + remainingCents > 0 && (
+                  <Button compact variant="ghost" title="Completar con el saldo" onPress={() => setPart(p.key, { amount: ((cents(p.amount) + remainingCents) / 100).toFixed(2) })} />
+                )}
+              </View>
+            ))}
+            {mixed && (
+              <View style={{ marginTop: spacing.md, gap: spacing.sm }}>
+                {parts.length < MAX_PARTS && <Button compact variant="secondary" title="Agregar otro medio" onPress={addPart} />}
+                <Text style={[font.h3, { textAlign: 'center', color: remainingCents === 0 ? colors.success : colors.danger }]}>
+                  {remainingCents === 0 ? 'Reparto completo' : remainingCents > 0 ? `Falta repartir ${money(remainingCents / 100)}` : `Sobran ${money(-remainingCents / 100)}`}
+                </Text>
+              </View>
+            )}
             {needsOperation && (
               <View style={{ marginTop: spacing.md }}>
                 <Input label="N° de operación *" value={operation} onChangeText={setOperation} keyboardType="number-pad" maxLength={30} />
@@ -390,7 +455,7 @@ export default function FieldPaymentScreen({ route, navigation }: any) {
               <Row style={{ justifyContent: 'space-between', marginTop: 4 }}><Text style={font.h3}>Total</Text><Text style={[font.h2, { color: colors.accentDark }]}>{money(preview.total)}</Text></Row>
             </Card>
           )}
-          {method === 'Cash' && (
+          {receivesCash && (
             <Banner tone="warning" icon={<Wallet color={colors.warning} size={18} />}
               text="Recibes efectivo: queda en «Mi caja» hasta que lo rindas a finanzas." />
           )}
@@ -400,7 +465,7 @@ export default function FieldPaymentScreen({ route, navigation }: any) {
       {previewError && <Banner tone="danger" text={previewError} />}
       {error && error !== previewError && <Banner tone="danger" text={error} />}
       <Button title={!itemCount ? 'Elige qué cobrar' : previewing || !preview ? 'Calculando…' : `Cobrar ${money(preview.total)} · ${itemCount} ítem(s)`}
-        variant="success" disabled={!itemCount || !preview || previewing || !!previewError}
+        variant="success" disabled={!itemCount || !preview || previewing || !!previewError || (mixed && remainingCents !== 0)}
         icon={<ReceiptIcon color={colors.white} size={18} />} loading={saving} onPress={confirm} />
     </Screen>
   );

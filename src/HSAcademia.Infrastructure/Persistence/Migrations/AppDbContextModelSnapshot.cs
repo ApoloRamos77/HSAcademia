@@ -2165,6 +2165,46 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.ToTable("receipt_lines", (string)null);
                 });
 
+            modelBuilder.Entity("HSAcademia.Domain.Entities.ReceiptPayment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("numeric(10,2)")
+                        .HasColumnName("amount");
+
+                    b.Property<int>("Method")
+                        .HasColumnType("integer")
+                        .HasColumnName("method");
+
+                    b.Property<string>("OperationNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("operation_number");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.Property<Guid>("ReceiptId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("receipt_id");
+
+                    b.Property<string>("VoucherUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("voucher_url");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReceiptId");
+
+                    b.ToTable("receipt_payments", (string)null);
+                });
+
             modelBuilder.Entity("HSAcademia.Domain.Entities.StaffAttendance", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3326,6 +3366,17 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.Navigation("Receipt");
                 });
 
+            modelBuilder.Entity("HSAcademia.Domain.Entities.ReceiptPayment", b =>
+                {
+                    b.HasOne("HSAcademia.Domain.Entities.Receipt", "Receipt")
+                        .WithMany("Payments")
+                        .HasForeignKey("ReceiptId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Receipt");
+                });
+
             modelBuilder.Entity("HSAcademia.Domain.Entities.StaffAttendance", b =>
                 {
                     b.HasOne("HSAcademia.Domain.Entities.Academy", "Academy")
@@ -3532,6 +3583,8 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("HSAcademia.Domain.Entities.Receipt", b =>
                 {
                     b.Navigation("Lines");
+
+                    b.Navigation("Payments");
                 });
 
             modelBuilder.Entity("HSAcademia.Domain.Entities.Student", b =>

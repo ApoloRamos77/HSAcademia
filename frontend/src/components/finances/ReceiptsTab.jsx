@@ -6,7 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import { printReceipt } from '../../utils/pdfGenerator';
 import CheckoutModal from './CheckoutModal';
 
-const METHOD = { Cash: 'Efectivo', BankTransfer: 'Transferencia', Yape: 'Yape', Plin: 'Plin', Card: 'Tarjeta', Other: 'Otro' };
+const METHOD = { Cash: 'Efectivo', BankTransfer: 'Transferencia', Yape: 'Yape', Plin: 'Plin', Card: 'Tarjeta', Mixed: 'Mixto', Other: 'Otro' };
 const CHANNEL = { web: 'Caja', app: 'App', tienda: 'Tienda', comprobante: 'Comprobante', historico: 'Histórico (antes de los comprobantes)' };
 const money = (n) => `S/. ${(Number(n) || 0).toFixed(2)}`;
 const isoDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -104,7 +104,11 @@ export default function ReceiptsTab({ onChanged }) {
                       <div key={i}>{l.quantity > 1 ? `${l.quantity}× ` : ''}{l.description}{l.studentName ? ` — ${l.studentName}` : ''} <b>{money(l.total)}</b></div>
                     ))}
                   </td>
-                  <td className="text-sm">{METHOD[r.method] || r.method}{r.operationNumber && <div className="text-xs text-text-muted">Op. {r.operationNumber}</div>}</td>
+                  <td className="text-sm">
+                    {METHOD[r.method] || r.method}
+                    {r.payments?.map((p, i) => <div key={i} className="text-xs text-text-muted">{METHOD[p.method] || p.method} {money(p.amount)}</div>)}
+                    {r.operationNumber && <div className="text-xs text-text-muted">Op. {r.operationNumber}</div>}
+                  </td>
                   <td className="font-bold">{money(r.total)}</td>
                   <td>
                     {r.status === 'Voided'
