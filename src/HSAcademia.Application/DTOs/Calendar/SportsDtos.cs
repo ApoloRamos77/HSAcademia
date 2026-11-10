@@ -17,6 +17,32 @@ public class CreateRecurringEventsDto
     public DateTime ToDate { get; set; }
 }
 
+/// <summary>Cambios sobre varias sesiones de una serie. Solo afecta sesiones futuras sin asistencia.</summary>
+public class UpdateSeriesDto
+{
+    /// <summary>"following" (esta y las siguientes) | "all" (toda la serie).</summary>
+    public string Scope { get; set; } = "following";
+    /// <summary>Sesión desde la que se aplica, cuando Scope es "following".</summary>
+    public Guid? FromEventId { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public Guid? HeadquarterId { get; set; }
+    public List<Guid> CategoryIds { get; set; } = new();
+    public Guid? TeacherId { get; set; }
+    public List<int> DaysOfWeek { get; set; } = new();
+    public string StartTime { get; set; } = string.Empty;
+    public string EndTime { get; set; } = string.Empty;
+}
+
+public class SeriesUpdateResultDto
+{
+    public int Updated { get; set; }
+    public int Created { get; set; }
+    public int Removed { get; set; }
+    /// <summary>Sesiones del rango que no se tocaron por estar pasadas, cerradas o con asistencia.</summary>
+    public int Protected { get; set; }
+}
+
 public class RecurringEventsResultDto
 {
     public Guid SeriesId { get; set; }

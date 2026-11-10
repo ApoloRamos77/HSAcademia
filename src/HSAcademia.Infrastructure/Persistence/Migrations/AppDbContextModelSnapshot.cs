@@ -845,6 +845,9 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("AttendanceClosedBy")
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime?>("AttendanceReopenedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<Guid?>("CategoryId")
                         .HasColumnType("uuid")
                         .HasColumnName("category_id");

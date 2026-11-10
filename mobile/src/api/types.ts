@@ -205,6 +205,9 @@ export interface TrainingSession {
   justifiedCount: number;
   totalStudents: number;
   attendanceTaken: boolean;
+  /** Desde cuándo y hasta cuándo se puede marcar, en hora de pared. Sin markUntil no hay vencimiento (administrador). */
+  markFrom?: string | null;
+  markUntil?: string | null;
 }
 
 /** AttendanceStatus del backend: 1 Presente, 2 Ausente, 3 Tarde, 4 Justificado. */
@@ -217,7 +220,7 @@ export interface RosterStudent {
   attendanceId?: string | null;
   status?: AttendanceCode | null;
   notes?: string | null;
-  markedVia?: 'QR' | 'Lista' | null;
+  markedVia?: 'QR' | 'Lista' | 'Automático' | null;
   markedByName?: string | null;
   markedAt?: string | null;
 }

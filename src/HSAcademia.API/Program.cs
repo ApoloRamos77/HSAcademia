@@ -63,6 +63,7 @@ builder.Services.AddScoped<EvaluationService>();
 builder.Services.AddScoped<ReportsService>();
 builder.Services.AddScoped<FamilyNoticeService>();
 builder.Services.AddScoped<StaffAttendanceService>();
+builder.Services.AddHostedService<HSAcademia.API.Workers.AttendanceAutoCloseWorker>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IAttendanceService, AttendanceService>();
 builder.Services.AddScoped<ICalendarService, CalendarService>();

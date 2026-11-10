@@ -10,12 +10,16 @@ namespace HSAcademia.Infrastructure.Services;
 public class AttendanceService : IAttendanceService
 {
     private readonly AppDbContext _context;
-    private readonly FamilyNoticeService _notices;
+    private const int AutoCloseLookbackDays = 7;
 
-    public AttendanceService(AppDbContext context, FamilyNoticeService notices)
+    private readonly FamilyNoticeService _notices;
+    private readonly AuditService _audit;
+
+    public AttendanceService(AppDbContext context, FamilyNoticeService notices, AuditService audit)
     {
         _context = context;
         _notices = notices;
+        _audit = audit;
     }
 
     // =========================================================
@@ -43,6 +47,9 @@ public class AttendanceService : IAttendanceService
 
     public async Task MarkAttendanceAsync(Guid academyId, Guid categoryId, Guid markedByUserId, MarkAttendanceDto dto)
     {
+        if (dto.Date.Date > AcademyClock.Today)
+            throw new Exception("No se puede registrar asistencia de una fecha futura.");
+
         var categoryExists = await _context.Categories
             .AnyAsync(c => c.Id == categoryId && c.AcademyId == academyId);
         if (!categoryExists)
@@ -123,7 +130,9 @@ public class AttendanceService : IAttendanceService
             .FirstOrDefaultAsync(e => e.AcademyId == academyId && e.Id == dto.EventId)
             ?? throw new KeyNotFoundException("Evento no encontrado.");
 
-        EnforceWindowRule(ev);
+        var isAdmin = await _context.Users.AnyAsync(u => u.Id == markedByUserId && u.Role == UserRole.AcademyAdmin);
+        var blocked = AttendanceWindow.BlockReason(ev, isAdmin);
+        if (blocked != null) throw new InvalidOperationException(blocked);
 
         if (ev.AttendanceClosed)
             throw new InvalidOperationException("La asistencia de este evento está cerrada. Solo un administrador puede reabrirla.");
@@ -616,7 +625,7 @@ public class AttendanceService : IAttendanceService
         AttendanceId = att?.Id,
         Status       = att?.Status,
         Notes        = att?.Notes,
-        MarkedVia    = att?.Source switch { AttendanceSource.Qr => "QR", AttendanceSource.List => "Lista", _ => null },
+        MarkedVia    = att?.Source switch { AttendanceSource.Qr => "QR", AttendanceSource.List => "Lista", AttendanceSource.Auto => "Automático", _ => null },
         MarkedByName = att?.MarkedByName,
         MarkedAt     = att?.MarkedAt
     };
@@ -658,13 +667,15 @@ public class AttendanceService : IAttendanceService
         var scanner = await _context.Users.Include(u => u.AssignedCategories)
             .FirstOrDefaultAsync(u => u.Id == scannerUserId && u.AcademyId == academyId)
             ?? throw new Exception("Usuario no encontrado.");
-        var canMark = scanner.Role == Domain.Enums.UserRole.AcademyAdmin || ev.TeacherId == scannerUserId ||
-                      scanner.AssignedCategories.Any(c => categories.Contains(c.Id));
+        var isAdmin = scanner.Role == Domain.Enums.UserRole.AcademyAdmin;
+        var canMark = isAdmin || ev.TeacherId == scannerUserId || scanner.AssignedCategories.Any(c => categories.Contains(c.Id));
         if (!canMark) throw new Exception("No tienes permiso para esta sesión.");
+        var blocked = AttendanceWindow.BlockReason(ev, isAdmin);
+        if (blocked != null) throw new Exception(blocked);
         return ev;
     }
 
-    /// <summary>Sesión abierta de hoy más cercana a la hora actual (la que está en curso, si la hay).</summary>
+    /// <summary>Sesión de hoy ya abierta más cercana a la hora actual; null si hoy no hay sesiones de esa categoría.</summary>
     private async Task<Event?> FindClosestSessionTodayAsync(Guid academyId, Guid categoryId)
     {
         var now = AcademyClock.WallNow;
@@ -675,11 +686,15 @@ public class AttendanceService : IAttendanceService
                         e.StartTime >= dayStart && e.StartTime < dayEnd)
             .ToListAsync();
 
-        return events
+        var sessions = events
             .Where(e => e.Type is Domain.Enums.EventType.Training or Domain.Enums.EventType.FriendlyMatch or Domain.Enums.EventType.TournamentMatch)
             .Where(e => CategoriesOf(e).Contains(categoryId))
-            .OrderBy(e => now < e.StartTime ? e.StartTime - now : now > e.EndTime ? now - e.EndTime : TimeSpan.Zero)
-            .FirstOrDefault();
+            .ToList();
+        if (sessions.Count == 0) return null;
+
+        var open = sessions.Where(e => now >= AttendanceWindow.OpensAt(e)).ToList();
+        if (open.Count == 0) throw new Exception(AttendanceWindow.BlockReason(sessions.MinBy(e => e.StartTime)!, isAdmin: false)!);
+        return open.MinBy(e => now < e.StartTime ? e.StartTime - now : now > e.EndTime ? now - e.EndTime : TimeSpan.Zero);
     }
 
     private static string MapStatus(Domain.Enums.AttendanceStatus status) => status switch
@@ -835,7 +850,15 @@ public class AttendanceService : IAttendanceService
                 .FirstOrDefaultAsync(e => e.AcademyId == academyId && e.Id == dto.EventId.Value && !e.IsDeleted);
             if (ev == null) throw new Exception("Evento no encontrado.");
             session = ev;
-            if (ev.AttendanceClosed)
+            foreach (var record in dto.Records)
+            {
+                var blocked = AttendanceWindow.BlockReason(ev, isAdmin, record.MarkedAt);
+                if (blocked != null) throw new Exception(blocked);
+            }
+            // Lo marcado a tiempo sin señal entra aunque el cierre automático haya llegado antes.
+            var syncedInTime = ev.AttendanceClosedBy == null &&
+                               dto.Records.All(r => r.MarkedAt.HasValue && AttendanceWindow.MarkedInTime(ev, r.MarkedAt.Value));
+            if (ev.AttendanceClosed && !syncedInTime)
                 throw new Exception("La asistencia de este evento está cerrada. Solo un administrador puede reabrirla.");
 
             bool isTeacher = ev.TeacherId == staffUserId;
@@ -852,10 +875,10 @@ public class AttendanceService : IAttendanceService
         }
         else
         {
-            if (isAdmin)
-                targetCategoryIds = await _context.Categories.Where(c => c.AcademyId == academyId).Select(c => c.Id).ToListAsync();
-            else
-                targetCategoryIds = assignedCategoryIds;
+            // Sin sesión no hay plazo que aplicar: queda reservado al administrador.
+            if (!isAdmin) throw new Exception("Indica la sesión en la que marcas la asistencia.");
+            if (dto.Date.Date > AcademyClock.Today) throw new Exception("No se puede registrar asistencia de una fecha futura.");
+            targetCategoryIds = await _context.Categories.Where(c => c.AcademyId == academyId).Select(c => c.Id).ToListAsync();
         }
 
         if (!targetCategoryIds.Any())
@@ -938,8 +961,11 @@ public class AttendanceService : IAttendanceService
     }
 
     /// <inheritdoc/>
-    public async Task ReopenAttendanceAsync(Guid academyId, Guid eventId)
+    public async Task ReopenAttendanceAsync(Guid academyId, Guid eventId, Guid reopenedByUserId, string reason)
     {
+        if (string.IsNullOrWhiteSpace(reason) || reason.Trim().Length < 5)
+            throw new InvalidOperationException("Indica el motivo de la reapertura (mínimo 5 caracteres).");
+
         var ev = await _context.Events
             .FirstOrDefaultAsync(e => e.AcademyId == academyId && e.Id == eventId && !e.IsDeleted)
             ?? throw new KeyNotFoundException("Entrenamiento no encontrado.");
@@ -947,11 +973,68 @@ public class AttendanceService : IAttendanceService
         if (!ev.AttendanceClosed)
             throw new InvalidOperationException("La asistencia de este entrenamiento no está cerrada.");
 
-        ev.AttendanceClosed   = false;
-        ev.AttendanceClosedAt = null;
-        ev.AttendanceClosedBy = null;
-        ev.UpdatedAt          = DateTime.UtcNow;
+        ev.AttendanceClosed     = false;
+        ev.AttendanceClosedAt   = null;
+        ev.AttendanceClosedBy   = null;
+        ev.AttendanceReopenedAt = DateTime.UtcNow;
+        ev.UpdatedAt            = DateTime.UtcNow;
+        _audit.Add(academyId, "attendance.reopen", nameof(Event), ev.Id, new { reason = reason.Trim(), reopenedByUserId, ev.Title });
         await _context.SaveChangesAsync();
+    }
+
+    /// <inheritdoc/>
+    public async Task<int> AutoCloseExpiredAsync()
+    {
+        // Solo sesiones recientes: el historial anterior a esta regla no se reescribe.
+        var expiredBefore = DateTime.SpecifyKind(AcademyClock.Today.AddDays(-1), DateTimeKind.Utc);
+        var notBefore = expiredBefore.AddDays(-AutoCloseLookbackDays);
+        var events = (await _context.Events
+                .Where(e => !e.IsDeleted && !e.AttendanceClosed && e.AttendanceReopenedAt == null &&
+                            e.StartTime >= notBefore && e.StartTime < expiredBefore)
+                .ToListAsync())
+            .Where(e => e.Type is EventType.Training or EventType.FriendlyMatch or EventType.TournamentMatch)
+            .ToList();
+
+        var eventIds = events.Select(e => e.Id).ToList();
+        var marked = (await _context.Attendances.Where(a => a.EventId != null && eventIds.Contains(a.EventId.Value))
+            .Select(a => a.EventId!.Value).Distinct().ToListAsync()).ToHashSet();
+
+        var closed = 0;
+        foreach (var ev in events.Where(e => marked.Contains(e.Id)))
+        {
+            var categories = CategoriesOf(ev);
+            var date = ev.StartTime.Date;
+            var dateLocal = DateTime.SpecifyKind(date, DateTimeKind.Utc);
+            var students = await _context.Students
+                .Where(s => s.AcademyId == ev.AcademyId && s.IsActive && categories.Contains(s.CategoryId) && s.EnrollmentDate <= dateLocal.AddDays(1))
+                .Select(s => s.Id)
+                .ToListAsync();
+            var marks = await LoadSessionMarksAsync(ev.AcademyId, ev.Id, date, students);
+            var now = DateTime.UtcNow;
+            foreach (var studentId in students.Where(id => !marks.ContainsKey(id)))
+            {
+                _context.Attendances.Add(new Attendance
+                {
+                    AcademyId = ev.AcademyId,
+                    StudentId = studentId,
+                    EventId   = ev.Id,
+                    Date      = date,
+                    Status    = AttendanceStatus.Absent,
+                    Source    = AttendanceSource.Auto,
+                    MarkedAt  = now,
+                    Notes     = "Sin marcar al vencer el plazo",
+                    CreatedAt = now,
+                    UpdatedAt = now,
+                });
+            }
+            ev.AttendanceClosed   = true;
+            ev.AttendanceClosedAt = now;
+            ev.AttendanceClosedBy = null;
+            ev.UpdatedAt          = now;
+            await _context.SaveChangesAsync();
+            closed++;
+        }
+        return closed;
     }
 
     public async Task<List<StaffTrainingSessionDto>> GetStaffTrainingHistoryAsync(
@@ -1054,7 +1137,9 @@ public class AttendanceService : IAttendanceService
                 HeadquarterName   = ev.Headquarter?.Name ?? "-",
                 AttendanceClosed  = ev.AttendanceClosed,
                 AttendanceClosedAt= ev.AttendanceClosedAt,
-                PresentCount      = att?.Present   ?? 0,
+                MarkFrom          = AttendanceWindow.OpensAt(ev),
+                MarkUntil         = isAdmin ? null : AttendanceWindow.ClosesAt(ev),
+                PresentCount     = att?.Present   ?? 0,
                 AbsentCount       = att?.Absent    ?? 0,
                 JustifiedCount    = att?.Justified ?? 0,
                 TotalStudents     = totalStudents,

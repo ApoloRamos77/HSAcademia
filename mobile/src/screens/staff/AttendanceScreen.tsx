@@ -8,7 +8,7 @@ import QrScanner, { type ScanResult } from '../../components/QrScanner';
 import { Banner, Button, Empty, Input, Loading, Row, useBottomInset } from '../../components/ui';
 import { enqueue, fetchRoster, isOfflineError, pendingFor, readRoster, saveAndSend, saveRoster, type QueuedRecord } from '../../offline/attendanceOffline';
 import { colors, font, radius, spacing } from '../../theme';
-import { clockTime, initials, shortDay } from '../../utils/format';
+import { clockTime, initials, markingBlock, shortDay } from '../../utils/format';
 
 const OPTIONS: { code: AttendanceCode; short: string; label: string; bg: string; fg: string }[] = [
   { code: 1, short: 'P', label: 'Presente', bg: colors.successBg, fg: colors.success },
@@ -107,9 +107,10 @@ export default function AttendanceScreen({ route, navigation }: any) {
     return { studentId, studentName: `${student.firstName} ${student.lastName}`, category: s.categoryName, markedAt };
   }, [s]);
 
-  const changedRecords = (list: RosterStudent[], final: Marks) =>
+  // La hora real de la marca permite aceptarla si se envía después del plazo por falta de señal.
+  const changedRecords = (list: RosterStudent[], final: Marks, markedAt: string) =>
     Object.fromEntries(list.filter(r => final[r.studentId] && final[r.studentId] !== baseline.current[r.studentId])
-      .map(r => [r.studentId, { status: final[r.studentId] } as QueuedRecord]));
+      .map(r => [r.studentId, { status: final[r.studentId], markedAt } as QueuedRecord]));
 
   const save = async (records: Record<string, QueuedRecord>, final: Marks, andClose: boolean) => {
     setSaving(true);
@@ -142,7 +143,7 @@ export default function AttendanceScreen({ route, navigation }: any) {
       Alert.alert('Sin marcas', 'Marca al menos a un alumno antes de guardar.');
       return;
     }
-    save(changedRecords(roster, marks), marks, false);
+    save(changedRecords(roster, marks, new Date().toISOString()), marks, false);
   };
 
   // Con señal se vuelve a leer la lista antes de cerrar: otro celular pudo haber registrado carnés.
@@ -166,9 +167,10 @@ export default function AttendanceScreen({ route, navigation }: any) {
     }
 
     const unmarked = latest.filter(r => !merged[r.studentId]);
+    const markedAt = new Date().toISOString();
     const records: Record<string, QueuedRecord> = {
-      ...changedRecords(latest, merged),
-      ...Object.fromEntries(unmarked.map(r => [r.studentId, { status: 2 as AttendanceCode, ifUnmarked: true }])),
+      ...changedRecords(latest, merged, markedAt),
+      ...Object.fromEntries(unmarked.map(r => [r.studentId, { status: 2 as AttendanceCode, ifUnmarked: true, markedAt }])),
     };
     const total = (...codes: AttendanceCode[]) => latest.filter(r => merged[r.studentId] && codes.includes(merged[r.studentId])).length;
     const justified = total(4);
@@ -185,6 +187,8 @@ export default function AttendanceScreen({ route, navigation }: any) {
 
   const count = (...codes: AttendanceCode[]) => roster.filter(r => marks[r.studentId] && codes.includes(marks[r.studentId])).length;
   const missing = roster.filter(r => !marks[r.studentId]).length;
+  const blocked = closed ? null : markingBlock(s);
+  const readOnly = closed || !!blocked;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -196,8 +200,9 @@ export default function AttendanceScreen({ route, navigation }: any) {
             text={`Sin señal: lista guardada a las ${clockTime(new Date(offlineSince).toISOString())}. Tus marcas se enviarán solas.`} />
         )}
         {closed && <Banner tone="muted" icon={<Lock color={colors.textSecondary} size={16} />} text="Asistencia cerrada: solo un administrador puede reabrirla." />}
+        {!!blocked && <Banner tone="muted" icon={<Lock color={colors.textSecondary} size={16} />} text={blocked} />}
         {error && <Banner tone="danger" text={error} />}
-        {!closed && roster.length > 0 && (
+        {!readOnly && roster.length > 0 && (
           <Button compact variant="secondary" title="Escanear carnés QR" icon={<QrCode color={colors.primaryDark} size={16} />} onPress={() => setScanning(true)} />
         )}
         {roster.length > 0 && <Input placeholder="Buscar alumno" value={query} onChangeText={setQuery} autoCorrect={false} style={{ marginBottom: -spacing.md }} />}
@@ -224,7 +229,7 @@ export default function AttendanceScreen({ route, navigation }: any) {
               {OPTIONS.map(o => {
                 const active = marks[item.studentId] === o.code;
                 return (
-                  <Pressable key={o.code} disabled={closed} onPress={() => mark(item.studentId, o.code)}
+                  <Pressable key={o.code} disabled={readOnly} onPress={() => mark(item.studentId, o.code)}
                     accessibilityRole="radio" accessibilityState={{ selected: active }} accessibilityLabel={`${o.label} ${item.firstName}`}
                     style={[styles.opt, active && { backgroundColor: o.bg, borderColor: o.fg }]} hitSlop={4}>
                     <Text style={[styles.optText, active && { color: o.fg }]}>{o.short}</Text>
@@ -236,7 +241,7 @@ export default function AttendanceScreen({ route, navigation }: any) {
         )}
       />
 
-      {!closed && roster.length > 0 && (
+      {!readOnly && roster.length > 0 && (
         <View style={[styles.footer, { paddingBottom: spacing.lg + bottomInset }]}>
           <Button title="Guardar" onPress={saveProgress} loading={saving} style={{ flex: 1 }} />
           {(role === 'AcademyAdmin' || role === 'Staff') && (

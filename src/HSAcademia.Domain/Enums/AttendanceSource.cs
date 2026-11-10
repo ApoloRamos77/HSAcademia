@@ -4,5 +4,7 @@ namespace HSAcademia.Domain.Enums;
 public enum AttendanceSource
 {
     List = 1,
-    Qr = 2
+    Qr = 2,
+    /// <summary>Falta registrada por el cierre automático al vencer el plazo.</summary>
+    Auto = 3
 }

@@ -71,8 +71,11 @@ public interface IAttendanceService
     /// <summary>Closes attendance for an event (Coach or Admin). Prevents further marking.</summary>
     Task CloseAttendanceAsync(Guid academyId, Guid eventId, Guid closedByUserId);
 
-    /// <summary>Reopens a closed attendance session (Admin only).</summary>
-    Task ReopenAttendanceAsync(Guid academyId, Guid eventId);
+    /// <summary>Reopens a closed attendance session (Admin only). The reason is kept in the audit log.</summary>
+    Task ReopenAttendanceAsync(Guid academyId, Guid eventId, Guid reopenedByUserId, string reason);
+
+    /// <summary>Cierra las listas con marcas cuyo plazo venció; quienes no tengan marca quedan con falta.</summary>
+    Task<int> AutoCloseExpiredAsync();
 
     /// <summary>Returns the training session history for a staff member's assigned categories.</summary>
     Task<List<StaffTrainingSessionDto>> GetStaffTrainingHistoryAsync(Guid academyId, Guid staffUserId, int months, Guid? headquarterId = null);

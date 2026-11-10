@@ -3,7 +3,7 @@ import api from '../../api/axios';
 import AppLayout from '../../components/AppLayout';
 import {
   CalendarDays, ChevronLeft, ChevronRight, Plus, X, Filter,
-  Cake, Trophy, Swords, Dumbbell, Clock, MapPin, Users, RefreshCw, Send, Trash2
+  Cake, Trophy, Swords, Dumbbell, Clock, MapPin, Users, RefreshCw, Send, Trash2, CalendarPlus
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ConfirmDialog from '../../components/ConfirmDialog';
@@ -65,6 +65,9 @@ export default function Calendario() {
   const [recurringEnabled, setRecurringEnabled] = useState(false);
   const [matchEventId, setMatchEventId] = useState(null);
   const [confirmSeriesId, setConfirmSeriesId] = useState(null);
+  const [confirmRepeatId, setConfirmRepeatId] = useState(null);
+  const [editingSeriesId, setEditingSeriesId] = useState(null);
+  const [seriesScope, setSeriesScope] = useState('single'); // single | following | all
   const [recurringDays, setRecurringDays]       = useState([]); // 0=Dom..6=Sáb
   const [recurringStart, setRecurringStart]     = useState(''); // HH:mm
   const [recurringEnd, setRecurringEnd]         = useState(''); // HH:mm
@@ -161,12 +164,31 @@ export default function Calendario() {
     eventsPerDay[key].push(e);
   });
 
+  const isEditingSeries = isEditing && !!editingSeriesId && seriesScope !== 'single';
+
   // ── Save event (single or recurring) ──
   const handleSave = async () => {
     setSaving(true);
     try {
+      if (isEditingSeries) {
+        if (!form.title || !recurringStart || !recurringEnd || recurringDays.length === 0) {
+          toast.error('Completa título, horario y selecciona al menos un día'); setSaving(false); return;
+        }
+        const { data } = await api.put(`/sports/schedules/${editingSeriesId}`, {
+          scope: seriesScope,
+          fromEventId: editingId,
+          title: form.title,
+          description: form.description || null,
+          headquarterId: form.headquarterId || null,
+          categoryIds: form.categoryIds,
+          teacherId: form.teacherId || null,
+          daysOfWeek: recurringDays,
+          startTime: recurringStart,
+          endTime: recurringEnd,
+        });
+        toast.success(`Serie actualizada: ${data.updated + data.created} sesión(es)${data.removed ? `, ${data.removed} retirada(s)` : ''}${data.protected ? `. ${data.protected} no se tocaron por estar pasadas o con asistencia` : ''}.`, { duration: 7000 });
       // ── RECURRING mode (Training only) ──
-      if (form.type === 1 && recurringEnabled) {
+      } else if (form.type === 1 && recurringEnabled) {
         if (!form.title || !recurringStart || !recurringEnd || recurringDays.length === 0) {
           toast.error('Completa título, horario y selecciona al menos un día'); setSaving(false); return;
         }
@@ -224,13 +246,15 @@ export default function Calendario() {
       setShowModal(false);
       setIsEditing(false);
       setEditingId(null);
+      setEditingSeriesId(null);
+      setSeriesScope('single');
       setForm({ title:'', description:'', type:1, startTime:'', endTime:'',
                 headquarterId:'', categoryIds:[], teacherId:'', tournamentId:'', opponentTeam:'' });
       setRecurringEnabled(false); setRecurringDays([]); setRecurringStart(''); setRecurringEnd('');
       setRecurringMonth(today.getMonth() + 1); setRecurringYear(today.getFullYear());
       fetchEvents();
     } catch (err) {
-      toast.error(err.response?.data?.message ?? 'Error al crear el evento');
+      toast.error(err.response?.data?.message ?? 'Error al guardar el evento', { duration: 9000 });
     } finally {
       setSaving(false);
     }
@@ -254,7 +278,31 @@ export default function Calendario() {
     setIsEditing(true);
     setEditingId(e.id);
     setRecurringEnabled(false);
+    setEditingSeriesId(e.seriesId || null);
+    setSeriesScope('single');
+    if (e.seriesId) {
+      const days = events.filter(x => x.seriesId === e.seriesId).map(x => new Date(x.startTime).getUTCDay());
+      setRecurringDays([...new Set(days)]);
+      setRecurringStart(e.startTime.slice(11, 16));
+      setRecurringEnd(e.endTime.slice(11, 16));
+    }
     setShowModal(true);
+  };
+
+  const confirmRepeatSeries = async () => {
+    try {
+      const { data } = await api.post(`/sports/schedules/${confirmRepeatId}/repeat-next-month`);
+      const conflicts = data.skipped.filter(s => s.reason !== 'Fecha pasada');
+      if (data.created > 0) toast.success(`${data.created} entrenamiento(s) creados para el mes siguiente.`);
+      else toast.error('No se creó ningún entrenamiento.');
+      if (conflicts.length > 0) {
+        const detail = conflicts.slice(0, 4).map(s => `${s.date.slice(8, 10)}/${s.date.slice(5, 7)}: ${s.reason}`).join('\n');
+        toast(`${conflicts.length} día(s) omitidos por choque de horario:\n${detail}${conflicts.length > 4 ? '\n…' : ''}`, { icon: '⚠️', duration: 8000 });
+      }
+      setSelectedDay(null);
+      fetchEvents();
+    } catch (err) { toast.error(err.response?.data?.message || 'No se pudo repetir la serie.'); }
+    finally { setConfirmRepeatId(null); }
   };
 
   // ── Delete event ──
@@ -464,6 +512,15 @@ export default function Calendario() {
                         {e.seriesId && (
                           <button
                             className="btn-icon"
+                            style={{ color:'var(--primary)' }}
+                            onClick={() => setConfirmRepeatId(e.seriesId)}
+                            title="Repetir esta serie el mes siguiente"
+                            aria-label="Repetir esta serie el mes siguiente"
+                          ><CalendarPlus size={14}/></button>
+                        )}
+                        {e.seriesId && (
+                          <button
+                            className="btn-icon"
                             style={{ color:'#ef4444' }}
                             onClick={() => setConfirmSeriesId(e.seriesId)}
                             title="Eliminar los próximos entrenamientos de esta serie"
@@ -637,8 +694,46 @@ export default function Calendario() {
                   </div>
                 )}
 
-                {/* Single event date/time (hidden when creating recurring) */}
-                {(!recurringEnabled || isEditing) && (
+                {/* ── Alcance de la edición en eventos de una serie ── */}
+                {isEditing && editingSeriesId && (
+                  <div className="form-group" style={{ gridColumn:'1/-1' }}>
+                    <label>Aplicar el cambio a</label>
+                    <select className="form-control" value={seriesScope} onChange={e => setSeriesScope(e.target.value)}>
+                      <option value="single">Solo esta sesión</option>
+                      <option value="following">Esta y las siguientes</option>
+                      <option value="all">Toda la serie</option>
+                    </select>
+                    {isEditingSeries && (
+                      <div style={{ marginTop:10, padding:12, background:'var(--bg-dark)', borderRadius:8, border:'1px solid var(--border)' }}>
+                        <p style={{ fontSize:12, color:'var(--text-muted)', marginBottom:8 }}>Días de entrenamiento. Solo cambian las sesiones futuras sin asistencia:</p>
+                        <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:12 }}>
+                          {DAY_LABELS.map((label, idx) => (
+                            <button key={idx} type="button" onClick={() => toggleDay(idx)}
+                              style={{
+                                padding:'4px 10px', borderRadius:6, fontSize:12, cursor:'pointer',
+                                border: recurringDays.includes(idx) ? '2px solid var(--primary)' : '1px solid var(--border)',
+                                background: recurringDays.includes(idx) ? 'var(--primary)' : 'var(--bg-surface)',
+                                color: recurringDays.includes(idx) ? '#fff' : 'var(--text-muted)',
+                              }}>{label}</button>
+                          ))}
+                        </div>
+                        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                          <div className="form-group" style={{ margin:0 }}>
+                            <label style={{ fontSize:12 }}>Hora inicio *</label>
+                            <input type="time" className="form-control" value={recurringStart} onChange={e => setRecurringStart(e.target.value)} />
+                          </div>
+                          <div className="form-group" style={{ margin:0 }}>
+                            <label style={{ fontSize:12 }}>Hora fin *</label>
+                            <input type="time" className="form-control" value={recurringEnd} onChange={e => setRecurringEnd(e.target.value)} />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Single event date/time (hidden when creating recurring or editing several sessions) */}
+                {(!recurringEnabled || isEditing) && !isEditingSeries && (
                   <>
                     <div className="form-group">
                       <label>Inicio *</label>
@@ -812,6 +907,16 @@ export default function Calendario() {
           finally { setConfirmSeriesId(null); }
         }}
         onCancel={() => setConfirmSeriesId(null)}
+      />
+      <ConfirmDialog
+        isOpen={!!confirmRepeatId}
+        title="Repetir serie"
+        message="¿Crear estos entrenamientos en el mes siguiente a la última sesión de la serie?"
+        detail="Usa los días, horario, sede y entrenador de la última semana de la serie. Los días con choque de horario se omiten."
+        confirmLabel="Sí, repetir"
+        confirmClass="btn-primary"
+        onConfirm={confirmRepeatSeries}
+        onCancel={() => setConfirmRepeatId(null)}
       />
       <ConfirmDialog
         isOpen={confirmAutoGen}
