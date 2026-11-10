@@ -120,7 +120,8 @@ export default function Asistencia() {
   const handleNotesChange = (studentId, notes) =>
     setStudents(prev => prev.map(s => s.studentId === studentId ? { ...s, notes } : s));
 
-  const markAll = (status) => setStudents(prev => prev.map(s => ({ ...s, status })));
+  // Solo completa a los que siguen sin marcar: no pisa a quienes llegaron con QR o ya se marcaron.
+  const markUnmarkedAbsent = () => setStudents(prev => prev.map(s => s.status ? s : { ...s, status: 2 }));
 
   const handleSave = async () => {
     const records = students.filter(s => s.status).map(s => ({
@@ -382,13 +383,10 @@ export default function Asistencia() {
                 </p>
               </div>
               <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-                <button onClick={() => markAll(1)} className="btn btn-sm btn-ghost"
-                  style={{ color:'#10b981', borderColor:'rgba(16,185,129,0.3)' }}>
-                  <UserCheck size={13}/> Todos Presentes
-                </button>
-                <button onClick={() => markAll(2)} className="btn btn-sm btn-ghost"
+                <button onClick={markUnmarkedAbsent} className="btn btn-sm btn-ghost"
+                  disabled={!students.some(s => !s.status)}
                   style={{ color:'#ef4444', borderColor:'rgba(239,68,68,0.3)' }}>
-                  <UserX size={13}/> Todos Ausentes
+                  <UserX size={13}/> Sin marcar → Ausente
                 </button>
                 <button onClick={handleSave} className="btn btn-primary" disabled={saving || loadingStudents}>
                   <Save size={15}/> {saving ? 'Guardando...' : 'Guardar Asistencia'}
@@ -419,6 +417,12 @@ export default function Asistencia() {
                             <span style={{ fontSize:11, color: STATUS_BUTTONS.find(b => b.value === s.status)?.color }}>
                               {STATUS_BUTTONS.find(b => b.value === s.status)?.label}
                             </span>
+                          )}
+                          {s.markedVia && (
+                            <div style={{ fontSize:11, color:'var(--text-muted)' }}>
+                              {s.markedVia}{s.markedByName ? ` · ${s.markedByName}` : ''}
+                              {s.markedAt ? ` · ${new Date(s.markedAt).toLocaleTimeString('es-PE', { hour:'2-digit', minute:'2-digit' })}` : ''}
+                            </div>
                           )}
                         </td>
                         <td>

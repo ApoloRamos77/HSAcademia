@@ -14,6 +14,9 @@ public class QrScanDto
 
     /// <summary>ISO-8601 timestamp from the mobile device.</summary>
     public DateTime ScannedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>Sesión en la que se marca. Si se omite, se usa la sesión de hoy más cercana a la hora actual.</summary>
+    public Guid? EventId { get; set; }
 }
 
 /// <summary>
@@ -22,6 +25,7 @@ public class QrScanDto
 public class QrScanResultDto
 {
     public Guid AttendanceId { get; set; }
+    public Guid StudentId { get; set; }
     public string StudentName { get; set; } = string.Empty;
     public string Category { get; set; } = string.Empty;
     public string Status { get; set; } = "Registrado";

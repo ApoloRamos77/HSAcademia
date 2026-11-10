@@ -1,6 +1,7 @@
 using HSAcademia.Application.DTOs.Attendance;
 using HSAcademia.Application.Interfaces;
 using HSAcademia.Domain.Entities;
+using HSAcademia.Domain.Enums;
 using HSAcademia.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -35,23 +36,10 @@ public class AttendanceService : IAttendanceService
                      && studentIds.Contains(a.StudentId))
             .ToListAsync();
 
-        return students.Select(s =>
-        {
-            var att = attendances.FirstOrDefault(a => a.StudentId == s.Id);
-            return new StudentAttendanceDto
-            {
-                StudentId    = s.Id,
-                FirstName    = s.FirstName,
-                LastName     = s.LastName,
-                AvatarUrl    = null,
-                AttendanceId = att?.Id,
-                Status       = att?.Status,
-                Notes        = att?.Notes
-            };
-        }).ToList();
+        return students.Select(s => ToRosterDto(s, attendances.FirstOrDefault(a => a.StudentId == s.Id))).ToList();
     }
 
-    public async Task MarkAttendanceAsync(Guid academyId, Guid categoryId, MarkAttendanceDto dto)
+    public async Task MarkAttendanceAsync(Guid academyId, Guid categoryId, Guid markedByUserId, MarkAttendanceDto dto)
     {
         var categoryExists = await _context.Categories
             .AnyAsync(c => c.Id == categoryId && c.AcademyId == academyId);
@@ -65,11 +53,8 @@ public class AttendanceService : IAttendanceService
             .Select(s => s.Id)
             .ToListAsync();
 
-        var existing = await _context.Attendances
-            .Where(a => a.AcademyId == academyId
-                     && a.Date.Date == dto.Date.Date
-                     && validStudentIds.Contains(a.StudentId))
-            .ToDictionaryAsync(a => a.StudentId);
+        var existing = await LoadDayMarksAsync(academyId, dto.Date.Date, validStudentIds);
+        var marker = await MarkerAsync(markedByUserId);
 
         foreach (var record in dto.Records)
         {
@@ -77,20 +62,21 @@ public class AttendanceService : IAttendanceService
 
             if (existing.TryGetValue(record.StudentId, out var existAtt))
             {
-                existAtt.Status = record.Status;
+                ApplyMark(existAtt, record.Status, AttendanceSource.List, marker);
                 existAtt.Notes  = record.Notes;
                 _context.Attendances.Update(existAtt);
             }
             else
             {
-                _context.Attendances.Add(new Attendance
+                var att = new Attendance
                 {
                     AcademyId = academyId,
                     StudentId = record.StudentId,
                     Date      = dto.Date.Date,
-                    Status    = record.Status,
                     Notes     = record.Notes
-                });
+                };
+                ApplyMark(att, record.Status, AttendanceSource.List, marker, isNew: true);
+                _context.Attendances.Add(att);
             }
         }
         await _context.SaveChangesAsync();
@@ -124,29 +110,12 @@ public class AttendanceService : IAttendanceService
 
         var studentIds = students.Select(s => s.Id).ToList();
 
-        var attendances = await _context.Attendances
-            .Where(a => a.AcademyId == academyId
-                     && a.EventId == eventId
-                     && studentIds.Contains(a.StudentId))
-            .ToListAsync();
+        var marks = await LoadSessionMarksAsync(academyId, eventId, ev.StartTime.Date, studentIds);
 
-        return students.Select(s =>
-        {
-            var att = attendances.FirstOrDefault(a => a.StudentId == s.Id);
-            return new StudentAttendanceDto
-            {
-                StudentId    = s.Id,
-                FirstName    = s.FirstName,
-                LastName     = s.LastName,
-                AvatarUrl    = null,
-                AttendanceId = att?.Id,
-                Status       = att?.Status,
-                Notes        = att?.Notes
-            };
-        }).ToList();
+        return students.Select(s => ToRosterDto(s, marks.GetValueOrDefault(s.Id))).ToList();
     }
 
-    public async Task MarkAttendanceByEventAsync(Guid academyId, MarkAttendanceByEventDto dto)
+    public async Task MarkAttendanceByEventAsync(Guid academyId, Guid markedByUserId, MarkAttendanceByEventDto dto)
     {
         var ev = await _context.Events
             .FirstOrDefaultAsync(e => e.AcademyId == academyId && e.Id == dto.EventId)
@@ -174,14 +143,9 @@ public class AttendanceService : IAttendanceService
             .Select(s => s.Id)
             .ToListAsync();
 
-        // Look for existing attendance records by EventId
-        var existing = await _context.Attendances
-            .Where(a => a.AcademyId == academyId
-                     && a.EventId == dto.EventId
-                     && validStudentIds.Contains(a.StudentId))
-            .ToDictionaryAsync(a => a.StudentId);
-
         var eventDate = ev.StartTime.Date;
+        var existing = await LoadSessionMarksAsync(academyId, dto.EventId, eventDate, validStudentIds);
+        var marker = await MarkerAsync(markedByUserId);
 
         foreach (var record in dto.Records)
         {
@@ -189,21 +153,23 @@ public class AttendanceService : IAttendanceService
 
             if (existing.TryGetValue(record.StudentId, out var existAtt))
             {
-                existAtt.Status = record.Status;
+                ApplyMark(existAtt, record.Status, AttendanceSource.List, marker);
+                existAtt.EventId = dto.EventId;
                 existAtt.Notes  = record.Notes;
                 _context.Attendances.Update(existAtt);
             }
             else
             {
-                _context.Attendances.Add(new Attendance
+                var att = new Attendance
                 {
                     AcademyId = academyId,
                     StudentId = record.StudentId,
                     EventId   = dto.EventId,
                     Date      = eventDate,
-                    Status    = record.Status,
                     Notes     = record.Notes
-                });
+                };
+                ApplyMark(att, record.Status, AttendanceSource.List, marker, isNew: true);
+                _context.Attendances.Add(att);
             }
         }
         await _context.SaveChangesAsync();
@@ -232,7 +198,7 @@ public class AttendanceService : IAttendanceService
                 CategoryId = categoryId, CategoryName = category.Name
             };
 
-        var from = new DateTime(year, month, 1);
+        var from = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Utc);
         var to   = from.AddMonths(1);
 
         var studentIds = students.Select(s => s.Id).ToList();
@@ -297,11 +263,11 @@ public class AttendanceService : IAttendanceService
     // =========================================================
 
     /// <summary>
-    /// Called by the coach's scanner. Looks up the student by their UserId (GuardianId
-    /// is the link between User and Student). Marks them Present for today.
-    /// Returns 409 (InvalidOperationException) if already scanned today.
+    /// Called by the coach's scanner. Marks the student Present in the given session or, if none
+    /// is given, in today's session closest to the current time (or for the day when there is none).
+    /// Returns 409 (InvalidOperationException) if already marked in that session.
     /// </summary>
-    public async Task<QrScanResultDto> ScanQrAsync(Guid academyId, QrScanDto dto)
+    public async Task<QrScanResultDto> ScanQrAsync(Guid academyId, Guid scannerUserId, QrScanDto dto)
     {
         // A student's QR embeds their own UserId — but students don't have a User account
         // in the current model. The QR instead embeds the Student.Id directly (field "u").
@@ -313,37 +279,70 @@ public class AttendanceService : IAttendanceService
                 s.IsActive && !s.IsDeleted)
             ?? throw new KeyNotFoundException("Alumno no encontrado en esta academia.");
 
-        var today = AcademyClock.Today;
+        var session = dto.EventId.HasValue
+            ? await RequireScannableSessionAsync(academyId, scannerUserId, dto.EventId.Value, student)
+            : await FindClosestSessionTodayAsync(academyId, student.CategoryId);
+        var date = session?.StartTime.Date ?? AcademyClock.Today;
+        var studentName = $"{student.FirstName} {student.LastName}";
+        var alreadyMarked = session != null
+            ? $"La asistencia de {studentName} ya fue registrada en esta sesión."
+            : $"La asistencia de {studentName} ya fue registrada hoy.";
+        var marker = await MarkerAsync(scannerUserId);
 
-        // Duplicate check — already scanned today?
-        var existing = await _context.Attendances
-            .FirstOrDefaultAsync(a =>
-                a.AcademyId == academyId &&
-                a.StudentId == student.Id &&
-                a.Date == today);
-
-        if (existing is not null)
-            throw new InvalidOperationException(
-                $"La asistencia de {student.FirstName} {student.LastName} ya fue registrada hoy.");
-
-        var record = new Attendance
+        Attendance? record;
+        if (session != null)
         {
-            AcademyId = academyId,
-            StudentId = student.Id,
-            Date      = today,
-            Status    = Domain.Enums.AttendanceStatus.Present,
-            Notes     = "Registrado vía QR móvil",
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow,
-        };
+            var marks = await LoadSessionMarksAsync(academyId, session.Id, date, new List<Guid> { student.Id });
+            record = marks.GetValueOrDefault(student.Id);
+            if (record != null) record.EventId = session.Id;
+        }
+        else
+        {
+            record = await _context.Attendances.FirstOrDefaultAsync(a =>
+                a.AcademyId == academyId && a.StudentId == student.Id && a.Date == date);
+        }
 
-        _context.Attendances.Add(record);
-        await _context.SaveChangesAsync();
+        if (record != null && record.Status != Domain.Enums.AttendanceStatus.Absent)
+        {
+            await _context.SaveChangesAsync(); // conserva el vínculo con la sesión
+            throw new InvalidOperationException(alreadyMarked);
+        }
+
+        if (record != null)
+        {
+            // Figuraba con falta y llegó: el QR lo corrige.
+            ApplyMark(record, Domain.Enums.AttendanceStatus.Present, AttendanceSource.Qr, marker);
+        }
+        else
+        {
+            record = new Attendance
+            {
+                AcademyId = academyId,
+                StudentId = student.Id,
+                EventId   = session?.Id,
+                Date      = date,
+                Notes     = "Registrado vía QR móvil",
+                CreatedAt = DateTime.UtcNow,
+            };
+            ApplyMark(record, Domain.Enums.AttendanceStatus.Present, AttendanceSource.Qr, marker, isNew: true);
+            _context.Attendances.Add(record);
+        }
+
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateException) when (session != null)
+        {
+            // Dos celulares leyeron el mismo carné a la vez: el índice único deja pasar solo uno.
+            throw new InvalidOperationException(alreadyMarked);
+        }
 
         return new QrScanResultDto
         {
             AttendanceId = record.Id,
-            StudentName  = $"{student.FirstName} {student.LastName}",
+            StudentId    = student.Id,
+            StudentName  = studentName,
             Category     = student.Category?.Name ?? "-",
             Status       = "Registrado",
             MarkedAt     = DateTime.UtcNow,
@@ -379,7 +378,7 @@ public class AttendanceService : IAttendanceService
         var windowFrom = new DateTime(AcademyClock.Now.Year, AcademyClock.Now.Month, 1, 0, 0, 0, DateTimeKind.Utc)
                              .AddMonths(-(months - 1));
         var from = windowFrom < enrollMonth ? enrollMonth : windowFrom;
-        var to   = AcademyClock.Today.AddDays(1); // inclusive today
+        var to   = DateTime.SpecifyKind(AcademyClock.Today.AddDays(1), DateTimeKind.Utc); // inclusive today
 
         // ── 1. All events for this student's category in the range ──
         var allEvents = await _context.Events
@@ -424,6 +423,7 @@ public class AttendanceService : IAttendanceService
         var takenDates = await _context.Attendances
             .Include(a => a.Student)
             .Where(a => a.AcademyId == academyId &&
+                        a.EventId == null &&
                         a.Student!.CategoryId == student.CategoryId &&
                         eventDates.Contains(a.Date.Date))
             .Select(a => a.Date.Date)
@@ -437,9 +437,9 @@ public class AttendanceService : IAttendanceService
         {
             var evDate = ev.StartTime.Date;
 
-            // Find student's own attendance record — prefer EventId match, fall back to date match
+            // Find student's own attendance record — prefer EventId match, fall back to a day-only record
             var att = attendances.FirstOrDefault(a => a.EventId == ev.Id)
-                   ?? attendances.FirstOrDefault(a => a.Date.Date == evDate);
+                   ?? attendances.FirstOrDefault(a => a.EventId == null && a.Date.Date == evDate);
 
             // Was attendance taken for this session by anyone?
             bool taken = ev.AttendanceClosed ||
@@ -539,7 +539,7 @@ public class AttendanceService : IAttendanceService
         Guid academyId, Guid studentId)
     {
         var now  = AcademyClock.Now;
-        var from = new DateTime(now.Year, now.Month, 1);
+        var from = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
         var to   = from.AddMonths(1);
 
         var student = await _context.Students.FindAsync(studentId);
@@ -575,6 +575,108 @@ public class AttendanceService : IAttendanceService
     // =========================================================
     // Private helpers
     // =========================================================
+
+    private sealed record Marker(Guid UserId, string? Name);
+
+    private async Task<Marker> MarkerAsync(Guid userId)
+    {
+        var name = await _context.Users.Where(u => u.Id == userId)
+            .Select(u => (u.FirstName + " " + u.LastName).Trim()).FirstOrDefaultAsync();
+        return new Marker(userId, name);
+    }
+
+    /// <summary>Registra el estado y quién lo marcó. Guardar la lista sin cambiar el estado no borra el origen (ej. QR).</summary>
+    private static void ApplyMark(Attendance row, Domain.Enums.AttendanceStatus status, AttendanceSource source, Marker marker, bool isNew = false)
+    {
+        var now = DateTime.UtcNow;
+        row.UpdatedAt = now;
+        if (!isNew && row.Status == status) return;
+        row.Status = status;
+        row.Source = source;
+        row.MarkedByUserId = marker.UserId;
+        row.MarkedByName = marker.Name;
+        row.MarkedAt = now;
+    }
+
+    private static StudentAttendanceDto ToRosterDto(Student s, Attendance? att) => new()
+    {
+        StudentId    = s.Id,
+        FirstName    = s.FirstName,
+        LastName     = s.LastName,
+        AvatarUrl    = null,
+        AttendanceId = att?.Id,
+        Status       = att?.Status,
+        Notes        = att?.Notes,
+        MarkedVia    = att?.Source switch { AttendanceSource.Qr => "QR", AttendanceSource.List => "Lista", _ => null },
+        MarkedByName = att?.MarkedByName,
+        MarkedAt     = att?.MarkedAt
+    };
+
+    private static List<Guid> CategoriesOf(Event ev)
+    {
+        var ids = new List<Guid>(ev.CategoryIds ?? new List<Guid>());
+        if (ev.CategoryId.HasValue) ids.Add(ev.CategoryId.Value);
+        return ids.Distinct().ToList();
+    }
+
+    /// <summary>Marca de cada alumno en una sesión: la de esa sesión o, si no hay, un registro del día sin sesión.</summary>
+    private async Task<Dictionary<Guid, Attendance>> LoadSessionMarksAsync(Guid academyId, Guid eventId, DateTime date, List<Guid> studentIds)
+    {
+        var rows = await _context.Attendances
+            .Where(a => a.AcademyId == academyId && studentIds.Contains(a.StudentId) &&
+                        (a.EventId == eventId || (a.EventId == null && a.Date == date)))
+            .ToListAsync();
+        return rows.GroupBy(a => a.StudentId)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(a => a.EventId == eventId).First());
+    }
+
+    /// <summary>Marca de cada alumno en un día. Un alumno puede tener varias (una por sesión): prioriza la que no tiene sesión.</summary>
+    private async Task<Dictionary<Guid, Attendance>> LoadDayMarksAsync(Guid academyId, DateTime date, List<Guid> studentIds)
+    {
+        var rows = await _context.Attendances
+            .Where(a => a.AcademyId == academyId && a.Date == date && studentIds.Contains(a.StudentId))
+            .ToListAsync();
+        return rows.GroupBy(a => a.StudentId)
+            .ToDictionary(g => g.Key, g => g.OrderBy(a => a.EventId.HasValue).First());
+    }
+
+    private async Task<Event> RequireScannableSessionAsync(Guid academyId, Guid scannerUserId, Guid eventId, Student student)
+    {
+        var ev = await _context.Events.FirstOrDefaultAsync(e => e.AcademyId == academyId && e.Id == eventId && !e.IsDeleted)
+            ?? throw new KeyNotFoundException("Sesión no encontrada.");
+        if (ev.AttendanceClosed)
+            throw new Exception("La asistencia de esta sesión está cerrada. Solo un administrador puede reabrirla.");
+
+        var categories = CategoriesOf(ev);
+        if (!categories.Contains(student.CategoryId))
+            throw new Exception($"{student.FirstName} {student.LastName} no pertenece a las categorías de esta sesión.");
+
+        var scanner = await _context.Users.Include(u => u.AssignedCategories)
+            .FirstOrDefaultAsync(u => u.Id == scannerUserId && u.AcademyId == academyId)
+            ?? throw new Exception("Usuario no encontrado.");
+        var canMark = scanner.Role == Domain.Enums.UserRole.AcademyAdmin || ev.TeacherId == scannerUserId ||
+                      scanner.AssignedCategories.Any(c => categories.Contains(c.Id));
+        if (!canMark) throw new Exception("No tienes permiso para esta sesión.");
+        return ev;
+    }
+
+    /// <summary>Sesión abierta de hoy más cercana a la hora actual (la que está en curso, si la hay).</summary>
+    private async Task<Event?> FindClosestSessionTodayAsync(Guid academyId, Guid categoryId)
+    {
+        var now = AcademyClock.WallNow;
+        var dayStart = DateTime.SpecifyKind(AcademyClock.Today, DateTimeKind.Utc);
+        var dayEnd = dayStart.AddDays(1);
+        var events = await _context.Events
+            .Where(e => e.AcademyId == academyId && !e.IsDeleted && !e.AttendanceClosed &&
+                        e.StartTime >= dayStart && e.StartTime < dayEnd)
+            .ToListAsync();
+
+        return events
+            .Where(e => e.Type is Domain.Enums.EventType.Training or Domain.Enums.EventType.FriendlyMatch or Domain.Enums.EventType.TournamentMatch)
+            .Where(e => CategoriesOf(e).Contains(categoryId))
+            .OrderBy(e => now < e.StartTime ? e.StartTime - now : now > e.EndTime ? now - e.EndTime : TimeSpan.Zero)
+            .FirstOrDefault();
+    }
 
     private static string MapStatus(Domain.Enums.AttendanceStatus status) => status switch
     {
@@ -687,28 +789,19 @@ public class AttendanceService : IAttendanceService
             .Where(a => a.AcademyId == academyId
                      && studentIds.Contains(a.StudentId)
                      && (eventId.HasValue
-                            ? (a.EventId == eventId || (a.Date >= targetDate && a.Date < targetDate.AddDays(1)))
+                            ? (a.EventId == eventId || (a.EventId == null && a.Date >= targetDate && a.Date < targetDate.AddDays(1)))
                             : (a.Date >= targetDate && a.Date < targetDate.AddDays(1))))
             .ToListAsync();
 
         return students.Select(s =>
         {
-            // Prefer event-linked record, fall back to date-only record
+            // Prefer event-linked record, fall back to a day-only record
             var att = eventId.HasValue
                 ? (attendances.FirstOrDefault(a => a.StudentId == s.Id && a.EventId == eventId)
                    ?? attendances.FirstOrDefault(a => a.StudentId == s.Id))
                 : attendances.FirstOrDefault(a => a.StudentId == s.Id);
 
-            return new StudentAttendanceDto
-            {
-                StudentId    = s.Id,
-                FirstName    = s.FirstName,
-                LastName     = s.LastName,
-                AvatarUrl    = null,
-                AttendanceId = att?.Id,
-                Status       = att?.Status,
-                Notes        = att?.Notes
-            };
+            return ToRosterDto(s, att);
         }).ToList();
     }
 
@@ -771,11 +864,10 @@ public class AttendanceService : IAttendanceService
             .Select(s => s.Id)
             .ToListAsync();
 
-        var existing = await _context.Attendances
-            .Where(a => a.AcademyId == academyId
-                     && a.Date.Date == dto.Date.Date
-                     && validStudentIds.Contains(a.StudentId))
-            .ToDictionaryAsync(a => a.StudentId);
+        var existing = dto.EventId.HasValue
+            ? await LoadSessionMarksAsync(academyId, dto.EventId.Value, dto.Date.Date, validStudentIds)
+            : await LoadDayMarksAsync(academyId, dto.Date.Date, validStudentIds);
+        var marker = await MarkerAsync(staffUserId);
 
         foreach (var record in dto.Records)
         {
@@ -783,22 +875,23 @@ public class AttendanceService : IAttendanceService
 
             if (existing.TryGetValue(record.StudentId, out var existAtt))
             {
-                existAtt.Status = record.Status;
-                existAtt.Notes  = record.Notes;
+                ApplyMark(existAtt, record.Status, AttendanceSource.List, marker);
+                existAtt.Notes  = record.Notes ?? existAtt.Notes;
                 if (dto.EventId.HasValue) existAtt.EventId = dto.EventId;
                 _context.Attendances.Update(existAtt);
             }
             else
             {
-                _context.Attendances.Add(new Attendance
+                var att = new Attendance
                 {
                     AcademyId = academyId,
                     StudentId = record.StudentId,
                     Date      = dto.Date.Date,
                     EventId   = dto.EventId,
-                    Status    = record.Status,
                     Notes     = record.Notes
-                });
+                };
+                ApplyMark(att, record.Status, AttendanceSource.List, marker, isNew: true);
+                _context.Attendances.Add(att);
             }
         }
         await _context.SaveChangesAsync();

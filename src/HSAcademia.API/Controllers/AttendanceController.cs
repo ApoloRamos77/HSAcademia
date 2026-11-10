@@ -65,7 +65,7 @@ public class AttendanceController : ControllerBase
         if (academyId == Guid.Empty) return Unauthorized();
         try
         {
-            await _attendanceService.MarkAttendanceAsync(academyId, categoryId, dto);
+            await _attendanceService.MarkAttendanceAsync(academyId, categoryId, User.GetUserId(), dto);
             return Ok(new { message = "Asistencia guardada correctamente." });
         }
         catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
@@ -112,7 +112,7 @@ public class AttendanceController : ControllerBase
         if (academyId == Guid.Empty) return Unauthorized();
         try
         {
-            await _attendanceService.MarkAttendanceByEventAsync(academyId, dto);
+            await _attendanceService.MarkAttendanceByEventAsync(academyId, User.GetUserId(), dto);
             return Ok(new { message = "Asistencia guardada correctamente para el evento." });
         }
         catch (InvalidOperationException ex)
@@ -158,8 +158,8 @@ public class AttendanceController : ControllerBase
 
     /// <summary>
     /// POST /api/attendance/scan
-    /// Coach scans a student QR → registers attendance as Present for today.
-    /// Returns 409 if already marked today, 404 if student not found.
+    /// Coach scans a student QR → registers attendance as Present in the session.
+    /// Returns 409 if already marked in that session, 404 if student not found.
     /// </summary>
     [HttpPost("scan")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
@@ -170,7 +170,7 @@ public class AttendanceController : ControllerBase
         if (academyId == Guid.Empty) return Unauthorized();
         try
         {
-            var result = await _attendanceService.ScanQrAsync(academyId, dto);
+            var result = await _attendanceService.ScanQrAsync(academyId, User.GetUserId(), dto);
             return Ok(result);
         }
         catch (InvalidOperationException ex)

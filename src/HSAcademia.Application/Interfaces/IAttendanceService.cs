@@ -6,7 +6,7 @@ public interface IAttendanceService
 {
     // ── Existing: date-based roll call ──
     Task<List<StudentAttendanceDto>> GetAttendanceByCategoryAndDateAsync(Guid academyId, Guid categoryId, DateTime date);
-    Task MarkAttendanceAsync(Guid academyId, Guid categoryId, MarkAttendanceDto dto);
+    Task MarkAttendanceAsync(Guid academyId, Guid categoryId, Guid markedByUserId, MarkAttendanceDto dto);
 
     // ── Phase 2: event-linked roll call ──
 
@@ -20,7 +20,7 @@ public interface IAttendanceService
     /// Saves attendance records linked to a calendar event.
     /// Enforces the 15-minute pre-start window rule.
     /// </summary>
-    Task MarkAttendanceByEventAsync(Guid academyId, MarkAttendanceByEventDto dto);
+    Task MarkAttendanceByEventAsync(Guid academyId, Guid markedByUserId, MarkAttendanceByEventDto dto);
 
     // ── Phase 2: analytics ──
 
@@ -34,11 +34,11 @@ public interface IAttendanceService
 
     /// <summary>
     /// Processes a QR code scan from the coach's mobile app.
-    /// Registers the student as Present for the current day/session.
-    /// Throws InvalidOperationException (409) if already marked today.
+    /// Registers the student as Present for the given session or, if none is given, today's closest one.
+    /// Throws InvalidOperationException (409) if already marked in that session.
     /// Throws KeyNotFoundException (404) if student not found.
     /// </summary>
-    Task<QrScanResultDto> ScanQrAsync(Guid academyId, QrScanDto dto);
+    Task<QrScanResultDto> ScanQrAsync(Guid academyId, Guid scannerUserId, QrScanDto dto);
 
     /// <summary>
     /// Returns the attendance history grouped by month for the authenticated student.
