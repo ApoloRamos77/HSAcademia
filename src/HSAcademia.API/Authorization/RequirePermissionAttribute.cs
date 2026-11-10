@@ -10,6 +10,7 @@ public static class Permissions
 {
     public const string ViewStudents     = "view_students";
     public const string ManageAttendance = "manage_attendance";
+    public const string ManageStaffAttendance = "manage_staff_attendance";
     public const string ManageEvents     = "manage_events";
     public const string ManageStore      = "manage_store";
     public const string ManageFinances   = "manage_finances";

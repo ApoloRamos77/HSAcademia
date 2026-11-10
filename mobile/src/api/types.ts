@@ -224,6 +224,15 @@ export interface RosterStudent {
 
 export interface AbsenceStreak { studentId: string; name: string; category: string; absences: number; absentSince: string; contactPhone?: string | null }
 
+export interface StaffSession {
+  eventId: string; title: string; date: string; startTime: string; categoryName: string; headquarterName: string;
+  staffId?: string | null; staffName?: string | null; status?: AttendanceCode | null;
+  substituteStaffId?: string | null; substituteName?: string | null;
+  markedByName?: string | null; markedAt?: string | null; blockedReason?: string | null;
+}
+export interface StaffOption { id: string; name: string }
+export interface StaffDay { sessions: StaffSession[]; trainers: StaffOption[] }
+
 export interface FamilyNotice { id: string; studentId: string; title: string; body: string; createdAt: string; isRead: boolean }
 
 export interface MedicalRecord {

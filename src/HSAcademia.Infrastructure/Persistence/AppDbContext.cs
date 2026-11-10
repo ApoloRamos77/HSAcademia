@@ -574,11 +574,18 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Date).HasColumnName("date").HasColumnType("date").IsRequired();
             entity.Property(e => e.Status).HasColumnName("status").HasConversion<int>().IsRequired();
             entity.Property(e => e.Notes).HasColumnName("notes").HasMaxLength(500);
+            entity.Property(e => e.EventId).HasColumnName("event_id");
+            entity.Property(e => e.SubstituteStaffId).HasColumnName("substitute_staff_id");
+            entity.Property(e => e.MarkedByUserId).HasColumnName("marked_by_user_id");
+            entity.Property(e => e.MarkedByName).HasColumnName("marked_by_name").HasMaxLength(200);
+            entity.Property(e => e.MarkedAt).HasColumnName("marked_at");
 
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
 
-            entity.HasIndex(e => new { e.StaffId, e.Date }).IsUnique();
+            // Un entrenador puede dictar varias sesiones al día: una marca por sesión.
+            entity.HasIndex(e => e.EventId).IsUnique().HasFilter("event_id IS NOT NULL");
+            entity.HasIndex(e => new { e.StaffId, e.Date });
             entity.HasIndex(e => e.AcademyId);
 
             entity.HasOne(e => e.Academy)

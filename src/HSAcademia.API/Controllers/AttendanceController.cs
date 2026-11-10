@@ -363,26 +363,4 @@ public class AttendanceController : ControllerBase
         }
         catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
     }
-
-    // ── Admin: Staff Attendance ──
-
-    [HttpGet("staff")]
-    [Authorize(Roles = "AcademyAdmin,SuperAdmin")]
-    public async Task<IActionResult> GetStaffAttendance([FromQuery] DateTime date)
-    {
-        var academyId = GetAcademyId();
-        if (academyId == Guid.Empty) return Unauthorized();
-        var data = await _attendanceService.GetStaffAttendanceAsync(academyId, date);
-        return Ok(data);
-    }
-
-    [HttpPost("staff")]
-    [Authorize(Roles = "AcademyAdmin,SuperAdmin")]
-    public async Task<IActionResult> SaveStaffAttendance([FromBody] MarkStaffAttendanceDto dto)
-    {
-        var academyId = GetAcademyId();
-        if (academyId == Guid.Empty) return Unauthorized();
-        await _attendanceService.SaveStaffAttendanceAsync(academyId, dto);
-        return Ok(new { message = "Asistencia de staff guardada correctamente." });
-    }
 }

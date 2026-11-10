@@ -2297,6 +2297,23 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasColumnType("date")
                         .HasColumnName("date");
 
+                    b.Property<Guid?>("EventId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("event_id");
+
+                    b.Property<DateTime?>("MarkedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("marked_at");
+
+                    b.Property<string>("MarkedByName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("marked_by_name");
+
+                    b.Property<Guid?>("MarkedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("marked_by_user_id");
+
                     b.Property<string>("Notes")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)")
@@ -2310,6 +2327,10 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("status");
 
+                    b.Property<Guid?>("SubstituteStaffId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("substitute_staff_id");
+
                     b.Property<DateTime>("UpdatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -2320,8 +2341,11 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("AcademyId");
 
-                    b.HasIndex("StaffId", "Date")
-                        .IsUnique();
+                    b.HasIndex("EventId")
+                        .IsUnique()
+                        .HasFilter("event_id IS NOT NULL");
+
+                    b.HasIndex("StaffId", "Date");
 
                     b.ToTable("staff_attendances", (string)null);
                 });

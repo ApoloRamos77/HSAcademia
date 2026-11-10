@@ -45,6 +45,14 @@ public class Event
     public bool IsDeleted { get; set; }
     public DateTime? DeletedAt { get; set; }
 
+    /// <summary>Todas las categorías de la sesión, sin repetir.</summary>
+    public List<Guid> AllCategoryIds()
+    {
+        var ids = new List<Guid>(CategoryIds ?? new List<Guid>());
+        if (CategoryId.HasValue) ids.Add(CategoryId.Value);
+        return ids.Distinct().ToList();
+    }
+
     // Navigations
     public virtual Academy Academy { get; set; } = null!;
     public virtual Headquarter? Headquarter { get; set; }

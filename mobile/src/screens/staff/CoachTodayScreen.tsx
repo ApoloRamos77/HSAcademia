@@ -1,19 +1,20 @@
 import React from 'react';
 import { Text, View } from 'react-native';
-import { CheckCircle2, ChevronRight, ClipboardCheck, CloudOff, Lock, QrCode, TriangleAlert } from 'lucide-react-native';
+import { CheckCircle2, ChevronRight, ClipboardCheck, CloudOff, Lock, QrCode, TriangleAlert, UserCheck } from 'lucide-react-native';
 import { api } from '../../api/client';
 import type { Dashboard, TrainingSession } from '../../api/types';
 import { useAuth } from '../../auth/AuthContext';
 import AbsenceStreaks from '../../components/AbsenceStreaks';
 import { Badge, Banner, Button, Card, Empty, Loading, Row, Screen, SectionTitle } from '../../components/ui';
 import { useApi } from '../../hooks/useApi';
-import { discardPending, isOfflineError, preloadRosters, readSessions, saveSessions, syncQueue, usePendingAttendance } from '../../offline/attendanceOffline';
+import { discardPending, fetchStaffDay, isOfflineError, preloadRosters, readSessions, saveSessions, syncQueue, usePendingAttendance } from '../../offline/attendanceOffline';
 import { colors, font, spacing } from '../../theme';
 import { clockTime, firstName, greeting, longDay, shortDay, todayISO } from '../../utils/format';
 
 /** Panel del entrenador: entrenamientos de hoy y de los próximos días, con el estado de la asistencia. */
 export default function CoachTodayScreen({ navigation }: any) {
-  const { session, role } = useAuth();
+  const { session, role, can } = useAuth();
+  const canMarkStaff = can('manage_staff_attendance');
   const pending = usePendingAttendance();
   const { data, loading, refreshing, refresh } = useApi(async () => {
     syncQueue();
@@ -21,6 +22,7 @@ export default function CoachTodayScreen({ navigation }: any) {
       const res = await api.get<TrainingSession[]>('/attendance/mobile/my-training-history', { params: { months: 2 } });
       await saveSessions(res.data);
       preloadRosters(res.data.filter(s => s.date === todayISO()));
+      if (canMarkStaff) fetchStaffDay(todayISO()).catch(() => {});
       const dashboard = role === 'Staff' ? await api.get<Dashboard>('/dashboard').then(r => r.data).catch(() => null) : null;
       return { sessions: res.data, offlineSince: null as number | null, streaks: dashboard?.attendance.absenceStreaks ?? [] };
     } catch (e) {
@@ -66,6 +68,9 @@ export default function CoachTodayScreen({ navigation }: any) {
       ))}
 
       <Button title="Escanear carné QR" icon={<QrCode color={colors.white} size={20} />} onPress={() => navigation.navigate('Scan')} />
+      {canMarkStaff && (
+        <Button title="Asistencia de entrenadores" variant="secondary" icon={<UserCheck color={colors.primaryDark} size={20} />} onPress={() => navigation.navigate('StaffAttendance')} />
+      )}
 
       <AbsenceStreaks items={data?.streaks ?? []} />
 
