@@ -24,18 +24,24 @@ public class CategoryDto
     public Guid HeadquarterId { get; set; }
     public string HeadquarterName { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
+    /// <summary>En una categoría libre llega una franja amplia (1900–2100) para las apps anteriores; usar IsFree.</summary>
     public DateTime StartDateOfBirth { get; set; }
     public DateTime EndDateOfBirth { get; set; }
     public decimal MonthlyFee { get; set; }
     public bool IsActive { get; set; }
+    public bool IsFree { get; set; }
+    public int? MinAge { get; set; }
 }
 
 public class CreateCategoryDto
 {
     public Guid HeadquarterId { get; set; }
     public string Name { get; set; } = string.Empty;
-    public DateTime StartDateOfBirth { get; set; }
-    public DateTime EndDateOfBirth { get; set; }
+    /// <summary>Obligatorias si la categoría es por edad; se ignoran si es libre.</summary>
+    public DateTime? StartDateOfBirth { get; set; }
+    public DateTime? EndDateOfBirth { get; set; }
+    public bool IsFree { get; set; }
+    public int? MinAge { get; set; }
     /// <summary>Mensualidad de la categoría. En edición, null = conservar la actual.</summary>
     public decimal? MonthlyFee { get; set; }
 }

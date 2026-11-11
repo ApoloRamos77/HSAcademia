@@ -146,7 +146,7 @@ public class StudentService
         }
 
         _context.Students.Add(student);
-        _audit?.Add(academyId, "students.create", nameof(Student), student.Id, new { dto.FirstName, dto.LastName, dto.CategoryId });
+        _audit?.Add(academyId, "students.create", nameof(Student), student.Id, new { dto.FirstName, dto.LastName, dto.CategoryId, outsideCategoryAge = await OutsideCategoryAgeAsync(dto.CategoryId, dto.DateOfBirth) });
         // Un único SaveChanges: si algo falla no quedan usuarios huérfanos creados.
         await _context.SaveChangesAsync();
 
@@ -461,7 +461,7 @@ public class StudentService
         ValidateStudentInput(dto, isCreate: false);
         await EnsureNotDuplicateAsync(academyId, dto, id);
         _audit?.Add(academyId, student.IsActive && !dto.IsActive ? "students.withdraw" : !student.IsActive && dto.IsActive ? "students.reactivate" : "students.update",
-            nameof(Student), student.Id, new { dto.FirstName, dto.LastName, dto.CategoryId, dto.IsActive, financialsApplied = canEditFinancials });
+            nameof(Student), student.Id, new { dto.FirstName, dto.LastName, dto.CategoryId, dto.IsActive, financialsApplied = canEditFinancials, outsideCategoryAge = await OutsideCategoryAgeAsync(dto.CategoryId, dto.DateOfBirth) });
         var credentials = new List<GeneratedCredentialDto>();
 
         student.FirstName = dto.FirstName;
@@ -591,6 +591,13 @@ public class StudentService
             LastName = student.LastName,
             GeneratedCredentials = credentials.Count > 0 ? credentials : null
         };
+    }
+
+    /// <summary>Excepción de edad: se permite (decisión del entrenador) pero queda en la auditoría.</summary>
+    private async Task<bool> OutsideCategoryAgeAsync(Guid categoryId, DateTime? birthDate)
+    {
+        var category = await _context.Categories.AsNoTracking().FirstOrDefaultAsync(c => c.Id == categoryId);
+        return category != null && !category.FitsBirthDate(birthDate, AcademyClock.Today);
     }
 
     /// <summary>Returns all students assigned to the Guardian user.</summary>

@@ -35,7 +35,7 @@ export default function LandingAcademy() {
             whatsapp: data.contact?.whatsapp || '',
           },
           categories: (data.categories || []).length > 0
-            ? data.categories.map(c => ({ id: c.id, title: `Categoría ${c.name}`, desc: `Nacidos ${c.birthYears} · Sede ${c.headquarter}` }))
+            ? data.categories.map(c => ({ id: c.id, title: `Categoría ${c.name}`, desc: `${c.isFree ? c.birthYears : `Nacidos ${c.birthYears}`} · Sede ${c.headquarter}` }))
             : defaultAcademy.categories,
         });
       })

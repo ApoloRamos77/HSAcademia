@@ -39,8 +39,8 @@ public class PublicController : ControllerBase
 
         var categories = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(
             db.Categories.Where(c => c.AcademyId == academy.AcademyId && c.IsActive)
-              .OrderByDescending(c => c.StartDateOfBirth)
-              .Select(c => new { c.Id, c.Name, c.StartDateOfBirth, c.EndDateOfBirth, Headquarter = c.Headquarter!.Name }));
+              .OrderBy(c => c.IsFree).ThenByDescending(c => c.StartDateOfBirth)
+              .Select(c => new { c.Id, c.Name, c.StartDateOfBirth, c.EndDateOfBirth, c.IsFree, c.MinAge, Headquarter = c.Headquarter!.Name }));
 
         var phone = academy.ContactPhone ?? headquarters.Select(h => h.ContactPhone).FirstOrDefault(p => p != null);
         var digits = new string((phone ?? string.Empty).Where(char.IsDigit).ToArray());
@@ -68,9 +68,12 @@ public class PublicController : ControllerBase
                 c.Id,
                 c.Name,
                 c.Headquarter,
-                birthYears = c.StartDateOfBirth.Year == c.EndDateOfBirth.Year
-                    ? $"{c.StartDateOfBirth.Year}"
-                    : $"{Math.Min(c.StartDateOfBirth.Year, c.EndDateOfBirth.Year)}–{Math.Max(c.StartDateOfBirth.Year, c.EndDateOfBirth.Year)}"
+                c.IsFree,
+                birthYears = c.IsFree || c.StartDateOfBirth == null || c.EndDateOfBirth == null
+                    ? (c.MinAge.HasValue ? $"Libre · desde {c.MinAge} años" : "Libre")
+                    : c.StartDateOfBirth.Value.Year == c.EndDateOfBirth.Value.Year
+                        ? $"{c.StartDateOfBirth.Value.Year}"
+                        : $"{Math.Min(c.StartDateOfBirth.Value.Year, c.EndDateOfBirth.Value.Year)}–{Math.Max(c.StartDateOfBirth.Value.Year, c.EndDateOfBirth.Value.Year)}"
             })
         });
     }

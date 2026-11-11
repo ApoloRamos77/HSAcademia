@@ -11,7 +11,7 @@ export default function Categorias() {
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [filterSede, setFilterSede] = useState('');
-  const [formData, setFormData] = useState({ headquarterId: '', name: '', startDateOfBirth: '', endDateOfBirth: '', monthlyFee: '' });
+  const [formData, setFormData] = useState({ headquarterId: '', name: '', startDateOfBirth: '', endDateOfBirth: '', monthlyFee: '', isFree: false, minAge: '' });
 
   useEffect(() => {
     fetchData();
@@ -41,19 +41,30 @@ export default function Categorias() {
       name: categoria.name, 
       startDateOfBirth: categoria.startDateOfBirth ? categoria.startDateOfBirth.split('T')[0] : '', 
       endDateOfBirth: categoria.endDateOfBirth ? categoria.endDateOfBirth.split('T')[0] : '',
-      monthlyFee: categoria.monthlyFee ?? ''
+      monthlyFee: categoria.monthlyFee ?? '',
+      isFree: !!categoria.isFree,
+      minAge: categoria.minAge ?? ''
     });
+    // Una categoría libre no muestra la franja amplia que el servidor envía a las apps anteriores.
+    if (categoria.isFree) setFormData(f => ({ ...f, startDateOfBirth: '', endDateOfBirth: '' }));
     setEditingId(categoria.id);
     setShowModal(true);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (new Date(formData.startDateOfBirth) > new Date(formData.endDateOfBirth)) {
+    if (!formData.isFree && new Date(formData.startDateOfBirth) > new Date(formData.endDateOfBirth)) {
       return toast.error('La fecha de inicio no puede ser mayor a la fecha de fin.');
     }
-    
-    const payload = { ...formData, monthlyFee: formData.monthlyFee === '' ? null : parseFloat(formData.monthlyFee) };
+
+    // Libre: sin franja de nacimiento; por edad: sin edad mínima.
+    const payload = {
+      ...formData,
+      startDateOfBirth: formData.isFree ? null : formData.startDateOfBirth,
+      endDateOfBirth: formData.isFree ? null : formData.endDateOfBirth,
+      minAge: formData.isFree && formData.minAge !== '' ? parseInt(formData.minAge, 10) : null,
+      monthlyFee: formData.monthlyFee === '' ? null : parseFloat(formData.monthlyFee),
+    };
     try {
       if (editingId) {
         await api.put(`/academy-config/categories/${editingId}`, payload);
@@ -64,7 +75,7 @@ export default function Categorias() {
       }
       setShowModal(false);
       setEditingId(null);
-      setFormData({ headquarterId: sedes.length > 0 ? sedes[0].id : '', name: '', startDateOfBirth: '', endDateOfBirth: '', monthlyFee: '' });
+      setFormData({ headquarterId: sedes.length > 0 ? sedes[0].id : '', name: '', startDateOfBirth: '', endDateOfBirth: '', monthlyFee: '', isFree: false, minAge: '' });
       fetchData();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Error al guardar categoría.');
@@ -90,7 +101,7 @@ export default function Categorias() {
               </h3>
               <p className="text-muted mt-1">Configura los grupos de entrenamiento por edades.</p>
             </div>
-            <button onClick={() => { setEditingId(null); setFormData({ headquarterId: sedes.length > 0 ? sedes[0].id : '', name: '', startDateOfBirth: '', endDateOfBirth: '', monthlyFee: '' }); setShowModal(true); }} className="btn btn-primary">
+            <button onClick={() => { setEditingId(null); setFormData({ headquarterId: sedes.length > 0 ? sedes[0].id : '', name: '', startDateOfBirth: '', endDateOfBirth: '', monthlyFee: '', isFree: false, minAge: '' }); setShowModal(true); }} className="btn btn-primary">
               <PlusCircle size={16} /> Nueva Categoría
             </button>
           </div>
@@ -120,6 +131,14 @@ export default function Categorias() {
                   </span>
                 </div>
                 
+                {cat.isFree ? (
+                  <div className="flex justify-center items-center py-4 bg-bg-dark rounded-lg mb-4 border border-border">
+                    <div className="text-center px-4">
+                      <span className="block text-xs text-text-muted mb-1">Categoría libre</span>
+                      <span className="text-sm font-bold">{cat.minAge ? `Desde ${cat.minAge} años` : 'Sin límite de edad'}</span>
+                    </div>
+                  </div>
+                ) : (
                 <div className="flex justify-center items-center py-4 bg-bg-dark rounded-lg mb-4 border border-border">
                   <div className="text-center px-4 border-r border-border">
                     <span className="block text-xs text-text-muted mb-1">F. Nacimiento Inicial</span>
@@ -130,6 +149,7 @@ export default function Categorias() {
                     <span className="text-sm font-bold">{cat.endDateOfBirth ? cat.endDateOfBirth.split('T')[0] : 'N/A'}</span>
                   </div>
                 </div>
+                )}
 
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                   <span className="text-xs text-text-muted">Mensualidad</span>
@@ -162,6 +182,24 @@ export default function Categorias() {
                   <label className="form-label">Nombre de Categoría *</label>
                   <input required type="text" className="form-control" placeholder="Ej. Sub-12" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
                 </div>
+                <div className="form-group">
+                  <label className="form-label">¿Cómo se agrupan los alumnos?</label>
+                  <div className="flex gap-4 text-sm" style={{ flexWrap: 'wrap' }}>
+                    <label className="flex items-center gap-2" style={{ cursor: 'pointer' }}>
+                      <input type="radio" name="ageMode" checked={!formData.isFree} onChange={() => setFormData({ ...formData, isFree: false })} /> Por edad (fecha de nacimiento)
+                    </label>
+                    <label className="flex items-center gap-2" style={{ cursor: 'pointer' }}>
+                      <input type="radio" name="ageMode" checked={!!formData.isFree} onChange={() => setFormData({ ...formData, isFree: true })} /> Libre (sin edad)
+                    </label>
+                  </div>
+                </div>
+                {formData.isFree ? (
+                  <div className="form-group">
+                    <label className="form-label">Edad mínima (opcional)</label>
+                    <input type="number" min="1" max="99" step="1" className="form-control" placeholder="Ej. 18 para adultos" value={formData.minAge} onChange={e => setFormData({ ...formData, minAge: e.target.value })} />
+                    <small className="text-xs text-text-muted">Sin edad mínima, puede inscribirse cualquier alumno. Si alguno no la cumple, el sistema solo avisa.</small>
+                  </div>
+                ) : (
                 <div className="form-row">
                   <div className="form-group">
                     <label className="form-label">Desde (Fecha de Nacimiento) *</label>
@@ -172,6 +210,7 @@ export default function Categorias() {
                     <input required type="date" min="1900-01-01" max="2100-12-31" className="form-control" value={formData.endDateOfBirth} onChange={e => setFormData({...formData, endDateOfBirth: e.target.value})} />
                   </div>
                 </div>
+                )}
                 
                 <div className="form-group">
                   <label className="form-label">Mensualidad (S/) *</label>
