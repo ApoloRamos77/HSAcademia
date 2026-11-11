@@ -50,6 +50,7 @@ builder.Services.AddScoped<StudentService>();
 builder.Services.AddScoped<StoreService>();
 builder.Services.AddScoped<FinancesService>();
 builder.Services.AddScoped<SessionBillingService>();
+builder.Services.AddScoped<PayrollService>();
 builder.Services.AddScoped<ReceiptRecorder>();
 builder.Services.AddScoped<ReceiptService>();
 builder.Services.AddScoped<DiscountService>();

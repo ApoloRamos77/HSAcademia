@@ -1582,6 +1582,61 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.ToTable("monthly_closings", (string)null);
                 });
 
+            modelBuilder.Entity("HSAcademia.Domain.Entities.PayScale", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AcademyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("academy_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_default");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Tiers")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("tiers");
+
+                    b.Property<int>("Unit")
+                        .HasColumnType("integer")
+                        .HasColumnName("unit");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AcademyId");
+
+                    b.ToTable("pay_scales", (string)null);
+                });
+
             modelBuilder.Entity("HSAcademia.Domain.Entities.PaymentInstallment", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2413,6 +2468,70 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.ToTable("receipt_payments", (string)null);
                 });
 
+            modelBuilder.Entity("HSAcademia.Domain.Entities.StaffAdvance", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AcademyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("academy_id");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("numeric(10,2)")
+                        .HasColumnName("amount");
+
+                    b.Property<string>("Concept")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("concept");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CreatedByName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("created_by_name");
+
+                    b.Property<DateTime>("Date")
+                        .HasColumnType("date")
+                        .HasColumnName("date");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
+                    b.Property<string>("Method")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("method");
+
+                    b.Property<Guid>("StaffId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("staff_id");
+
+                    b.Property<Guid?>("StaffPaymentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("staff_payment_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AcademyId", "StaffId");
+
+                    b.ToTable("staff_advances", (string)null);
+                });
+
             modelBuilder.Entity("HSAcademia.Domain.Entities.StaffAttendance", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2460,6 +2579,10 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("staff_id");
 
+                    b.Property<Guid?>("StaffPaymentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("staff_payment_id");
+
                     b.Property<int>("Status")
                         .HasColumnType("integer")
                         .HasColumnName("status");
@@ -2498,6 +2621,15 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("academy_id");
 
+                    b.Property<DateTime?>("ApprovedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("approved_at");
+
+                    b.Property<string>("ApprovedByName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("approved_by_name");
+
                     b.Property<decimal>("BaseAmount")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("numeric(10,2)")
@@ -2526,6 +2658,20 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("deleted_at");
 
+                    b.Property<string>("Detail")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("detail");
+
+                    b.Property<int>("Frequency")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("frequency");
+
+                    b.Property<decimal?>("Hours")
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("hours");
+
                     b.Property<bool>("IsDeleted")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -2541,9 +2687,22 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("paid_at");
 
+                    b.Property<string>("PaymentMethod")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("payment_method");
+
+                    b.Property<DateTime>("PeriodEnd")
+                        .HasColumnType("date")
+                        .HasColumnName("period_end");
+
                     b.Property<int>("PeriodMonth")
                         .HasColumnType("integer")
                         .HasColumnName("period_month");
+
+                    b.Property<DateTime>("PeriodStart")
+                        .HasColumnType("date")
+                        .HasColumnName("period_start");
 
                     b.Property<int>("PeriodYear")
                         .HasColumnType("integer")
@@ -2569,6 +2728,12 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasDefaultValue(0m)
                         .HasColumnName("total_paid");
 
+                    b.Property<decimal>("UnitsAmount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("numeric(10,2)")
+                        .HasDefaultValue(0m)
+                        .HasColumnName("units_amount");
+
                     b.Property<DateTime>("UpdatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -2579,10 +2744,45 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("StaffId");
 
-                    b.HasIndex("AcademyId", "StaffId", "PeriodMonth", "PeriodYear")
-                        .IsUnique();
+                    b.HasIndex("AcademyId", "StaffId", "PeriodStart");
 
                     b.ToTable("staff_payments", (string)null);
+                });
+
+            modelBuilder.Entity("HSAcademia.Domain.Entities.StaffPaymentLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("numeric(10,2)")
+                        .HasColumnName("amount");
+
+                    b.Property<string>("Concept")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("concept");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer")
+                        .HasColumnName("kind");
+
+                    b.Property<Guid?>("StaffAdvanceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("staff_advance_id");
+
+                    b.Property<Guid>("StaffPaymentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("staff_payment_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StaffPaymentId");
+
+                    b.ToTable("staff_payment_lines", (string)null);
                 });
 
             modelBuilder.Entity("HSAcademia.Domain.Entities.Student", b =>
@@ -3031,6 +3231,16 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(500)")
                         .HasColumnName("password_reset_token");
 
+                    b.Property<int>("PayFrequency")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("pay_frequency");
+
+                    b.Property<Guid?>("PayScaleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("pay_scale_id");
+
                     b.Property<decimal>("PaymentRate")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("numeric(10,2)")
@@ -3102,6 +3312,7 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                             LastName = "Admin",
                             MustChangePassword = false,
                             PasswordHash = "$2a$11$G7Z3P7d1G3kMhY1S1iR5M.O5X9W8G2m5T4c5lR2p5n8v1M3s1x2eO",
+                            PayFrequency = 0,
                             PaymentRate = 0m,
                             PaymentType = 0,
                             Role = 0,
@@ -3720,6 +3931,15 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.Navigation("Staff");
                 });
 
+            modelBuilder.Entity("HSAcademia.Domain.Entities.StaffPaymentLine", b =>
+                {
+                    b.HasOne("HSAcademia.Domain.Entities.StaffPayment", null)
+                        .WithMany("Lines")
+                        .HasForeignKey("StaffPaymentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("HSAcademia.Domain.Entities.Student", b =>
                 {
                     b.HasOne("HSAcademia.Domain.Entities.Category", "Category")
@@ -3906,6 +4126,11 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.Navigation("Lines");
 
                     b.Navigation("Payments");
+                });
+
+            modelBuilder.Entity("HSAcademia.Domain.Entities.StaffPayment", b =>
+                {
+                    b.Navigation("Lines");
                 });
 
             modelBuilder.Entity("HSAcademia.Domain.Entities.Student", b =>

@@ -19,6 +19,9 @@ public class StaffAttendance
     /// <summary>Quién dictó la sesión en lugar del entrenador ausente.</summary>
     public Guid? SubstituteStaffId { get; set; }
 
+    /// <summary>Liquidación pagada que incluyó esta sesión (evita pagarla dos veces).</summary>
+    public Guid? StaffPaymentId { get; set; }
+
     public Guid? MarkedByUserId { get; set; }
     public string? MarkedByName { get; set; }
     public DateTime? MarkedAt { get; set; }

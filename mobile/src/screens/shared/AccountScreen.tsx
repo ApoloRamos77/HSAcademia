@@ -20,7 +20,7 @@ export default function AccountScreen({ navigation }: any) {
     isStaff && can('attendance.take') && { icon: <QrCode color={colors.primaryDark} />, label: 'Escanear carné', go: () => navigation.navigate('Scan') },
     role === 'AcademyAdmin' && { icon: <CalendarDays color={colors.primaryDark} />, label: 'Agenda y partidos', go: () => navigation.navigate('Agenda') },
     { icon: <Megaphone color={colors.primaryDark} />, label: 'Comunicados', go: () => navigation.navigate('News') },
-    isStaff && { icon: <Wallet color={colors.primaryDark} />, label: 'Mis pagos', go: () => navigation.navigate('MyPayments') },
+    isStaff && { icon: <Wallet color={colors.primaryDark} />, label: 'Mis horas y pagos', go: () => navigation.navigate('MyPayments') },
     { icon: <KeyRound color={colors.primaryDark} />, label: 'Cambiar contraseña', go: () => navigation.navigate('ChangePassword') },
   ].filter(Boolean) as { icon: React.ReactNode; label: string; go: () => void }[];
 
