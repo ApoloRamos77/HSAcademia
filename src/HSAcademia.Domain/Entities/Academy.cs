@@ -16,6 +16,10 @@ public class Academy
     public string? ContactPhone { get; set; }
     public string? LogoUrl { get; set; }
     public string? Address { get; set; }
+
+    // Datos fijos de los comprobantes: no dependen de la sede ni de dónde se cobre.
+    public string? ReceiptAddress { get; set; }
+    public string? ReceiptPhone { get; set; }
     public string? City { get; set; }
     public string? Country { get; set; }
     public string? Website { get; set; }

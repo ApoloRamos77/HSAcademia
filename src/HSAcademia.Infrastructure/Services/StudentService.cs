@@ -32,6 +32,9 @@ public class StudentService
             .Include(s => s.Guardian)
             .Where(s => s.AcademyId == academyId);
 
+        // Solo el administrador ve a los retirados; el resto del personal trabaja con los activos.
+        if (userRole != "AcademyAdmin" && userRole != "SuperAdmin")
+            query = query.Where(s => s.IsActive);
         if (userRole == "Staff" && userId.HasValue)
             query = AccessScopeService.ApplyStudents(query, await _scope.ForUserAsync(userId.Value));
 

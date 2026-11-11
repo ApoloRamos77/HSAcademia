@@ -178,7 +178,10 @@ public class AttendanceController : ControllerBase
         var academyId = GetAcademyId();
         if (academyId == Guid.Empty) return Unauthorized();
         // Con sesión indicada, el servicio valida el alcance; sin ella solo queda validarlo por el alumno.
-        if (!dto.EventId.HasValue && !await ScopeChecker.IsAllowedAsync(HttpContext, ScopeTarget.Student, dto.StudentUserId))
+        // Un retirado pasa al servicio para que el entrenador lea "está retirado" y no "fuera de tu alcance".
+        var access = HttpContext.RequestServices.GetRequiredService<AccessControlService>();
+        if (!dto.EventId.HasValue && await access.StudentIsActiveAsync(academyId, dto.StudentUserId)
+            && !await ScopeChecker.IsAllowedAsync(HttpContext, ScopeTarget.Student, dto.StudentUserId))
             return ScopeChecker.Denied();
         try
         {

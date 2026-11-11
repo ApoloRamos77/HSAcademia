@@ -11,7 +11,7 @@ import { Apple, Activity as ActivityIcon } from 'lucide-react';
 import { todayISO } from '../../utils/dates';
 
 export default function Alumnos() {
-  const { user, can } = useAuth();
+  const { user, can, isAdmin } = useAuth();
   const canEdit = can('students.edit');
   const canSeeMedical = can('students.medical');
   const [alumnos, setAlumnos] = useState([]);
@@ -404,15 +404,15 @@ export default function Alumnos() {
                       .map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
                 </div>
-                {/* Estado */}
-                <div>
+                {/* Estado: solo el administrador ve a los retirados */}
+                {isAdmin && <div>
                   <label className="form-label text-xs mb-1">Estado</label>
                   <select className="form-control text-sm py-1.5" value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setCurrentPage(1); }}>
                     <option value="">Todos</option>
                     <option value="active">Activos</option>
                     <option value="inactive">Inactivos</option>
                   </select>
-                </div>
+                </div>}
               </div>
             )}
 

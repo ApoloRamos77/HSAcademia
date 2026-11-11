@@ -8,7 +8,8 @@ public enum ScopeTarget { Student, Category, Event, Debt, Proof, Receipt }
 
 /// <summary>
 /// Reglas de alcance del personal: el permiso dice QUÉ puede hacer; el alcance, SOBRE QUÉ registros.
-/// Lo deportivo se limita por categorías y lo financiero por sedes. El administrador alcanza toda la academia.
+/// Lo deportivo se limita por categorías y lo financiero por sedes. El administrador alcanza toda la academia,
+/// incluidos los alumnos retirados; el resto del personal solo alcanza a los activos.
 /// </summary>
 public static class ScopeChecker
 {
@@ -40,8 +41,9 @@ public static class ScopeChecker
         return target switch
         {
             ScopeTarget.Student =>
-                await access.StaffCanAccessStudentAsync(academyId, userId, id)
-                || (scope.Has(sedeWidePermissions) && await access.StudentInScopeAsync(academyId, id, scope)),
+                await access.StudentIsActiveAsync(academyId, id)
+                && (await access.StaffCanAccessStudentAsync(academyId, userId, id)
+                    || (scope.Has(sedeWidePermissions) && await access.StudentInScopeAsync(academyId, id, scope))),
             ScopeTarget.Category => await access.StaffCanAccessCategoryAsync(academyId, userId, id),
             ScopeTarget.Event => await access.StaffCanAccessEventAsync(academyId, userId, id),
             ScopeTarget.Debt => await access.DebtInScopeAsync(academyId, id, scope),

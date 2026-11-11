@@ -164,7 +164,8 @@ public class ReportsService
         var to = from.AddMonths(1);
         var q = _db.Attendances.AsNoTracking()
             .Where(a => a.AcademyId == academyId && a.Date >= from && a.Date < to);
-        if (categoryScope != null) q = q.Where(a => categoryScope.Contains(a.Student.CategoryId));
+        // Fuera del administrador, solo alumnos activos de sus categorías.
+        if (categoryScope != null) q = q.Where(a => a.Student.IsActive && categoryScope.Contains(a.Student.CategoryId));
 
         var rows = await q.Select(a => new
         {
