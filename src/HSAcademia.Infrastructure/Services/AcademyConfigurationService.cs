@@ -118,7 +118,10 @@ public class AcademyConfigurationService
                 MonthlyFee = c.MonthlyFee,
                 IsActive = c.IsActive,
                 IsFree = c.IsFree,
-                MinAge = c.MinAge
+                MinAge = c.MinAge,
+                SessionFee = c.SessionFee,
+                PackageSessions = c.PackageSessions,
+                PackagePrice = c.PackagePrice
             })
             .ToListAsync();
     }
@@ -127,8 +130,19 @@ public class AcademyConfigurationService
     {
         Id = c.Id, HeadquarterId = c.HeadquarterId, HeadquarterName = headquarterName, Name = c.Name,
         StartDateOfBirth = c.StartDateOfBirth ?? Category.FreeRangeStart, EndDateOfBirth = c.EndDateOfBirth ?? Category.FreeRangeEnd,
-        MonthlyFee = c.MonthlyFee, IsActive = c.IsActive, IsFree = c.IsFree, MinAge = c.MinAge
+        MonthlyFee = c.MonthlyFee, IsActive = c.IsActive, IsFree = c.IsFree, MinAge = c.MinAge,
+        SessionFee = c.SessionFee, PackageSessions = c.PackageSessions, PackagePrice = c.PackagePrice
     };
+
+    /// <summary>Precio por sesión y paquete (solo si el cliente envía el precio por sesión).</summary>
+    private static void ApplySessionPricing(Category category, CreateCategoryDto dto)
+    {
+        if (!dto.SessionFee.HasValue) return;
+        category.SessionFee = dto.SessionFee.Value;
+        var hasPackage = dto.PackageSessions.HasValue || dto.PackagePrice.HasValue;
+        category.PackageSessions = hasPackage ? dto.PackageSessions : null;
+        category.PackagePrice = hasPackage ? dto.PackagePrice : null;
+    }
 
     /// <summary>Libre: sin franja de nacimiento. Por edad: franja obligatoria.</summary>
     private static void ApplyAgeRule(Category category, CreateCategoryDto dto)
@@ -152,6 +166,13 @@ public class AcademyConfigurationService
     {
         if (string.IsNullOrWhiteSpace(dto.Name)) throw new Exception("El nombre de la categoría es obligatorio.");
         if (dto.MonthlyFee.HasValue && dto.MonthlyFee.Value < 0) throw new Exception("La mensualidad no puede ser negativa.");
+        if (dto.SessionFee is < 0) throw new Exception("El precio por sesión no puede ser negativo.");
+        if (dto.PackageSessions.HasValue != dto.PackagePrice.HasValue)
+            throw new Exception("El paquete necesita la cantidad de sesiones y el precio.");
+        if (dto.PackageSessions is < 1 or > 60) throw new Exception("El paquete debe tener entre 1 y 60 sesiones.");
+        if (dto.PackagePrice is <= 0) throw new Exception("El precio del paquete debe ser mayor a cero.");
+        if (dto.PackageSessions.HasValue && dto.SessionFee is not > 0)
+            throw new Exception("Para ofrecer paquete, indica también el precio por sesión (se usa para las sesiones extra).");
         if (dto.Name.Trim().Length > 100) throw new Exception("El nombre de la categoría admite hasta 100 caracteres.");
         if (dto.IsFree)
         {
@@ -178,6 +199,7 @@ public class AcademyConfigurationService
             MonthlyFee = dto.MonthlyFee ?? 0m
         };
         ApplyAgeRule(category, dto);
+        ApplySessionPricing(category, dto);
         _context.Categories.Add(category);
         await _context.SaveChangesAsync();
         return ToCategoryDto(category, hq.Name);
@@ -194,6 +216,7 @@ public class AcademyConfigurationService
         category.HeadquarterId = dto.HeadquarterId;
         category.Name = dto.Name.Trim();
         ApplyAgeRule(category, dto);
+        ApplySessionPricing(category, dto);
         if (dto.MonthlyFee.HasValue) category.MonthlyFee = dto.MonthlyFee.Value;
         await _context.SaveChangesAsync();
         return ToCategoryDto(category, hq.Name);

@@ -11,7 +11,7 @@ export default function Categorias() {
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [filterSede, setFilterSede] = useState('');
-  const [formData, setFormData] = useState({ headquarterId: '', name: '', startDateOfBirth: '', endDateOfBirth: '', monthlyFee: '', isFree: false, minAge: '' });
+  const [formData, setFormData] = useState({ headquarterId: '', name: '', startDateOfBirth: '', endDateOfBirth: '', monthlyFee: '', isFree: false, minAge: '', sessionFee: '', packageSessions: '', packagePrice: '' });
 
   useEffect(() => {
     fetchData();
@@ -43,7 +43,10 @@ export default function Categorias() {
       endDateOfBirth: categoria.endDateOfBirth ? categoria.endDateOfBirth.split('T')[0] : '',
       monthlyFee: categoria.monthlyFee ?? '',
       isFree: !!categoria.isFree,
-      minAge: categoria.minAge ?? ''
+      minAge: categoria.minAge ?? '',
+      sessionFee: categoria.sessionFee ? categoria.sessionFee : '',
+      packageSessions: categoria.packageSessions ?? '',
+      packagePrice: categoria.packagePrice ?? ''
     });
     // Una categoría libre no muestra la franja amplia que el servidor envía a las apps anteriores.
     if (categoria.isFree) setFormData(f => ({ ...f, startDateOfBirth: '', endDateOfBirth: '' }));
@@ -64,6 +67,10 @@ export default function Categorias() {
       endDateOfBirth: formData.isFree ? null : formData.endDateOfBirth,
       minAge: formData.isFree && formData.minAge !== '' ? parseInt(formData.minAge, 10) : null,
       monthlyFee: formData.monthlyFee === '' ? null : parseFloat(formData.monthlyFee),
+      // Precio por sesión siempre se envía (0 = no ofrece); el paquete va completo o vacío.
+      sessionFee: formData.sessionFee === '' || formData.sessionFee == null ? 0 : parseFloat(formData.sessionFee),
+      packageSessions: formData.packageSessions === '' || formData.packageSessions == null ? null : parseInt(formData.packageSessions, 10),
+      packagePrice: formData.packagePrice === '' || formData.packagePrice == null ? null : parseFloat(formData.packagePrice),
     };
     try {
       if (editingId) {
@@ -75,7 +82,7 @@ export default function Categorias() {
       }
       setShowModal(false);
       setEditingId(null);
-      setFormData({ headquarterId: sedes.length > 0 ? sedes[0].id : '', name: '', startDateOfBirth: '', endDateOfBirth: '', monthlyFee: '', isFree: false, minAge: '' });
+      setFormData({ headquarterId: sedes.length > 0 ? sedes[0].id : '', name: '', startDateOfBirth: '', endDateOfBirth: '', monthlyFee: '', isFree: false, minAge: '', sessionFee: '', packageSessions: '', packagePrice: '' });
       fetchData();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Error al guardar categoría.');
@@ -101,7 +108,7 @@ export default function Categorias() {
               </h3>
               <p className="text-muted mt-1">Configura los grupos de entrenamiento por edades.</p>
             </div>
-            <button onClick={() => { setEditingId(null); setFormData({ headquarterId: sedes.length > 0 ? sedes[0].id : '', name: '', startDateOfBirth: '', endDateOfBirth: '', monthlyFee: '', isFree: false, minAge: '' }); setShowModal(true); }} className="btn btn-primary">
+            <button onClick={() => { setEditingId(null); setFormData({ headquarterId: sedes.length > 0 ? sedes[0].id : '', name: '', startDateOfBirth: '', endDateOfBirth: '', monthlyFee: '', isFree: false, minAge: '', sessionFee: '', packageSessions: '', packagePrice: '' }); setShowModal(true); }} className="btn btn-primary">
               <PlusCircle size={16} /> Nueva Categoría
             </button>
           </div>
@@ -155,6 +162,12 @@ export default function Categorias() {
                   <span className="text-xs text-text-muted">Mensualidad</span>
                   <span style={{ fontWeight: 700, fontSize: 18 }}>{Number(cat.monthlyFee) > 0 ? `S/ ${Number(cat.monthlyFee).toFixed(2)}` : "Sin tarifa"}</span>
                 </div>
+                {(Number(cat.sessionFee) > 0 || cat.packageSessions) && (
+                  <div className="text-xs text-text-muted" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12, gap: 8, flexWrap: 'wrap' }}>
+                    {Number(cat.sessionFee) > 0 && <span>Por sesión: <b>S/ {Number(cat.sessionFee).toFixed(2)}</b></span>}
+                    {cat.packageSessions && <span>Paquete: <b>{cat.packageSessions} sesiones · S/ {Number(cat.packagePrice).toFixed(2)}</b></span>}
+                  </div>
+                )}
 
                 <div className="flex justify-end gap-2 border-t border-border pt-4">
                   <button onClick={() => handleEdit(cat)} className="btn btn-ghost btn-sm" title="Editar"><Edit2 size={14}/></button>
@@ -215,8 +228,27 @@ export default function Categorias() {
                 <div className="form-group">
                   <label className="form-label">Mensualidad (S/) *</label>
                   <input required type="number" min="0" step="0.01" className="form-control" placeholder="Ej. 120.00" value={formData.monthlyFee} onChange={e => setFormData({...formData, monthlyFee: e.target.value})} />
-                  <small className="text-xs text-text-muted">Monto base que se cobra cada mes a los alumnos de la categoría (salvo tarifa preferencial o beca).</small>
+                  <small className="text-xs text-text-muted">Monto base que se cobra cada mes a los alumnos de la categoría (salvo tarifa preferencial o beca). También es el tope de quienes pagan por sesión.</small>
                 </div>
+
+                <div className="form-group">
+                  <label className="form-label">Precio por sesión (S/, opcional)</label>
+                  <input type="number" min="0" step="0.01" className="form-control" placeholder="Ej. 15.00" value={formData.sessionFee ?? ''} onChange={e => setFormData({ ...formData, sessionFee: e.target.value })} />
+                  <small className="text-xs text-text-muted">Para alumnos que pagan solo los días que asisten. Vacío: la categoría no ofrece pago por sesión.</small>
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">Paquete: sesiones (opcional)</label>
+                    <input type="number" min="1" max="60" step="1" className="form-control" placeholder="Ej. 8" value={formData.packageSessions ?? ''} onChange={e => setFormData({ ...formData, packageSessions: e.target.value })} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Paquete: precio al mes (S/)</label>
+                    <input type="number" min="0" step="0.01" className="form-control" placeholder="Ej. 90.00" value={formData.packagePrice ?? ''} onChange={e => setFormData({ ...formData, packagePrice: e.target.value })} />
+                  </div>
+                </div>
+                <small className="text-xs text-text-muted" style={{ display: 'block', marginTop: -8, marginBottom: 12 }}>
+                  El paquete se cobra cada mes; las sesiones que lo superen se cobran a precio por sesión, sin pasar de la mensualidad.
+                </small>
 
                 <div className="modal-footer">
                   <button type="button" onClick={() => setShowModal(false)} className="btn btn-ghost">Cancelar</button>

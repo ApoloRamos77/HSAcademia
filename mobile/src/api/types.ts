@@ -64,6 +64,8 @@ export interface StudentSummary {
   paymentStartDate?: string | null;
   withdrawalDate?: string | null;
   preferentialFee?: number | null;
+  billingPlan?: BillingPlan;
+  preferentialSessionFee?: number | null;
   isGuest?: boolean;
   isScholarship?: boolean;
   scholarshipPercentage?: number | null;
@@ -83,6 +85,19 @@ export interface Category {
   /** Libre: no se agrupa por edad (servidor 2026-11 en adelante). */
   isFree?: boolean;
   minAge?: number | null;
+  /** Precio por sesión y paquete mensual (servidor 2026-11 en adelante). */
+  sessionFee?: number;
+  packageSessions?: number | null;
+  packagePrice?: number | null;
+}
+
+export type BillingPlan = 'Monthly' | 'PerSession' | 'Package';
+
+/** Acumulado del mes de un alumno por sesión o paquete. */
+export interface SessionSummary {
+  studentId: string; studentName: string; plan: BillingPlan; year: number; month: number;
+  attended: number; sessionFee: number; cap: number; packageSessions?: number | null; packagePrice?: number | null;
+  accrued: number; paidInField: number; capReached: boolean;
 }
 
 export interface GeneratedCredential { role: string; fullName: string; login: string; temporaryPassword: string }
@@ -243,6 +258,7 @@ export interface RosterStudent {
   markedVia?: 'QR' | 'Lista' | 'Automático' | null;
   markedByName?: string | null;
   markedAt?: string | null;
+  billingPlan?: BillingPlan;
 }
 
 export interface AbsenceStreak { studentId: string; name: string; category: string; absences: number; absentSince: string; contactPhone?: string | null }

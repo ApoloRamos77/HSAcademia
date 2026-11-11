@@ -761,6 +761,20 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(100)")
                         .HasColumnName("name");
 
+                    b.Property<decimal?>("PackagePrice")
+                        .HasColumnType("numeric(10,2)")
+                        .HasColumnName("package_price");
+
+                    b.Property<int?>("PackageSessions")
+                        .HasColumnType("integer")
+                        .HasColumnName("package_sessions");
+
+                    b.Property<decimal>("SessionFee")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("numeric(10,2)")
+                        .HasDefaultValue(0m)
+                        .HasColumnName("session_fee");
+
                     b.Property<DateTime?>("StartDateOfBirth")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("start_date_of_birth");
@@ -1851,6 +1865,18 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("regularized_by_user_id");
 
+                    b.Property<DateTime?>("SessionDate")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("session_date");
+
+                    b.Property<Guid?>("SessionEventId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("session_event_id");
+
+                    b.Property<int?>("SessionsCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("sessions_count");
+
                     b.Property<Guid>("StudentId")
                         .HasColumnType("uuid")
                         .HasColumnName("student_id");
@@ -2568,6 +2594,9 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("AcademyId")
                         .HasColumnType("uuid");
 
+                    b.Property<int>("BillingPlan")
+                        .HasColumnType("integer");
+
                     b.Property<Guid>("CategoryId")
                         .HasColumnType("uuid");
 
@@ -2622,6 +2651,9 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasColumnType("text");
 
                     b.Property<decimal?>("PreferentialFee")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal?>("PreferentialSessionFee")
                         .HasColumnType("numeric");
 
                     b.Property<decimal?>("ScholarshipPercentage")

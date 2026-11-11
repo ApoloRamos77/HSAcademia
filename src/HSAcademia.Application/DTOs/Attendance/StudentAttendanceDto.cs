@@ -16,6 +16,8 @@ public class StudentAttendanceDto
 
     /// <summary>"QR" | "Lista" (null en registros anteriores a este control).</summary>
     public string? MarkedVia { get; set; }
+    /// <summary>"Monthly" | "PerSession" | "Package": la app ofrece cobrar la sesión a quien paga por sesión.</summary>
+    public string BillingPlan { get; set; } = "Monthly";
     public string? MarkedByName { get; set; }
     public DateTime? MarkedAt { get; set; }
 }

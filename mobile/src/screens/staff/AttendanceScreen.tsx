@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { CloudOff, Lock, QrCode, Users } from 'lucide-react-native';
-import { errorMessage } from '../../api/client';
+import { api, errorMessage } from '../../api/client';
 import type { AttendanceCode, RosterStudent, TrainingSession } from '../../api/types';
 import { useAuth } from '../../auth/AuthContext';
 import QrScanner, { type ScanResult } from '../../components/QrScanner';
@@ -30,7 +30,8 @@ const marksOf = (list: RosterStudent[]): Marks => Object.fromEntries(list.filter
  */
 export default function AttendanceScreen({ route, navigation }: any) {
   const s: TrainingSession = route.params.session;
-  const { role } = useAuth();
+  const { role, can } = useAuth();
+  const canCollect = can('collections.collect');
   const bottomInset = useBottomInset();
   const [roster, setRoster] = useState<RosterStudent[]>([]);
   const [marks, setMarks] = useState<Marks>({});
@@ -96,6 +97,24 @@ export default function AttendanceScreen({ route, navigation }: any) {
     setMarks(m => ({ ...m, [r.studentId]: 1 }));
     setRoster(list => list.map(x => (x.studentId === r.studentId ? { ...x, markedVia: 'QR', markedAt: r.markedAt } : x)));
   }, []);
+
+  // Alumno por sesión: se crea la deuda de esta sesión (una sola vez) y se abre el cobro en campo.
+  const chargeSession = (r: RosterStudent) => {
+    Alert.alert('Cobrar la sesión', `¿Cobrar a ${r.firstName} ${r.lastName} la sesión de hoy?`, [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Cobrar', onPress: async () => {
+          try {
+            const { data } = await api.post<{ amount: number; alreadyCharged: boolean }>('/finances/sessions/charge', { studentId: r.studentId, eventId: s.eventId });
+            if (data.alreadyCharged) Alert.alert('Ya estaba registrada', 'Esta sesión ya se cargó a su cuenta: puedes cobrarla ahora.');
+            navigation.navigate('FieldPayment', { student: { id: r.studentId, firstName: r.firstName, lastName: r.lastName } });
+          } catch (e) {
+            Alert.alert('No se pudo cobrar', isOfflineError(e) ? 'Necesitas señal para cobrar la sesión.' : errorMessage(e));
+          }
+        },
+      },
+    ]);
+  };
 
   const resolveOffline = useCallback(async (studentId: string) => {
     const student = current.current.roster.find(r => r.studentId === studentId);
@@ -224,6 +243,12 @@ export default function AttendanceScreen({ route, navigation }: any) {
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={styles.lastName}>{item.lastName}</Text>
                 <Text style={styles.firstName}>{item.firstName}</Text>
+                {item.billingPlan === 'PerSession' && canCollect && (
+                  <Pressable onPress={() => chargeSession(item)} accessibilityRole="button" accessibilityLabel={`Cobrar sesión a ${item.firstName}`} hitSlop={6} style={styles.payTag}>
+                    <Text style={styles.payTagText} maxFontSizeMultiplier={1.2}>💲 Paga por sesión · Cobrar</Text>
+                  </Pressable>
+                )}
+                {item.billingPlan === 'PerSession' && !canCollect && <Text style={font.tiny}>💲 Paga por sesión</Text>}
                 {!!item.markedVia && (
                   <Text style={font.tiny} numberOfLines={1}>
                     {item.markedVia}{item.markedAt ? ` · ${clockTime(item.markedAt)}` : ''}{item.markedByName ? ` · ${item.markedByName}` : ''}
@@ -270,6 +295,8 @@ const styles = StyleSheet.create({
   lastName: { ...font.body, color: colors.text, fontWeight: '700' },
   firstName: { ...font.body, color: colors.text },
   options: { flexDirection: 'row', gap: 6 },
+  payTag: { alignSelf: 'flex-start', marginTop: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: colors.warningBg },
+  payTagText: { fontSize: 12, fontWeight: '700', color: colors.warning },
   avatar: { width: 36, height: 36, borderRadius: radius.pill, backgroundColor: colors.primaryLight, alignItems: 'center', justifyContent: 'center' },
   avatarText: { color: colors.primaryDark, fontWeight: '700' },
   opt: { flex: 1, minWidth: 0, minHeight: 48, paddingVertical: 4, paddingHorizontal: 2, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.card },

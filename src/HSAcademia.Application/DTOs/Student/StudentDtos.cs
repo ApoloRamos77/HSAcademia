@@ -34,6 +34,9 @@ public class StudentDto
     public bool IsGuest { get; set; }
     public bool IsScholarship { get; set; }
     public decimal? ScholarshipPercentage { get; set; }
+    /// <summary>"Monthly" | "PerSession" | "Package".</summary>
+    public string BillingPlan { get; set; } = "Monthly";
+    public decimal? PreferentialSessionFee { get; set; }
 
     /// <summary>Solo al crear/actualizar: accesos generados (se muestran una única vez al administrador).</summary>
     public List<GeneratedCredentialDto>? GeneratedCredentials { get; set; }
@@ -76,6 +79,10 @@ public class CreateStudentDto
     public bool IsGuest { get; set; }
     public bool IsScholarship { get; set; }
     public decimal? ScholarshipPercentage { get; set; }
+    /// <summary>"Monthly" | "PerSession" | "Package". Null = conservar (apps anteriores no lo envían).</summary>
+    public string? BillingPlan { get; set; }
+    /// <summary>Solo se aplica cuando llega BillingPlan.</summary>
+    public decimal? PreferentialSessionFee { get; set; }
 
     // Medical Record
     public MedicalRecordDto MedicalRecord { get; set; } = new();

@@ -34,6 +34,10 @@ public class Student
 
     // Financial Config
     public decimal? PreferentialFee { get; set; }
+    /// <summary>Mensual, por sesión o paquete. Por sesión y paquete se liquidan con la asistencia.</summary>
+    public HSAcademia.Domain.Enums.StudentBillingPlan BillingPlan { get; set; } = HSAcademia.Domain.Enums.StudentBillingPlan.Monthly;
+    /// <summary>Precio por sesión propio del alumno (si no, el de la categoría).</summary>
+    public decimal? PreferentialSessionFee { get; set; }
     public bool IsGuest { get; set; } = false;
     public bool IsScholarship { get; set; } = false;
     public decimal? ScholarshipPercentage { get; set; }
