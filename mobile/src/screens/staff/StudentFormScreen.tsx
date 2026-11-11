@@ -130,6 +130,8 @@ export default function StudentFormScreen({ route, navigation }: any) {
     if (Number.isNaN(pct) || pct < 0 || pct > 100) return 'La beca debe estar entre 0 y 100%.';
     if (f.preferentialFee && (Number.isNaN(Number(f.preferentialFee)) || Number(f.preferentialFee) < 0)) return 'La tarifa preferencial no es válida.';
     if (f.preferentialSessionFee && (Number.isNaN(Number(f.preferentialSessionFee)) || Number(f.preferentialSessionFee) < 0)) return 'El precio por sesión no es válido.';
+    if (canFinance && f.billingPlan !== 'Monthly' && !((selectedCat?.sessionFee ?? 0) > 0) && !(Number(f.preferentialSessionFee) > 0))
+      return 'Indica el precio por sesión del alumno: su categoría no lo tiene configurado.';
     return null;
   };
 
@@ -299,7 +301,8 @@ export default function StudentFormScreen({ route, navigation }: any) {
             <Text style={[labelStyle, { marginTop: spacing.sm }]}>Plan de cobro</Text>
             <Chips value={f.billingPlan} onChange={v => set('billingPlan', v as BillingPlan)} options={[
               { value: 'Monthly', label: 'Mensualidad' },
-              ...((selectedCat?.sessionFee ?? 0) > 0 || f.billingPlan === 'PerSession' ? [{ value: 'PerSession', label: `Por sesión${selectedCat?.sessionFee ? ` · ${money(selectedCat.sessionFee)}` : ''}` }] : []),
+              // Por sesión siempre se ofrece: sin precio en la categoría se indica el del alumno.
+              { value: 'PerSession', label: `Por sesión${selectedCat?.sessionFee ? ` · ${money(selectedCat.sessionFee)}` : ''}` },
               ...(selectedCat?.packageSessions || f.billingPlan === 'Package' ? [{ value: 'Package', label: `Paquete${selectedCat?.packageSessions ? ` · ${selectedCat.packageSessions} ses.` : ''}` }] : []),
             ]} />
             <Text style={[font.tiny, { marginTop: 4 }]}>
@@ -308,8 +311,10 @@ export default function StudentFormScreen({ route, navigation }: any) {
                 : 'Paga la mensualidad fija de su categoría.'}
             </Text>
             {f.billingPlan !== 'Monthly' && (
-              <Input label="Precio por sesión propio (S/)" value={f.preferentialSessionFee} onChangeText={v => set('preferentialSessionFee', v.replace(',', '.'))}
-                keyboardType="decimal-pad" placeholder={selectedCat?.sessionFee ? `Categoría: ${money(selectedCat.sessionFee)}` : 'Opcional'} />
+              <Input label={(selectedCat?.sessionFee ?? 0) > 0 ? 'Precio por sesión propio (S/)' : 'Precio por sesión de este alumno (S/) *'}
+                value={f.preferentialSessionFee} onChangeText={v => set('preferentialSessionFee', v.replace(',', '.'))}
+                keyboardType="decimal-pad" placeholder={selectedCat?.sessionFee ? `Categoría: ${money(selectedCat.sessionFee)}` : 'Ej. 15'}
+                hint={(selectedCat?.sessionFee ?? 0) > 0 ? undefined : 'Su categoría no tiene precio por sesión: indícalo aquí o configúralo en Categorías (web).'} />
             )}
             <Row style={{ justifyContent: 'space-between' }}>
               <Text style={font.body}>Invitado (no paga mensualidad)</Text>
