@@ -211,7 +211,7 @@ public class FinancesService
         var rules = await SiblingRulesAsync(academyId);
         if (rules.Count == 0) return (null, null);
         var family = await _context.Students.Include(s => s.Category)
-            .Where(s => s.AcademyId == academyId && s.GuardianId == student.GuardianId)
+            .Where(s => s.AcademyId == academyId && s.GuardianId == student.GuardianId && s.BillingPlan == StudentBillingPlan.Monthly)
             .ToListAsync();
         var positions = DiscountService.SiblingPositions(family, FeeOf);
         if (!positions.TryGetValue(student.Id, out var pos)) return (null, null);
@@ -241,15 +241,21 @@ public class FinancesService
         var students = await _context.Students
             .Include(s => s.Category)
             .Where(s => s.AcademyId == academyId &&
+                       s.BillingPlan != StudentBillingPlan.PerSession &&   // por sesión: se liquida con la asistencia
                        (s.IsActive ||
                        (s.WithdrawalDate.HasValue && s.WithdrawalDate.Value >= targetRef)))
             .ToListAsync();
+        // Un paquete sin configurar en su categoría no se cobra (avisa la liquidación de sesiones).
+        students = students.Where(s => s.BillingPlan != StudentBillingPlan.Package || SessionBillingService.HasPackage(s.Category)).ToList();
 
         int generatedCount = 0, replacedCount = 0, cleanedCount = 0;
 
         // Descuento por hermanos: posición de cada alumno dentro de su familia (mismo apoderado).
         var siblingRules = await SiblingRulesAsync(academyId);
-        var siblingPositions = siblingRules.Count > 0 ? DiscountService.SiblingPositions(students, FeeOf) : new Dictionary<Guid, int>();
+        // El descuento por hermanos es solo para la mensualidad.
+        var siblingPositions = siblingRules.Count > 0
+            ? DiscountService.SiblingPositions(students.Where(s => s.BillingPlan == StudentBillingPlan.Monthly).ToList(), FeeOf)
+            : new Dictionary<Guid, int>();
         var periodDate = new DateTime(year, month, 1);
 
         // ── STEP 1: Cleanup — soft-delete unpaid records that fall BEFORE ──
@@ -320,8 +326,10 @@ public class FinancesService
             // Pagado completamente → nunca sobrescribir
             if (existingDebt != null && existingDebt.IsPaid) continue;
 
-            var fullAmount = student.PreferentialFee ?? student.Category?.MonthlyFee ?? 0m;
+            var isPackage = student.BillingPlan == StudentBillingPlan.Package;
+            var fullAmount = isPackage ? student.Category!.PackagePrice!.Value : student.PreferentialFee ?? student.Category?.MonthlyFee ?? 0m;
             if (fullAmount <= 0) continue;
+            var recordDescription = isPackage ? $"Paquete {student.Category!.PackageSessions} sesiones {new DateTime(year, month, 1).ToString("MMMM yyyy", Culture.Es)}" : description;
 
             // ── Calcular monto nuevo (con prorrateo si aplica) ────────
             DateTime? startForProration = null;
@@ -366,7 +374,7 @@ public class FinancesService
             }
 
             int? position = siblingPositions.TryGetValue(student.Id, out var pos) ? pos : null;
-            var siblingRule = position.HasValue ? DiscountService.SiblingRuleFor(siblingRules, student, position.Value, periodDate) : null;
+            var siblingRule = position.HasValue && !isPackage ? DiscountService.SiblingRuleFor(siblingRules, student, position.Value, periodDate) : null;
             var (amountToCharge, discountAmount, discountDetail) = ApplyAllBenefits(student, chargedAmount, siblingRule, position);
             chargedAmount = amountToCharge;
 
@@ -376,6 +384,7 @@ public class FinancesService
             {
                 // Solo se actualiza el total; lo ya abonado se conserva.
                 existingDebt!.Amount              = chargedAmount;
+                existingDebt.Description          = recordDescription;
                 existingDebt.DiscountAmount       = discountAmount;
                 existingDebt.DiscountDetail       = discountDetail;
                 existingDebt.DueDate              = dueDate;
@@ -417,7 +426,7 @@ public class FinancesService
                 {
                     AcademyId           = academyId,
                     StudentId           = student.Id,
-                    Description         = description,
+                    Description         = recordDescription,
                     Amount              = chargedAmount,
                     AmountPaid          = 0m,
                     DiscountAmount      = discountAmount,
@@ -473,10 +482,16 @@ public class FinancesService
         if (exists)
             throw new Exception($"Ya existe un cobro para {description}.");
 
-        var fullAmount = student.PreferentialFee ?? student.Category?.MonthlyFee ?? 0m;
+        if (student.BillingPlan == StudentBillingPlan.PerSession)
+            throw new Exception("El alumno paga por sesión: se cobra con la liquidación de fin de mes o en campo.");
+        var isPackage = student.BillingPlan == StudentBillingPlan.Package;
+        if (isPackage && !SessionBillingService.HasPackage(student.Category))
+            throw new Exception("La categoría del alumno no tiene paquete configurado.");
+        var fullAmount = isPackage ? student.Category!.PackagePrice!.Value : student.PreferentialFee ?? student.Category?.MonthlyFee ?? 0m;
         if (fullAmount <= 0) throw new Exception("El alumno no tiene tarifa configurada.");
+        if (isPackage) description = $"Paquete {student.Category!.PackageSessions} sesiones {new DateTime(year, month, 1).ToString("MMMM yyyy", Culture.Es)}";
 
-        var (siblingRule, position) = await SiblingRuleForAsync(academyId, student, year, month);
+        var (siblingRule, position) = isPackage ? (null, null) : await SiblingRuleForAsync(academyId, student, year, month);
         var (amount, discountAmount, discountDetail) = ApplyAllBenefits(student, fullAmount, siblingRule, position);
 
         var record = new PaymentRecord

@@ -31,6 +31,9 @@ public class CategoryDto
     public bool IsActive { get; set; }
     public bool IsFree { get; set; }
     public int? MinAge { get; set; }
+    public decimal SessionFee { get; set; }
+    public int? PackageSessions { get; set; }
+    public decimal? PackagePrice { get; set; }
 }
 
 public class CreateCategoryDto
@@ -42,6 +45,11 @@ public class CreateCategoryDto
     public DateTime? EndDateOfBirth { get; set; }
     public bool IsFree { get; set; }
     public int? MinAge { get; set; }
+    /// <summary>Precio por sesión. Null = conservar el actual.</summary>
+    public decimal? SessionFee { get; set; }
+    /// <summary>Paquete mensual: ambos o ninguno. Solo se aplican si SessionFee llega (clientes que conocen el paquete).</summary>
+    public int? PackageSessions { get; set; }
+    public decimal? PackagePrice { get; set; }
     /// <summary>Mensualidad de la categoría. En edición, null = conservar la actual.</summary>
     public decimal? MonthlyFee { get; set; }
 }

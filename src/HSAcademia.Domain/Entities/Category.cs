@@ -36,6 +36,11 @@ public class Category
         return dob >= (a <= b ? a : b) && dob <= (a <= b ? b : a);
     }
     public decimal MonthlyFee { get; set; } = 0m;
+    /// <summary>Precio por sesión para alumnos que pagan por sesión (0 = no ofrece).</summary>
+    public decimal SessionFee { get; set; } = 0m;
+    /// <summary>Paquete mensual: N sesiones por un precio (ambos o ninguno).</summary>
+    public int? PackageSessions { get; set; }
+    public decimal? PackagePrice { get; set; }
     public bool IsActive { get; set; } = true;
 
     // Audit fields

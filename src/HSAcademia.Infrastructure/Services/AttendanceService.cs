@@ -629,6 +629,7 @@ public class AttendanceService : IAttendanceService
         Status       = att?.Status,
         Notes        = att?.Notes,
         MarkedVia    = att?.Source switch { AttendanceSource.Qr => "QR", AttendanceSource.List => "Lista", AttendanceSource.Auto => "Automático", _ => null },
+        BillingPlan  = s.BillingPlan.ToString(),
         MarkedByName = att?.MarkedByName,
         MarkedAt     = att?.MarkedAt
     };

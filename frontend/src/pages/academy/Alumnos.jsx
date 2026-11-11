@@ -49,7 +49,7 @@ export default function Alumnos() {
 
   const initialForm = {
     firstName: '', lastName: '', email: '', phone: '', dateOfBirth: '', documentNumber: '', headquarterId: '', categoryId: '',
-    enrollmentDate: todayISO(), paymentStartDate: '', withdrawalDate: '', preferentialFee: '',
+    enrollmentDate: todayISO(), paymentStartDate: '', withdrawalDate: '', preferentialFee: '', billingPlan: 'Monthly', preferentialSessionFee: '',
     isGuest: false, isScholarship: false, scholarshipPercentage: '', isActive: true,
     guardianFirstName: '', guardianLastName: '', guardianEmail: '', guardianPhone: '',
     medicalRecord: {
@@ -129,6 +129,8 @@ export default function Alumnos() {
     });
     return suggested ? suggested.id : null;
   }, [formData.dateOfBirth, availableCategories]);
+
+  const selectedCategory = categorias.find(c => c.id === formData.categoryId);
 
   // Aviso (no bloqueo) cuando la edad no corresponde a la categoría elegida.
   const ageMismatch = useMemo(() => {
@@ -238,6 +240,8 @@ export default function Alumnos() {
         paymentStartDate: formData.paymentStartDate !== '' ? formData.paymentStartDate : null,
         withdrawalDate: formData.withdrawalDate !== '' ? formData.withdrawalDate : null,
         preferentialFee: formData.preferentialFee !== '' && formData.preferentialFee !== null ? parseFloat(formData.preferentialFee) : null,
+        billingPlan: formData.billingPlan || 'Monthly',
+        preferentialSessionFee: formData.billingPlan !== 'Monthly' && formData.preferentialSessionFee !== '' && formData.preferentialSessionFee !== null ? parseFloat(formData.preferentialSessionFee) : null,
         scholarshipPercentage: formData.scholarshipPercentage !== '' && formData.scholarshipPercentage !== null ? parseFloat(formData.scholarshipPercentage) : null,
         medicalRecord: {
           ...formData.medicalRecord,
@@ -502,6 +506,8 @@ export default function Alumnos() {
                                 paymentStartDate: alumno.paymentStartDate ? alumno.paymentStartDate.split('T')[0] : '',
                                 withdrawalDate: alumno.withdrawalDate ? alumno.withdrawalDate.split('T')[0] : '',
                                 preferentialFee: alumno.preferentialFee || '',
+                                billingPlan: alumno.billingPlan || 'Monthly',
+                                preferentialSessionFee: alumno.preferentialSessionFee ?? '',
                                 isGuest: alumno.isGuest || false,
                                 isScholarship: alumno.isScholarship || false,
                                 scholarshipPercentage: alumno.scholarshipPercentage || '',
@@ -686,7 +692,36 @@ export default function Alumnos() {
                       <div className="form-group">
                         <label className="form-label">Costo Preferente (Opcional)</label>
                         <input type="number" step="0.01" className="form-control" placeholder="Ej. 150.00" value={formData.preferentialFee} onChange={e => setFormData({...formData, preferentialFee: e.target.value})} />
+                        {formData.billingPlan !== 'Monthly' && <span className="text-xs text-text-muted mt-1 inline-block">En plan por sesión o paquete, es el tope del mes.</span>}
                       </div>
+                    </div>
+
+                    {/* Plan de cobro: mensual, por sesión (tope en la mensualidad) o paquete de la categoría */}
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label className="form-label">Plan de cobro</label>
+                        <select className="form-control" value={formData.billingPlan || 'Monthly'} onChange={e => setFormData({ ...formData, billingPlan: e.target.value })}>
+                          <option value="Monthly">Mensualidad</option>
+                          <option value="PerSession" disabled={!selectedCategory || !(Number(selectedCategory.sessionFee) > 0 || Number(formData.preferentialSessionFee) > 0)}>
+                            Por sesión{selectedCategory && Number(selectedCategory.sessionFee) > 0 ? ` (S/ ${Number(selectedCategory.sessionFee).toFixed(2)} c/u)` : ''}
+                          </option>
+                          <option value="Package" disabled={!selectedCategory?.packageSessions}>
+                            Paquete{selectedCategory?.packageSessions ? ` (${selectedCategory.packageSessions} sesiones por S/ ${Number(selectedCategory.packagePrice).toFixed(2)})` : ' (la categoría no tiene)'}
+                          </option>
+                        </select>
+                        <span className="text-xs text-text-muted mt-1 inline-block">
+                          {formData.billingPlan === 'PerSession' && 'Paga las sesiones a las que asiste (Presente o Tarde). Se liquida a fin de mes y nunca pasa de la mensualidad.'}
+                          {formData.billingPlan === 'Package' && 'Paga el paquete cada mes; las sesiones extra se cobran a precio por sesión, sin pasar de la mensualidad.'}
+                          {(!formData.billingPlan || formData.billingPlan === 'Monthly') && 'Paga la mensualidad fija de su categoría.'}
+                        </span>
+                      </div>
+                      {formData.billingPlan && formData.billingPlan !== 'Monthly' && (
+                        <div className="form-group">
+                          <label className="form-label">Precio por sesión propio (Opcional)</label>
+                          <input type="number" min="0" step="0.01" className="form-control" placeholder={selectedCategory ? `De la categoría: S/ ${Number(selectedCategory.sessionFee || 0).toFixed(2)}` : ''}
+                            value={formData.preferentialSessionFee ?? ''} onChange={e => setFormData({ ...formData, preferentialSessionFee: e.target.value })} />
+                        </div>
+                      )}
                     </div>
 
                     <div className="form-row">

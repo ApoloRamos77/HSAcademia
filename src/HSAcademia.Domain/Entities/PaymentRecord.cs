@@ -10,7 +10,9 @@ public enum PaymentType
     RegistrationFee = 3,
     Other = 4,
     /// <summary>Mora por pago fuera de fecha (la decide administración al regularizar).</summary>
-    LateFee = 5
+    LateFee = 5,
+    /// <summary>Sesiones: cobro de una sesión en campo (SessionDate) o liquidación del mes (SessionDate null).</summary>
+    Sessions = 6
 }
 
 /// <summary>How a payment (or partial payment) was received.</summary>
@@ -80,6 +82,12 @@ public class PaymentRecord
     public DateTime? PaidDate { get; set; }
 
     public PaymentType Type { get; set; } = PaymentType.MonthlyFee;
+
+    /// <summary>Solo en cobros de una sesión: la fecha y la sesión cobradas (evita cobrarla dos veces).</summary>
+    public DateTime? SessionDate { get; set; }
+    public Guid? SessionEventId { get; set; }
+    /// <summary>En la liquidación: sesiones asistidas en el mes.</summary>
+    public int? SessionsCount { get; set; }
 
     // ── Proration ──────────────────────────────────────────────
     public bool IsProrated { get; set; } = false;

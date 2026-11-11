@@ -23,6 +23,7 @@ import { Receipt } from 'lucide-react';
 import { Inbox } from 'lucide-react';
 import MyCashPanel from '../../components/finances/MyCashPanel';
 import ReceiptProfileCard from '../../components/finances/ReceiptProfileCard';
+import SessionLiquidationCard from '../../components/finances/SessionLiquidationCard';
 import { useAuth } from '../../context/AuthContext';
 
 const PAYMENT_METHODS = [
@@ -600,6 +601,7 @@ export default function Finanzas() {
                 {generating ? 'Generando...' : `Ejecutar Motor — ${['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][motorMonth-1]} ${motorYear}`}
               </button>
             </div>
+            {can('collections.generate') && <SessionLiquidationCard />}
             {isAdmin && <ReceiptProfileCard />}
           </div>
         )}

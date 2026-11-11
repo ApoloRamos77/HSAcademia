@@ -65,6 +65,8 @@ public class StudentService
             PaymentStartDate = s.PaymentStartDate,
             WithdrawalDate = s.WithdrawalDate,
             PreferentialFee = s.PreferentialFee,
+            BillingPlan = s.BillingPlan.ToString(),
+            PreferentialSessionFee = s.PreferentialSessionFee,
             IsGuest = s.IsGuest,
             IsScholarship = s.IsScholarship,
             ScholarshipPercentage = s.ScholarshipPercentage
@@ -80,6 +82,8 @@ public class StudentService
         if (!canEditFinancials)
         {
             dto.PreferentialFee = null;
+            dto.BillingPlan = null;
+            dto.PreferentialSessionFee = null;
             dto.IsGuest = false;
             dto.IsScholarship = false;
             dto.ScholarshipPercentage = null;
@@ -116,6 +120,8 @@ public class StudentService
             PaymentStartDate = dto.PaymentStartDate?.ToUniversalTime(),
             WithdrawalDate = dto.WithdrawalDate?.ToUniversalTime(),
             PreferentialFee = dto.PreferentialFee,
+            BillingPlan = ParsePlan(dto.BillingPlan) ?? StudentBillingPlan.Monthly,
+            PreferentialSessionFee = dto.BillingPlan != null ? dto.PreferentialSessionFee : null,
             IsGuest = dto.IsGuest,
             IsScholarship = dto.IsScholarship,
             ScholarshipPercentage = dto.ScholarshipPercentage,
@@ -145,6 +151,7 @@ public class StudentService
             };
         }
 
+        await EnsurePlanIsConfiguredAsync(student);
         _context.Students.Add(student);
         _audit?.Add(academyId, "students.create", nameof(Student), student.Id, new { dto.FirstName, dto.LastName, dto.CategoryId, outsideCategoryAge = await OutsideCategoryAgeAsync(dto.CategoryId, dto.DateOfBirth) });
         // Un único SaveChanges: si algo falla no quedan usuarios huérfanos creados.
@@ -155,6 +162,8 @@ public class StudentService
             Id = student.Id,
             FirstName = student.FirstName,
             LastName = student.LastName,
+            BillingPlan = student.BillingPlan.ToString(),
+            PreferentialSessionFee = student.PreferentialSessionFee,
             GeneratedCredentials = credentials.Count > 0 ? credentials : null
         };
     }
@@ -204,6 +213,8 @@ public class StudentService
 
         if (dto.ScholarshipPercentage is < 0 or > 100) throw new Exception("El porcentaje de beca debe estar entre 0 y 100.");
         if (dto.PreferentialFee is < 0) throw new Exception("La tarifa preferencial no puede ser negativa.");
+        if (dto.PreferentialSessionFee is < 0) throw new Exception("El precio por sesión no puede ser negativo.");
+        if (dto.BillingPlan != null && ParsePlan(dto.BillingPlan) == null) throw new Exception("Plan de cobro no válido.");
         if (dto.EnrollmentDate.HasValue && dto.WithdrawalDate.HasValue && dto.WithdrawalDate.Value.Date < dto.EnrollmentDate.Value.Date)
             throw new Exception("La fecha de retiro no puede ser anterior a la de inscripción.");
 
@@ -487,6 +498,11 @@ public class StudentService
         if (canEditFinancials)
         {
             student.PreferentialFee = dto.PreferentialFee;
+            if (ParsePlan(dto.BillingPlan) is { } plan)
+            {
+                student.BillingPlan = plan;
+                student.PreferentialSessionFee = dto.PreferentialSessionFee;
+            }
             student.IsGuest = dto.IsGuest;
             student.IsScholarship = dto.IsScholarship;
             student.ScholarshipPercentage = dto.ScholarshipPercentage;
@@ -582,6 +598,7 @@ public class StudentService
             }
         }
 
+        await EnsurePlanIsConfiguredAsync(student);
         await _context.SaveChangesAsync();
 
         return new StudentDto
@@ -589,8 +606,25 @@ public class StudentService
             Id = student.Id,
             FirstName = student.FirstName,
             LastName = student.LastName,
+            BillingPlan = student.BillingPlan.ToString(),
+            PreferentialSessionFee = student.PreferentialSessionFee,
             GeneratedCredentials = credentials.Count > 0 ? credentials : null
         };
+    }
+
+    private static StudentBillingPlan? ParsePlan(string? value) =>
+        Enum.TryParse<StudentBillingPlan>(value, true, out var p) && Enum.IsDefined(p) ? p : null;
+
+    /// <summary>Por sesión necesita precio por sesión; paquete necesita el paquete en la categoría.</summary>
+    private async Task EnsurePlanIsConfiguredAsync(Student student)
+    {
+        if (student.BillingPlan == StudentBillingPlan.Monthly) return;
+        var category = await _context.Categories.AsNoTracking().FirstOrDefaultAsync(c => c.Id == student.CategoryId)
+            ?? throw new Exception("Categoría no encontrada.");
+        if ((student.PreferentialSessionFee ?? category.SessionFee) <= 0)
+            throw new Exception("Para cobrar por sesión o paquete, configura el precio por sesión en la categoría o en el alumno.");
+        if (student.BillingPlan == StudentBillingPlan.Package && !(category.PackageSessions > 0 && category.PackagePrice > 0))
+            throw new Exception("La categoría no tiene paquete configurado (sesiones y precio).");
     }
 
     /// <summary>Excepción de edad: se permite (decisión del entrenador) pero queda en la auditoría.</summary>
@@ -635,6 +669,8 @@ public class StudentService
             PaymentStartDate = s.PaymentStartDate,
             WithdrawalDate = s.WithdrawalDate,
             PreferentialFee = s.PreferentialFee,
+            BillingPlan = s.BillingPlan.ToString(),
+            PreferentialSessionFee = s.PreferentialSessionFee,
             IsGuest = s.IsGuest,
             IsScholarship = s.IsScholarship,
             ScholarshipPercentage = s.ScholarshipPercentage

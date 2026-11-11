@@ -220,6 +220,9 @@ public class AppDbContext : DbContext
             entity.Property(e => e.StartDateOfBirth).HasColumnName("start_date_of_birth");
             entity.Property(e => e.EndDateOfBirth).HasColumnName("end_date_of_birth");
             entity.Property(e => e.IsFree).HasColumnName("is_free").HasDefaultValue(false);
+            entity.Property(e => e.SessionFee).HasColumnName("session_fee").HasColumnType("numeric(10,2)").HasDefaultValue(0m);
+            entity.Property(e => e.PackageSessions).HasColumnName("package_sessions");
+            entity.Property(e => e.PackagePrice).HasColumnName("package_price").HasColumnType("numeric(10,2)");
             entity.Property(e => e.MinAge).HasColumnName("min_age");
             entity.Property(e => e.IsActive).HasColumnName("is_active").HasDefaultValue(true);
             
@@ -497,6 +500,9 @@ public class AppDbContext : DbContext
             entity.Property(e => e.ProratedStartDate).HasColumnName("prorated_start_date");
             entity.Property(e => e.ProratedTotalDays).HasColumnName("prorated_total_days");
             entity.Property(e => e.ProratedDaysCharged).HasColumnName("prorated_days_charged");
+            entity.Property(e => e.SessionDate).HasColumnName("session_date");
+            entity.Property(e => e.SessionEventId).HasColumnName("session_event_id");
+            entity.Property(e => e.SessionsCount).HasColumnName("sessions_count");
             entity.Property(e => e.ExclusionType).HasColumnName("exclusion_type").HasConversion<int>().HasDefaultValue(ExclusionType.None);
             entity.Property(e => e.ExclusionNote).HasColumnName("exclusion_note").HasMaxLength(500);
             entity.Property(e => e.DiscountDetail).HasColumnName("discount_detail").HasMaxLength(200);

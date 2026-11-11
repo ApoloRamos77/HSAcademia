@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, Share, Switch, Text, View } from 'react-native';
 import { CheckCircle2, KeyRound, Share2, Sparkles, UserPlus } from 'lucide-react-native';
 import { api, errorMessage } from '../../api/client';
-import type { Category, GeneratedCredential, Headquarter, MedicalRecord, StudentSummary } from '../../api/types';
+import type { Category, GeneratedCredential, Headquarter, MedicalRecord, StudentSummary, BillingPlan } from '../../api/types';
 import { useAuth } from '../../auth/AuthContext';
 import { Banner, Button, Card, Chips, Input, Loading, Row, Screen, SectionTitle } from '../../components/ui';
 import { colors, font, radius, spacing } from '../../theme';
@@ -14,6 +14,7 @@ type Form = {
   guardianFirstName: string; guardianLastName: string; guardianPhone: string; guardianEmail: string;
   allergies: string; medicalConditions: string; emergencyName: string; emergencyPhone: string;
   enrollment: string; preferentialFee: string; scholarshipPercentage: string; isGuest: boolean;
+  billingPlan: BillingPlan; preferentialSessionFee: string;
   isActive: boolean; withdrawal: string;
 };
 
@@ -59,6 +60,8 @@ export default function StudentFormScreen({ route, navigation }: any) {
     allergies: '', medicalConditions: '', emergencyName: '', emergencyPhone: '',
     enrollment: toDmy(editing?.enrollmentDate) || toDmy(todayISO()),
     preferentialFee: editing?.preferentialFee != null ? String(editing.preferentialFee) : '',
+    billingPlan: editing?.billingPlan ?? 'Monthly',
+    preferentialSessionFee: editing?.preferentialSessionFee != null ? String(editing.preferentialSessionFee) : '',
     scholarshipPercentage: editing?.isScholarship ? '100' : editing?.scholarshipPercentage ? String(editing.scholarshipPercentage) : '',
     isGuest: !!editing?.isGuest, isActive: editing?.isActive ?? true, withdrawal: toDmy(editing?.withdrawalDate),
   });
@@ -126,6 +129,7 @@ export default function StudentFormScreen({ route, navigation }: any) {
     const pct = f.scholarshipPercentage ? Number(f.scholarshipPercentage) : 0;
     if (Number.isNaN(pct) || pct < 0 || pct > 100) return 'La beca debe estar entre 0 y 100%.';
     if (f.preferentialFee && (Number.isNaN(Number(f.preferentialFee)) || Number(f.preferentialFee) < 0)) return 'La tarifa preferencial no es válida.';
+    if (f.preferentialSessionFee && (Number.isNaN(Number(f.preferentialSessionFee)) || Number(f.preferentialSessionFee) < 0)) return 'El precio por sesión no es válido.';
     return null;
   };
 
@@ -152,6 +156,11 @@ export default function StudentFormScreen({ route, navigation }: any) {
       // Datos financieros: si el usuario no los ve, se conservan tal como estaban.
       paymentStartDate: editing?.paymentStartDate ?? null,
       preferentialFee: canFinance ? (f.preferentialFee ? Number(f.preferentialFee) : null) : editing?.preferentialFee ?? null,
+      // Sin permiso de tarifas no se envía el plan: el servidor conserva el actual.
+      ...(canFinance ? {
+        billingPlan: f.billingPlan,
+        preferentialSessionFee: f.billingPlan !== 'Monthly' && f.preferentialSessionFee ? Number(f.preferentialSessionFee) : null,
+      } : {}),
       isGuest: canFinance ? f.isGuest : !!editing?.isGuest,
       isScholarship: canFinance ? pct === 100 : !!editing?.isScholarship,
       scholarshipPercentage: canFinance ? (pct > 0 && pct < 100 ? pct : null) : editing?.scholarshipPercentage ?? null,
@@ -287,6 +296,21 @@ export default function StudentFormScreen({ route, navigation }: any) {
               <View style={{ flex: 1 }}><Input label="Tarifa preferencial (S/)" value={f.preferentialFee} onChangeText={v => set('preferentialFee', v.replace(',', '.'))} keyboardType="decimal-pad" placeholder="Según categoría" /></View>
               <View style={{ flex: 1 }}><Input label="Beca (%)" value={f.scholarshipPercentage} onChangeText={v => set('scholarshipPercentage', v.replace(/\D/g, ''))} keyboardType="number-pad" maxLength={3} placeholder="0" /></View>
             </Row>
+            <Text style={[labelStyle, { marginTop: spacing.sm }]}>Plan de cobro</Text>
+            <Chips value={f.billingPlan} onChange={v => set('billingPlan', v as BillingPlan)} options={[
+              { value: 'Monthly', label: 'Mensualidad' },
+              ...((selectedCat?.sessionFee ?? 0) > 0 || f.billingPlan === 'PerSession' ? [{ value: 'PerSession', label: `Por sesión${selectedCat?.sessionFee ? ` · ${money(selectedCat.sessionFee)}` : ''}` }] : []),
+              ...(selectedCat?.packageSessions || f.billingPlan === 'Package' ? [{ value: 'Package', label: `Paquete${selectedCat?.packageSessions ? ` · ${selectedCat.packageSessions} ses.` : ''}` }] : []),
+            ]} />
+            <Text style={[font.tiny, { marginTop: 4 }]}>
+              {f.billingPlan === 'PerSession' ? 'Paga solo las sesiones a las que asiste; nunca más que la mensualidad.'
+                : f.billingPlan === 'Package' ? `Paga el paquete cada mes${selectedCat?.packagePrice ? ` (${money(selectedCat.packagePrice)})` : ''}; las sesiones extra se cobran aparte.`
+                : 'Paga la mensualidad fija de su categoría.'}
+            </Text>
+            {f.billingPlan !== 'Monthly' && (
+              <Input label="Precio por sesión propio (S/)" value={f.preferentialSessionFee} onChangeText={v => set('preferentialSessionFee', v.replace(',', '.'))}
+                keyboardType="decimal-pad" placeholder={selectedCat?.sessionFee ? `Categoría: ${money(selectedCat.sessionFee)}` : 'Opcional'} />
+            )}
             <Row style={{ justifyContent: 'space-between' }}>
               <Text style={font.body}>Invitado (no paga mensualidad)</Text>
               <Switch value={f.isGuest} onValueChange={v => set('isGuest', v)} trackColor={{ true: colors.primary }} />
