@@ -131,6 +131,9 @@ export default function Alumnos() {
   }, [formData.dateOfBirth, availableCategories]);
 
   const selectedCategory = categorias.find(c => c.id === formData.categoryId);
+  const categoryHasSessionFee = Number(selectedCategory?.sessionFee) > 0;
+  // Por sesión o paquete sin precio en la categoría: el precio del alumno es obligatorio.
+  const sessionFeeRequired = formData.billingPlan && formData.billingPlan !== 'Monthly' && !categoryHasSessionFee;
 
   // Aviso (no bloqueo) cuando la edad no corresponde a la categoría elegida.
   const ageMismatch = useMemo(() => {
@@ -231,6 +234,11 @@ export default function Alumnos() {
     if (!formData.firstName || !formData.lastName || !formData.headquarterId || !formData.enrollmentDate || !formData.categoryId) {
       toast.error('Por favor complete todos los campos obligatorios del Alumno (*)');
       setCurrentStep(1); // Mover a la primera pestaña para mostrar qué falta
+      return;
+    }
+    if (sessionFeeRequired && !(Number(formData.preferentialSessionFee) > 0)) {
+      toast.error('Indica el precio por sesión del alumno: su categoría no lo tiene configurado.');
+      setCurrentStep(1);
       return;
     }
 
@@ -696,34 +704,6 @@ export default function Alumnos() {
                       </div>
                     </div>
 
-                    {/* Plan de cobro: mensual, por sesión (tope en la mensualidad) o paquete de la categoría */}
-                    <div className="form-row">
-                      <div className="form-group">
-                        <label className="form-label">Plan de cobro</label>
-                        <select className="form-control" value={formData.billingPlan || 'Monthly'} onChange={e => setFormData({ ...formData, billingPlan: e.target.value })}>
-                          <option value="Monthly">Mensualidad</option>
-                          <option value="PerSession" disabled={!selectedCategory || !(Number(selectedCategory.sessionFee) > 0 || Number(formData.preferentialSessionFee) > 0)}>
-                            Por sesión{selectedCategory && Number(selectedCategory.sessionFee) > 0 ? ` (S/ ${Number(selectedCategory.sessionFee).toFixed(2)} c/u)` : ''}
-                          </option>
-                          <option value="Package" disabled={!selectedCategory?.packageSessions}>
-                            Paquete{selectedCategory?.packageSessions ? ` (${selectedCategory.packageSessions} sesiones por S/ ${Number(selectedCategory.packagePrice).toFixed(2)})` : ' (la categoría no tiene)'}
-                          </option>
-                        </select>
-                        <span className="text-xs text-text-muted mt-1 inline-block">
-                          {formData.billingPlan === 'PerSession' && 'Paga las sesiones a las que asiste (Presente o Tarde). Se liquida a fin de mes y nunca pasa de la mensualidad.'}
-                          {formData.billingPlan === 'Package' && 'Paga el paquete cada mes; las sesiones extra se cobran a precio por sesión, sin pasar de la mensualidad.'}
-                          {(!formData.billingPlan || formData.billingPlan === 'Monthly') && 'Paga la mensualidad fija de su categoría.'}
-                        </span>
-                      </div>
-                      {formData.billingPlan && formData.billingPlan !== 'Monthly' && (
-                        <div className="form-group">
-                          <label className="form-label">Precio por sesión propio (Opcional)</label>
-                          <input type="number" min="0" step="0.01" className="form-control" placeholder={selectedCategory ? `De la categoría: S/ ${Number(selectedCategory.sessionFee || 0).toFixed(2)}` : ''}
-                            value={formData.preferentialSessionFee ?? ''} onChange={e => setFormData({ ...formData, preferentialSessionFee: e.target.value })} />
-                        </div>
-                      )}
-                    </div>
-
                     <div className="form-row">
                       <div className="form-group flex gap-2 items-center" style={{ marginTop: 'auto', marginBottom: 15 }}>
                         <input type="checkbox" id="chkGuest" checked={formData.isGuest} onChange={e => setFormData({...formData, isGuest: e.target.checked})} />
@@ -766,6 +746,45 @@ export default function Alumnos() {
                         <p className="text-xs text-warning mt-2">
                           ⚠ La fecha de nacimiento no corresponde a esta categoría. Puedes guardarlo igual si es una decisión del entrenador: quedará registrado.
                         </p>
+                      )}
+                    </div>
+
+                    {/* Plan de cobro: mensual, por sesión (tope en la mensualidad) o paquete de la categoría */}
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label className="form-label">Plan de cobro</label>
+                        <select className="form-control" value={formData.billingPlan || 'Monthly'} onChange={e => setFormData({ ...formData, billingPlan: e.target.value })}>
+                          <option value="Monthly">Mensualidad</option>
+                          {/* Por sesión siempre se puede elegir: si la categoría no tiene precio, se indica el del alumno. */}
+                          <option value="PerSession">
+                            Por sesión{categoryHasSessionFee ? ` (S/ ${Number(selectedCategory.sessionFee).toFixed(2)} c/u)` : ''}
+                          </option>
+                          <option value="Package" disabled={!selectedCategory?.packageSessions}>
+                            Paquete{selectedCategory?.packageSessions
+                              ? ` (${selectedCategory.packageSessions} sesiones por S/ ${Number(selectedCategory.packagePrice).toFixed(2)})`
+                              : ' (configúralo en Categorías)'}
+                          </option>
+                        </select>
+                        <span className="text-xs text-text-muted mt-1 inline-block">
+                          {formData.billingPlan === 'PerSession' && 'Paga las sesiones a las que asiste (Presente o Tarde). Se liquida a fin de mes y nunca pasa de la mensualidad.'}
+                          {formData.billingPlan === 'Package' && 'Paga el paquete cada mes; las sesiones extra se cobran a precio por sesión, sin pasar de la mensualidad.'}
+                          {(!formData.billingPlan || formData.billingPlan === 'Monthly') && 'Paga la mensualidad fija de su categoría.'}
+                        </span>
+                      </div>
+                      {formData.billingPlan && formData.billingPlan !== 'Monthly' && (
+                        <div className="form-group">
+                          <label className="form-label">
+                            Precio por sesión de este alumno {sessionFeeRequired ? '*' : '(Opcional)'}
+                          </label>
+                          <input type="number" min="0" step="0.01" required={sessionFeeRequired} className="form-control"
+                            placeholder={categoryHasSessionFee ? `De la categoría: S/ ${Number(selectedCategory.sessionFee).toFixed(2)}` : 'Ej. 15.00'}
+                            value={formData.preferentialSessionFee ?? ''} onChange={e => setFormData({ ...formData, preferentialSessionFee: e.target.value })} />
+                          {sessionFeeRequired && (
+                            <span className="text-xs text-warning mt-1 inline-block">
+                              {selectedCategory ? 'Su categoría no tiene precio por sesión: indícalo aquí, o configúralo para todos en Categorías.' : 'Elige primero la categoría del alumno.'}
+                            </span>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>
