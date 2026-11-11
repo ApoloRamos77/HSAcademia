@@ -15,6 +15,9 @@ public class AppDbContext : DbContext
     public DbSet<User> Users => Set<User>();
     public DbSet<AcademyRegistrationRequest> RegistrationRequests => Set<AcademyRegistrationRequest>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<PayScale> PayScales => Set<PayScale>();
+    public DbSet<StaffPaymentLine> StaffPaymentLines => Set<StaffPaymentLine>();
+    public DbSet<StaffAdvance> StaffAdvances => Set<StaffAdvance>();
     public DbSet<Headquarter> Headquarters => Set<Headquarter>();
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<AcademyRole> AcademyRoles => Set<AcademyRole>();
@@ -134,6 +137,8 @@ public class AppDbContext : DbContext
 
             entity.Property(e => e.PaymentType).HasColumnName("payment_type").HasConversion<int>().HasDefaultValue(StaffPaymentType.Monthly);
             entity.Property(e => e.PaymentRate).HasColumnName("payment_rate").HasColumnType("numeric(10,2)").HasDefaultValue(0m);
+            entity.Property(e => e.PayFrequency).HasColumnName("pay_frequency").HasConversion<int>().HasDefaultValue(PayFrequency.Monthly);
+            entity.Property(e => e.PayScaleId).HasColumnName("pay_scale_id");
 
             entity.HasIndex(e => e.Email).IsUnique();
             entity.HasIndex(e => e.AcademyId);
@@ -589,9 +594,67 @@ public class AppDbContext : DbContext
         // ----------------------------------------------------------------
         // StaffAttendance
         // ----------------------------------------------------------------
+        modelBuilder.Entity<PayScale>(entity =>
+        {
+            entity.ToTable("pay_scales");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.AcademyId).HasColumnName("academy_id").IsRequired();
+            entity.Property(e => e.Name).HasColumnName("name").HasMaxLength(100).IsRequired();
+            entity.Property(e => e.Unit).HasColumnName("unit").HasConversion<int>();
+            entity.Property(e => e.Tiers).HasColumnName("tiers").HasColumnType("jsonb")
+                  .HasConversion(
+                      v => System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions?)null),
+                      v => System.Text.Json.JsonSerializer.Deserialize<List<PayTier>>(v, (System.Text.Json.JsonSerializerOptions?)null) ?? new List<PayTier>(),
+                      new Microsoft.EntityFrameworkCore.ChangeTracking.ValueComparer<List<PayTier>>(
+                          (a, b) => System.Text.Json.JsonSerializer.Serialize(a, (System.Text.Json.JsonSerializerOptions?)null) == System.Text.Json.JsonSerializer.Serialize(b, (System.Text.Json.JsonSerializerOptions?)null),
+                          v => System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions?)null).GetHashCode(),
+                          v => System.Text.Json.JsonSerializer.Deserialize<List<PayTier>>(System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions?)null), (System.Text.Json.JsonSerializerOptions?)null)!));
+            entity.Property(e => e.IsDefault).HasColumnName("is_default");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(e => e.IsDeleted).HasColumnName("is_deleted").HasDefaultValue(false);
+            entity.Property(e => e.DeletedAt).HasColumnName("deleted_at");
+            entity.HasIndex(e => e.AcademyId);
+            entity.HasQueryFilter(e => !e.IsDeleted);
+        });
+
+        modelBuilder.Entity<StaffPaymentLine>(entity =>
+        {
+            entity.ToTable("staff_payment_lines");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.StaffPaymentId).HasColumnName("staff_payment_id");
+            entity.Property(e => e.Kind).HasColumnName("kind").HasConversion<int>();
+            entity.Property(e => e.Concept).HasColumnName("concept").HasMaxLength(150).IsRequired();
+            entity.Property(e => e.Amount).HasColumnName("amount").HasColumnType("numeric(10,2)");
+            entity.Property(e => e.StaffAdvanceId).HasColumnName("staff_advance_id");
+        });
+
+        modelBuilder.Entity<StaffAdvance>(entity =>
+        {
+            entity.ToTable("staff_advances");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.AcademyId).HasColumnName("academy_id").IsRequired();
+            entity.Property(e => e.StaffId).HasColumnName("staff_id").IsRequired();
+            entity.Property(e => e.Date).HasColumnName("date").HasColumnType("date");
+            entity.Property(e => e.Amount).HasColumnName("amount").HasColumnType("numeric(10,2)");
+            entity.Property(e => e.Concept).HasColumnName("concept").HasMaxLength(150).IsRequired();
+            entity.Property(e => e.Method).HasColumnName("method").HasMaxLength(30);
+            entity.Property(e => e.StaffPaymentId).HasColumnName("staff_payment_id");
+            entity.Property(e => e.CreatedByName).HasColumnName("created_by_name").HasMaxLength(200);
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.Property(e => e.IsDeleted).HasColumnName("is_deleted").HasDefaultValue(false);
+            entity.Property(e => e.DeletedAt).HasColumnName("deleted_at");
+            entity.HasIndex(e => new { e.AcademyId, e.StaffId });
+            entity.HasQueryFilter(e => !e.IsDeleted);
+        });
+
         modelBuilder.Entity<StaffAttendance>(entity =>
         {
             entity.ToTable("staff_attendances");
+            entity.Property(e => e.StaffPaymentId).HasColumnName("staff_payment_id");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.AcademyId).HasColumnName("academy_id").IsRequired();
@@ -882,6 +945,16 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Bonuses).HasColumnName("bonuses").HasColumnType("numeric(10,2)").HasDefaultValue(0m);
             entity.Property(e => e.Deductions).HasColumnName("deductions").HasColumnType("numeric(10,2)").HasDefaultValue(0m);
             entity.Property(e => e.SessionsCount).HasColumnName("sessions_count");
+            entity.Property(e => e.PeriodStart).HasColumnName("period_start").HasColumnType("date");
+            entity.Property(e => e.PeriodEnd).HasColumnName("period_end").HasColumnType("date");
+            entity.Property(e => e.Frequency).HasColumnName("frequency").HasConversion<int>().HasDefaultValue(PayFrequency.Monthly);
+            entity.Property(e => e.UnitsAmount).HasColumnName("units_amount").HasColumnType("numeric(10,2)").HasDefaultValue(0m);
+            entity.Property(e => e.Hours).HasColumnName("hours").HasColumnType("numeric(8,2)");
+            entity.Property(e => e.Detail).HasColumnName("detail").HasColumnType("jsonb");
+            entity.Property(e => e.PaymentMethod).HasColumnName("payment_method").HasMaxLength(30);
+            entity.Property(e => e.ApprovedAt).HasColumnName("approved_at");
+            entity.Property(e => e.ApprovedByName).HasColumnName("approved_by_name").HasMaxLength(200);
+            entity.HasMany(e => e.Lines).WithOne().HasForeignKey(l => l.StaffPaymentId).OnDelete(DeleteBehavior.Cascade);
             entity.Property(e => e.TotalPaid).HasColumnName("total_paid").HasColumnType("numeric(10,2)").HasDefaultValue(0m);
             entity.Property(e => e.Status).HasColumnName("status").HasConversion<int>().HasDefaultValue(StaffPaymentStatus.Pending);
             entity.Property(e => e.PaidAt).HasColumnName("paid_at");
@@ -891,7 +964,8 @@ public class AppDbContext : DbContext
             entity.Property(e => e.IsDeleted).HasColumnName("is_deleted").HasDefaultValue(false);
             entity.Property(e => e.DeletedAt).HasColumnName("deleted_at");
 
-            entity.HasIndex(e => new { e.AcademyId, e.StaffId, e.PeriodMonth, e.PeriodYear }).IsUnique();
+            // Con pagos semanales o diarios hay varias liquidaciones por mes: el solapamiento lo valida el servicio.
+            entity.HasIndex(e => new { e.AcademyId, e.StaffId, e.PeriodStart });
             entity.HasQueryFilter(e => !e.IsDeleted);
 
             entity.HasOne(e => e.Academy).WithMany().HasForeignKey(e => e.AcademyId).HasPrincipalKey(a => a.AcademyId).OnDelete(DeleteBehavior.Restrict);

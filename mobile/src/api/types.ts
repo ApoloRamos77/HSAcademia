@@ -313,6 +313,24 @@ export interface StaffPayment {
   notes?: string | null;
 }
 
+/** Planilla del colaborador (GET /payroll/me). */
+export interface PayrollSessionLine { eventId: string; title: string; time: string; hours: number; role: string; late: boolean; amount: number; rate: string }
+export interface PayrollDay { date: string; hours: number; sessions: number; amount: number; items: PayrollSessionLine[] }
+export interface PayrollCalc {
+  staffId: string; staffName: string; scheme: string; frequency: string; periodStart: string; periodEnd: string; rateLabel: string;
+  baseAmount: number; unitsAmount: number; hours: number; sessions: number; days: PayrollDay[];
+  pendingAdvances: { id: string; date: string; concept: string; amount: number }[]; warnings: string[];
+}
+export interface PayrollPayment {
+  id: string; periodStart: string; periodEnd: string; frequency: string; status: 'Draft' | 'Approved' | 'Paid';
+  baseAmount: number; unitsAmount: number; hours?: number | null; sessions?: number | null; bonuses: number; deductions: number; total: number;
+  lines: { id: string; kind: 'Bonus' | 'Deduction' | 'Advance'; concept: string; amount: number }[]; paidAt?: string | null;
+}
+export interface MyPayroll {
+  scheme: string; frequency: string; current: PayrollCalc | null; payments: PayrollPayment[];
+  pendingAdvances: { id: string; date: string; concept: string; amount: number }[];
+}
+
 export interface Dashboard {
   students: { active: number; newThisMonth: number; withdrawnThisMonth: number; byCategory: { categoryId: string; category: string; headquarter: string; count: number }[] };
   finance?: {

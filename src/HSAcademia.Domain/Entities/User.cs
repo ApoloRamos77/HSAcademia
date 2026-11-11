@@ -52,4 +52,7 @@ public class User
     // Payment configuration
     public StaffPaymentType PaymentType { get; set; } = StaffPaymentType.Monthly;
     public decimal PaymentRate { get; set; } = 0m;
+    public PayFrequency PayFrequency { get; set; } = PayFrequency.Monthly;
+    /// <summary>Tarifario propio (excepción); null = el predeterminado de la academia.</summary>
+    public Guid? PayScaleId { get; set; }
 }

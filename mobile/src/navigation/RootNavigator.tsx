@@ -139,7 +139,7 @@ function StaffStack() {
       <Stack.Screen name="Agenda" component={StaffAgendaScreen} options={{ title: 'Agenda y partidos' }} />
       <Stack.Screen name="Match" component={MatchScreen} options={{ title: 'Partido' }} />
       <Stack.Screen name="News" component={NewsScreen} options={{ title: 'Comunicados' }} />
-      <Stack.Screen name="MyPayments" component={MyPaymentsScreen} options={{ title: 'Mis pagos' }} />
+      <Stack.Screen name="MyPayments" component={MyPaymentsScreen} options={{ title: 'Mis horas y pagos' }} />
       <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} options={{ title: 'Cambiar contraseña' }} />
       <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: 'Mi perfil' }} />
     </Stack.Navigator>

@@ -105,6 +105,8 @@ public class AcademyUserDto
     public List<string> CategoryNames { get; set; } = new List<string>();
     public int PaymentType { get; set; }
     public decimal PaymentRate { get; set; }
+    public int PayFrequency { get; set; }
+    public Guid? PayScaleId { get; set; }
     public DateTime? LastLoginAt { get; set; }
     public bool MustChangePassword { get; set; }
     public string? SuspensionReason { get; set; }
@@ -135,8 +137,14 @@ public class CreateAcademyUserDto
 
 public class UpdateEmploymentDto
 {
+    /// <summary>0 sueldo fijo, 1 por sesión, 2 por hora, 3 sueldo fijo + horas.</summary>
     public int PaymentType { get; set; }
+    /// <summary>Sueldo mensual (fijo y mixto) o tarifa plana por hora/sesión si no tiene tarifario.</summary>
     public decimal PaymentRate { get; set; }
+    /// <summary>0 mensual, 1 quincenal, 2 semanal, 3 diario. Null = conservar.</summary>
+    public int? PayFrequency { get; set; }
+    /// <summary>Tarifario propio (excepción). Null = el predeterminado de la academia.</summary>
+    public Guid? PayScaleId { get; set; }
 }
 
 public class ActivityItemDto

@@ -439,6 +439,8 @@ public class AcademyConfigurationService
                 CategoryNames = u.AssignedCategories.Select(c => c.Name).ToList(),
                 PaymentType = (int)u.PaymentType,
                 PaymentRate = u.PaymentRate,
+                PayFrequency = (int)u.PayFrequency,
+                PayScaleId = u.PayScaleId,
                 LastLoginAt = u.LastLoginAt,
                 MustChangePassword = u.MustChangePassword,
                 SuspensionReason = u.SuspensionReason
@@ -674,7 +676,28 @@ public class AcademyConfigurationService
             ?? throw new Exception("Usuario no encontrado.");
 
         var type = (StaffPaymentType)dto.PaymentType;
-        if (user.PaymentType == type && user.PaymentRate == dto.PaymentRate) return;
+        var frequency = dto.PayFrequency.HasValue ? (PayFrequency)dto.PayFrequency.Value : user.PayFrequency;
+        if (!Enum.IsDefined(frequency)) throw new Exception("Frecuencia de pago no válida.");
+        if (dto.PayScaleId.HasValue)
+        {
+            var unit = type == StaffPaymentType.PerSession ? PayUnit.Session : PayUnit.Hour;
+            var scale = await _context.PayScales.AsNoTracking().FirstOrDefaultAsync(s => s.Id == dto.PayScaleId && s.AcademyId == academyId)
+                ?? throw new Exception("Tarifario no encontrado.");
+            if (type == StaffPaymentType.Monthly) throw new Exception("Con sueldo fijo no se usa tarifario.");
+            if (scale.Unit != unit) throw new Exception(unit == PayUnit.Session ? "Elige un tarifario por sesión." : "Elige un tarifario por hora.");
+        }
+        if (type == StaffPaymentType.Mixed && dto.PaymentRate <= 0) throw new Exception("Indica el sueldo fijo mensual.");
+        if (user.PaymentType == type && user.PaymentRate == dto.PaymentRate && user.PayFrequency == frequency && user.PayScaleId == dto.PayScaleId) return;
+        _audit.Add(academyId, "users.employment.updated", nameof(User), user.Id, new
+        {
+            changes = new
+            {
+                frecuencia = new { from = user.PayFrequency.ToString(), to = frequency.ToString() },
+                tarifario = new { from = user.PayScaleId, to = dto.PayScaleId }
+            }
+        });
+        user.PayFrequency = frequency;
+        user.PayScaleId = type == StaffPaymentType.Monthly ? null : dto.PayScaleId;
         _audit.Add(academyId, "users.employment.updated", nameof(User), user.Id, new
         {
             changes = new

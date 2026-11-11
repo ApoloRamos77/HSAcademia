@@ -422,7 +422,7 @@ public class FinancesPremiumService : IFinancesPremiumService
     {
         var query = _context.StaffPayments
             .Include(sp => sp.Staff)
-            .Where(sp => sp.AcademyId == academyId && sp.StaffId == staffId && !sp.IsDeleted);
+            .Where(sp => sp.AcademyId == academyId && sp.StaffId == staffId && !sp.IsDeleted && sp.Status != StaffPaymentStatus.Draft);
 
         if (month > 0) query = query.Where(sp => sp.PeriodMonth == month && sp.PeriodYear == year);
 
@@ -497,9 +497,10 @@ public class FinancesPremiumService : IFinancesPremiumService
         if (!staffOk) throw new Exception("El colaborador seleccionado no es válido.");
 
         // El índice único incluye registros eliminados: se valida con IgnoreQueryFilters
-        var duplicate = await _context.StaffPayments.IgnoreQueryFilters().AnyAsync(sp =>
-            sp.AcademyId == academyId && sp.StaffId == dto.StaffId &&
-            sp.PeriodMonth == dto.PeriodMonth && sp.PeriodYear == dto.PeriodYear);
+        var monthStart = new DateTime(dto.PeriodYear, dto.PeriodMonth, 1);
+        var monthEnd = monthStart.AddMonths(1).AddDays(-1);
+        var duplicate = await _context.StaffPayments.AnyAsync(sp =>
+            sp.AcademyId == academyId && sp.StaffId == dto.StaffId && sp.PeriodStart <= monthEnd && sp.PeriodEnd >= monthStart);
         if (duplicate)
             throw new Exception("Ya existe un pago registrado para este colaborador en ese periodo.");
 
@@ -509,6 +510,9 @@ public class FinancesPremiumService : IFinancesPremiumService
             StaffId = dto.StaffId,
             PeriodMonth = dto.PeriodMonth,
             PeriodYear = dto.PeriodYear,
+            PeriodStart = new DateTime(dto.PeriodYear, dto.PeriodMonth, 1),
+            PeriodEnd = new DateTime(dto.PeriodYear, dto.PeriodMonth, DateTime.DaysInMonth(dto.PeriodYear, dto.PeriodMonth)),
+            Frequency = PayFrequency.Monthly,
             BaseAmount = dto.BaseAmount,
             Bonuses = dto.Bonuses,
             Deductions = dto.Deductions,
