@@ -219,6 +219,8 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Name).HasColumnName("name").HasMaxLength(100).IsRequired();
             entity.Property(e => e.StartDateOfBirth).HasColumnName("start_date_of_birth");
             entity.Property(e => e.EndDateOfBirth).HasColumnName("end_date_of_birth");
+            entity.Property(e => e.IsFree).HasColumnName("is_free").HasDefaultValue(false);
+            entity.Property(e => e.MinAge).HasColumnName("min_age");
             entity.Property(e => e.IsActive).HasColumnName("is_active").HasDefaultValue(true);
             
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");

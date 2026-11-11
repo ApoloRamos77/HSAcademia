@@ -80,6 +80,9 @@ export interface Category {
   endDateOfBirth: string;
   monthlyFee: number;
   isActive: boolean;
+  /** Libre: no se agrupa por edad (servidor 2026-11 en adelante). */
+  isFree?: boolean;
+  minAge?: number | null;
 }
 
 export interface GeneratedCredential { role: string; fullName: string; login: string; temporaryPassword: string }

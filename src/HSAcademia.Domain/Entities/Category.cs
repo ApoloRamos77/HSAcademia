@@ -9,8 +9,32 @@ public class Category
     public Guid HeadquarterId { get; set; } // Which headquarter it belongs to
 
     public string Name { get; set; } = string.Empty; // e.g. "Sub-12"
-    public DateTime StartDateOfBirth { get; set; }
-    public DateTime EndDateOfBirth { get; set; }
+    // Por edad: franja de nacimiento. Libre: sin franja (null) y, si se quiere, una edad mínima.
+    public DateTime? StartDateOfBirth { get; set; }
+    public DateTime? EndDateOfBirth { get; set; }
+    public bool IsFree { get; set; }
+    public int? MinAge { get; set; }
+
+    /// <summary>Apps instaladas que aún no conocen IsFree reciben esta franja amplia en vez de null.</summary>
+    public static readonly DateTime FreeRangeStart = new(1900, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+    public static readonly DateTime FreeRangeEnd = new(2100, 12, 31, 0, 0, 0, DateTimeKind.Utc);
+
+    /// <summary>True si la fecha de nacimiento corresponde a la categoría (sin fecha no se puede juzgar).</summary>
+    public bool FitsBirthDate(DateTime? birthDate, DateTime today)
+    {
+        if (!birthDate.HasValue) return true;
+        var dob = birthDate.Value.Date;
+        if (IsFree)
+        {
+            if (!MinAge.HasValue) return true;
+            var age = today.Year - dob.Year - (dob > today.AddYears(-(today.Year - dob.Year)) ? 1 : 0);
+            return age >= MinAge.Value;
+        }
+        if (!StartDateOfBirth.HasValue || !EndDateOfBirth.HasValue) return true;
+        var a = StartDateOfBirth.Value.Date;
+        var b = EndDateOfBirth.Value.Date;
+        return dob >= (a <= b ? a : b) && dob <= (a <= b ? b : a);
+    }
     public decimal MonthlyFee { get; set; } = 0m;
     public bool IsActive { get; set; } = true;
 

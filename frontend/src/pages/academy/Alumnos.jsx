@@ -120,14 +120,27 @@ export default function Alumnos() {
   const suggestedCategoryId = useMemo(() => {
     if (!formData.dateOfBirth) return null;
     const dob = new Date(formData.dateOfBirth);
+    // Las categorías libres no se sugieren por edad.
     const suggested = availableCategories.find(c => {
-      if (!c.startDateOfBirth || !c.endDateOfBirth) return false;
+      if (c.isFree || !c.startDateOfBirth || !c.endDateOfBirth) return false;
       const start = new Date(c.startDateOfBirth);
       const end = new Date(c.endDateOfBirth);
       return dob >= start && dob <= end;
     });
     return suggested ? suggested.id : null;
   }, [formData.dateOfBirth, availableCategories]);
+
+  // Aviso (no bloqueo) cuando la edad no corresponde a la categoría elegida.
+  const ageMismatch = useMemo(() => {
+    const c = categorias.find(x => x.id === formData.categoryId);
+    if (!c || !formData.dateOfBirth) return false;
+    if (c.isFree) return c.minAge ? calculateAge(formData.dateOfBirth) < c.minAge : false;
+    if (!c.startDateOfBirth || !c.endDateOfBirth) return false;
+    const dob = formData.dateOfBirth;
+    const [a, b] = [c.startDateOfBirth.slice(0, 10), c.endDateOfBirth.slice(0, 10)].sort();
+    return dob < a || dob > b;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.categoryId, formData.dateOfBirth, categorias]);
 
   const filteredAlumnos = alumnos.filter(a => {
     const q = search.toLowerCase();
@@ -706,11 +719,18 @@ export default function Alumnos() {
                           <option value="">-- Seleccione una Categoría --</option>
                           {availableCategories.map(c => (
                             <option key={c.id} value={c.id}>
-                              {c.name} {c.id === suggestedCategoryId ? '(Sugerida por edad)' : ''} 
-                              {c.startDateOfBirth ? ` (${c.startDateOfBirth.split('T')[0]} a ${c.endDateOfBirth.split('T')[0]})` : ''}
+                              {c.name} {c.id === suggestedCategoryId ? '(Sugerida por edad)' : ''}
+                              {c.isFree
+                                ? ` (Libre${c.minAge ? ` · desde ${c.minAge} años` : ''})`
+                                : c.startDateOfBirth ? ` (${c.startDateOfBirth.split('T')[0]} a ${c.endDateOfBirth.split('T')[0]})` : ''}
                             </option>
                           ))}
                         </select>
+                      )}
+                      {ageMismatch && (
+                        <p className="text-xs text-warning mt-2">
+                          ⚠ La fecha de nacimiento no corresponde a esta categoría. Puedes guardarlo igual si es una decisión del entrenador: quedará registrado.
+                        </p>
                       )}
                     </div>
                   </div>

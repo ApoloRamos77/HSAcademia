@@ -722,7 +722,7 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("deleted_at");
 
-                    b.Property<DateTime>("EndDateOfBirth")
+                    b.Property<DateTime?>("EndDateOfBirth")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("end_date_of_birth");
 
@@ -742,6 +742,16 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasDefaultValue(false)
                         .HasColumnName("is_deleted");
 
+                    b.Property<bool>("IsFree")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_free");
+
+                    b.Property<int?>("MinAge")
+                        .HasColumnType("integer")
+                        .HasColumnName("min_age");
+
                     b.Property<decimal>("MonthlyFee")
                         .HasColumnType("numeric");
 
@@ -751,7 +761,7 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(100)")
                         .HasColumnName("name");
 
-                    b.Property<DateTime>("StartDateOfBirth")
+                    b.Property<DateTime?>("StartDateOfBirth")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("start_date_of_birth");
 

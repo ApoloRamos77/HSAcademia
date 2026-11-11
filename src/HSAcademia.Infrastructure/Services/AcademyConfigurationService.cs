@@ -113,18 +113,54 @@ public class AcademyConfigurationService
                 HeadquarterId = c.HeadquarterId,
                 HeadquarterName = c.Headquarter!.Name,
                 Name = c.Name,
-                StartDateOfBirth = c.StartDateOfBirth,
-                EndDateOfBirth = c.EndDateOfBirth,
+                StartDateOfBirth = c.StartDateOfBirth ?? Category.FreeRangeStart,
+                EndDateOfBirth = c.EndDateOfBirth ?? Category.FreeRangeEnd,
                 MonthlyFee = c.MonthlyFee,
-                IsActive = c.IsActive
+                IsActive = c.IsActive,
+                IsFree = c.IsFree,
+                MinAge = c.MinAge
             })
             .ToListAsync();
+    }
+
+    private static CategoryDto ToCategoryDto(Category c, string headquarterName) => new()
+    {
+        Id = c.Id, HeadquarterId = c.HeadquarterId, HeadquarterName = headquarterName, Name = c.Name,
+        StartDateOfBirth = c.StartDateOfBirth ?? Category.FreeRangeStart, EndDateOfBirth = c.EndDateOfBirth ?? Category.FreeRangeEnd,
+        MonthlyFee = c.MonthlyFee, IsActive = c.IsActive, IsFree = c.IsFree, MinAge = c.MinAge
+    };
+
+    /// <summary>Libre: sin franja de nacimiento. Por edad: franja obligatoria.</summary>
+    private static void ApplyAgeRule(Category category, CreateCategoryDto dto)
+    {
+        category.IsFree = dto.IsFree;
+        if (dto.IsFree)
+        {
+            category.StartDateOfBirth = null;
+            category.EndDateOfBirth = null;
+            category.MinAge = dto.MinAge;
+        }
+        else
+        {
+            category.StartDateOfBirth = dto.StartDateOfBirth!.Value.ToUniversalTime();
+            category.EndDateOfBirth = dto.EndDateOfBirth!.Value.ToUniversalTime();
+            category.MinAge = null;
+        }
     }
 
     private static void ValidateCategory(CreateCategoryDto dto)
     {
         if (string.IsNullOrWhiteSpace(dto.Name)) throw new Exception("El nombre de la categoría es obligatorio.");
         if (dto.MonthlyFee.HasValue && dto.MonthlyFee.Value < 0) throw new Exception("La mensualidad no puede ser negativa.");
+        if (dto.Name.Trim().Length > 100) throw new Exception("El nombre de la categoría admite hasta 100 caracteres.");
+        if (dto.IsFree)
+        {
+            if (dto.MinAge.HasValue && (dto.MinAge.Value < 1 || dto.MinAge.Value > 99))
+                throw new Exception("La edad mínima debe estar entre 1 y 99 años.");
+            return;
+        }
+        if (!dto.StartDateOfBirth.HasValue || !dto.EndDateOfBirth.HasValue)
+            throw new Exception("Indica la franja de nacimiento o marca la categoría como libre.");
         if (dto.EndDateOfBirth < dto.StartDateOfBirth) throw new Exception("La fecha de nacimiento final debe ser posterior a la inicial.");
     }
 
@@ -138,14 +174,13 @@ public class AcademyConfigurationService
         {
             AcademyId = academyId,
             HeadquarterId = dto.HeadquarterId,
-            Name = dto.Name,
-            StartDateOfBirth = dto.StartDateOfBirth.ToUniversalTime(),
-            EndDateOfBirth = dto.EndDateOfBirth.ToUniversalTime(),
+            Name = dto.Name.Trim(),
             MonthlyFee = dto.MonthlyFee ?? 0m
         };
+        ApplyAgeRule(category, dto);
         _context.Categories.Add(category);
         await _context.SaveChangesAsync();
-        return new CategoryDto { Id = category.Id, HeadquarterId = category.HeadquarterId, HeadquarterName = hq.Name, Name = category.Name, StartDateOfBirth = category.StartDateOfBirth, EndDateOfBirth = category.EndDateOfBirth, MonthlyFee = category.MonthlyFee, IsActive = category.IsActive };
+        return ToCategoryDto(category, hq.Name);
     }
 
     public async Task<CategoryDto> UpdateCategoryAsync(Guid academyId, Guid id, CreateCategoryDto dto)
@@ -157,12 +192,11 @@ public class AcademyConfigurationService
         if (hq == null) throw new Exception("Sede no encontrada.");
 
         category.HeadquarterId = dto.HeadquarterId;
-        category.Name = dto.Name;
-        category.StartDateOfBirth = dto.StartDateOfBirth.ToUniversalTime();
-        category.EndDateOfBirth = dto.EndDateOfBirth.ToUniversalTime();
+        category.Name = dto.Name.Trim();
+        ApplyAgeRule(category, dto);
         if (dto.MonthlyFee.HasValue) category.MonthlyFee = dto.MonthlyFee.Value;
         await _context.SaveChangesAsync();
-        return new CategoryDto { Id = category.Id, HeadquarterId = category.HeadquarterId, HeadquarterName = hq.Name, Name = category.Name, StartDateOfBirth = category.StartDateOfBirth, EndDateOfBirth = category.EndDateOfBirth, MonthlyFee = category.MonthlyFee, IsActive = category.IsActive };
+        return ToCategoryDto(category, hq.Name);
     }
 
     // ==========================================

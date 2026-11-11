@@ -18,10 +18,15 @@ type Form = {
 };
 
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+const ageOn = (isoDob: string) => {
+  const t = new Date(), [y, m, d] = isoDob.split('-').map(Number);
+  return t.getFullYear() - y - (t.getMonth() + 1 < m || (t.getMonth() + 1 === m && t.getDate() < d) ? 1 : 0);
+};
 const validPhone = (p: string) => { const d = digitsOnly(p); return d.length >= 7 && d.length <= 15; };
 
-/** Categorías cuya franja de nacimiento incluye la fecha dada. */
+/** Categorías cuya franja de nacimiento incluye la fecha dada. Una libre solo mira la edad mínima. */
 function matchesCategory(c: Category, isoDob: string) {
+  if (c.isFree) return !c.minAge || ageOn(isoDob) >= c.minAge;
   const a = c.startDateOfBirth.slice(0, 10), b = c.endDateOfBirth.slice(0, 10);
   const [from, to] = a <= b ? [a, b] : [b, a];
   return isoDob >= from && isoDob <= to;
@@ -91,7 +96,7 @@ export default function StudentFormScreen({ route, navigation }: any) {
 
   const isoDob = parseDmy(f.dob);
   const hqCats = useMemo(() => cats.filter(c => c.headquarterId === f.headquarterId).sort((a, b) => a.name.localeCompare(b.name)), [cats, f.headquarterId]);
-  const suggested = typeof isoDob === 'string' ? hqCats.filter(c => matchesCategory(c, isoDob)) : [];
+  const suggested = typeof isoDob === 'string' ? hqCats.filter(c => !c.isFree && matchesCategory(c, isoDob)) : [];
   const selectedCat = cats.find(c => c.id === f.categoryId);
   const catMismatch = !!selectedCat && typeof isoDob === 'string' && !matchesCategory(selectedCat, isoDob);
 
@@ -231,6 +236,7 @@ export default function StudentFormScreen({ route, navigation }: any) {
                     {isSuggested && <Sparkles size={12} color={active ? colors.white : colors.accentDark} />}
                     <Text style={{ fontWeight: '600', color: active ? colors.white : colors.textSecondary }}>{c.name}</Text>
                   </Row>
+                  {c.isFree && <Text style={{ fontSize: 11, color: active ? colors.primaryLight : colors.textMuted }}>Libre{c.minAge ? ` · desde ${c.minAge} años` : ''}</Text>}
                   {c.monthlyFee > 0 && <Text style={{ fontSize: 11, color: active ? colors.primaryLight : colors.textMuted }}>{money(c.monthlyFee)}/mes</Text>}
                 </Pressable>
               );
