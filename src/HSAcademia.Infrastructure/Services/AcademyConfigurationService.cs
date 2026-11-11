@@ -199,6 +199,10 @@ public class AcademyConfigurationService
             var role = existing.FirstOrDefault(r => r.SystemKey == template.Key);
             if (role == null)
             {
+                // Dos roles con el mismo nombre confunden al asignar: el propio de la academia se renombra.
+                var namesake = await _context.AcademyRoles.FirstOrDefaultAsync(r =>
+                    r.AcademyId == academyId && r.SystemKey == null && r.Name.ToLower() == template.Name.ToLower());
+                if (namesake != null) namesake.Name = $"{template.Name} (propio)";
                 _context.AcademyRoles.Add(new AcademyRole
                 {
                     AcademyId = academyId,

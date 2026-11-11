@@ -135,9 +135,12 @@ public static class SystemRoles
             Permissions.AttendanceTake, Permissions.AttendanceMetrics, Permissions.AttendanceReopen, Permissions.StaffAttendanceMark,
             Permissions.EventsManage, Permissions.AnnouncementsPublish, Permissions.ReportsStudents, Permissions.ReportsAttendance
         }),
-        new Template("coach", "Entrenador", "Toma lista y evalúa a los alumnos de sus categorías.", new[]
+        // Debe coincidir con la migración Phase17CoachRole. Sin pagos ni edición de datos del alumno.
+        new Template("coach", "Entrenador", "Toma lista, evalúa y ve la ficha médica de sus categorías; gestiona la agenda y publica comunicados. No ve pagos ni edita datos del alumno.", new[]
         {
-            Permissions.StudentsView, Permissions.StudentsEvaluate, Permissions.AttendanceTake, Permissions.AttendanceMetrics
+            Permissions.StudentsView, Permissions.StudentsMedical, Permissions.StudentsEvaluate,
+            Permissions.AttendanceTake, Permissions.AttendanceMetrics,
+            Permissions.EventsManage, Permissions.AnnouncementsPublish, Permissions.ReportsAttendance
         }),
         new Template("collector", "Cobrador", "Cobra a las familias y rinde su caja.", new[]
         {
