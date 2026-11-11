@@ -22,6 +22,7 @@ import RegularizeModal from '../../components/finances/RegularizeModal';
 import { Receipt } from 'lucide-react';
 import { Inbox } from 'lucide-react';
 import MyCashPanel from '../../components/finances/MyCashPanel';
+import ReceiptProfileCard from '../../components/finances/ReceiptProfileCard';
 import { useAuth } from '../../context/AuthContext';
 
 const PAYMENT_METHODS = [
@@ -49,7 +50,7 @@ const statusBadge = (d) => {
 };
 
 export default function Finanzas() {
-  const { can, academyWide } = useAuth();
+  const { can, academyWide, isAdmin } = useAuth();
   const canSeeDebts = can('collections.view', 'collections.collect');
   const canCollect = can('collections.collect');
   const canAdjust = can('collections.adjust');
@@ -599,6 +600,7 @@ export default function Finanzas() {
                 {generating ? 'Generando...' : `Ejecutar Motor — ${['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][motorMonth-1]} ${motorYear}`}
               </button>
             </div>
+            {isAdmin && <ReceiptProfileCard />}
           </div>
         )}
 

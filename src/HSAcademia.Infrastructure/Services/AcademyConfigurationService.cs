@@ -187,6 +187,31 @@ public class AcademyConfigurationService
             .ToListAsync();
     }
 
+    public async Task<ReceiptProfileDto> GetReceiptProfileAsync(Guid academyId)
+    {
+        var academy = await _context.Academies.AsNoTracking().FirstOrDefaultAsync(a => a.AcademyId == academyId)
+            ?? throw new KeyNotFoundException("Academia no encontrada.");
+        return new ReceiptProfileDto { Name = academy.Name, Address = academy.ReceiptAddress, Phone = academy.ReceiptPhone };
+    }
+
+    public async Task<ReceiptProfileDto> UpdateReceiptProfileAsync(Guid academyId, ReceiptProfileDto dto)
+    {
+        var academy = await _context.Academies.FirstOrDefaultAsync(a => a.AcademyId == academyId)
+            ?? throw new KeyNotFoundException("Academia no encontrada.");
+        var address = string.Join(" ", (dto.Address ?? string.Empty).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        var phone = dto.Phone?.Trim();
+        if (address.Length == 0) throw new Exception("Indica la dirección que saldrá en los recibos.");
+        if (address.Length > 200) throw new Exception("La dirección admite hasta 200 caracteres.");
+        if (phone?.Length > 50) throw new Exception("El teléfono admite hasta 50 caracteres.");
+        var before = new { academy.ReceiptAddress, academy.ReceiptPhone };
+        academy.ReceiptAddress = address;
+        academy.ReceiptPhone = string.IsNullOrEmpty(phone) ? null : phone;
+        academy.UpdatedAt = DateTime.UtcNow;
+        _audit.Add(academyId, "academy.receipt_profile", nameof(Academy), academy.Id, new { before, after = new { academy.ReceiptAddress, academy.ReceiptPhone } });
+        await _context.SaveChangesAsync();
+        return new ReceiptProfileDto { Name = academy.Name, Address = academy.ReceiptAddress, Phone = academy.ReceiptPhone };
+    }
+
     /// <summary>Crea o actualiza los roles predefinidos de la academia; como no se editan, siempre siguen a Clubio.</summary>
     private async Task EnsureSystemRolesAsync(Guid academyId)
     {

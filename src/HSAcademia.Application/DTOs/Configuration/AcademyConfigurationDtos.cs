@@ -51,6 +51,14 @@ public class AcademyRoleDto
     public int UserCount { get; set; }
 }
 
+/// <summary>Encabezado de los recibos: igual en todas las sedes y canales de cobro.</summary>
+public class ReceiptProfileDto
+{
+    public string Name { get; set; } = string.Empty;
+    public string? Address { get; set; }
+    public string? Phone { get; set; }
+}
+
 public class SetAcademyRoleStatusDto
 {
     public bool IsActive { get; set; }

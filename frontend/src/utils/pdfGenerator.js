@@ -1,7 +1,19 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
-/** Perfil de la academia guardado al iniciar sesión (nombre, dirección, teléfono). */
+/**
+ * Encabezado de los recibos (nombre, dirección y teléfono únicos de la academia). Se trae del servidor
+ * al iniciar sesión y al volver a la ventana; nunca se usa la dirección de una sede.
+ */
+export const saveReceiptProfile = (p) => {
+  try {
+    localStorage.setItem('academyProfile', JSON.stringify({ name: p?.name || '', address: p?.address || '', phone: p?.phone || '' }));
+  } catch { /* almacenamiento no disponible */ }
+};
+
+export const loadReceiptProfile = (api) =>
+  api.get('/academy-config/receipt-profile').then(r => saveReceiptProfile(r.data)).catch(() => {});
+
 const getAcademyProfile = () => {
   try {
     const profile = JSON.parse(localStorage.getItem('academyProfile') || 'null');
@@ -84,10 +96,10 @@ export const generateReceiptPDF = (data) => {
   doc.setFontSize(7);
   doc.setTextColor(100, 100, 100);
   const contactLines = [
-    ...doc.splitTextToSize(academy.address || '', 52).slice(0, 2),
+    ...doc.splitTextToSize(academy.address || '', 52).slice(0, 3),
     academy.phone ? `Tel. ${academy.phone}` : '',
-  ].filter(Boolean).slice(0, 3);
-  contactLines.forEach((line, i) => doc.text(line, 5, 29 + i * 4));
+  ].filter(Boolean);
+  contactLines.forEach((line, i) => doc.text(line, 5, 28.8 + i * 3.4));
 
   // Date Box: fecha del pago/venta (no la de hoy: las copias deben mostrar la fecha real)
   const issued = data.date ? new Date(data.date) : new Date();

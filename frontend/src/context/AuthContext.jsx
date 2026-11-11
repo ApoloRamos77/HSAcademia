@@ -1,5 +1,8 @@
 import { createContext, useCallback, useContext, useState, useEffect } from 'react';
 import api from '../api/axios';
+import { loadReceiptProfile } from '../utils/pdfGenerator';
+
+const printsReceipts = (u) => u && (u.role === 'AcademyAdmin' || u.role === 'Staff') && !u.requirePasswordChange;
 
 const AuthContext = createContext(null);
 
@@ -18,6 +21,7 @@ export function AuthProvider({ children }) {
       const next = { ...stored, ...data, token: stored.token };
       localStorage.setItem('user', JSON.stringify(next));
       setUser(next);
+      if (printsReceipts(next)) loadReceiptProfile(api);
     } catch { /* sin conexión: se conservan los permisos conocidos */ }
   }, []);
 
@@ -37,14 +41,8 @@ export function AuthProvider({ children }) {
     localStorage.setItem('token', data.token);
     localStorage.setItem('user', JSON.stringify(data));
     setUser(data);
-    // Perfil público de la academia (nombre, dirección, teléfono) para los recibos PDF.
-    if (data.academyId) {
-      api.get(`/public/academies/${data.academyId}`)
-        .then(r => localStorage.setItem('academyProfile', JSON.stringify({
-          name: r.data.name, address: r.data.contact?.address || '', phone: r.data.contact?.phone || '',
-        })))
-        .catch(() => {});
-    }
+    // Encabezado único de los recibos PDF (no la dirección de una sede).
+    if (printsReceipts(data)) loadReceiptProfile(api);
     return data;
   };
 
@@ -54,7 +52,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, can, academyWide, refresh }}>
+    <AuthContext.Provider value={{ user, login, logout, can, isAdmin, academyWide, refresh }}>
       {children}
     </AuthContext.Provider>
   );

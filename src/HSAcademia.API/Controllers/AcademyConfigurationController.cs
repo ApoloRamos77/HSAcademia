@@ -163,6 +163,27 @@ public class AcademyConfigurationController : ControllerBase
         catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
     }
 
+    // Encabezado de los recibos: todo el personal lo lee para imprimir; solo el administrador lo cambia.
+    [HttpGet("receipt-profile")]
+    public async Task<IActionResult> GetReceiptProfile()
+    {
+        var academyId = GetAcademyId();
+        if (academyId == Guid.Empty) return Unauthorized();
+        try { return Ok(await _service.GetReceiptProfileAsync(academyId)); }
+        catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
+    }
+
+    [HttpPut("receipt-profile")]
+    [Authorize(Roles = "AcademyAdmin")]
+    public async Task<IActionResult> UpdateReceiptProfile([FromBody] ReceiptProfileDto dto)
+    {
+        var academyId = GetAcademyId();
+        if (academyId == Guid.Empty) return Unauthorized();
+        try { return Ok(await _service.UpdateReceiptProfileAsync(academyId, dto)); }
+        catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
+        catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
+    }
+
     // User endpoints
     [HttpGet("users")]
     [RequirePermission(Permissions.FinancesStaffPayments)]

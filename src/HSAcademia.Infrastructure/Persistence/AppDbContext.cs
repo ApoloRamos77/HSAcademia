@@ -74,6 +74,8 @@ public class AppDbContext : DbContext
             entity.Property(e => e.ContactPhone).HasColumnName("contact_phone").HasMaxLength(50);
             entity.Property(e => e.LogoUrl).HasColumnName("logo_url").HasMaxLength(500);
             entity.Property(e => e.Address).HasColumnName("address").HasMaxLength(500);
+            entity.Property(e => e.ReceiptAddress).HasColumnName("receipt_address").HasMaxLength(200);
+            entity.Property(e => e.ReceiptPhone).HasColumnName("receipt_phone").HasMaxLength(50);
             entity.Property(e => e.City).HasColumnName("city").HasMaxLength(100);
             entity.Property(e => e.Country).HasColumnName("country").HasMaxLength(100);
             entity.Property(e => e.Website).HasColumnName("website").HasMaxLength(300);
