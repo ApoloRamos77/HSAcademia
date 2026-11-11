@@ -58,7 +58,7 @@ public class AttendanceService : IAttendanceService
         var studentIds = dto.Records.Select(r => r.StudentId).ToList();
 
         var validStudentIds = await _context.Students
-            .Where(s => s.AcademyId == academyId && s.CategoryId == categoryId && studentIds.Contains(s.Id))
+            .Where(s => s.AcademyId == academyId && s.CategoryId == categoryId && s.IsActive && studentIds.Contains(s.Id))
             .Select(s => s.Id)
             .ToListAsync();
 
@@ -150,6 +150,7 @@ public class AttendanceService : IAttendanceService
         var validStudentIds = await _context.Students
             .Where(s => s.AcademyId == academyId
                      && categoryIds.Contains(s.CategoryId)
+                     && s.IsActive
                      && studentIds.Contains(s.Id))
             .Select(s => s.Id)
             .ToListAsync();
@@ -291,8 +292,10 @@ public class AttendanceService : IAttendanceService
             .FirstOrDefaultAsync(s =>
                 s.AcademyId == academyId &&
                 s.Id == dto.StudentUserId &&
-                s.IsActive && !s.IsDeleted)
+                !s.IsDeleted)
             ?? throw new KeyNotFoundException("Alumno no encontrado en esta academia.");
+        if (!student.IsActive)
+            throw new KeyNotFoundException($"{student.FirstName} {student.LastName} está retirado: no se registra su asistencia.");
 
         var session = dto.EventId.HasValue
             ? await RequireScannableSessionAsync(academyId, scannerUserId, dto.EventId.Value, student)
@@ -889,6 +892,7 @@ public class AttendanceService : IAttendanceService
         var validStudentIds = await _context.Students
             .Where(s => s.AcademyId == academyId
                      && targetCategoryIds.Contains(s.CategoryId)
+                     && s.IsActive
                      && studentIds.Contains(s.Id))
             .Select(s => s.Id)
             .ToListAsync();

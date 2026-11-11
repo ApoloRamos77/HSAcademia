@@ -74,9 +74,10 @@ public class EvaluationService
     {
         var student = await _db.Students.AsNoTracking()
             .Where(s => s.Id == studentId && s.AcademyId == academyId)
-            .Select(s => new { s.CategoryId })
+            .Select(s => new { s.CategoryId, s.IsActive })
             .FirstOrDefaultAsync() ?? throw new KeyNotFoundException("Alumno no encontrado.");
         if (isAdmin) return;
+        if (!student.IsActive) throw new Exception("El alumno está retirado: solo un administrador puede evaluarlo.");
 
         var assigned = await _db.Users.Where(u => u.Id == userId)
             .SelectMany(u => u.AssignedCategories.Select(c => c.Id)).ToListAsync();

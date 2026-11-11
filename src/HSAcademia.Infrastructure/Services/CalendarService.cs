@@ -496,7 +496,7 @@ public class CalendarService : ICalendarService
 
         // Students
         var studentsQuery = _db.Students
-            .Where(s => s.AcademyId == academyId
+            .Where(s => s.AcademyId == academyId && s.IsActive
                      && s.DateOfBirth.HasValue && s.DateOfBirth.Value.Month == month);
 
         if (assignedCategoryIds != null)

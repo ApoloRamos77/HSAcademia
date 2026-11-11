@@ -48,7 +48,8 @@ export default function Reportes() {
       key: 'students', icon: Users, perm: 'reports.students', title: 'Padrón de alumnos',
       desc: 'Listado completo con categoría, sede, apoderado, contactos, beneficio, mensualidad y contacto de emergencia.',
       action: () => download('students', `/reports/students?includeInactive=${includeInactive}`, 'padron_alumnos.csv'),
-      extra: (
+      // Solo el administrador ve a los alumnos retirados.
+      extra: isAdmin && (
         <label className="flex items-center gap-2 text-xs mt-2" style={{ cursor: 'pointer' }}>
           <input type="checkbox" checked={includeInactive} onChange={e => setIncludeInactive(e.target.checked)} /> Incluir retirados
         </label>

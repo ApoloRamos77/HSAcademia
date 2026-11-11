@@ -20,6 +20,10 @@ public class AccessControlService
             s.AcademyId == academyId &&
             (s.UserId == userId || s.GuardianId == userId));
 
+    /// <summary>El personal no abre fichas de alumnos retirados. Si no existe, el servicio responde 404.</summary>
+    public async Task<bool> StudentIsActiveAsync(Guid academyId, Guid studentId) =>
+        !await _db.Students.AsNoTracking().AnyAsync(s => s.Id == studentId && s.AcademyId == academyId && !s.IsActive);
+
     /// <summary>True si la convocatoria pertenece a un alumno del usuario.</summary>
     public Task<bool> UserOwnsEventCallAsync(Guid academyId, Guid userId, Guid eventCallId) =>
         _db.EventCalls.AsNoTracking().AnyAsync(c =>

@@ -41,7 +41,7 @@ public class ReportsController : ControllerBase
     [HttpGet("students")]
     [RequirePermission(Permissions.ReportsStudents)]
     public async Task<IActionResult> Students([FromQuery] bool includeInactive = false) =>
-        Csv(await _reports.StudentsCsvAsync(User.GetAcademyId(), includeInactive), "padron_alumnos");
+        Csv(await _reports.StudentsCsvAsync(User.GetAcademyId(), includeInactive && User.IsInRole("AcademyAdmin")), "padron_alumnos");
 
     [HttpGet("attendance")]
     [RequirePermission(Permissions.ReportsAttendance)]
