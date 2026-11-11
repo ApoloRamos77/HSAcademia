@@ -61,7 +61,7 @@ export default function AttendanceScreen({ route, navigation }: any) {
   }, [s.eventId]);
 
   useEffect(() => {
-    navigation.setOptions({ title: `${s.categoryName} · ${shortDay(s.date)}` });
+    navigation.setOptions({ title: 'Tomar lista' });
     (async () => {
       try {
         const list = await fetchRoster(s.eventId, s.date);
@@ -194,6 +194,7 @@ export default function AttendanceScreen({ route, navigation }: any) {
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <View style={styles.summary}>
         <Text style={font.h3}>{s.title} · {s.startTime}</Text>
+        <Text style={font.small}>{s.categoryName} · {shortDay(s.date)}</Text>
         <Text style={font.small}>{count(1, 3)} presentes · {count(2)} faltas · {count(4)} justificadas · {missing} sin marcar</Text>
         {offlineSince != null && (
           <Banner tone="warning" icon={<CloudOff color={colors.warning} size={16} />}
@@ -214,29 +215,35 @@ export default function AttendanceScreen({ route, navigation }: any) {
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ padding: spacing.lg, gap: spacing.sm, paddingBottom: 140 + bottomInset }}
         ListEmptyComponent={<Empty icon={<Users color={colors.textMuted} />} text={roster.length ? 'Ningún alumno coincide con la búsqueda.' : 'No hay alumnos en esta categoría.'} />}
+        // Nombre completo arriba y opciones a todo el ancho debajo: se lee igual en celulares angostos
+        // o con letra grande, sin cortar el apellido.
         renderItem={({ item }) => (
           <View style={styles.row}>
-            <View style={styles.avatar}><Text style={styles.avatarText}>{initials(`${item.firstName} ${item.lastName}`)}</Text></View>
-            <View style={{ flex: 1 }}>
-              <Text style={[font.body, { color: colors.text }]} numberOfLines={2}>{item.lastName}, {item.firstName}</Text>
-              {!!item.markedVia && (
-                <Text style={font.tiny} numberOfLines={1}>
-                  {item.markedVia}{item.markedAt ? ` · ${clockTime(item.markedAt)}` : ''}{item.markedByName ? ` · ${item.markedByName}` : ''}
-                </Text>
-              )}
-            </View>
-            <Row style={{ gap: 6 }}>
+            <Row style={{ gap: spacing.sm, alignItems: 'flex-start' }}>
+              <View style={styles.avatar}><Text style={styles.avatarText} maxFontSizeMultiplier={1.2}>{initials(`${item.firstName} ${item.lastName}`)}</Text></View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.lastName}>{item.lastName}</Text>
+                <Text style={styles.firstName}>{item.firstName}</Text>
+                {!!item.markedVia && (
+                  <Text style={font.tiny} numberOfLines={1}>
+                    {item.markedVia}{item.markedAt ? ` · ${clockTime(item.markedAt)}` : ''}{item.markedByName ? ` · ${item.markedByName}` : ''}
+                  </Text>
+                )}
+              </View>
+            </Row>
+            <View style={styles.options} accessibilityRole="radiogroup">
               {OPTIONS.map(o => {
                 const active = marks[item.studentId] === o.code;
                 return (
                   <Pressable key={o.code} disabled={readOnly} onPress={() => mark(item.studentId, o.code)}
-                    accessibilityRole="radio" accessibilityState={{ selected: active }} accessibilityLabel={`${o.label} ${item.firstName}`}
-                    style={[styles.opt, active && { backgroundColor: o.bg, borderColor: o.fg }]} hitSlop={4}>
-                    <Text style={[styles.optText, active && { color: o.fg }]}>{o.short}</Text>
+                    accessibilityRole="radio" accessibilityState={{ selected: active, disabled: readOnly }} accessibilityLabel={`${o.label} ${item.firstName} ${item.lastName}`}
+                    style={[styles.opt, active && { backgroundColor: o.bg, borderColor: o.fg }, readOnly && !active && { opacity: 0.6 }]}>
+                    <Text style={[styles.optText, active && { color: o.fg }]} maxFontSizeMultiplier={1.2}>{o.short}</Text>
+                    <Text style={[styles.optLabel, active && { color: o.fg }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} maxFontSizeMultiplier={1.1}>{o.label}</Text>
                   </Pressable>
                 );
               })}
-            </Row>
+            </View>
           </View>
         )}
       />
@@ -259,10 +266,14 @@ export default function AttendanceScreen({ route, navigation }: any) {
 
 const styles = StyleSheet.create({
   summary: { padding: spacing.lg, gap: spacing.sm, backgroundColor: colors.card, borderBottomWidth: 1, borderBottomColor: colors.border },
-  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.card, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },
+  row: { gap: spacing.sm, backgroundColor: colors.card, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },
+  lastName: { ...font.body, color: colors.text, fontWeight: '700' },
+  firstName: { ...font.body, color: colors.text },
+  options: { flexDirection: 'row', gap: 6 },
   avatar: { width: 36, height: 36, borderRadius: radius.pill, backgroundColor: colors.primaryLight, alignItems: 'center', justifyContent: 'center' },
   avatarText: { color: colors.primaryDark, fontWeight: '700' },
-  opt: { width: 36, height: 36, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.card },
-  optText: { fontWeight: '700', color: colors.textMuted },
+  opt: { flex: 1, minWidth: 0, minHeight: 48, paddingVertical: 4, paddingHorizontal: 2, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.card },
+  optText: { fontWeight: '700', fontSize: 16, color: colors.textMuted },
+  optLabel: { fontSize: 11, color: colors.textMuted },
   footer: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', gap: spacing.sm, padding: spacing.lg, backgroundColor: colors.card, borderTopWidth: 1, borderTopColor: colors.border },
 });
