@@ -3,6 +3,7 @@ import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api, errorMessage } from '../api/client';
 import type { AttendanceCode, RosterStudent, StaffDay, StaffOption, StaffSession, TrainingSession } from '../api/types';
+import { setChargesOwner, syncCharges } from './sessionCharges';
 
 /**
  * Asistencia sin señal: guarda en el celular las listas de hoy y una cola de marcas por enviar.
@@ -222,13 +223,17 @@ export const readStaffDay = (date: string) => readJson<Cached<StaffDay>>(`staff.
 export function useAttendanceSync(userId: string) {
   useEffect(() => {
     setOfflineOwner(userId);
-    syncQueue();
-    const subscription = AppState.addEventListener('change', state => { if (state === 'active') syncQueue(); });
-    const timer = setInterval(() => { if (AppState.currentState === 'active') syncQueue(); }, RETRY_MS);
+    setChargesOwner(userId);
+    // Primero la asistencia y luego los cobros de sesión hechos sin señal.
+    const sync = () => syncQueue().then(syncCharges);
+    sync();
+    const subscription = AppState.addEventListener('change', state => { if (state === 'active') sync(); });
+    const timer = setInterval(() => { if (AppState.currentState === 'active') sync(); }, RETRY_MS);
     return () => {
       subscription.remove();
       clearInterval(timer);
       setOfflineOwner(null);
+      setChargesOwner(null);
     };
   }, [userId]);
 }

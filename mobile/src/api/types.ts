@@ -98,6 +98,8 @@ export interface SessionSummary {
   studentId: string; studentName: string; plan: BillingPlan; year: number; month: number;
   attended: number; sessionFee: number; cap: number; packageSessions?: number | null; packagePrice?: number | null;
   accrued: number; paidInField: number; capReached: boolean;
+  /** Sesiones pagadas a las que faltó: se usan en la próxima sesión o liquidación. */
+  creditAvailable?: number;
 }
 
 export interface GeneratedCredential { role: string; fullName: string; login: string; temporaryPassword: string }
@@ -259,6 +261,10 @@ export interface RosterStudent {
   markedByName?: string | null;
   markedAt?: string | null;
   billingPlan?: BillingPlan;
+  /** Por sesión: precio estimado de la sesión y si ya se cargó / pagó (servidor 1.0.18+). */
+  sessionFee?: number | null;
+  sessionCharged?: boolean;
+  sessionPaid?: boolean;
 }
 
 export interface AbsenceStreak { studentId: string; name: string; category: string; absences: number; absentSince: string; contactPhone?: string | null }

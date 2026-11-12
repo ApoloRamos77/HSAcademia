@@ -5,6 +5,7 @@ import { api, errorMessage } from '../../api/client';
 import type { CashHandover, MyCash } from '../../api/types';
 import { Badge, Banner, Button, Card, Divider, Empty, Input, Loading, Row, Screen, SectionTitle } from '../../components/ui';
 import { useApi } from '../../hooks/useApi';
+import { syncCharges, usePendingCharges } from '../../offline/sessionCharges';
 import { colors, font, spacing } from '../../theme';
 import { clockTime as time, instantDate, money } from '../../utils/format';
 
@@ -22,7 +23,11 @@ function DiffBadge({ value }: { value?: number | null }) {
  * que entrega; finanzas lo recibe y cuenta en la web. Los pagos digitales se informan para conciliar.
  */
 export default function MyCashScreen() {
-  const { data, loading, refreshing, refresh } = useApi(() => api.get<MyCash>('/cash/mine').then(r => r.data), []);
+  const { data, loading, refreshing, refresh } = useApi(async () => {
+    await syncCharges(); // lo cobrado sin señal entra primero a la caja
+    return api.get<MyCash>('/cash/mine').then(r => r.data);
+  }, []);
+  const offlineCharges = usePendingCharges();
   const [declared, setDeclared] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
@@ -63,6 +68,10 @@ export default function MyCashScreen() {
 
   return (
     <Screen refreshing={refreshing} onRefresh={refresh}>
+      {offlineCharges.length > 0 && (
+        <Banner tone="warning" icon={<Clock color={colors.warning} size={18} />}
+          text={`${offlineCharges.length} cobro(s) de sesión guardado(s) en este celular (${money(offlineCharges.reduce((t, c) => t + c.amount, 0))}) aún no están en tu caja.${offlineCharges.some(c => c.error) ? ' Alguno fue rechazado: revísalo en la lista de la sesión.' : ' Se envían solos al volver la señal.'}`} />
+      )}
       <Card>
         <Row><Banknote color={colors.primaryDark} size={20} /><Text style={font.h3}>Por rendir</Text></Row>
         <Text style={[font.h1, { color: data.pendingCash > 0 ? colors.warning : colors.text, marginTop: 4 }]}>{money(data.pendingCash)}</Text>

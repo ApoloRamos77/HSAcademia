@@ -1,14 +1,22 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { CloudOff, Lock, QrCode, Users } from 'lucide-react-native';
 import { api, errorMessage } from '../../api/client';
 import type { AttendanceCode, RosterStudent, TrainingSession } from '../../api/types';
 import { useAuth } from '../../auth/AuthContext';
 import QrScanner, { type ScanResult } from '../../components/QrScanner';
-import { Banner, Button, Empty, Input, Loading, Row, useBottomInset } from '../../components/ui';
+import { Banner, Button, Chips, Empty, Input, Loading, Row, useBottomInset } from '../../components/ui';
 import { enqueue, fetchRoster, isOfflineError, pendingFor, readRoster, saveAndSend, saveRoster, type QueuedRecord } from '../../offline/attendanceOffline';
+import { chargeSession as sendCharge, discardCharge, newChargeId, usePendingCharges, type ChargeMethod } from '../../offline/sessionCharges';
 import { colors, font, radius, spacing } from '../../theme';
-import { clockTime, initials, markingBlock, shortDay } from '../../utils/format';
+import { clockTime, initials, markingBlock, money, shortDay } from '../../utils/format';
+
+const CHARGE_METHODS: { value: ChargeMethod; label: string }[] = [
+  { value: 'Cash', label: 'Efectivo' },
+  { value: 'Yape', label: 'Yape' },
+  { value: 'Plin', label: 'Plin' },
+];
+type Quote = { amount: number; note?: string | null; estimated?: boolean; paid?: boolean };
 
 const OPTIONS: { code: AttendanceCode; short: string; label: string; bg: string; fg: string }[] = [
   { code: 1, short: 'P', label: 'Presente', bg: colors.successBg, fg: colors.success },
@@ -42,6 +50,13 @@ export default function AttendanceScreen({ route, navigation }: any) {
   const [closed, setClosed] = useState(s.attendanceClosed);
   const [offlineSince, setOfflineSince] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Cobro de sesión en un paso (alumnos por sesión), también sin señal.
+  const pendingCharges = usePendingCharges().filter(c => c.eventId === s.eventId);
+  const [chargeFor, setChargeFor] = useState<RosterStudent | null>(null);
+  const [quote, setQuote] = useState<Quote | null>(null);
+  const [method, setMethod] = useState<ChargeMethod>('Cash');
+  const [operation, setOperation] = useState('');
+  const [charging, setCharging] = useState(false);
   // Lo que el servidor ya tiene: solo se envían las diferencias para no pisar marcas más recientes.
   const baseline = useRef<Marks>({});
   const current = useRef({ roster, marks });
@@ -98,22 +113,54 @@ export default function AttendanceScreen({ route, navigation }: any) {
     setRoster(list => list.map(x => (x.studentId === r.studentId ? { ...x, markedVia: 'QR', markedAt: r.markedAt } : x)));
   }, []);
 
-  // Alumno por sesión: se crea la deuda de esta sesión (una sola vez) y se abre el cobro en campo.
-  const chargeSession = (r: RosterStudent) => {
-    Alert.alert('Cobrar la sesión', `¿Cobrar a ${r.firstName} ${r.lastName} la sesión de hoy?`, [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Cobrar', onPress: async () => {
-          try {
-            const { data } = await api.post<{ amount: number; alreadyCharged: boolean }>('/finances/sessions/charge', { studentId: r.studentId, eventId: s.eventId });
-            if (data.alreadyCharged) Alert.alert('Ya estaba registrada', 'Esta sesión ya se cargó a su cuenta: puedes cobrarla ahora.');
-            navigation.navigate('FieldPayment', { student: { id: r.studentId, firstName: r.firstName, lastName: r.lastName } });
-          } catch (e) {
-            Alert.alert('No se pudo cobrar', isOfflineError(e) ? 'Necesitas señal para cobrar la sesión.' : errorMessage(e));
-          }
-        },
-      },
-    ]);
+  // Alumno por sesión: se cobra en un paso (queda Presente y sale el recibo). Sin señal queda en el celular.
+  const openCharge = async (r: RosterStudent) => {
+    setChargeFor(r);
+    setMethod('Cash');
+    setOperation('');
+    setQuote(null);
+    try {
+      const { data } = await api.get<{ amount: number; note?: string | null; paid: boolean }>('/finances/sessions/quote', { params: { studentId: r.studentId, eventId: s.eventId } });
+      setQuote({ amount: data.amount, note: data.note, paid: data.paid });
+    } catch (e) {
+      setQuote({ amount: r.sessionFee ?? 0, estimated: true, note: isOfflineError(e) ? 'Sin señal: monto estimado. El sistema lo confirma al enviar.' : errorMessage(e) });
+    }
+  };
+
+  const confirmCharge = async () => {
+    const r = chargeFor;
+    if (!r) return;
+    if (method !== 'Cash' && !operation.trim()) {
+      Alert.alert('Falta el número de operación', `Para ${method} indica el número de operación.`);
+      return;
+    }
+    setCharging(true);
+    try {
+      const result = await sendCharge({
+        id: newChargeId(), studentId: r.studentId, studentName: `${r.firstName} ${r.lastName}`, eventId: s.eventId,
+        sessionTitle: s.title, date: s.date, method, operationNumber: method === 'Cash' ? null : operation.trim(),
+        amount: quote?.amount ?? r.sessionFee ?? 0, chargedAt: new Date().toISOString(),
+      });
+      if (result.state === 'rejected') {
+        Alert.alert('No se pudo cobrar', result.message);
+        return;
+      }
+      // Cobrar confirma que asistió: queda Presente (el servidor ya lo marcó si hubo señal).
+      setMarks(m => ({ ...m, [r.studentId]: m[r.studentId] === 3 ? 3 : 1 }));
+      if (result.state === 'sent') {
+        baseline.current = { ...baseline.current, [r.studentId]: baseline.current[r.studentId] === 3 ? 3 : 1 };
+        setRoster(list => list.map(x => (x.studentId === r.studentId ? { ...x, sessionCharged: true, sessionPaid: true } : x)));
+        const rc = result.response.receipt;
+        Alert.alert('Sesión cobrada', rc
+          ? `Recibo N° ${rc.number} · ${money(rc.total)}`
+          : result.response.coveredByCredit ? 'Se cubrió con su saldo a favor.' : 'La sesión ya estaba pagada.');
+      } else {
+        Alert.alert('Cobro guardado en este celular', 'No hay señal. Se enviará solo cuando vuelva el internet y saldrá el recibo. Aparecerá en Mi caja.');
+      }
+      setChargeFor(null);
+    } finally {
+      setCharging(false);
+    }
   };
 
   const resolveOffline = useCallback(async (studentId: string) => {
@@ -222,6 +269,18 @@ export default function AttendanceScreen({ route, navigation }: any) {
         {closed && <Banner tone="muted" icon={<Lock color={colors.textSecondary} size={16} />} text="Asistencia cerrada: solo un administrador puede reabrirla." />}
         {!!blocked && <Banner tone="muted" icon={<Lock color={colors.textSecondary} size={16} />} text={blocked} />}
         {error && <Banner tone="danger" text={error} />}
+        {pendingCharges.filter(c => !c.error).length > 0 && (
+          <Banner tone="info" icon={<CloudOff color={colors.info} size={16} />}
+            text={`${pendingCharges.filter(c => !c.error).length} cobro(s) de sesión guardado(s) en este celular. Se enviarán solos.`} />
+        )}
+        {pendingCharges.filter(c => c.error).map(c => (
+          <Pressable key={c.id} onPress={() => Alert.alert('Cobro no enviado', `${c.studentName} · ${money(c.amount)}\n${c.error}`, [
+            { text: 'Mantener', style: 'cancel' },
+            { text: 'Descartar', style: 'destructive', onPress: () => discardCharge(c.id) },
+          ])}>
+            <Banner tone="danger" text={`No se pudo enviar el cobro de ${c.studentName}: ${c.error}`} />
+          </Pressable>
+        ))}
         {!readOnly && roster.length > 0 && (
           <Button compact variant="secondary" title="Escanear carnés QR" icon={<QrCode color={colors.primaryDark} size={16} />} onPress={() => setScanning(true)} />
         )}
@@ -243,9 +302,15 @@ export default function AttendanceScreen({ route, navigation }: any) {
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={styles.lastName}>{item.lastName}</Text>
                 <Text style={styles.firstName}>{item.firstName}</Text>
-                {item.billingPlan === 'PerSession' && canCollect && (
-                  <Pressable onPress={() => chargeSession(item)} accessibilityRole="button" accessibilityLabel={`Cobrar sesión a ${item.firstName}`} hitSlop={6} style={styles.payTag}>
-                    <Text style={styles.payTagText} maxFontSizeMultiplier={1.2}>💲 Paga por sesión · Cobrar</Text>
+                {item.billingPlan === 'PerSession' && item.sessionPaid && (
+                  <View style={[styles.payTag, { backgroundColor: colors.successBg }]}><Text style={[styles.payTagText, { color: colors.success }]} maxFontSizeMultiplier={1.2}>💲 Sesión pagada</Text></View>
+                )}
+                {item.billingPlan === 'PerSession' && !item.sessionPaid && pendingCharges.some(c => c.studentId === item.studentId && !c.error) && (
+                  <View style={[styles.payTag, { backgroundColor: colors.infoBg }]}><Text style={[styles.payTagText, { color: colors.info }]} maxFontSizeMultiplier={1.2}>💲 Cobro por enviar</Text></View>
+                )}
+                {item.billingPlan === 'PerSession' && canCollect && !item.sessionPaid && !pendingCharges.some(c => c.studentId === item.studentId && !c.error) && (
+                  <Pressable onPress={() => openCharge(item)} accessibilityRole="button" accessibilityLabel={`Cobrar sesión a ${item.firstName}`} hitSlop={6} style={styles.payTag}>
+                    <Text style={styles.payTagText} maxFontSizeMultiplier={1.2}>💲 Paga por sesión · Cobrar{item.sessionFee ? ` ${money(item.sessionFee)}` : ''}</Text>
                   </Pressable>
                 )}
                 {item.billingPlan === 'PerSession' && !canCollect && <Text style={font.tiny}>💲 Paga por sesión</Text>}
@@ -282,6 +347,37 @@ export default function AttendanceScreen({ route, navigation }: any) {
         </View>
       )}
 
+      <Modal visible={!!chargeFor} transparent animationType="fade" onRequestClose={() => { if (!charging) setChargeFor(null); }}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.backdrop}>
+          <View style={[styles.sheet, { paddingBottom: spacing.lg + bottomInset }]}>
+            <Text style={font.h2}>Cobrar sesión</Text>
+            <Text style={font.body}>{chargeFor?.firstName} {chargeFor?.lastName}</Text>
+            <Text style={font.small}>{s.title} · {shortDay(s.date)}</Text>
+            {quote == null ? <Loading /> : (
+              <>
+                <Text style={[font.h1, { marginTop: spacing.sm }]}>{money(quote.amount)}</Text>
+                {!!quote.note && <Text style={font.small}>{quote.note}</Text>}
+                {!quote.paid && quote.amount > 0 && (
+                  <>
+                    <Chips options={CHARGE_METHODS} value={method} onChange={setMethod} />
+                    {method !== 'Cash' && (
+                      <Input label="N° de operación" value={operation} onChangeText={setOperation} autoCapitalize="characters" placeholder={`Operación de ${method}`} />
+                    )}
+                  </>
+                )}
+                {!quote.paid && <Text style={font.tiny}>Al cobrar, el alumno queda Presente.</Text>}
+              </>
+            )}
+            <Row style={{ gap: spacing.sm, marginTop: spacing.md }}>
+              <Button title="Cancelar" variant="ghost" onPress={() => setChargeFor(null)} disabled={charging} style={{ flex: 1 }} />
+              {!!quote && !quote.paid && (
+                <Button title={quote.amount > 0 ? 'Cobrar' : 'Registrar'} onPress={confirmCharge} loading={charging} style={{ flex: 1 }} />
+              )}
+            </Row>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
       <Modal visible={scanning} animationType="slide" onRequestClose={() => setScanning(false)}>
         {scanning && <QrScanner eventId={s.eventId} onScanned={onScanned} resolveOffline={resolveOffline} onClose={() => setScanning(false)} />}
       </Modal>
@@ -297,6 +393,8 @@ const styles = StyleSheet.create({
   options: { flexDirection: 'row', gap: 6 },
   payTag: { alignSelf: 'flex-start', marginTop: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: colors.warningBg },
   payTagText: { fontSize: 12, fontWeight: '700', color: colors.warning },
+  backdrop: { flex: 1, backgroundColor: 'rgba(15,23,42,0.45)', justifyContent: 'flex-end' },
+  sheet: { backgroundColor: colors.card, padding: spacing.lg, gap: spacing.xs, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg },
   avatar: { width: 36, height: 36, borderRadius: radius.pill, backgroundColor: colors.primaryLight, alignItems: 'center', justifyContent: 'center' },
   avatarText: { color: colors.primaryDark, fontWeight: '700' },
   opt: { flex: 1, minWidth: 0, minHeight: 48, paddingVertical: 4, paddingHorizontal: 2, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.card },

@@ -14,9 +14,11 @@ public class AttendanceService : IAttendanceService
 
     private readonly FamilyNoticeService _notices;
     private readonly AuditService _audit;
+    private readonly SessionBillingService? _billing;
 
-    public AttendanceService(AppDbContext context, FamilyNoticeService notices, AuditService audit)
+    public AttendanceService(AppDbContext context, FamilyNoticeService notices, AuditService audit, SessionBillingService? billing = null)
     {
+        _billing = billing;
         _context = context;
         _notices = notices;
         _audit = audit;
@@ -89,6 +91,7 @@ public class AttendanceService : IAttendanceService
             }
         }
         await _context.SaveChangesAsync();
+        await ReconcileBillingAsync(academyId, validStudentIds);
     }
 
     // =========================================================
@@ -121,7 +124,7 @@ public class AttendanceService : IAttendanceService
 
         var marks = await LoadSessionMarksAsync(academyId, eventId, ev.StartTime.Date, studentIds);
 
-        return students.Select(s => ToRosterDto(s, marks.GetValueOrDefault(s.Id))).ToList();
+        return await WithSessionBillingAsync(academyId, students.Select(s => ToRosterDto(s, marks.GetValueOrDefault(s.Id))).ToList(), eventId);
     }
 
     public async Task MarkAttendanceByEventAsync(Guid academyId, Guid markedByUserId, MarkAttendanceByEventDto dto)
@@ -189,6 +192,7 @@ public class AttendanceService : IAttendanceService
         }
         await _notices.SyncArrivalsAsync(academyId, ev, saved);
         await _context.SaveChangesAsync();
+        await ReconcileBillingAsync(academyId, saved.Select(a => a.StudentId));
     }
 
     // =========================================================
@@ -816,7 +820,7 @@ public class AttendanceService : IAttendanceService
                             : (a.Date >= targetDate && a.Date < targetDate.AddDays(1))))
             .ToListAsync();
 
-        return students.Select(s =>
+        return await WithSessionBillingAsync(academyId, students.Select(s =>
         {
             // Prefer event-linked record, fall back to a day-only record
             var att = eventId.HasValue
@@ -825,7 +829,7 @@ public class AttendanceService : IAttendanceService
                 : attendances.FirstOrDefault(a => a.StudentId == s.Id);
 
             return ToRosterDto(s, att);
-        }).ToList();
+        }).ToList(), eventId);
     }
 
     /// <summary>
@@ -935,6 +939,35 @@ public class AttendanceService : IAttendanceService
         }
         if (session != null) await _notices.SyncArrivalsAsync(academyId, session, saved);
         await _context.SaveChangesAsync();
+        await ReconcileBillingAsync(academyId, saved.Select(a => a.StudentId));
+    }
+
+    /// <summary>Una falta en una sesión cobrada en campo anula la deuda o deja saldo a favor (y al revés).</summary>
+    private Task ReconcileBillingAsync(Guid academyId, IEnumerable<Guid> studentIds) =>
+        _billing == null ? Task.CompletedTask : _billing.TryReconcileAsync(academyId, studentIds.Distinct().ToList());
+
+    /// <summary>Datos de cobro de quienes pagan por sesión: precio estimado y si esta sesión ya se cobró.</summary>
+    private async Task<List<StudentAttendanceDto>> WithSessionBillingAsync(Guid academyId, List<StudentAttendanceDto> list, Guid? eventId)
+    {
+        var perSession = list.Where(r => r.BillingPlan == nameof(StudentBillingPlan.PerSession)).Select(r => r.StudentId).ToList();
+        if (perSession.Count == 0) return list;
+        var students = await _context.Students.AsNoTracking().Include(s => s.Category)
+            .Where(s => perSession.Contains(s.Id)).ToDictionaryAsync(s => s.Id);
+        var charged = eventId.HasValue
+            ? await _context.PaymentRecords.AsNoTracking()
+                .Where(p => p.AcademyId == academyId && p.Type == PaymentType.Sessions && p.SessionEventId == eventId && perSession.Contains(p.StudentId))
+                .Select(p => new { p.StudentId, p.IsPaid }).ToListAsync()
+            : new();
+        foreach (var r in list.Where(r => students.ContainsKey(r.StudentId)))
+        {
+            var st = students[r.StudentId];
+            var fee = SessionBillingService.SessionFeeOf(st);
+            r.SessionFee = st.IsGuest || st.IsScholarship ? 0 : Math.Round(fee - fee * Math.Min(st.ScholarshipPercentage ?? 0, 100m) / 100, 2);
+            var c = charged.FirstOrDefault(x => x.StudentId == r.StudentId);
+            r.SessionCharged = c != null;
+            r.SessionPaid = c?.IsPaid ?? false;
+        }
+        return list;
     }
 
     /// <inheritdoc/>
