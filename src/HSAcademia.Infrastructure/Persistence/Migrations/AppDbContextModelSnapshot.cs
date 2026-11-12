@@ -1902,6 +1902,12 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("prorated_total_days");
 
+                    b.Property<decimal>("ReferralDiscount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("numeric(10,2)")
+                        .HasDefaultValue(0m)
+                        .HasColumnName("referral_discount");
+
                     b.Property<string>("RegularizationNote")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)")
@@ -2466,6 +2472,215 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.HasIndex("ReceiptId");
 
                     b.ToTable("receipt_payments", (string)null);
+                });
+
+            modelBuilder.Entity("HSAcademia.Domain.Entities.Referral", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AcademyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("academy_id");
+
+                    b.Property<string>("AnnulReason")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("annul_reason");
+
+                    b.Property<DateTime?>("AnnulledAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("annulled_at");
+
+                    b.Property<Guid>("CampaignId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("campaign_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CreatedByName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("created_by_name");
+
+                    b.Property<DateTime?>("EarnedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("earned_at");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("notes");
+
+                    b.Property<DateTime?>("NotifiedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("notified_at");
+
+                    b.Property<decimal>("ReferredAmount")
+                        .HasColumnType("numeric(10,2)")
+                        .HasColumnName("referred_amount");
+
+                    b.Property<Guid>("ReferredStudentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("referred_student_id");
+
+                    b.Property<decimal>("ReferrerAmount")
+                        .HasColumnType("numeric(10,2)")
+                        .HasColumnName("referrer_amount");
+
+                    b.Property<Guid>("ReferrerStudentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("referrer_student_id");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer")
+                        .HasColumnName("status");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CampaignId");
+
+                    b.HasIndex("ReferredStudentId")
+                        .IsUnique()
+                        .HasFilter("status <> 4");
+
+                    b.HasIndex("ReferrerStudentId");
+
+                    b.HasIndex("AcademyId", "Status");
+
+                    b.ToTable("referrals", (string)null);
+                });
+
+            modelBuilder.Entity("HSAcademia.Domain.Entities.ReferralBenefit", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AcademyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("academy_id");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("numeric(10,2)")
+                        .HasColumnName("amount");
+
+                    b.Property<DateTime>("AppliedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("applied_at");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("label");
+
+                    b.Property<Guid>("PaymentRecordId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("payment_record_id");
+
+                    b.Property<Guid>("ReferralId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("referral_id");
+
+                    b.Property<string>("RevertReason")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("revert_reason");
+
+                    b.Property<DateTime?>("RevertedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reverted_at");
+
+                    b.Property<int>("Side")
+                        .HasColumnType("integer")
+                        .HasColumnName("side");
+
+                    b.Property<Guid>("StudentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("student_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PaymentRecordId");
+
+                    b.HasIndex("ReferralId");
+
+                    b.ToTable("referral_benefits", (string)null);
+                });
+
+            modelBuilder.Entity("HSAcademia.Domain.Entities.ReferralCampaign", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AcademyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("academy_id");
+
+                    b.Property<Guid?>("CategoryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("category_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("description");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_deleted");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.Property<decimal>("ReferredAmount")
+                        .HasColumnType("numeric(10,2)")
+                        .HasColumnName("referred_amount");
+
+                    b.Property<decimal>("ReferrerAmount")
+                        .HasColumnType("numeric(10,2)")
+                        .HasColumnName("referrer_amount");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<DateTime>("ValidFrom")
+                        .HasColumnType("date")
+                        .HasColumnName("valid_from");
+
+                    b.Property<DateTime>("ValidTo")
+                        .HasColumnType("date")
+                        .HasColumnName("valid_to");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AcademyId");
+
+                    b.ToTable("referral_campaigns", (string)null);
                 });
 
             modelBuilder.Entity("HSAcademia.Domain.Entities.StaffAdvance", b =>
@@ -3889,6 +4104,61 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Receipt");
+                });
+
+            modelBuilder.Entity("HSAcademia.Domain.Entities.Referral", b =>
+                {
+                    b.HasOne("HSAcademia.Domain.Entities.Academy", null)
+                        .WithMany()
+                        .HasForeignKey("AcademyId")
+                        .HasPrincipalKey("AcademyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("HSAcademia.Domain.Entities.ReferralCampaign", "Campaign")
+                        .WithMany()
+                        .HasForeignKey("CampaignId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("HSAcademia.Domain.Entities.Student", "ReferredStudent")
+                        .WithMany()
+                        .HasForeignKey("ReferredStudentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("HSAcademia.Domain.Entities.Student", "ReferrerStudent")
+                        .WithMany()
+                        .HasForeignKey("ReferrerStudentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Campaign");
+
+                    b.Navigation("ReferredStudent");
+
+                    b.Navigation("ReferrerStudent");
+                });
+
+            modelBuilder.Entity("HSAcademia.Domain.Entities.ReferralBenefit", b =>
+                {
+                    b.HasOne("HSAcademia.Domain.Entities.Referral", "Referral")
+                        .WithMany()
+                        .HasForeignKey("ReferralId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Referral");
+                });
+
+            modelBuilder.Entity("HSAcademia.Domain.Entities.ReferralCampaign", b =>
+                {
+                    b.HasOne("HSAcademia.Domain.Entities.Academy", null)
+                        .WithMany()
+                        .HasForeignKey("AcademyId")
+                        .HasPrincipalKey("AcademyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("HSAcademia.Domain.Entities.StaffAttendance", b =>

@@ -28,9 +28,11 @@ public class SessionBillingService
     private readonly AppDbContext _db;
     private readonly FinancialPeriodGuard _periods;
     private readonly AuditService _audit;
+    private readonly ReferralService? _referrals;
 
-    public SessionBillingService(AppDbContext db, FinancialPeriodGuard periods, AuditService audit)
+    public SessionBillingService(AppDbContext db, FinancialPeriodGuard periods, AuditService audit, ReferralService? referrals = null)
     {
+        _referrals = referrals;
         _db = db;
         _periods = periods;
         _audit = audit;
@@ -179,6 +181,12 @@ public class SessionBillingService
         _db.PaymentRecords.Add(record);
         _audit.Add(academyId, "finances.sessions.charge", nameof(PaymentRecord), record.Id, new { studentId, eventId, sessionDate, amount });
         await _db.SaveChangesAsync();
+        if (_referrals != null)
+        {
+            // Alumno nuevo referido: su bienvenida se descuenta en esta primera sesión.
+            await _referrals.TrySyncAsync(academyId, new[] { studentId });
+            await _db.Entry(record).ReloadAsync();
+        }
         return new FieldCharge(record.Id, record.Amount, false, record.Description);
     }
 
@@ -216,7 +224,8 @@ public class SessionBillingService
         {
             var mine = periodRecords.Where(p => p.StudentId == s.Id).ToList();
             var liquidation = mine.FirstOrDefault(p => p.Type == PaymentType.Sessions && p.SessionDate == null);
-            var fieldCharged = mine.Where(p => p.Type == PaymentType.Sessions && p.SessionDate != null).Sum(p => p.Amount);
+            // Lo cobrado en campo cuenta sin restar beneficios de referidos (esos los asume la academia).
+            var fieldCharged = mine.Where(p => p.Type == PaymentType.Sessions && p.SessionDate != null).Sum(p => p.Amount + p.ReferralDiscount);
             var monthly = mine.FirstOrDefault(p => p.Type == PaymentType.MonthlyFee);
             var name = $"{s.FirstName} {s.LastName}";
             attended.TryGetValue(s.Id, out var count);
@@ -285,6 +294,7 @@ public class SessionBillingService
                 liquidation.DiscountDetail = detail;
                 liquidation.SessionsCount = count;
                 liquidation.Description = description;
+                if (_referrals != null) await _referrals.ReapplyAsync(liquidation);
                 if (liquidation.AmountPaid >= remaining - 0.01m)
                 {
                     liquidation.AmountPaid = remaining;
@@ -313,6 +323,7 @@ public class SessionBillingService
         _audit.Add(academyId, automatic ? AutoLiquidationAction : "finances.sessions.liquidate", nameof(PaymentRecord), null,
             new { year, month, generated, updated, removed, notes = notes.Count });
         await _db.SaveChangesAsync(ct);
+        if (_referrals != null) await _referrals.TrySyncAsync(academyId, ids);
         return new LiquidationResult(year, month, generated, updated, removed, notes);
     }
 

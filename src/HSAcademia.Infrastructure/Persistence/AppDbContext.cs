@@ -43,6 +43,9 @@ public class AppDbContext : DbContext
     public DbSet<ReceiptPayment> ReceiptPayments => Set<ReceiptPayment>();
     public DbSet<FamilyNotice> FamilyNotices => Set<FamilyNotice>();
     public DbSet<DiscountRule> DiscountRules => Set<DiscountRule>();
+    public DbSet<ReferralCampaign> ReferralCampaigns => Set<ReferralCampaign>();
+    public DbSet<Referral> Referrals => Set<Referral>();
+    public DbSet<ReferralBenefit> ReferralBenefits => Set<ReferralBenefit>();
     public DbSet<CashHandover> CashHandovers => Set<CashHandover>();
     public DbSet<StudentEvaluation> StudentEvaluations => Set<StudentEvaluation>();
     public DbSet<MatchPlayerStat> MatchPlayerStats => Set<MatchPlayerStat>();
@@ -506,6 +509,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.ProratedTotalDays).HasColumnName("prorated_total_days");
             entity.Property(e => e.ProratedDaysCharged).HasColumnName("prorated_days_charged");
             entity.Property(e => e.SessionDate).HasColumnName("session_date");
+            entity.Property(e => e.ReferralDiscount).HasColumnName("referral_discount").HasColumnType("numeric(10,2)").HasDefaultValue(0m);
             entity.Property(e => e.SessionEventId).HasColumnName("session_event_id");
             entity.Property(e => e.SessionsCount).HasColumnName("sessions_count");
             entity.Property(e => e.ExclusionType).HasColumnName("exclusion_type").HasConversion<int>().HasDefaultValue(ExclusionType.None);
@@ -1175,6 +1179,81 @@ public class AppDbContext : DbContext
             entity.HasIndex(e => new { e.AcademyId, e.Kind });
             entity.HasOne<Academy>().WithMany().HasForeignKey(e => e.AcademyId).HasPrincipalKey(a => a.AcademyId).OnDelete(DeleteBehavior.Cascade);
             entity.HasQueryFilter(e => !e.IsDeleted);
+        });
+
+        // ----------------------------------------------------------------
+        // Referidos
+        // ----------------------------------------------------------------
+        modelBuilder.Entity<ReferralCampaign>(entity =>
+        {
+            entity.ToTable("referral_campaigns");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.AcademyId).HasColumnName("academy_id").IsRequired();
+            entity.Property(e => e.Name).HasColumnName("name").HasMaxLength(100).IsRequired();
+            entity.Property(e => e.Description).HasColumnName("description").HasMaxLength(300);
+            entity.Property(e => e.ValidFrom).HasColumnName("valid_from").HasColumnType("date");
+            entity.Property(e => e.ValidTo).HasColumnName("valid_to").HasColumnType("date");
+            entity.Property(e => e.ReferrerAmount).HasColumnName("referrer_amount").HasColumnType("numeric(10,2)");
+            entity.Property(e => e.ReferredAmount).HasColumnName("referred_amount").HasColumnType("numeric(10,2)");
+            entity.Property(e => e.CategoryId).HasColumnName("category_id");
+            entity.Property(e => e.IsActive).HasColumnName("is_active");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(e => e.IsDeleted).HasColumnName("is_deleted");
+            entity.HasIndex(e => e.AcademyId);
+            entity.HasOne<Academy>().WithMany().HasForeignKey(e => e.AcademyId).HasPrincipalKey(a => a.AcademyId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasQueryFilter(e => !e.IsDeleted);
+        });
+
+        modelBuilder.Entity<Referral>(entity =>
+        {
+            entity.ToTable("referrals");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.AcademyId).HasColumnName("academy_id").IsRequired();
+            entity.Property(e => e.CampaignId).HasColumnName("campaign_id");
+            entity.Property(e => e.ReferrerStudentId).HasColumnName("referrer_student_id");
+            entity.Property(e => e.ReferredStudentId).HasColumnName("referred_student_id");
+            entity.Property(e => e.ReferrerAmount).HasColumnName("referrer_amount").HasColumnType("numeric(10,2)");
+            entity.Property(e => e.ReferredAmount).HasColumnName("referred_amount").HasColumnType("numeric(10,2)");
+            entity.Property(e => e.Status).HasColumnName("status").HasConversion<int>();
+            entity.Property(e => e.EarnedAt).HasColumnName("earned_at");
+            entity.Property(e => e.NotifiedAt).HasColumnName("notified_at");
+            entity.Property(e => e.Notes).HasColumnName("notes").HasMaxLength(300);
+            entity.Property(e => e.AnnulReason).HasColumnName("annul_reason").HasMaxLength(300);
+            entity.Property(e => e.AnnulledAt).HasColumnName("annulled_at");
+            entity.Property(e => e.CreatedByName).HasColumnName("created_by_name").HasMaxLength(200);
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+            entity.HasIndex(e => new { e.AcademyId, e.Status });
+            entity.HasIndex(e => e.ReferrerStudentId);
+            // Un alumno es referido una sola vez (salvo que el anterior se haya anulado).
+            entity.HasIndex(e => e.ReferredStudentId).IsUnique().HasFilter("status <> 4");
+            entity.HasOne(e => e.Campaign).WithMany().HasForeignKey(e => e.CampaignId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(e => e.ReferrerStudent).WithMany().HasForeignKey(e => e.ReferrerStudentId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(e => e.ReferredStudent).WithMany().HasForeignKey(e => e.ReferredStudentId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<Academy>().WithMany().HasForeignKey(e => e.AcademyId).HasPrincipalKey(a => a.AcademyId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ReferralBenefit>(entity =>
+        {
+            entity.ToTable("referral_benefits");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.AcademyId).HasColumnName("academy_id").IsRequired();
+            entity.Property(e => e.ReferralId).HasColumnName("referral_id");
+            entity.Property(e => e.Side).HasColumnName("side").HasConversion<int>();
+            entity.Property(e => e.PaymentRecordId).HasColumnName("payment_record_id");
+            entity.Property(e => e.StudentId).HasColumnName("student_id");
+            entity.Property(e => e.Amount).HasColumnName("amount").HasColumnType("numeric(10,2)");
+            entity.Property(e => e.Label).HasColumnName("label").HasMaxLength(150).IsRequired();
+            entity.Property(e => e.AppliedAt).HasColumnName("applied_at");
+            entity.Property(e => e.RevertedAt).HasColumnName("reverted_at");
+            entity.Property(e => e.RevertReason).HasColumnName("revert_reason").HasMaxLength(200);
+            entity.HasIndex(e => e.ReferralId);
+            entity.HasIndex(e => e.PaymentRecordId);
+            entity.HasOne(e => e.Referral).WithMany().HasForeignKey(e => e.ReferralId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<CashHandover>(entity =>

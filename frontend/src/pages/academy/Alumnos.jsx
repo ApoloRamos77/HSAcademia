@@ -9,6 +9,7 @@ import EvaluationsModal from '../../components/EvaluationsModal';
 import { Star } from 'lucide-react';
 import { Apple, Activity as ActivityIcon } from 'lucide-react';
 import { todayISO } from '../../utils/dates';
+import { StudentSelect } from '../../components/finances/ReferralsPanel';
 
 export default function Alumnos() {
   const { user, can, isAdmin } = useAuth();
@@ -50,7 +51,7 @@ export default function Alumnos() {
   const initialForm = {
     firstName: '', lastName: '', email: '', phone: '', dateOfBirth: '', documentNumber: '', headquarterId: '', categoryId: '',
     enrollmentDate: todayISO(), paymentStartDate: '', withdrawalDate: '', preferentialFee: '', billingPlan: 'Monthly', preferentialSessionFee: '',
-    isGuest: false, isScholarship: false, scholarshipPercentage: '', isActive: true,
+    isGuest: false, isScholarship: false, scholarshipPercentage: '', isActive: true, referredBy: '',
     guardianFirstName: '', guardianLastName: '', guardianEmail: '', guardianPhone: '',
     medicalRecord: {
       allergies: '', medicalConditions: '', emergencyContactName: '', emergencyContactPhone: '',
@@ -59,6 +60,11 @@ export default function Alumnos() {
   };
   const [formData, setFormData] = useState(initialForm);
   const [editingId, setEditingId] = useState(null);
+  // Campaña de referidos vigente (para preguntar quién recomendó al alumno nuevo)
+  const [referralCampaign, setReferralCampaign] = useState(null);
+  useEffect(() => {
+    api.get('/referrals/campaigns/current').then(r => setReferralCampaign(r.data?.id ? r.data : null)).catch(() => {});
+  }, []);
 
   // Auto-calculate BMI
   useEffect(() => {
@@ -267,6 +273,14 @@ export default function Alumnos() {
         const res = await api.post('/students', payload);
         if (res.data?.generatedCredentials?.length) setGeneratedCredentials(res.data.generatedCredentials);
         toast.success('Alumno registrado correctamente');
+        if (formData.referredBy && res.data?.id) {
+          try {
+            await api.post('/referrals', { referredStudentId: res.data.id, referrerStudentId: formData.referredBy });
+            toast.success('Referido registrado: el descuento se aplicará cuando pague su primer cobro.');
+          } catch (e) {
+            toast.error(`El alumno se registró, pero el referido no: ${e.response?.data?.message || 'error'}. Regístralo en Finanzas → Descuentos.`, { duration: 7000 });
+          }
+        }
       }
       
       setShowModal(false);
@@ -787,6 +801,17 @@ export default function Alumnos() {
                         </div>
                       )}
                     </div>
+                    {!editingId && referralCampaign && (
+                      <div className="form-group">
+                        <label className="form-label">¿Lo recomendó otro alumno? (opcional)</label>
+                        <StudentSelect students={alumnos} value={formData.referredBy} onChange={id => setFormData({ ...formData, referredBy: id })}
+                          placeholder="Buscar al alumno que lo recomendó" />
+                        <span className="text-xs text-text-muted mt-1 inline-block">
+                          Campaña {referralCampaign.name}: S/ {Number(referralCampaign.referrerAmount).toFixed(2)} para quien recomienda
+                          {referralCampaign.referredAmount > 0 ? ` y S/ ${Number(referralCampaign.referredAmount).toFixed(2)} de bienvenida en su primer cobro` : ''}. No aplica entre hermanos.
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
 

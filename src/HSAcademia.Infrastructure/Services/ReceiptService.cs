@@ -106,9 +106,11 @@ public class ReceiptService
     private readonly AuditService _audit;
     private readonly ReceiptRecorder _recorder;
     private readonly AccessScopeService _scope;
+    private readonly ReferralService _referrals;
 
-    public ReceiptService(AppDbContext db, FinancesService finances, FinancialPeriodGuard periods, AuditService audit, ReceiptRecorder recorder, AccessScopeService scope)
+    public ReceiptService(AppDbContext db, FinancesService finances, FinancialPeriodGuard periods, AuditService audit, ReceiptRecorder recorder, AccessScopeService scope, ReferralService referrals)
     {
+        _referrals = referrals;
         _scope = scope;
         _db = db;
         _finances = finances;
@@ -132,6 +134,8 @@ public class ReceiptService
             .OrderBy(s => s.FirstName)
             .ToListAsync();
         var ids = family.Select(s => s.Id).ToList();
+        // Beneficios de referidos pendientes: se aplican antes de mostrar lo que se va a cobrar.
+        await _referrals.TrySyncAsync(academyId, ids);
 
         var debts = await _db.PaymentRecords
             .Include(p => p.Student).ThenInclude(s => s.Category)
@@ -243,7 +247,9 @@ public class ReceiptService
         {
             try
             {
-                return await CheckoutOnceAsync(academyId, dto, method, requestId);
+                var receipt = await CheckoutOnceAsync(academyId, dto, method, requestId);
+                await _referrals.TrySyncAsync(academyId, receipt.Lines.Where(l => l.StudentId.HasValue).Select(l => l.StudentId!.Value));
+                return receipt;
             }
             catch (DbUpdateException ex) when (requestId != null && ex is not DbUpdateConcurrencyException)
             {
@@ -757,7 +763,7 @@ public class ReceiptService
         {
             try
             {
-                return await _db.InTransactionAsync(async () =>
+                var voided = await _db.InTransactionAsync(async () =>
                 {
                     var receipt = await _db.Receipts.Include(r => r.Lines)
                         .FirstOrDefaultAsync(r => r.Id == receiptId && r.AcademyId == academyId)
@@ -766,6 +772,9 @@ public class ReceiptService
                     await _db.SaveChangesAsync();
                     return Map(receipt);
                 });
+                // Si se anuló el primer pago de un referido (o un cobro con su beneficio), se recalcula.
+                await _referrals.TrySyncAsync(academyId, voided.Lines.Where(l => l.StudentId.HasValue).Select(l => l.StudentId!.Value));
+                return voided;
             }
             catch (DbUpdateConcurrencyException) when (attempt < 4)
             {

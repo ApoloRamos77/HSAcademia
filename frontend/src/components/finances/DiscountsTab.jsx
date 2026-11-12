@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Plus, Pencil, Trash2, X, Tag, Users, Clock, Megaphone } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../api/axios';
+import ReferralsPanel from './ReferralsPanel';
 
 const KINDS = {
   Sibling: { label: 'Hermanos', icon: Users, help: 'Automático al generar la mensualidad. Los hijos de mayor tarifa pagan completo; el descuento aplica desde el hijo indicado.' },
@@ -106,6 +107,8 @@ export default function DiscountsTab() {
         </div>
         {rules.length === 0 && <div className="empty-state"><Tag size={36} className="text-text-muted" /><p>Aún no hay descuentos. Crea, por ejemplo, "Hermanos 10% desde el 2.º hijo" o "Pronto pago 5%".</p></div>}
       </div>
+
+      <ReferralsPanel />
 
       {form && (
         <div className="modal-overlay" onClick={() => setForm(null)}>
