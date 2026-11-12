@@ -92,6 +92,14 @@ public class PaymentRecord
     /// <summary>En la liquidación: sesiones asistidas en el mes.</summary>
     public int? SessionsCount { get; set; }
 
+    // ── Saldo a favor de sesiones ──────────────────────────────
+    /// <summary>Sesión cobrada en campo y pagada, pero luego marcada Falta/Justificada: lo pagado queda como saldo a favor.</summary>
+    public decimal SessionCreditAmount { get; set; } = 0m;
+    /// <summary>Deuda (sesión o liquidación) que usó este saldo a favor (null = disponible).</summary>
+    public Guid? SessionCreditUsedById { get; set; }
+    /// <summary>Saldo a favor aplicado a esta deuda (parte cubierta con pagos de otra sesión).</summary>
+    public decimal SessionCreditApplied { get; set; } = 0m;
+
     // ── Proration ──────────────────────────────────────────────
     public bool IsProrated { get; set; } = false;
     /// <summary>Start date used for proration calculation.</summary>

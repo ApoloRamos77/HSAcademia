@@ -364,6 +364,8 @@ public class ReceiptService
         }
     }
 
+    public Task<ReceiptDto?> FindByClientRequestIdAsync(Guid academyId, string requestId) => FindByRequestIdAsync(academyId, requestId);
+
     private async Task<ReceiptDto?> FindByRequestIdAsync(Guid academyId, string requestId)
     {
         var r = await _db.Receipts.AsNoTracking().Include(x => x.Lines).Include(x => x.Payments)

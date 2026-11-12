@@ -10,6 +10,7 @@ import {
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { todayISO } from '../../utils/dates';
+import CheckoutModal from '../../components/finances/CheckoutModal';
 
 const STATUS_BUTTONS = [
   { value: 1, label: 'Presente',    icon: UserCheck,  color: '#10b981' },
@@ -20,8 +21,12 @@ const STATUS_BUTTONS = [
 
 export default function Asistencia() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, can } = useAuth();
   const isAdmin = user?.role === 'AcademyAdmin';
+  const canCollect = can('collections.collect');
+  // Cobro de sesión (alumnos que pagan por sesión): se carga la sesión, queda Presente y se abre el cobro.
+  const [checkout, setCheckout] = useState(null); // { studentId, debtIds }
+  const [charging, setCharging] = useState(null);
 
   const [mode, setMode] = useState(isAdmin ? 'date' : 'event'); // 'date' (solo administrador) | 'event'
   const [reopenReason, setReopenReason] = useState('');
@@ -113,6 +118,27 @@ export default function Asistencia() {
         setStudents([]);
       } else { toast.error('Error al cargar asistencia del evento'); }
     } finally { setLoadingStudents(false); }
+  };
+
+  const markCharged = (studentId, paid) => setStudents(prev => prev.map(x => x.studentId === studentId
+    ? { ...x, status: x.status === 3 ? 3 : 1, sessionCharged: true, sessionPaid: paid || x.sessionPaid } : x));
+
+  const chargeSession = async (s) => {
+    if (!window.confirm(`¿Cobrar la sesión a ${s.firstName} ${s.lastName}? Quedará marcado Presente.`)) return;
+    setCharging(s.studentId);
+    try {
+      const body = mode === 'event' ? { studentId: s.studentId, eventId: selectedEvent } : { studentId: s.studentId, date };
+      const { data } = await api.post('/finances/sessions/charge', body);
+      // El servidor ya lo marcó Presente: se refleja aquí sin recargar (no se pierden marcas sin guardar).
+      markCharged(s.studentId, data.amount <= 0);
+      if (data.amount <= 0) {
+        toast.success('Sesión registrada: se cubrió con su saldo a favor o no tiene monto por cobrar.');
+      } else {
+        setCheckout({ studentId: s.studentId, debtIds: [data.debtId] });
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'No se pudo cobrar la sesión.');
+    } finally { setCharging(null); }
   };
 
   const handleStatusChange = (studentId, status) =>
@@ -450,6 +476,21 @@ export default function Asistencia() {
                               {STATUS_BUTTONS.find(b => b.value === s.status)?.label}
                             </span>
                           )}
+                          {s.billingPlan === 'PerSession' && (
+                            <div style={{ marginTop:4 }}>
+                              {s.sessionPaid ? (
+                                <span className="badge badge-success" style={{ fontSize:11 }}>💲 Sesión pagada</span>
+                              ) : canCollect ? (
+                                <button type="button" className="btn btn-sm btn-ghost" disabled={charging === s.studentId}
+                                  style={{ fontSize:12, padding:'2px 8px', color:'var(--warning)', border:'1px solid var(--warning)' }}
+                                  onClick={() => chargeSession(s)}>
+                                  💲 {s.sessionCharged ? 'Cobrar (cargada)' : 'Cobrar sesión'}{s.sessionFee ? ` · S/ ${Number(s.sessionFee).toFixed(2)}` : ''}
+                                </button>
+                              ) : (
+                                <span style={{ fontSize:11, color:'var(--text-muted)' }}>💲 Paga por sesión</span>
+                              )}
+                            </div>
+                          )}
                           {s.markedVia && (
                             <div style={{ fontSize:11, color:'var(--text-muted)' }}>
                               {s.markedVia}{s.markedByName ? ` · ${s.markedByName}` : ''}
@@ -510,6 +551,10 @@ export default function Asistencia() {
           </div>
         )}
       </div>
+      {checkout && (
+        <CheckoutModal open onClose={() => setCheckout(null)} initialStudentId={checkout.studentId} initialDebtIds={checkout.debtIds}
+          onDone={() => { markCharged(checkout.studentId, true); setCheckout(null); }} />
+      )}
     </AppLayout>
   );
 }

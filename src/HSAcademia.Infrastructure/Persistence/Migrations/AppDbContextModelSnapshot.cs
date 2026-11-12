@@ -1926,6 +1926,22 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("regularized_by_user_id");
 
+                    b.Property<decimal>("SessionCreditAmount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("numeric(10,2)")
+                        .HasDefaultValue(0m)
+                        .HasColumnName("session_credit_amount");
+
+                    b.Property<decimal>("SessionCreditApplied")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("numeric(10,2)")
+                        .HasDefaultValue(0m)
+                        .HasColumnName("session_credit_applied");
+
+                    b.Property<Guid?>("SessionCreditUsedById")
+                        .HasColumnType("uuid")
+                        .HasColumnName("session_credit_used_by_id");
+
                     b.Property<DateTime?>("SessionDate")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("session_date");

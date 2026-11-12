@@ -18,6 +18,11 @@ public class StudentAttendanceDto
     public string? MarkedVia { get; set; }
     /// <summary>"Monthly" | "PerSession" | "Package": la app ofrece cobrar la sesión a quien paga por sesión.</summary>
     public string BillingPlan { get; set; } = "Monthly";
+    /// <summary>Por sesión: precio estimado de la sesión (con beca), para cobrar aun sin señal.</summary>
+    public decimal? SessionFee { get; set; }
+    /// <summary>Por sesión: esta sesión ya se cargó a su cuenta / ya está pagada.</summary>
+    public bool SessionCharged { get; set; }
+    public bool SessionPaid { get; set; }
     public string? MarkedByName { get; set; }
     public DateTime? MarkedAt { get; set; }
 }

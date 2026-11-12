@@ -31,6 +31,7 @@ public sealed class SessionLiquidationWorker : BackgroundService
                 var done = await scope.ServiceProvider.GetRequiredService<SessionBillingService>()
                     .RunAutomaticAsync(AcademyClock.Now, stoppingToken);
                 if (done > 0) _logger.LogInformation("Sesiones liquidadas automáticamente en {Count} academia(s).", done);
+                await scope.ServiceProvider.GetRequiredService<SessionBillingService>().ReconcileAllAsync(stoppingToken);
                 await scope.ServiceProvider.GetRequiredService<ReferralService>().SyncAllAsync(stoppingToken);
             }
             catch (Exception ex) when (!stoppingToken.IsCancellationRequested)

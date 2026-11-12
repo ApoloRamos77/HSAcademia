@@ -510,6 +510,9 @@ public class AppDbContext : DbContext
             entity.Property(e => e.ProratedDaysCharged).HasColumnName("prorated_days_charged");
             entity.Property(e => e.SessionDate).HasColumnName("session_date");
             entity.Property(e => e.ReferralDiscount).HasColumnName("referral_discount").HasColumnType("numeric(10,2)").HasDefaultValue(0m);
+            entity.Property(e => e.SessionCreditAmount).HasColumnName("session_credit_amount").HasColumnType("numeric(10,2)").HasDefaultValue(0m);
+            entity.Property(e => e.SessionCreditUsedById).HasColumnName("session_credit_used_by_id");
+            entity.Property(e => e.SessionCreditApplied).HasColumnName("session_credit_applied").HasColumnType("numeric(10,2)").HasDefaultValue(0m);
             entity.Property(e => e.SessionEventId).HasColumnName("session_event_id");
             entity.Property(e => e.SessionsCount).HasColumnName("sessions_count");
             entity.Property(e => e.ExclusionType).HasColumnName("exclusion_type").HasConversion<int>().HasDefaultValue(ExclusionType.None);

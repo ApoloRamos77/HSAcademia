@@ -55,6 +55,7 @@ export default function PaymentsScreen({ navigation }: any) {
                 ? (session.accrued > 0 ? `Sesiones extra: ${money(session.accrued)}` : 'Aún dentro del paquete.')
                 : `Acumulado: ${money(session.accrued)}${session.paidInField > 0 ? ` · pagado en campo ${money(session.paidInField)}` : ''}`}
             </Text>
+            {(session.creditAvailable ?? 0) > 0 && <Text style={[font.tiny, { color: colors.success, marginTop: 4 }]}>Saldo a favor: {money(session.creditAvailable)} (sesiones pagadas a las que faltó). Se usa en la próxima sesión.</Text>}
             {session.capReached && <Text style={[font.tiny, { color: colors.success, marginTop: 4 }]}>Llegaste al tope del mes: las demás sesiones no se cobran.</Text>}
             <Text style={[font.tiny, { marginTop: 4 }]}>Se liquida a inicio del próximo mes. Cuentan las sesiones con asistencia (Presente o Tarde).</Text>
           </Card>
