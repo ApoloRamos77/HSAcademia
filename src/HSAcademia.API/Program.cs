@@ -54,6 +54,7 @@ builder.Services.AddScoped<PayrollService>();
 builder.Services.AddScoped<ReceiptRecorder>();
 builder.Services.AddScoped<ReceiptService>();
 builder.Services.AddScoped<DiscountService>();
+builder.Services.AddScoped<ReferralService>();
 builder.Services.AddScoped<CashService>();
 builder.Services.AddScoped<AccessControlService>();
 builder.Services.AddScoped<AccessScopeService>();

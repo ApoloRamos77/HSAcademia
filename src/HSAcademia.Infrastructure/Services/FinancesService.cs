@@ -17,9 +17,11 @@ public class FinancesService
     private readonly AuditService _audit;
     private readonly AccessScopeService _scope;
     private readonly ReceiptRecorder? _receipts;
+    private readonly ReferralService? _referrals;
 
-    public FinancesService(AppDbContext context, FinancialPeriodGuard periods, AuditService audit, AccessScopeService scope, ReceiptRecorder? receipts = null)
+    public FinancesService(AppDbContext context, FinancialPeriodGuard periods, AuditService audit, AccessScopeService scope, ReceiptRecorder? receipts = null, ReferralService? referrals = null)
     {
+        _referrals = referrals;
         _scope = scope;
         _receipts = receipts;
         _context = context;
@@ -394,6 +396,7 @@ public class FinancesService
                 existingDebt.ProratedStartDate    = proratedStart;
                 existingDebt.ProratedTotalDays    = totalSessions;
                 existingDebt.ProratedDaysCharged  = sessionsCharged;
+                if (_referrals != null) await _referrals.ReapplyAsync(existingDebt);
 
                 if (existingDebt.AmountPaid >= chargedAmount - 0.01m && chargedAmount > 0)
                 {
@@ -450,6 +453,8 @@ public class FinancesService
             _audit.Add(academyId, "finances.debts.generate", nameof(PaymentRecord), null,
                 new { year, month, generatedCount, replacedCount, cleanedCount });
             await _context.SaveChangesAsync();
+            // Las deudas regeneradas recuperan sus beneficios de referidos.
+            if (_referrals != null) await _referrals.TrySyncAsync(academyId, null);
         }
 
         return (generatedCount, replacedCount, cleanedCount);
@@ -514,6 +519,7 @@ public class FinancesService
 
         _context.PaymentRecords.Add(record);
         await _context.SaveChangesAsync();
+        if (_referrals != null) await _referrals.TrySyncAsync(academyId, new[] { studentId });
 
         var loaded = await _context.PaymentRecords
             .Include(p => p.Student).ThenInclude(s => s.Category)
@@ -586,7 +592,9 @@ public class FinancesService
         {
             try
             {
-                return await RegisterPaymentOnceAsync(academyId, dto);
+                var paid = await RegisterPaymentOnceAsync(academyId, dto);
+                if (_referrals != null) await _referrals.TrySyncAsync(academyId, new[] { paid.StudentId });
+                return paid;
             }
             catch (DbUpdateConcurrencyException) when (attempt < 4)
             {
@@ -699,6 +707,8 @@ public class FinancesService
             throw new Exception("El monto no puede ser negativo.");
 
         var before = new { record.Amount, record.DiscountAmount };
+        // El beneficio de referidos se vuelve a descontar sobre el monto recalculado.
+        record.DiscountAmount = Math.Max(0, record.DiscountAmount - record.ReferralDiscount);
         var config = await GetConfigAsync(academyId);
 
         var daysInMonth  = DateTime.DaysInMonth(periodYear, periodMonth);
@@ -768,6 +778,8 @@ public class FinancesService
             record.DiscountAmount = discount;
             record.DiscountDetail = detail;
         }
+
+        if (_referrals != null) await _referrals.ReapplyAsync(record);
 
         if (record.AmountPaid > record.Amount)
             record.AmountPaid = record.Amount;

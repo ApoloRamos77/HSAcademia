@@ -58,6 +58,9 @@ public class PaymentRecord
     /// <summary>Amount that was discounted or not charged (loss/gift/scholarship).</summary>
     public decimal DiscountAmount { get; set; } = 0m;
 
+    /// <summary>Parte de DiscountAmount que viene de referidos (ReferralBenefit). Se conserva al recalcular la deuda.</summary>
+    public decimal ReferralDiscount { get; set; } = 0m;
+
     // ── Regularización de mensualidad vencida ───────────────────
     // Pasado el vencimiento, la familia debe acercarse a administración: se decide cobrar mora o no,
     // siempre con una observación. Hasta entonces no se puede cobrar ni enviar comprobante.

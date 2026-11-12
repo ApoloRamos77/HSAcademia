@@ -5,6 +5,7 @@ namespace HSAcademia.API.Workers;
 /// <summary>
 /// Cada hora revisa si toca liquidar las sesiones del mes anterior (desde el día 3, una vez por academia).
 /// Después, administración puede volver a liquidar a mano si corrige asistencias.
+/// También aplica los beneficios de referidos pendientes (respaldo por si alguna deuda se creó por otra vía).
 /// </summary>
 public sealed class SessionLiquidationWorker : BackgroundService
 {
@@ -30,6 +31,7 @@ public sealed class SessionLiquidationWorker : BackgroundService
                 var done = await scope.ServiceProvider.GetRequiredService<SessionBillingService>()
                     .RunAutomaticAsync(AcademyClock.Now, stoppingToken);
                 if (done > 0) _logger.LogInformation("Sesiones liquidadas automáticamente en {Count} academia(s).", done);
+                await scope.ServiceProvider.GetRequiredService<ReferralService>().SyncAllAsync(stoppingToken);
             }
             catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
             {
