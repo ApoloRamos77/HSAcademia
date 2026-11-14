@@ -115,8 +115,7 @@ public class AttendanceService : IAttendanceService
         if (ev.CategoryIds != null) categoryIds.AddRange(ev.CategoryIds);
         categoryIds = categoryIds.Distinct().ToList();
 
-        var students = await _context.Students
-            .Where(s => s.AcademyId == academyId && categoryIds.Contains(s.CategoryId) && s.IsActive)
+        var students = await SessionStudents(academyId, categoryIds, await CalledStudentsAsync(ev))
             .OrderBy(s => s.LastName).ThenBy(s => s.FirstName)
             .ToListAsync();
 
@@ -150,11 +149,8 @@ public class AttendanceService : IAttendanceService
 
         var studentIds = dto.Records.Select(r => r.StudentId).ToList();
 
-        var validStudentIds = await _context.Students
-            .Where(s => s.AcademyId == academyId
-                     && categoryIds.Contains(s.CategoryId)
-                     && s.IsActive
-                     && studentIds.Contains(s.Id))
+        var validStudentIds = await SessionStudents(academyId, categoryIds, await CalledStudentsAsync(ev))
+            .Where(s => studentIds.Contains(s.Id))
             .Select(s => s.Id)
             .ToListAsync();
 
@@ -303,7 +299,7 @@ public class AttendanceService : IAttendanceService
 
         var session = dto.EventId.HasValue
             ? await RequireScannableSessionAsync(academyId, scannerUserId, dto.EventId.Value, student)
-            : await FindClosestSessionTodayAsync(academyId, student.CategoryId);
+            : await FindClosestSessionTodayAsync(academyId, student);
         var date = session?.StartTime.Date ?? AcademyClock.Today;
         var studentName = $"{student.FirstName} {student.LastName}";
         var alreadyMarked = session != null
@@ -640,6 +636,24 @@ public class AttendanceService : IAttendanceService
 
     private static List<Guid> CategoriesOf(Event ev) => ev.AllCategoryIds();
 
+    /// <summary>
+    /// Partido de un equipo de torneo: la lista son sus convocados (pueden venir de otras categorías).
+    /// Null = la lista sale de las categorías de la sesión.
+    /// </summary>
+    private async Task<HashSet<Guid>?> CalledStudentsAsync(Event ev) =>
+        ev.TournamentTeamId.HasValue
+            ? (await _context.EventCalls.Where(c => c.EventId == ev.Id).Select(c => c.StudentId).ToListAsync()).ToHashSet()
+            : null;
+
+    /// <summary>Alumnos que forman la lista de la sesión: convocados del partido o los de sus categorías.</summary>
+    private IQueryable<Student> SessionStudents(Guid academyId, List<Guid> categoryIds, HashSet<Guid>? called)
+    {
+        var q = _context.Students.Where(s => s.AcademyId == academyId && s.IsActive);
+        if (called == null) return q.Where(s => categoryIds.Contains(s.CategoryId));
+        var ids = called.ToList();
+        return q.Where(s => ids.Contains(s.Id));
+    }
+
     /// <summary>Marca de cada alumno en una sesión: la de esa sesión o, si no hay, un registro del día sin sesión.</summary>
     private async Task<Dictionary<Guid, Attendance>> LoadSessionMarksAsync(Guid academyId, Guid eventId, DateTime date, List<Guid> studentIds)
     {
@@ -669,7 +683,10 @@ public class AttendanceService : IAttendanceService
             throw new Exception("La asistencia de esta sesión está cerrada. Solo un administrador puede reabrirla.");
 
         var categories = CategoriesOf(ev);
-        if (!categories.Contains(student.CategoryId))
+        var called = await CalledStudentsAsync(ev);
+        if (called != null && !called.Contains(student.Id))
+            throw new Exception($"{student.FirstName} {student.LastName} no está convocado a este partido.");
+        if (called == null && !categories.Contains(student.CategoryId))
             throw new Exception($"{student.FirstName} {student.LastName} no pertenece a las categorías de esta sesión.");
 
         var scanner = await _context.Users.Include(u => u.AssignedCategories)
@@ -684,8 +701,9 @@ public class AttendanceService : IAttendanceService
     }
 
     /// <summary>Sesión de hoy ya abierta más cercana a la hora actual; null si hoy no hay sesiones de esa categoría.</summary>
-    private async Task<Event?> FindClosestSessionTodayAsync(Guid academyId, Guid categoryId)
+    private async Task<Event?> FindClosestSessionTodayAsync(Guid academyId, Student student)
     {
+        var categoryId = student.CategoryId;
         var now = AcademyClock.WallNow;
         var dayStart = DateTime.SpecifyKind(AcademyClock.Today, DateTimeKind.Utc);
         var dayEnd = dayStart.AddDays(1);
@@ -694,9 +712,14 @@ public class AttendanceService : IAttendanceService
                         e.StartTime >= dayStart && e.StartTime < dayEnd)
             .ToListAsync();
 
+        // Partidos de torneo de hoy a los que está convocado (aunque sea de otra categoría).
+        var teamMatchIds = events.Where(e => e.TournamentTeamId.HasValue).Select(e => e.Id).ToList();
+        var calledTo = teamMatchIds.Count == 0 ? new HashSet<Guid>() :
+            (await _context.EventCalls.Where(c => c.StudentId == student.Id && teamMatchIds.Contains(c.EventId))
+                .Select(c => c.EventId).ToListAsync()).ToHashSet();
         var sessions = events
             .Where(e => e.Type is Domain.Enums.EventType.Training or Domain.Enums.EventType.FriendlyMatch or Domain.Enums.EventType.TournamentMatch)
-            .Where(e => CategoriesOf(e).Contains(categoryId))
+            .Where(e => e.TournamentTeamId.HasValue ? calledTo.Contains(e.Id) : CategoriesOf(e).Contains(categoryId))
             .ToList();
         if (sessions.Count == 0) return null;
 
@@ -753,6 +776,7 @@ public class AttendanceService : IAttendanceService
 
         // If an eventId is provided, resolve category IDs from the event
         List<Guid> targetCategoryIds;
+        HashSet<Guid>? called = null;
         DateTime targetDate = date;
 
         if (eventId.HasValue)
@@ -776,6 +800,7 @@ public class AttendanceService : IAttendanceService
                 return new List<StudentAttendanceDto>(); // No access
 
             targetCategoryIds = eventCategoryIds;
+            called = await CalledStudentsAsync(ev);
             targetDate = ev.StartTime.Date;
         }
         else if (categoryId.HasValue)
@@ -802,10 +827,7 @@ public class AttendanceService : IAttendanceService
 
         if (!targetCategoryIds.Any()) return new List<StudentAttendanceDto>();
 
-        var students = await _context.Students
-            .Where(s => s.AcademyId == academyId
-                     && targetCategoryIds.Contains(s.CategoryId)
-                     && s.IsActive)
+        var students = await SessionStudents(academyId, targetCategoryIds, called)
             .OrderBy(s => s.LastName).ThenBy(s => s.FirstName)
             .ToListAsync();
 
@@ -850,6 +872,7 @@ public class AttendanceService : IAttendanceService
         var assignedCategoryIds = userWithCategories.AssignedCategories.Select(c => c.Id).ToList();
 
         List<Guid> targetCategoryIds;
+        HashSet<Guid>? called = null;
         Event? session = null;
 
         if (dto.EventId.HasValue)
@@ -880,6 +903,7 @@ public class AttendanceService : IAttendanceService
                 throw new Exception("No tienes permiso para este evento.");
 
             targetCategoryIds = eventCategoryIds;
+            called = await CalledStudentsAsync(ev);
         }
         else
         {
@@ -894,11 +918,8 @@ public class AttendanceService : IAttendanceService
 
         // Solo los alumnos de sus categorías son válidos (ahora targetCategoryIds)
         var studentIds = dto.Records.Select(r => r.StudentId).ToList();
-        var validStudentIds = await _context.Students
-            .Where(s => s.AcademyId == academyId
-                     && targetCategoryIds.Contains(s.CategoryId)
-                     && s.IsActive
-                     && studentIds.Contains(s.Id))
+        var validStudentIds = await SessionStudents(academyId, targetCategoryIds, called)
+            .Where(s => studentIds.Contains(s.Id))
             .Select(s => s.Id)
             .ToListAsync();
 
@@ -951,6 +972,12 @@ public class AttendanceService : IAttendanceService
     {
         var perSession = list.Where(r => r.BillingPlan == nameof(StudentBillingPlan.PerSession)).Select(r => r.StudentId).ToList();
         if (perSession.Count == 0) return list;
+        if (eventId.HasValue && await _context.Events.AnyAsync(e => e.Id == eventId.Value &&
+                (e.Type == EventType.FriendlyMatch || e.Type == EventType.TournamentMatch)))
+        {
+            foreach (var r in list) r.SessionBillable = false;
+            return list;
+        }
         var students = await _context.Students.AsNoTracking().Include(s => s.Category)
             .Where(s => perSession.Contains(s.Id)).ToDictionaryAsync(s => s.Id);
         var charged = eventId.HasValue
@@ -1043,8 +1070,8 @@ public class AttendanceService : IAttendanceService
             var categories = CategoriesOf(ev);
             var date = ev.StartTime.Date;
             var dateLocal = DateTime.SpecifyKind(date, DateTimeKind.Utc);
-            var students = await _context.Students
-                .Where(s => s.AcademyId == ev.AcademyId && s.IsActive && categories.Contains(s.CategoryId) && s.EnrollmentDate <= dateLocal.AddDays(1))
+            var students = await SessionStudents(ev.AcademyId, categories, await CalledStudentsAsync(ev))
+                .Where(s => s.EnrollmentDate <= dateLocal.AddDays(1))
                 .Select(s => s.Id)
                 .ToListAsync();
             var marks = await LoadSessionMarksAsync(ev.AcademyId, ev.Id, date, students);

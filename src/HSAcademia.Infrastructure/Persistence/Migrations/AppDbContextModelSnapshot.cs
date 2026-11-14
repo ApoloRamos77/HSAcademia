@@ -950,6 +950,10 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.Property<DateTime?>("AttendanceReopenedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTime?>("CallTime")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("call_time");
+
                     b.Property<Guid?>("CategoryId")
                         .HasColumnType("uuid")
                         .HasColumnName("category_id");
@@ -1003,15 +1007,29 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasDefaultValue(false)
                         .HasColumnName("is_deleted");
 
+                    b.Property<string>("Location")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("location");
+
                     b.Property<string>("MatchNotes")
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)")
                         .HasColumnName("match_notes");
 
+                    b.Property<int?>("MatchStatus")
+                        .HasColumnType("integer")
+                        .HasColumnName("match_status");
+
                     b.Property<string>("OpponentTeam")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
                         .HasColumnName("opponent_team");
+
+                    b.Property<string>("Round")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("round");
 
                     b.Property<Guid?>("SeriesId")
                         .HasColumnType("uuid")
@@ -1034,6 +1052,10 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("TournamentId")
                         .HasColumnType("uuid")
                         .HasColumnName("tournament_id");
+
+                    b.Property<Guid?>("TournamentTeamId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tournament_team_id");
 
                     b.Property<int>("Type")
                         .HasColumnType("integer")
@@ -1060,6 +1082,8 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.HasIndex("TeacherId");
 
                     b.HasIndex("TournamentId");
+
+                    b.HasIndex("TournamentTeamId");
 
                     b.ToTable("events", (string)null);
                 });
@@ -3324,6 +3348,16 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("academy_id");
 
+                    b.Property<string>("ContactName")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("contact_name");
+
+                    b.Property<string>("ContactPhone")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("contact_phone");
+
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -3333,6 +3367,16 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("deleted_at");
+
+                    b.Property<DateTime?>("EndDate")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("end_date");
+
+                    b.Property<int>("Format")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("format");
 
                     b.Property<bool>("IsDeleted")
                         .ValueGeneratedOnAdd()
@@ -3358,6 +3402,34 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("organizer");
 
+                    b.Property<string>("PlayDays")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("play_days")
+                        .HasDefaultValueSql("'[]'::jsonb");
+
+                    b.Property<string>("Rules")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("rules");
+
+                    b.Property<int>("ScheduleMode")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(2)
+                        .HasColumnName("schedule_mode");
+
+                    b.Property<DateTime?>("StartDate")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("start_date");
+
+                    b.Property<int>("Status")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1)
+                        .HasColumnName("status");
+
                     b.Property<DateTime>("UpdatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -3369,6 +3441,146 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.HasIndex("AcademyId");
 
                     b.ToTable("tournaments", (string)null);
+                });
+
+            modelBuilder.Entity("HSAcademia.Domain.Entities.TournamentPlayer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AcademyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("academy_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<string>("Position")
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("position");
+
+                    b.Property<int?>("ShirtNumber")
+                        .HasColumnType("integer")
+                        .HasColumnName("shirt_number");
+
+                    b.Property<Guid>("StudentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("student_id");
+
+                    b.Property<Guid>("TeamId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("team_id");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StudentId");
+
+                    b.HasIndex("AcademyId", "StudentId");
+
+                    b.HasIndex("TeamId", "StudentId")
+                        .IsUnique();
+
+                    b.ToTable("tournament_players", (string)null);
+                });
+
+            modelBuilder.Entity("HSAcademia.Domain.Entities.TournamentTeam", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AcademyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("academy_id");
+
+                    b.Property<Guid?>("AssistantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("assistant_id");
+
+                    b.Property<int?>("BirthYearFrom")
+                        .HasColumnType("integer")
+                        .HasColumnName("birth_year_from");
+
+                    b.Property<int?>("BirthYearTo")
+                        .HasColumnType("integer")
+                        .HasColumnName("birth_year_to");
+
+                    b.Property<string>("CategoryIds")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("category_ids")
+                        .HasDefaultValueSql("'[]'::jsonb");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<Guid?>("HeadCoachId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("head_coach_id");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
+                    b.Property<int?>("MaxPlayers")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_players");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("notes");
+
+                    b.Property<Guid>("TournamentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tournament_id");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssistantId");
+
+                    b.HasIndex("HeadCoachId");
+
+                    b.HasIndex("TournamentId");
+
+                    b.HasIndex("AcademyId", "TournamentId");
+
+                    b.ToTable("tournament_teams", (string)null);
                 });
 
             modelBuilder.Entity("HSAcademia.Domain.Entities.User", b =>
@@ -3759,6 +3971,11 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasForeignKey("TournamentId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("HSAcademia.Domain.Entities.TournamentTeam", "TournamentTeam")
+                        .WithMany()
+                        .HasForeignKey("TournamentTeamId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.Navigation("Academy");
 
                     b.Navigation("Category");
@@ -3768,6 +3985,8 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.Navigation("Teacher");
 
                     b.Navigation("Tournament");
+
+                    b.Navigation("TournamentTeam");
                 });
 
             modelBuilder.Entity("HSAcademia.Domain.Entities.EventCall", b =>
@@ -4324,6 +4543,50 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.Navigation("Academy");
                 });
 
+            modelBuilder.Entity("HSAcademia.Domain.Entities.TournamentPlayer", b =>
+                {
+                    b.HasOne("HSAcademia.Domain.Entities.Student", "Student")
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("HSAcademia.Domain.Entities.TournamentTeam", "Team")
+                        .WithMany("Players")
+                        .HasForeignKey("TeamId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Student");
+
+                    b.Navigation("Team");
+                });
+
+            modelBuilder.Entity("HSAcademia.Domain.Entities.TournamentTeam", b =>
+                {
+                    b.HasOne("HSAcademia.Domain.Entities.User", "Assistant")
+                        .WithMany()
+                        .HasForeignKey("AssistantId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("HSAcademia.Domain.Entities.User", "HeadCoach")
+                        .WithMany()
+                        .HasForeignKey("HeadCoachId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("HSAcademia.Domain.Entities.Tournament", "Tournament")
+                        .WithMany("Teams")
+                        .HasForeignKey("TournamentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Assistant");
+
+                    b.Navigation("HeadCoach");
+
+                    b.Navigation("Tournament");
+                });
+
             modelBuilder.Entity("HSAcademia.Domain.Entities.User", b =>
                 {
                     b.HasOne("HSAcademia.Domain.Entities.Academy", "Academy")
@@ -4422,6 +4685,16 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("HSAcademia.Domain.Entities.Student", b =>
                 {
                     b.Navigation("MedicalRecord");
+                });
+
+            modelBuilder.Entity("HSAcademia.Domain.Entities.Tournament", b =>
+                {
+                    b.Navigation("Teams");
+                });
+
+            modelBuilder.Entity("HSAcademia.Domain.Entities.TournamentTeam", b =>
+                {
+                    b.Navigation("Players");
                 });
 
             modelBuilder.Entity("HSAcademia.Domain.Entities.User", b =>

@@ -165,6 +165,7 @@ public class CalendarService : ICalendarService
             TeacherId     = dto.TeacherId,
             TournamentId  = dto.TournamentId,
             OpponentTeam  = dto.OpponentTeam,
+            MatchStatus   = dto.Type is EventType.FriendlyMatch or EventType.TournamentMatch ? HSAcademia.Domain.Enums.MatchStatus.Scheduled : null,
             CreatedAt     = DateTime.UtcNow,
             UpdatedAt     = DateTime.UtcNow
         };
@@ -210,8 +211,14 @@ public class CalendarService : ICalendarService
         ev.CategoryId    = dto.CategoryId;
         ev.CategoryIds   = dto.CategoryIds ?? new List<Guid>();
         ev.TeacherId     = dto.TeacherId;
+        // Si deja de ser partido de ese torneo, se desvincula del equipo (su plantel ya no aplica).
+        if (dto.Type != EventType.TournamentMatch || dto.TournamentId != ev.TournamentId) ev.TournamentTeamId = null;
         ev.TournamentId  = dto.TournamentId;
         ev.OpponentTeam  = dto.OpponentTeam;
+        if (dto.Type is EventType.FriendlyMatch or EventType.TournamentMatch)
+            ev.MatchStatus ??= HSAcademia.Domain.Enums.MatchStatus.Scheduled;
+        else
+            ev.MatchStatus = null;
         ev.UpdatedAt     = DateTime.UtcNow;
 
         await _db.SaveChangesAsync();
@@ -368,12 +375,24 @@ public class CalendarService : ICalendarService
         
         categoryIds = categoryIds.Distinct().ToList();
 
-        if (!categoryIds.Any()) return 0; // No categories assigned
+        List<Student> students;
+        if (ev.TournamentTeamId.HasValue)
+        {
+            // Partido de un equipo de torneo: se convoca a su plantel (puede incluir alumnos de otras categorías).
+            var roster = _db.TournamentPlayers.Where(p => p.TeamId == ev.TournamentTeamId.Value).Select(p => p.StudentId);
+            students = await _db.Students
+                .Where(s => s.AcademyId == academyId && s.IsActive && !s.IsDeleted && roster.Contains(s.Id))
+                .ToListAsync();
+        }
+        else
+        {
+            if (!categoryIds.Any()) return 0; // No categories assigned
 
-        // Get all active students in these categories
-        var students = await _db.Students
-            .Where(s => s.AcademyId == academyId && s.IsActive && !s.IsDeleted && categoryIds.Contains(s.CategoryId))
-            .ToListAsync();
+            // Get all active students in these categories
+            students = await _db.Students
+                .Where(s => s.AcademyId == academyId && s.IsActive && !s.IsDeleted && categoryIds.Contains(s.CategoryId))
+                .ToListAsync();
+        }
 
         // Get existing calls
         var existingCallStudentIds = await _db.EventCalls
@@ -469,6 +488,11 @@ public class CalendarService : ICalendarService
         TournamentId   = e.TournamentId,
         TournamentName = e.Tournament?.Name,
         OpponentTeam   = e.OpponentTeam,
+        TournamentTeamId = e.TournamentTeamId,
+        Round          = e.Round,
+        CallTime       = e.CallTime,
+        Location       = e.Location,
+        MatchStatus    = e.MatchStatus.HasValue ? (int)e.MatchStatus.Value : null,
         SeriesId       = e.SeriesId,
         GoalsFor       = e.GoalsFor,
         GoalsAgainst   = e.GoalsAgainst,
@@ -574,7 +598,8 @@ public class CalendarService : ICalendarService
         Guid? categoryId = null,
         Guid? headquarterId = null,
         Guid? userId = null,
-        string userRole = "")
+        string userRole = "",
+        Guid? studentId = null)
     {
         var now  = AcademyClock.WallNow; // eventos en hora de pared
         var from = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc).AddMonths(-6);
@@ -624,7 +649,8 @@ public class CalendarService : ICalendarService
                 birthdayCategoryFilter = new List<Guid> { categoryId.Value };
         }
 
-        var dbEvents = await query.OrderBy(e => e.StartTime).ToListAsync();
+        var dbEvents = await query.Include(e => e.Tournament).OrderBy(e => e.StartTime).ToListAsync();
+        var allEvents = dbEvents;
 
         // ── In-memory category filtering (CategoryIds uses ValueConverter → can't go to SQL) ──
         if (userRole == "Student" && categoryId.HasValue)
@@ -653,6 +679,7 @@ public class CalendarService : ICalendarService
             ).ToList();
         }
 
+        dbEvents = await ApplyFamilyTeamMatchesAsync(academyId, allEvents, dbEvents, userId, userRole, studentId);
         var result = dbEvents.Select(e => MapToMobileDto(e)).ToList();
 
         // Add virtual birthday events for the full 12 month range
@@ -685,7 +712,8 @@ public class CalendarService : ICalendarService
         Guid academyId,
         Guid? categoryId = null,
         Guid? userId = null,
-        string userRole = "")
+        string userRole = "",
+        Guid? studentId = null)
     {
         var now = AcademyClock.WallNow; // eventos en hora de pared
 
@@ -738,7 +766,7 @@ public class CalendarService : ICalendarService
                 (e.CategoryIds != null && e.CategoryIds.Contains(categoryId.Value)));
         }
 
-        var next = filtered.FirstOrDefault();
+        var next = (await ApplyFamilyTeamMatchesAsync(academyId, candidateEvents, filtered, userId, userRole, studentId)).FirstOrDefault();
 
         if (next is null) return null;
 
@@ -759,7 +787,7 @@ public class CalendarService : ICalendarService
         {
             Title    = next.Title,
             Date     = dateStr,
-            Location = next.Headquarter?.Name ?? "Sede Principal",
+            Location = next.Location ?? next.Headquarter?.Name ?? "Sede Principal",
             Type     = MapEventTypeKey(next.Type),
         };
     }
@@ -776,11 +804,42 @@ public class CalendarService : ICalendarService
         StartTime   = e.StartTime.ToString("HH:mm"),
         EndTime     = e.EndTime.ToString("HH:mm"),
         Type        = MapEventTypeKey(e.Type),
-        Location    = e.Headquarter?.Name,
+        Location    = e.Location ?? e.Headquarter?.Name,
         Category    = e.Category?.Name,
         Description = e.Description,
         AllDay      = false,
+        CallTime    = e.CallTime?.ToString("HH:mm"),
+        Opponent    = e.OpponentTeam,
+        Round       = e.Round,
+        Tournament  = e.Tournament?.Name,
+        MatchStatus = e.MatchStatus.HasValue ? (int)e.MatchStatus.Value : null,
     };
+
+    /// <summary>
+    /// Familias: un partido de equipo de torneo solo aparece a sus convocados, aunque sean de otra
+    /// categoría (refuerzos) y aunque su categoría tenga otro equipo en el mismo torneo.
+    /// </summary>
+    private async Task<List<Event>> ApplyFamilyTeamMatchesAsync(
+        Guid academyId, List<Event> all, IEnumerable<Event> filtered, Guid? userId, string userRole, Guid? studentId)
+    {
+        if (userRole is not ("Student" or "Guardian") || !userId.HasValue) return filtered.ToList();
+        var teamEventIds = all.Where(e => e.TournamentTeamId.HasValue).Select(e => e.Id).ToList();
+        if (teamEventIds.Count == 0) return filtered.ToList();
+
+        var uid = userId.Value;
+        var mine = _db.Students.Where(s => s.AcademyId == academyId && (s.GuardianId == uid || s.UserId == uid));
+        if (studentId.HasValue) mine = mine.Where(s => s.Id == studentId.Value);
+        var mineIds = mine.Select(s => s.Id);
+        var called = (await _db.EventCalls
+                .Where(c => teamEventIds.Contains(c.EventId) && mineIds.Contains(c.StudentId))
+                .Select(c => c.EventId).ToListAsync())
+            .ToHashSet();
+
+        var result = filtered.Where(e => !e.TournamentTeamId.HasValue || called.Contains(e.Id)).ToList();
+        var shown = result.Select(e => e.Id).ToHashSet();
+        result.AddRange(all.Where(e => called.Contains(e.Id) && !shown.Contains(e.Id)));
+        return result.OrderBy(e => e.StartTime).ToList();
+    }
 
     private static string MapEventTypeKey(EventType t) => t switch
     {

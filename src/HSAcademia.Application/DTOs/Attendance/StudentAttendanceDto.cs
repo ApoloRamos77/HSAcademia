@@ -20,6 +20,8 @@ public class StudentAttendanceDto
     public string BillingPlan { get; set; } = "Monthly";
     /// <summary>Por sesión: precio estimado de la sesión (con beca), para cobrar aun sin señal.</summary>
     public decimal? SessionFee { get; set; }
+    /// <summary>False en partidos: no se cobran como sesión (la web y la app ocultan el cobro).</summary>
+    public bool SessionBillable { get; set; } = true;
     /// <summary>Por sesión: esta sesión ya se cargó a su cuenta / ya está pagada.</summary>
     public bool SessionCharged { get; set; }
     public bool SessionPaid { get; set; }

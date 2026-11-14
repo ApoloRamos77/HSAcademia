@@ -476,7 +476,7 @@ export default function Asistencia() {
                               {STATUS_BUTTONS.find(b => b.value === s.status)?.label}
                             </span>
                           )}
-                          {s.billingPlan === 'PerSession' && (
+                          {s.billingPlan === 'PerSession' && s.sessionBillable !== false && (
                             <div style={{ marginTop:4 }}>
                               {s.sessionPaid ? (
                                 <span className="badge badge-success" style={{ fontSize:11 }}>💲 Sesión pagada</span>

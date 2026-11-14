@@ -175,6 +175,12 @@ export interface MobileEvent {
   category?: string | null;
   description?: string | null;
   allDay?: boolean;
+  // Partidos (servidor desde 1.0.19)
+  callTime?: string | null; // HH:mm de citación
+  opponent?: string | null;
+  round?: string | null;
+  tournament?: string | null;
+  matchStatus?: number | null; // 1 Programado, 2 Jugado, 3 Postergado, 4 Suspendido, 5/6 W.O.
 }
 
 export interface MyCall {
@@ -188,6 +194,11 @@ export interface MyCall {
   studentId: string;
   studentName: string;
   isConfirmed: boolean | null;
+  callTime?: string | null; // ISO, hora de pared
+  round?: string | null;
+  tournamentName?: string | null;
+  teamName?: string | null;
+  matchStatus?: number | null;
 }
 
 export interface Evaluation {
@@ -263,6 +274,8 @@ export interface RosterStudent {
   billingPlan?: BillingPlan;
   /** Por sesión: precio estimado de la sesión y si ya se cargó / pagó (servidor 1.0.18+). */
   sessionFee?: number | null;
+  /** False en partidos: no se cobran como sesión. */
+  sessionBillable?: boolean;
   sessionCharged?: boolean;
   sessionPaid?: boolean;
 }

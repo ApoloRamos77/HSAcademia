@@ -308,12 +308,12 @@ export default function AttendanceScreen({ route, navigation }: any) {
                 {item.billingPlan === 'PerSession' && !item.sessionPaid && pendingCharges.some(c => c.studentId === item.studentId && !c.error) && (
                   <View style={[styles.payTag, { backgroundColor: colors.infoBg }]}><Text style={[styles.payTagText, { color: colors.info }]} maxFontSizeMultiplier={1.2}>💲 Cobro por enviar</Text></View>
                 )}
-                {item.billingPlan === 'PerSession' && canCollect && !item.sessionPaid && !pendingCharges.some(c => c.studentId === item.studentId && !c.error) && (
+                {item.billingPlan === 'PerSession' && item.sessionBillable !== false && canCollect && !item.sessionPaid && !pendingCharges.some(c => c.studentId === item.studentId && !c.error) && (
                   <Pressable onPress={() => openCharge(item)} accessibilityRole="button" accessibilityLabel={`Cobrar sesión a ${item.firstName}`} hitSlop={6} style={styles.payTag}>
                     <Text style={styles.payTagText} maxFontSizeMultiplier={1.2}>💲 Paga por sesión · Cobrar{item.sessionFee ? ` ${money(item.sessionFee)}` : ''}</Text>
                   </Pressable>
                 )}
-                {item.billingPlan === 'PerSession' && !canCollect && <Text style={font.tiny}>💲 Paga por sesión</Text>}
+                {item.billingPlan === 'PerSession' && item.sessionBillable !== false && !canCollect && <Text style={font.tiny}>💲 Paga por sesión</Text>}
                 {!!item.markedVia && (
                   <Text style={font.tiny} numberOfLines={1}>
                     {item.markedVia}{item.markedAt ? ` · ${clockTime(item.markedAt)}` : ''}{item.markedByName ? ` · ${item.markedByName}` : ''}

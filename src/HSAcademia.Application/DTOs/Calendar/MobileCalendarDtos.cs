@@ -29,6 +29,14 @@ public class MobileEventDto
     public string? Category { get; set; }
     public string? Description { get; set; }
     public bool AllDay { get; set; } = false;
+
+    // Partidos (opcionales; las apps anteriores los ignoran)
+    /// <summary>Hora de citación "HH:mm".</summary>
+    public string? CallTime { get; set; }
+    public string? Opponent { get; set; }
+    public string? Round { get; set; }
+    public string? Tournament { get; set; }
+    public int? MatchStatus { get; set; }
 }
 
 /// <summary>

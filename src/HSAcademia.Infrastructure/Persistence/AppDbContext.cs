@@ -33,6 +33,8 @@ public class AppDbContext : DbContext
     public DbSet<Attendance> Attendances => Set<Attendance>();
     public DbSet<StaffAttendance> StaffAttendances => Set<StaffAttendance>();
     public DbSet<Tournament> Tournaments => Set<Tournament>();
+    public DbSet<TournamentTeam> TournamentTeams => Set<TournamentTeam>();
+    public DbSet<TournamentPlayer> TournamentPlayers => Set<TournamentPlayer>();
     public DbSet<Event> Events => Set<Event>();
     public DbSet<EventCall> EventCalls => Set<EventCall>();
     public DbSet<Announcement> Announcements => Set<Announcement>();
@@ -707,6 +709,25 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Name).HasColumnName("name").HasMaxLength(200).IsRequired();
             entity.Property(e => e.Organizer).HasColumnName("organizer").HasMaxLength(200).IsRequired();
             entity.Property(e => e.MainLocation).HasColumnName("main_location").HasMaxLength(300).IsRequired();
+            entity.Property(e => e.Format).HasColumnName("format").HasConversion<int>().HasDefaultValue(TournamentFormat.Other);
+            entity.Property(e => e.ScheduleMode).HasColumnName("schedule_mode").HasConversion<int>().HasDefaultValue(TournamentScheduleMode.DateRange);
+            entity.Property(e => e.Status).HasColumnName("status").HasConversion<int>().HasDefaultValue(TournamentStatus.Registration);
+            entity.Property(e => e.StartDate).HasColumnName("start_date");
+            entity.Property(e => e.EndDate).HasColumnName("end_date");
+            entity.Property(e => e.PlayDays)
+                  .HasColumnName("play_days")
+                  .HasColumnType("jsonb")
+                  .HasDefaultValueSql("'[]'::jsonb")
+                  .HasConversion(
+                      v => System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions)null),
+                      v => System.Text.Json.JsonSerializer.Deserialize<List<int>>(v, (System.Text.Json.JsonSerializerOptions)null) ?? new List<int>(),
+                      new Microsoft.EntityFrameworkCore.ChangeTracking.ValueComparer<List<int>>(
+                          (a, b) => (a ?? new List<int>()).SequenceEqual(b ?? new List<int>()),
+                          v => v.Aggregate(0, (h, x) => HashCode.Combine(h, x)),
+                          v => v.ToList()));
+            entity.Property(e => e.ContactName).HasColumnName("contact_name").HasMaxLength(150);
+            entity.Property(e => e.ContactPhone).HasColumnName("contact_phone").HasMaxLength(30);
+            entity.Property(e => e.Rules).HasColumnName("rules").HasMaxLength(4000);
 
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
@@ -721,6 +742,71 @@ public class AppDbContext : DbContext
                   .HasForeignKey(e => e.AcademyId)
                   .HasPrincipalKey(a => a.AcademyId)
                   .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // ----------------------------------------------------------------
+        // TournamentTeam / TournamentPlayer
+        // ----------------------------------------------------------------
+        modelBuilder.Entity<TournamentTeam>(entity =>
+        {
+            entity.ToTable("tournament_teams");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.AcademyId).HasColumnName("academy_id").IsRequired();
+            entity.Property(e => e.TournamentId).HasColumnName("tournament_id").IsRequired();
+            entity.Property(e => e.Name).HasColumnName("name").HasMaxLength(120).IsRequired();
+            entity.Property(e => e.CategoryIds)
+                  .HasColumnName("category_ids")
+                  .HasColumnType("jsonb")
+                  .HasDefaultValueSql("'[]'::jsonb")
+                  .HasConversion(
+                      v => System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions)null),
+                      v => System.Text.Json.JsonSerializer.Deserialize<List<Guid>>(v, (System.Text.Json.JsonSerializerOptions)null) ?? new List<Guid>(),
+                      new Microsoft.EntityFrameworkCore.ChangeTracking.ValueComparer<List<Guid>>(
+                          (a, b) => (a ?? new List<Guid>()).SequenceEqual(b ?? new List<Guid>()),
+                          v => v.Aggregate(0, (h, x) => HashCode.Combine(h, x)),
+                          v => v.ToList()));
+            entity.Property(e => e.HeadCoachId).HasColumnName("head_coach_id");
+            entity.Property(e => e.AssistantId).HasColumnName("assistant_id");
+            entity.Property(e => e.BirthYearFrom).HasColumnName("birth_year_from");
+            entity.Property(e => e.BirthYearTo).HasColumnName("birth_year_to");
+            entity.Property(e => e.MaxPlayers).HasColumnName("max_players");
+            entity.Property(e => e.Notes).HasColumnName("notes").HasMaxLength(1000);
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.IsDeleted).HasColumnName("is_deleted").HasDefaultValue(false);
+            entity.Property(e => e.DeletedAt).HasColumnName("deleted_at");
+            entity.HasIndex(e => new { e.AcademyId, e.TournamentId });
+            entity.HasQueryFilter(e => !e.IsDeleted);
+
+            entity.HasOne(e => e.Tournament).WithMany(t => t.Teams)
+                  .HasForeignKey(e => e.TournamentId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.HeadCoach).WithMany()
+                  .HasForeignKey(e => e.HeadCoachId).OnDelete(DeleteBehavior.SetNull).IsRequired(false);
+            entity.HasOne(e => e.Assistant).WithMany()
+                  .HasForeignKey(e => e.AssistantId).OnDelete(DeleteBehavior.SetNull).IsRequired(false);
+        });
+
+        modelBuilder.Entity<TournamentPlayer>(entity =>
+        {
+            entity.ToTable("tournament_players");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.AcademyId).HasColumnName("academy_id").IsRequired();
+            entity.Property(e => e.TeamId).HasColumnName("team_id").IsRequired();
+            entity.Property(e => e.StudentId).HasColumnName("student_id").IsRequired();
+            entity.Property(e => e.ShirtNumber).HasColumnName("shirt_number");
+            entity.Property(e => e.Position).HasColumnName("position").HasMaxLength(60);
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
+            entity.HasIndex(e => new { e.TeamId, e.StudentId }).IsUnique();
+            entity.HasIndex(e => new { e.AcademyId, e.StudentId });
+            entity.HasQueryFilter(e => !e.Team.IsDeleted);
+
+            entity.HasOne(e => e.Team).WithMany(t => t.Players)
+                  .HasForeignKey(e => e.TeamId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Student).WithMany()
+                  .HasForeignKey(e => e.StudentId).OnDelete(DeleteBehavior.Cascade);
         });
 
         // ----------------------------------------------------------------
@@ -755,6 +841,12 @@ public class AppDbContext : DbContext
             entity.Property(e => e.TeacherId).HasColumnName("teacher_id");
             entity.Property(e => e.TournamentId).HasColumnName("tournament_id");
             entity.Property(e => e.OpponentTeam).HasColumnName("opponent_team").HasMaxLength(200);
+            entity.Property(e => e.TournamentTeamId).HasColumnName("tournament_team_id");
+            entity.Property(e => e.Round).HasColumnName("round").HasMaxLength(80);
+            entity.Property(e => e.CallTime).HasColumnName("call_time");
+            entity.Property(e => e.Location).HasColumnName("location").HasMaxLength(300);
+            entity.Property(e => e.MatchStatus).HasColumnName("match_status").HasConversion<int?>();
+            entity.HasIndex(e => e.TournamentTeamId);
             entity.Property(e => e.IsActive).HasColumnName("is_active").HasDefaultValue(true);
 
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
@@ -793,6 +885,12 @@ public class AppDbContext : DbContext
             entity.HasOne(e => e.Tournament)
                   .WithMany()
                   .HasForeignKey(e => e.TournamentId)
+                  .OnDelete(DeleteBehavior.SetNull)
+                  .IsRequired(false);
+
+            entity.HasOne(e => e.TournamentTeam)
+                  .WithMany()
+                  .HasForeignKey(e => e.TournamentTeamId)
                   .OnDelete(DeleteBehavior.SetNull)
                   .IsRequired(false);
         });
