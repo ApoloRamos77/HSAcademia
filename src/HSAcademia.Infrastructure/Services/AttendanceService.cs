@@ -15,10 +15,13 @@ public class AttendanceService : IAttendanceService
     private readonly FamilyNoticeService _notices;
     private readonly AuditService _audit;
     private readonly SessionBillingService? _billing;
+    private readonly TournamentBillingService? _tournamentBilling;
 
-    public AttendanceService(AppDbContext context, FamilyNoticeService notices, AuditService audit, SessionBillingService? billing = null)
+    public AttendanceService(AppDbContext context, FamilyNoticeService notices, AuditService audit, SessionBillingService? billing = null,
+        TournamentBillingService? tournamentBilling = null)
     {
         _billing = billing;
+        _tournamentBilling = tournamentBilling;
         _context = context;
         _notices = notices;
         _audit = audit;
@@ -189,7 +192,12 @@ public class AttendanceService : IAttendanceService
         await _notices.SyncArrivalsAsync(academyId, ev, saved);
         await _context.SaveChangesAsync();
         await ReconcileBillingAsync(academyId, saved.Select(a => a.StudentId));
+        await SyncTournamentChargesAsync(academyId, ev);
     }
+
+    /// <summary>Partido de torneo: los cobros por partido dependen de quién asistió.</summary>
+    private Task SyncTournamentChargesAsync(Guid academyId, Event? ev) =>
+        _tournamentBilling == null || ev?.TournamentId == null ? Task.CompletedTask : _tournamentBilling.TrySyncEventAsync(academyId, ev.Id);
 
     // =========================================================
     // Phase 2 — Monthly attendance metrics (70% rule)
@@ -357,6 +365,7 @@ public class AttendanceService : IAttendanceService
             // Dos celulares leyeron el mismo carné a la vez: el índice único deja pasar solo uno.
             throw new InvalidOperationException(alreadyMarked);
         }
+        await SyncTournamentChargesAsync(academyId, session);
 
         return new QrScanResultDto
         {
@@ -961,6 +970,7 @@ public class AttendanceService : IAttendanceService
         if (session != null) await _notices.SyncArrivalsAsync(academyId, session, saved);
         await _context.SaveChangesAsync();
         await ReconcileBillingAsync(academyId, saved.Select(a => a.StudentId));
+        await SyncTournamentChargesAsync(academyId, session);
     }
 
     /// <summary>Una falta en una sesión cobrada en campo anula la deuda o deja saldo a favor (y al revés).</summary>
@@ -1097,6 +1107,7 @@ public class AttendanceService : IAttendanceService
             ev.AttendanceClosedBy = null;
             ev.UpdatedAt          = now;
             await _context.SaveChangesAsync();
+            await SyncTournamentChargesAsync(ev.AcademyId, ev);
             closed++;
         }
         return closed;

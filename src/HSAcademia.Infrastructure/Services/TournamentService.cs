@@ -17,12 +17,19 @@ public class TournamentService
 
     private readonly AppDbContext _db;
     private readonly AuditService? _audit;
+    private readonly TournamentBillingService? _billing;
 
-    public TournamentService(AppDbContext db, AuditService? audit = null)
+    public TournamentService(AppDbContext db, AuditService? audit = null, TournamentBillingService? billing = null)
     {
         _db = db;
         _audit = audit;
+        _billing = billing;
     }
+
+    private Task SyncChargesAsync(Guid academyId, Guid tournamentId) =>
+        _billing == null ? Task.CompletedTask : _billing.TrySyncTournamentAsync(academyId, tournamentId);
+    private Task SyncMatchChargesAsync(Guid academyId, Guid eventId) =>
+        _billing == null ? Task.CompletedTask : _billing.TrySyncEventAsync(academyId, eventId);
 
     private static DateTime Wall(DateTime d) => d.Kind == DateTimeKind.Utc ? d : DateTime.SpecifyKind(d, DateTimeKind.Utc);
     private static DateTime? Wall(DateTime? d) => d.HasValue ? Wall(d.Value) : null;
@@ -104,6 +111,7 @@ public class TournamentService
         t.UpdatedAt = DateTime.UtcNow;
         _audit?.Add(academyId, "tournaments.update", nameof(Tournament), t.Id, new { t.Name, t.Format, t.ScheduleMode, t.Status, t.StartDate, t.EndDate });
         await _db.SaveChangesAsync();
+        await SyncChargesAsync(academyId, t.Id);
         return Map(t);
     }
 
@@ -122,6 +130,7 @@ public class TournamentService
         var removed = await RemoveUpcomingMatchesAsync(academyId, e => e.TournamentId == tournamentId);
         _audit?.Add(academyId, "tournaments.delete", nameof(Tournament), t.Id, new { t.Name, upcomingMatchesRemoved = removed });
         await _db.SaveChangesAsync();
+        await SyncChargesAsync(academyId, t.Id);
     }
 
     private static void Apply(Tournament t, CreateTournamentDto dto, bool isNew)
@@ -253,6 +262,7 @@ public class TournamentService
         var removed = await RemoveUpcomingMatchesAsync(academyId, e => e.TournamentTeamId == teamId);
         _audit?.Add(academyId, "tournaments.team.delete", nameof(TournamentTeam), team.Id, new { team.Name, upcomingMatchesRemoved = removed });
         await _db.SaveChangesAsync();
+        await SyncChargesAsync(academyId, team.TournamentId);
     }
 
     private async Task ValidateTeamAsync(Guid academyId, SaveTournamentTeamDto dto)
@@ -461,6 +471,7 @@ public class TournamentService
         _audit?.Add(academyId, "tournaments.team.roster", nameof(TournamentTeam), team.Id,
             new { team.Name, added, removed, players = wantedIds.Count });
         await _db.SaveChangesAsync();
+        await SyncChargesAsync(academyId, team.TournamentId);
         result.Team = (await MapTeamsAsync(academyId, new() { team })).Single();
         return result;
     }
@@ -548,6 +559,7 @@ public class TournamentService
             teacherFrom = oldTeacher != ev.TeacherId ? oldTeacher : null, teacherTo = oldTeacher != ev.TeacherId ? ev.TeacherId : null
         });
         await _db.SaveChangesAsync();
+        await SyncMatchChargesAsync(academyId, ev.Id);
         return (await LoadMatchesAsync(academyId, ev.TournamentId!.Value, team != null ? new() { team } : new(), ev.Id)).Single();
     }
 
@@ -696,6 +708,7 @@ public class TournamentService
         }
         _audit?.Add(academyId, "tournaments.match.call.add", nameof(Event), eventId, new { studentId });
         await _db.SaveChangesAsync();
+        await SyncMatchChargesAsync(academyId, eventId);
     }
 
     /// <summary>Quita la convocatoria de un partido. Si ya tiene asistencia marcada, se conserva el registro de asistencia.</summary>
@@ -706,6 +719,7 @@ public class TournamentService
         _db.EventCalls.Remove(call);
         _audit?.Add(academyId, "tournaments.match.call.remove", nameof(Event), eventId, new { studentId });
         await _db.SaveChangesAsync();
+        await SyncMatchChargesAsync(academyId, eventId);
     }
 
     private async Task<int> RemoveUpcomingMatchesAsync(Guid academyId, System.Linq.Expressions.Expression<Func<Event, bool>> filter)

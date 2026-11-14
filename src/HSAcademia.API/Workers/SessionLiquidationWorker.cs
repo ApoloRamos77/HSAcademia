@@ -33,6 +33,8 @@ public sealed class SessionLiquidationWorker : BackgroundService
                 if (done > 0) _logger.LogInformation("Sesiones liquidadas automáticamente en {Count} academia(s).", done);
                 await scope.ServiceProvider.GetRequiredService<SessionBillingService>().ReconcileAllAsync(stoppingToken);
                 await scope.ServiceProvider.GetRequiredService<ReferralService>().SyncAllAsync(stoppingToken);
+                // Cobros de torneo: respaldo por si una lista se cerró sola o cambió algo sin pasar por la pantalla.
+                await scope.ServiceProvider.GetRequiredService<TournamentBillingService>().SyncAllAsync(stoppingToken);
             }
             catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
             {

@@ -13,8 +13,13 @@ namespace HSAcademia.API.Controllers;
 public class TournamentsController : ControllerBase
 {
     private readonly TournamentService _service;
+    private readonly TournamentBillingService _billing;
 
-    public TournamentsController(TournamentService service) => _service = service;
+    public TournamentsController(TournamentService service, TournamentBillingService billing)
+    {
+        _service = service;
+        _billing = billing;
+    }
 
     private Guid AcademyId => Guid.Parse(User.FindFirst("AcademyId")?.Value ?? User.FindFirst("academyId")?.Value
         ?? throw new UnauthorizedAccessException("AcademyId no encontrado en el token."));
@@ -100,4 +105,54 @@ public class TournamentsController : ControllerBase
     [RequirePermission(Permissions.EventsManage)]
     public Task<IActionResult> RemoveCall(Guid eventId, Guid studentId) =>
         Run(async () => { await _service.RemoveCallAsync(AcademyId, eventId, studentId); return NoContent(); });
+
+    // ── Cobros a las familias (Fase B) ──
+    [HttpGet("{id:guid}/finance")]
+    [RequirePermission(Permissions.CollectionsView, AcademyWide = true)]
+    public Task<IActionResult> Finance(Guid id) => Run(async () => Ok(await _billing.GetFinanceAsync(AcademyId, id)));
+
+    [HttpPost("{id:guid}/fees")]
+    [RequirePermission(Permissions.CollectionsGenerate, AcademyWide = true)]
+    public Task<IActionResult> CreateFee(Guid id, [FromBody] SaveTournamentFeeDto dto) =>
+        Run(async () => Ok(await _billing.CreateFeeAsync(AcademyId, id, dto)));
+
+    [HttpPut("fees/{feeId:guid}")]
+    [RequirePermission(Permissions.CollectionsGenerate, AcademyWide = true)]
+    public Task<IActionResult> UpdateFee(Guid feeId, [FromBody] SaveTournamentFeeDto dto) =>
+        Run(async () => Ok(await _billing.UpdateFeeAsync(AcademyId, feeId, dto)));
+
+    [HttpDelete("fees/{feeId:guid}")]
+    [RequirePermission(Permissions.CollectionsGenerate, AcademyWide = true)]
+    public Task<IActionResult> DeleteFee(Guid feeId) =>
+        Run(async () => { await _billing.DeleteFeeAsync(AcademyId, feeId); return NoContent(); });
+
+    [HttpGet("fees/{feeId:guid}/charges")]
+    [RequirePermission(Permissions.CollectionsView, AcademyWide = true)]
+    public Task<IActionResult> Charges(Guid feeId) => Run(async () => Ok(await _billing.ChargesAsync(AcademyId, feeId)));
+
+    [HttpPost("{id:guid}/fees/sync")]
+    [RequirePermission(Permissions.CollectionsGenerate, AcademyWide = true)]
+    public Task<IActionResult> SyncFees(Guid id) => Run(async () => Ok(await _billing.SyncTournamentAsync(AcademyId, id)));
+
+    [HttpPost("charges/{chargeId:guid}/decision")]
+    [RequirePermission(Permissions.CollectionsAdjust, AcademyWide = true)]
+    public Task<IActionResult> Decide(Guid chargeId, [FromBody] DecideTournamentChargeDto dto,
+        [FromServices] HSAcademia.Infrastructure.Persistence.AppDbContext db) => Run(async () =>
+    {
+        var uid = User.GetUserId();
+        var name = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
+            db.Users.Where(u => u.Id == uid).Select(u => u.FirstName + " " + u.LastName));
+        return Ok(await _billing.DecideAsync(AcademyId, chargeId, dto, name?.Trim()));
+    });
+
+    // ── Gastos del torneo ──
+    [HttpPost("{id:guid}/expenses")]
+    [RequirePermission(Permissions.FinancesExpenses, AcademyWide = true)]
+    public Task<IActionResult> CreateExpense(Guid id, [FromBody] SaveTournamentExpenseDto dto) =>
+        Run(async () => Ok(await _billing.CreateExpenseAsync(AcademyId, id, User.GetUserId(), dto)));
+
+    [HttpDelete("{id:guid}/expenses/{expenseId:guid}")]
+    [RequirePermission(Permissions.FinancesExpenses, AcademyWide = true)]
+    public Task<IActionResult> DeleteExpense(Guid id, Guid expenseId) =>
+        Run(async () => { await _billing.DeleteExpenseAsync(AcademyId, id, expenseId); return NoContent(); });
 }

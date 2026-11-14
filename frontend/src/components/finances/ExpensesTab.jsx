@@ -13,7 +13,8 @@ const EXPENSE_TYPES = {
   5: { label: 'Otros', color: 'bg-gray-500/20 text-gray-400' },
   6: { label: 'Compra - Materiales', color: 'bg-emerald-500/20 text-emerald-400' },
   7: { label: 'Compra - Prod. para Venta', color: 'bg-teal-500/20 text-teal-400' },
-  8: { label: 'Pagos/Servicios', color: 'bg-yellow-500/20 text-yellow-400' }
+  8: { label: 'Pagos/Servicios', color: 'bg-yellow-500/20 text-yellow-400' },
+  9: { label: 'Torneos', color: 'bg-rose-500/20 text-rose-400' }
 };
 
 const MONTHS = [
