@@ -3,6 +3,8 @@ import { useSearchParams } from 'react-router-dom';
 import api from '../../api/axios';
 import AppLayout from '../../components/AppLayout';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import { useAuth } from '../../context/AuthContext';
+import TorneoFinanzas from './torneos/TorneoFinanzas';
 import toast from 'react-hot-toast';
 import {
   Trophy, Plus, Pencil, Trash2, ArrowLeft, Users, CalendarPlus, CalendarDays, Clock, MapPin,
@@ -109,6 +111,8 @@ function TournamentDetail({ id, onBack }) {
   const [support, setSupport] = useState({ categories: [], headquarters: [], staff: [] });
   const [modal, setModal] = useState(null); // { kind, ...data }
   const [confirm, setConfirm] = useState(null);
+  const { can } = useAuth();
+  const canFinance = can('collections.view');
 
   const backRef = useRef(onBack);
   backRef.current = onBack;
@@ -173,11 +177,12 @@ function TournamentDetail({ id, onBack }) {
         <Stat label="Próximo partido" value={t.nextMatchAt ? `${fmtDate(t.nextMatchAt)} ${timeOf(t.nextMatchAt)}` : '—'} />
       </div>
 
-      <div className="tabs" style={{ maxWidth: 520 }}>
+      <div className="tabs" style={{ maxWidth: 680, overflowX: 'auto' }}>
         <button className={`tab-pill ${tab === 'teams' ? 'active' : ''}`} onClick={() => setTab('teams')}>
           Equipos y planteles {warnings > 0 && <AlertTriangle size={12} style={{ marginLeft: 4 }} />}
         </button>
         <button className={`tab-pill ${tab === 'matches' ? 'active' : ''}`} onClick={() => setTab('matches')}>Partidos ({t.matchesCount})</button>
+        {canFinance && <button className={`tab-pill ${tab === 'finance' ? 'active' : ''}`} onClick={() => setTab('finance')}>Cobros y gastos</button>}
         <button className={`tab-pill ${tab === 'rules' ? 'active' : ''}`} onClick={() => setTab('rules')}>Reglamento</button>
       </div>
 
@@ -190,6 +195,7 @@ function TournamentDetail({ id, onBack }) {
         <MatchesTab t={t} onNew={() => setModal({ kind: 'match' })} onEdit={match => setModal({ kind: 'match', match })}
           onCalls={match => setModal({ kind: 'calls', match })} onDelete={match => setConfirm({ kind: 'match', match })} />
       )}
+      {tab === 'finance' && canFinance && <TorneoFinanzas t={t} can={can} />}
       {tab === 'rules' && (
         <div className="card" style={{ padding: 18, whiteSpace: 'pre-wrap', fontSize: 14 }}>
           {t.rules || <span className="text-muted">Sin reglamento registrado. Anota documentos exigidos, tiempos, cambios y tope de planilla en Editar.</span>}

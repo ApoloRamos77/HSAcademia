@@ -35,6 +35,8 @@ public class AppDbContext : DbContext
     public DbSet<Tournament> Tournaments => Set<Tournament>();
     public DbSet<TournamentTeam> TournamentTeams => Set<TournamentTeam>();
     public DbSet<TournamentPlayer> TournamentPlayers => Set<TournamentPlayer>();
+    public DbSet<TournamentFee> TournamentFees => Set<TournamentFee>();
+    public DbSet<TournamentCharge> TournamentCharges => Set<TournamentCharge>();
     public DbSet<Event> Events => Set<Event>();
     public DbSet<EventCall> EventCalls => Set<EventCall>();
     public DbSet<Announcement> Announcements => Set<Announcement>();
@@ -810,6 +812,63 @@ public class AppDbContext : DbContext
         });
 
         // ----------------------------------------------------------------
+        // TournamentFee / TournamentCharge (cobros del torneo)
+        // ----------------------------------------------------------------
+        modelBuilder.Entity<TournamentFee>(entity =>
+        {
+            entity.ToTable("tournament_fees");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.AcademyId).HasColumnName("academy_id").IsRequired();
+            entity.Property(e => e.TournamentId).HasColumnName("tournament_id").IsRequired();
+            entity.Property(e => e.TeamId).HasColumnName("team_id");
+            entity.Property(e => e.Name).HasColumnName("name").HasMaxLength(80).IsRequired();
+            entity.Property(e => e.Frequency).HasColumnName("frequency").HasConversion<int>().IsRequired();
+            entity.Property(e => e.AmountMode).HasColumnName("amount_mode").HasConversion<int>().IsRequired();
+            entity.Property(e => e.Amount).HasColumnName("amount").HasColumnType("numeric(10,2)").IsRequired();
+            entity.Property(e => e.DueDate).HasColumnName("due_date");
+            entity.Property(e => e.ExemptScholarship).HasColumnName("exempt_scholarship");
+            entity.Property(e => e.IsActive).HasColumnName("is_active");
+            entity.Property(e => e.Notes).HasColumnName("notes").HasMaxLength(500);
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.IsDeleted).HasColumnName("is_deleted").HasDefaultValue(false);
+            entity.Property(e => e.DeletedAt).HasColumnName("deleted_at");
+            entity.HasIndex(e => new { e.AcademyId, e.TournamentId });
+            entity.HasQueryFilter(e => !e.IsDeleted);
+            entity.HasOne(e => e.Tournament).WithMany().HasForeignKey(e => e.TournamentId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Team).WithMany().HasForeignKey(e => e.TeamId).OnDelete(DeleteBehavior.SetNull).IsRequired(false);
+        });
+
+        modelBuilder.Entity<TournamentCharge>(entity =>
+        {
+            entity.ToTable("tournament_charges");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.AcademyId).HasColumnName("academy_id").IsRequired();
+            entity.Property(e => e.FeeId).HasColumnName("fee_id").IsRequired();
+            entity.Property(e => e.EventId).HasColumnName("event_id");
+            entity.Property(e => e.StudentId).HasColumnName("student_id").IsRequired();
+            entity.Property(e => e.Status).HasColumnName("status").HasConversion<int>().IsRequired();
+            entity.Property(e => e.PaymentRecordId).HasColumnName("payment_record_id");
+            entity.Property(e => e.Amount).HasColumnName("amount").HasColumnType("numeric(10,2)");
+            entity.Property(e => e.DecidedAt).HasColumnName("decided_at");
+            entity.Property(e => e.DecidedByName).HasColumnName("decided_by_name").HasMaxLength(150);
+            entity.Property(e => e.Note).HasColumnName("note").HasMaxLength(300);
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
+            // Un cargo por alumno, concepto y partido (EventId null en los de una sola vez).
+            entity.HasIndex(e => new { e.FeeId, e.StudentId }, "IX_tournament_charges_once").IsUnique().HasFilter("event_id IS NULL");
+            entity.HasIndex(e => new { e.FeeId, e.EventId, e.StudentId }, "IX_tournament_charges_match").IsUnique().HasFilter("event_id IS NOT NULL");
+            entity.HasIndex(e => e.PaymentRecordId);
+            entity.HasIndex(e => new { e.AcademyId, e.Status });
+            entity.HasQueryFilter(e => !e.Fee.IsDeleted);
+            entity.HasOne(e => e.Fee).WithMany().HasForeignKey(e => e.FeeId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Student).WithMany().HasForeignKey(e => e.StudentId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.PaymentRecord).WithMany().HasForeignKey(e => e.PaymentRecordId).OnDelete(DeleteBehavior.SetNull).IsRequired(false);
+        });
+
+        // ----------------------------------------------------------------
         // Event
         // ----------------------------------------------------------------
         modelBuilder.Entity<Event>(entity =>
@@ -984,6 +1043,9 @@ public class AppDbContext : DbContext
 
             entity.HasIndex(e => e.AcademyId);
             entity.HasIndex(e => e.Date);
+            entity.Property(e => e.TournamentId).HasColumnName("tournament_id");
+            entity.Property(e => e.TournamentEventId).HasColumnName("tournament_event_id");
+            entity.HasIndex(e => e.TournamentId);
             entity.HasQueryFilter(e => !e.IsDeleted);
 
             entity.HasOne(e => e.Academy).WithMany().HasForeignKey(e => e.AcademyId).HasPrincipalKey(a => a.AcademyId).OnDelete(DeleteBehavior.Restrict);

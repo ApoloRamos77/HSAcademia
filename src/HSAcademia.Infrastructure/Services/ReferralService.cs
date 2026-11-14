@@ -396,7 +396,7 @@ public class ReferralService
             var debt = await _db.PaymentRecords
                 .Where(p => p.AcademyId == r.AcademyId && p.StudentId == r.ReferredStudentId && !p.IsPaid && p.AmountPaid == 0
                             && p.Amount > 0 && p.ExclusionType == ExclusionType.None
-                            && p.Type != PaymentType.LateFee && p.Type != PaymentType.ProductSale)
+                            && p.Type != PaymentType.LateFee && p.Type != PaymentType.ProductSale && p.Type != PaymentType.Tournament)
                 .OrderBy(p => p.DueDate).ThenBy(p => p.CreatedAt)
                 .FirstOrDefaultAsync(ct);
             if (debt != null)
@@ -592,7 +592,8 @@ public class ReferralService
     private async Task<DateTime?> PaidSinceAsync(List<Guid> studentIds, DateTime? since, bool firstOnly = false)
     {
         var q = _db.PaymentInstallments.AsNoTracking()
-            .Where(i => i.AmountPaid > 0 && studentIds.Contains(i.PaymentRecord.StudentId) && !i.PaymentRecord.IsDeleted);
+            .Where(i => i.AmountPaid > 0 && studentIds.Contains(i.PaymentRecord.StudentId) && !i.PaymentRecord.IsDeleted
+                        && i.PaymentRecord.Type != PaymentType.Tournament); // los costos de torneo no cuentan como primer cobro
         if (since.HasValue) { var from = since.Value; q = q.Where(i => i.PaidAt >= from); }
         return firstOnly
             ? await q.OrderBy(i => i.PaidAt).Select(i => (DateTime?)i.PaidAt).FirstOrDefaultAsync()

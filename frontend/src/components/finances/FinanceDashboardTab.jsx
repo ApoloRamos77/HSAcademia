@@ -28,6 +28,7 @@ const EXPENSE_LABELS = {
   'PurchaseMaterials': '📦 Compra Materiales',
   'PurchaseProducts': '🛒 Compra Prod. Venta',
   'Payments': '💳 Pagos/Servicios',
+  'Tournament': '🏆 Torneos',
   'Other': '📋 Otro',
 };
 

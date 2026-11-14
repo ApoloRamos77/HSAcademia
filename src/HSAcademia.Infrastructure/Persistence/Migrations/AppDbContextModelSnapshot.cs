@@ -1183,6 +1183,14 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.Property<string>("Supplier")
                         .HasColumnType("text");
 
+                    b.Property<Guid?>("TournamentEventId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tournament_event_id");
+
+                    b.Property<Guid?>("TournamentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tournament_id");
+
                     b.Property<int>("Type")
                         .HasColumnType("integer")
                         .HasColumnName("type");
@@ -1205,6 +1213,8 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.HasIndex("Date");
 
                     b.HasIndex("RegisteredById");
+
+                    b.HasIndex("TournamentId");
 
                     b.ToTable("expenses", (string)null);
                 });
@@ -3443,6 +3453,173 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.ToTable("tournaments", (string)null);
                 });
 
+            modelBuilder.Entity("HSAcademia.Domain.Entities.TournamentCharge", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AcademyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("academy_id");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("numeric(10,2)")
+                        .HasColumnName("amount");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<DateTime?>("DecidedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("decided_at");
+
+                    b.Property<string>("DecidedByName")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("decided_by_name");
+
+                    b.Property<Guid?>("EventId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("event_id");
+
+                    b.Property<Guid>("FeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("fee_id");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("note");
+
+                    b.Property<Guid?>("PaymentRecordId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("payment_record_id");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("StudentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("student_id");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PaymentRecordId");
+
+                    b.HasIndex("StudentId");
+
+                    b.HasIndex("AcademyId", "Status");
+
+                    b.HasIndex(new[] { "FeeId", "EventId", "StudentId" }, "IX_tournament_charges_match")
+                        .IsUnique()
+                        .HasFilter("event_id IS NOT NULL");
+
+                    b.HasIndex(new[] { "FeeId", "StudentId" }, "IX_tournament_charges_once")
+                        .IsUnique()
+                        .HasFilter("event_id IS NULL");
+
+                    b.ToTable("tournament_charges", (string)null);
+                });
+
+            modelBuilder.Entity("HSAcademia.Domain.Entities.TournamentFee", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AcademyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("academy_id");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("numeric(10,2)")
+                        .HasColumnName("amount");
+
+                    b.Property<int>("AmountMode")
+                        .HasColumnType("integer")
+                        .HasColumnName("amount_mode");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<DateTime?>("DueDate")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("due_date");
+
+                    b.Property<bool>("ExemptScholarship")
+                        .HasColumnType("boolean")
+                        .HasColumnName("exempt_scholarship");
+
+                    b.Property<int>("Frequency")
+                        .HasColumnType("integer")
+                        .HasColumnName("frequency");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("notes");
+
+                    b.Property<Guid?>("TeamId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("team_id");
+
+                    b.Property<Guid>("TournamentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tournament_id");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TeamId");
+
+                    b.HasIndex("TournamentId");
+
+                    b.HasIndex("AcademyId", "TournamentId");
+
+                    b.ToTable("tournament_fees", (string)null);
+                });
+
             modelBuilder.Entity("HSAcademia.Domain.Entities.TournamentPlayer", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4541,6 +4718,50 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Academy");
+                });
+
+            modelBuilder.Entity("HSAcademia.Domain.Entities.TournamentCharge", b =>
+                {
+                    b.HasOne("HSAcademia.Domain.Entities.TournamentFee", "Fee")
+                        .WithMany()
+                        .HasForeignKey("FeeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("HSAcademia.Domain.Entities.PaymentRecord", "PaymentRecord")
+                        .WithMany()
+                        .HasForeignKey("PaymentRecordId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("HSAcademia.Domain.Entities.Student", "Student")
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Fee");
+
+                    b.Navigation("PaymentRecord");
+
+                    b.Navigation("Student");
+                });
+
+            modelBuilder.Entity("HSAcademia.Domain.Entities.TournamentFee", b =>
+                {
+                    b.HasOne("HSAcademia.Domain.Entities.TournamentTeam", "Team")
+                        .WithMany()
+                        .HasForeignKey("TeamId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("HSAcademia.Domain.Entities.Tournament", "Tournament")
+                        .WithMany()
+                        .HasForeignKey("TournamentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Team");
+
+                    b.Navigation("Tournament");
                 });
 
             modelBuilder.Entity("HSAcademia.Domain.Entities.TournamentPlayer", b =>

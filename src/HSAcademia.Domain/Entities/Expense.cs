@@ -14,6 +14,10 @@ public class Expense
     public string? Supplier { get; set; }
     public string? VoucherUrl { get; set; }
     public Guid? RegisteredById { get; set; }
+    /// <summary>Torneo al que corresponde el gasto (para su balance).</summary>
+    public Guid? TournamentId { get; set; }
+    /// <summary>Partido del torneo, si el gasto es de una fecha puntual.</summary>
+    public Guid? TournamentEventId { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public bool IsDeleted { get; set; }

@@ -12,7 +12,9 @@ public enum PaymentType
     /// <summary>Mora por pago fuera de fecha (la decide administración al regularizar).</summary>
     LateFee = 5,
     /// <summary>Sesiones: cobro de una sesión en campo (SessionDate) o liquidación del mes (SessionDate null).</summary>
-    Sessions = 6
+    Sessions = 6,
+    /// <summary>Cobro de un torneo (inscripción, arbitraje, cancha, pasaje…): ver TournamentCharge.</summary>
+    Tournament = 7
 }
 
 /// <summary>How a payment (or partial payment) was received.</summary>
