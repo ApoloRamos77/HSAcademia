@@ -201,6 +201,27 @@ export interface MyCall {
   matchStatus?: number | null;
 }
 
+/** Torneo del alumno (servidor desde 1.0.20). */
+export interface MyTournament {
+  tournamentId: string;
+  name: string;
+  organizer: string;
+  status: number; // 1 Inscripción, 2 En curso, 3 Finalizado
+  studentId: string;
+  studentName: string;
+  teamName: string;
+  shirtNumber?: number | null;
+  requiresAuthorization: boolean;
+  authorizationText?: string | null;
+  authorized: boolean;
+  authorizedAt?: string | null;
+  missingDocuments: string[];
+  suspendedFor?: string | null;
+  record: { played: number; won: number; drawn: number; lost: number; goalsFor: number; goalsAgainst: number; points: number };
+  nextMatch?: string | null;
+  lastResults: { date: string; round?: string | null; opponent?: string | null; goalsFor: number; goalsAgainst: number }[];
+}
+
 export interface Evaluation {
   id: string;
   period: string;

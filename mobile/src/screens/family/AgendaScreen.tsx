@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { Alert, Text, View } from 'react-native';
 import { Cake, CalendarDays, Dumbbell, MapPin, Trophy } from 'lucide-react-native';
 import { api, errorMessage } from '../../api/client';
-import type { MobileEvent, MyCall } from '../../api/types';
-import { Badge, Button, Card, Empty, Loading, Row, Screen, SectionTitle } from '../../components/ui';
+import type { MobileEvent, MyCall, MyTournament } from '../../api/types';
+import { Badge, Banner, Button, Card, Empty, Loading, Row, Screen, SectionTitle } from '../../components/ui';
 import { useApi } from '../../hooks/useApi';
 import { colors, font, spacing } from '../../theme';
 import { eventLabel, longDay, todayISO } from '../../utils/format';
@@ -40,11 +40,12 @@ export default function AgendaScreen() {
   const [busy, setBusy] = useState<string | null>(null);
   const { data, loading, refreshing, refresh, setData } = useApi(async () => {
     if (!student) return null;
-    const [events, calls] = await Promise.all([
+    const [events, calls, tournaments] = await Promise.all([
       api.get<MobileEvent[]>('/calendar/mobile/events', { params: { categoryId: student.categoryId, studentId: student.id } }).then(r => r.data),
       api.get<MyCall[]>('/calendar/mobile/my-calls').then(r => r.data).catch(() => [] as MyCall[]),
+      api.get<MyTournament[]>('/tournaments/mobile/mine', { params: { studentId: student.id } }).then(r => r.data).catch(() => [] as MyTournament[]),
     ]);
-    return { events, calls };
+    return { events, calls, tournaments };
   }, [student?.id]);
 
   const answer = async (call: MyCall, isConfirmed: boolean) => {
@@ -59,6 +60,30 @@ export default function AgendaScreen() {
     }
   };
 
+  const authorize = (t: MyTournament) => {
+    Alert.alert(
+      `Autorizar a ${t.studentName}`,
+      `${t.authorizationText ?? 'Autorizo su participación en el torneo.'}\n\nTorneo: ${t.name}`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Acepto',
+          onPress: async () => {
+            setBusy(t.tournamentId);
+            try {
+              await api.post(`/tournaments/mobile/${t.tournamentId}/authorize`, { studentId: t.studentId });
+              setData(d => d && ({ ...d, tournaments: d.tournaments.map(x => (x.tournamentId === t.tournamentId && x.studentId === t.studentId ? { ...x, authorized: true } : x)) }));
+            } catch (e) {
+              Alert.alert('No se pudo autorizar', errorMessage(e));
+            } finally {
+              setBusy(null);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   if (loading && !data) return <Loading />;
   const today = todayISO();
   const calls = (data?.calls ?? []).filter(c => c.studentId === student?.id);
@@ -69,6 +94,46 @@ export default function AgendaScreen() {
   return (
     <Screen refreshing={refreshing} onRefresh={refresh}>
       <StudentPicker />
+
+      {(data?.tournaments ?? []).length > 0 && (
+        <>
+          <SectionTitle title="Torneos" />
+          {(data?.tournaments ?? []).map(t => (
+            <Card key={`${t.tournamentId}-${t.studentId}`}>
+              <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={font.h3}>{t.name}</Text>
+                  <Text style={font.small}>{t.teamName}{t.shirtNumber != null ? ` · camiseta ${t.shirtNumber}` : ''}</Text>
+                  {t.record.played > 0 && (
+                    <Text style={[font.small, { fontWeight: '600' }]}>
+                      {t.record.played} PJ · {t.record.won}G {t.record.drawn}E {t.record.lost}P · {t.record.points} pts
+                    </Text>
+                  )}
+                  {t.lastResults[0] && (
+                    <Text style={font.tiny}>
+                      Último: {t.lastResults[0].round ? `${t.lastResults[0].round} · ` : ''}{t.lastResults[0].goalsFor}-{t.lastResults[0].goalsAgainst}
+                      {t.lastResults[0].opponent ? ` vs ${t.lastResults[0].opponent}` : ''}
+                    </Text>
+                  )}
+                  {t.nextMatch && <Text style={font.tiny}>Próximo: {t.nextMatch}</Text>}
+                </View>
+                <Trophy color={colors.warning} size={18} />
+              </Row>
+              {t.suspendedFor && <View style={{ marginTop: spacing.sm }}><Banner tone="danger" text={`Suspendido · ${t.suspendedFor}`} /></View>}
+              {t.missingDocuments.length > 0 && (
+                <View style={{ marginTop: spacing.sm }}><Banner tone="warning" text={`Falta entregar: ${t.missingDocuments.join(', ')}`} /></View>
+              )}
+              {t.requiresAuthorization && !t.authorized && (
+                <View style={{ marginTop: spacing.sm, gap: spacing.sm }}>
+                  <Banner tone="info" text="La academia pide tu autorización para este torneo." />
+                  <Button compact title="Leer y autorizar" loading={busy === t.tournamentId} onPress={() => authorize(t)} />
+                </View>
+              )}
+              {t.requiresAuthorization && t.authorized && <View style={{ marginTop: spacing.sm }}><Badge tone="success" text="Autorizado" /></View>}
+            </Card>
+          ))}
+        </>
+      )}
 
       {calls.length > 0 && (
         <>

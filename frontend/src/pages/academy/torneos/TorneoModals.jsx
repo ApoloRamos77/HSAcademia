@@ -51,7 +51,18 @@ export function TournamentFormModal({ tournament, onClose, onSaved }) {
     contactName: tournament?.contactName || '',
     contactPhone: tournament?.contactPhone || '',
     rules: tournament?.rules || '',
+    yellowCardsForSuspension: tournament?.yellowCardsForSuspension ?? '',
+    redCardSuspensionMatches: tournament?.redCardSuspensionMatches ?? '',
+    requiresAuthorization: tournament?.requiresAuthorization ?? false,
+    authorizationText: tournament?.authorizationText || '',
+    requiredDocuments: tournament?.requiredDocuments || [],
   }));
+  const [docDraft, setDocDraft] = useState('');
+  const addDoc = name => {
+    const d = (name ?? docDraft).trim();
+    if (d && !form.requiredDocuments.some(x => x.toLowerCase() === d.toLowerCase())) set({ requiredDocuments: [...form.requiredDocuments, d] });
+    setDocDraft('');
+  };
   const [saving, setSaving] = useState(false);
   const set = patch => setForm(f => ({ ...f, ...patch }));
 
@@ -61,6 +72,8 @@ export function TournamentFormModal({ tournament, onClose, onSaved }) {
     if (form.scheduleMode === 2 && !form.endDate) return toast.error('Indica la fecha de fin');
     const body = {
       ...form,
+      yellowCardsForSuspension: form.yellowCardsForSuspension === '' ? 0 : Number(form.yellowCardsForSuspension),
+      redCardSuspensionMatches: form.redCardSuspensionMatches === '' ? 0 : Number(form.redCardSuspensionMatches),
       startDate: form.startDate,
       endDate: form.scheduleMode === 1 ? form.startDate : (form.endDate || null),
       playDays: form.scheduleMode === 1 ? [] : form.playDays,
@@ -153,6 +166,46 @@ export function TournamentFormModal({ tournament, onClose, onSaved }) {
           <textarea className="form-control" rows={3} value={form.rules} onChange={e => set({ rules: e.target.value })}
             placeholder="Ej: DNI original, ficha médica vigente, 18 jugadores por planilla, tiempos de 25 min…" />
         </div>
+
+        <div className="form-group" style={{ gridColumn: '1/-1', marginBottom: 0 }}><strong style={{ fontSize: 13 }}>Reglas para los jugadores</strong></div>
+        <div className="form-group">
+          <label>Amarillas que suspenden 1 partido</label>
+          <input type="number" min={0} className="form-control" value={form.yellowCardsForSuspension} onChange={e => set({ yellowCardsForSuspension: e.target.value })} placeholder="Ej: 3 (vacío = no se controla)" />
+        </div>
+        <div className="form-group">
+          <label>Partidos de suspensión por roja</label>
+          <input type="number" min={0} className="form-control" value={form.redCardSuspensionMatches} onChange={e => set({ redCardSuspensionMatches: e.target.value })} placeholder="Ej: 1 (vacío = no se controla)" />
+        </div>
+        <div className="form-group" style={{ gridColumn: '1/-1' }}>
+          <label>Documentos que debe entregar cada jugador</label>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
+            {form.requiredDocuments.map(d => (
+              <span key={d} className="badge badge-info" style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }}>
+                {d}<button type="button" className="btn-icon" style={{ padding: 0 }} aria-label={`Quitar ${d}`}
+                  onClick={() => set({ requiredDocuments: form.requiredDocuments.filter(x => x !== d) })}><X size={12} /></button>
+              </span>
+            ))}
+            {['DNI', 'Certificado médico', 'Foto', 'Carné de la liga'].filter(d => !form.requiredDocuments.includes(d)).map(d => (
+              <button key={d} type="button" className="btn btn-ghost btn-sm" style={{ padding: '2px 8px' }} onClick={() => addDoc(d)}>+ {d}</button>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <input className="form-control" value={docDraft} onChange={e => setDocDraft(e.target.value)} placeholder="Otro documento"
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addDoc(); } }} />
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => addDoc()} disabled={!docDraft.trim()}>Agregar</button>
+          </div>
+        </div>
+        <div className="form-group" style={{ gridColumn: '1/-1' }}>
+          <label style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer' }}>
+            <input type="checkbox" checked={form.requiresAuthorization} onChange={e => set({ requiresAuthorization: e.target.checked })} />
+            Pedir autorización del apoderado (viajes, salidas con menores)
+          </label>
+          {form.requiresAuthorization && (
+            <textarea className="form-control" rows={2} style={{ marginTop: 6 }} value={form.authorizationText} onChange={e => set({ authorizationText: e.target.value })}
+              placeholder="Autorizo a mi hijo(a) a participar en este torneo, incluidos los traslados con la delegación de la academia." />
+          )}
+          {form.requiresAuthorization && <small className="text-muted">La familia la acepta en la app. Si la firmó en papel, regístrala desde el plantel. No bloquea la convocatoria.</small>}
+        </div>
       </div>
     </Modal>
   );
@@ -169,6 +222,7 @@ export function TeamFormModal({ tournamentId, team, categories, staff, onClose, 
     birthYearTo: team?.birthYearTo ?? '',
     maxPlayers: team?.maxPlayers ?? '',
     notes: team?.notes || '',
+    matchFee: team?.matchFee ?? '',
     applyCoachToUpcoming: true,
   }));
   const [saving, setSaving] = useState(false);
@@ -191,6 +245,7 @@ export function TeamFormModal({ tournamentId, team, categories, staff, onClose, 
       headCoachId: form.headCoachId || null,
       assistantId: form.assistantId || null,
       birthYearFrom: num(form.birthYearFrom), birthYearTo: num(form.birthYearTo), maxPlayers: num(form.maxPlayers),
+      matchFee: form.matchFee === '' ? null : Number(form.matchFee),
     };
     setSaving(true);
     try {
@@ -264,13 +319,18 @@ export function TeamFormModal({ tournamentId, team, categories, staff, onClose, 
           <label>Notas</label>
           <input className="form-control" value={form.notes} onChange={e => set({ notes: e.target.value })} placeholder="Grupo, uniforme, etc." />
         </div>
+        <div className="form-group" style={{ gridColumn: '1/-1' }}>
+          <label>Honorario por partido del responsable (S/)</label>
+          <input type="number" min={0} step="0.50" className="form-control" value={form.matchFee} onChange={e => set({ matchFee: e.target.value })} placeholder="Vacío = sin honorario" />
+          <small className="text-muted">Lo cobra quien dirige el partido (titular o reemplazo) y figura presente en la asistencia de entrenadores. Con honorario, el partido no cuenta como sesión u hora en su planilla.</small>
+        </div>
       </div>
     </Modal>
   );
 }
 
 // ───────────────────────── Plantel ─────────────────────────
-export function RosterModal({ team, onClose, onSaved }) {
+export function RosterModal({ team, tournament, onClose, onSaved }) {
   const [candidates, setCandidates] = useState([]);
   const [players, setPlayers] = useState(() => team.players.map(p => ({ ...p })));
   const [query, setQuery] = useState('');
@@ -287,8 +347,21 @@ export function RosterModal({ team, onClose, onSaved }) {
   const visible = candidates.filter(c => !inRoster.has(c.studentId) && (!onlyTeamCats || c.inTeamCategories) &&
     c.fullName.toLowerCase().includes(query.trim().toLowerCase()));
 
+  const required = tournament?.requiredDocuments || [];
   const add = c => setPlayers(ps => [...ps, { studentId: c.studentId, fullName: c.fullName, categoryName: c.categoryName,
-    outsideBirthYears: c.outsideBirthYears, isActive: true, shirtNumber: null, position: '' }]);
+    outsideBirthYears: c.outsideBirthYears, isActive: true, shirtNumber: null, position: '', deliveredDocuments: [], isNew: true }]);
+  const toggleDoc = (id, doc) => setPlayers(ps => ps.map(p => {
+    if (p.studentId !== id) return p;
+    const docs = p.deliveredDocuments || [];
+    return { ...p, deliveredDocuments: docs.includes(doc) ? docs.filter(d => d !== doc) : [...docs, doc] };
+  }));
+  const paper = async p => {
+    try {
+      await api.post(`/tournaments/${tournament.id}/authorizations`, { studentId: p.studentId, note: 'Firmada en papel' });
+      update(p.studentId, { authorized: true, authorizationMethod: 'papel' });
+      toast.success('Autorización registrada');
+    } catch (e) { toast.error(errMsg(e, 'No se pudo registrar')); }
+  };
   const addAllVisible = () => visible.forEach(add);
   const update = (id, patch) => setPlayers(ps => ps.map(p => (p.studentId === id ? { ...p, ...patch } : p)));
   const remove = id => setPlayers(ps => ps.filter(p => p.studentId !== id));
@@ -299,7 +372,8 @@ export function RosterModal({ team, onClose, onSaved }) {
   const save = async () => {
     setSaving(true);
     try {
-      const body = { players: players.map(p => ({ studentId: p.studentId, shirtNumber: p.shirtNumber === '' || p.shirtNumber == null ? null : Number(p.shirtNumber), position: p.position || null })) };
+      const body = { players: players.map(p => ({ studentId: p.studentId, shirtNumber: p.shirtNumber === '' || p.shirtNumber == null ? null : Number(p.shirtNumber),
+        position: p.position || null, deliveredDocuments: p.deliveredDocuments || [] })) };
       const { data } = await api.put(`/tournaments/teams/${team.id}/players`, body);
       const extra = data.matchesUpdated ? ` · ${data.matchesUpdated} partido(s) por jugar actualizados` : '';
       toast.success(`Plantel guardado${extra}`);
@@ -360,7 +434,7 @@ export function RosterModal({ team, onClose, onSaved }) {
           <div className="table-wrap" style={{ maxHeight: 440, overflowY: 'auto' }}>
             <table className="table" style={{ width: '100%', fontSize: 13 }}>
               <thead>
-                <tr><th style={{ width: 70 }}>N°</th><th>Jugador</th><th style={{ width: 120 }}>Posición</th><th style={{ width: 36 }} /></tr>
+                <tr><th style={{ width: 70 }}>N°</th><th>Jugador</th><th style={{ width: 110 }}>Posición</th><th style={{ width: 36 }} /></tr>
               </thead>
               <tbody>
                 {players.length === 0 && <tr><td colSpan={4} className="text-muted">Agrega jugadores desde la lista.</td></tr>}
@@ -370,7 +444,7 @@ export function RosterModal({ team, onClose, onSaved }) {
                   return (
                     <tr key={p.studentId}>
                       <td>
-                        <input className="form-control" type="number" min={0} max={999} value={p.shirtNumber ?? ''} style={dup ? { borderColor: '#f59e0b' } : undefined}
+                        <input className="form-control" type="number" min={0} max={999} value={p.shirtNumber ?? ''} style={{ padding: '6px 4px', textAlign: 'center', minWidth: 52, ...(dup ? { borderColor: '#f59e0b' } : {}) }}
                           onChange={e => update(p.studentId, { shirtNumber: e.target.value })} title={dup ? 'Número repetido' : undefined} />
                       </td>
                       <td>
@@ -381,6 +455,28 @@ export function RosterModal({ team, onClose, onSaved }) {
                           {p.outsideBirthYears && ' · fuera de años'}
                           {!p.isActive && ' · retirado'}
                         </span>
+                        {!p.isNew && p.stats && p.stats.matches > 0 && (
+                          <span className="text-muted" style={{ display: 'block', fontSize: 11 }}>
+                            {p.stats.matches} PJ · {p.stats.minutes} min · {p.stats.goals} gol(es){p.stats.yellowCards ? ` · ${p.stats.yellowCards} TA` : ''}{p.stats.redCards ? ` · ${p.stats.redCards} TR` : ''}
+                          </span>
+                        )}
+                        <span style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 3 }}>
+                          {!p.isNew && p.fit && <span className="badge badge-success" style={{ fontSize: 10 }}>Apto</span>}
+                          {p.suspendedFor && <span className="badge badge-danger" style={{ fontSize: 10 }} title={p.suspendedFor}>Suspendido · {p.suspendedFor.split(':')[0]}</span>}
+                          {tournament?.requiresAuthorization && (p.authorized
+                            ? <span className="badge badge-muted" style={{ fontSize: 10 }}>Autorizado{p.authorizationMethod === 'papel' ? ' (papel)' : ''}</span>
+                            : p.isNew ? null : <button type="button" className="badge badge-warning" style={{ fontSize: 10, border: 'none', cursor: 'pointer' }}
+                                onClick={() => paper(p)} title="Registrar autorización firmada en papel">Sin autorización · registrar papel</button>)}
+                        </span>
+                        {required.length > 0 && (
+                          <span style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+                            {required.map(d => (
+                              <label key={d} style={{ fontSize: 11, display: 'inline-flex', gap: 3, alignItems: 'center', cursor: 'pointer' }}>
+                                <input type="checkbox" checked={(p.deliveredDocuments || []).includes(d)} onChange={() => toggleDoc(p.studentId, d)} />{d}
+                              </label>
+                            ))}
+                          </span>
+                        )}
                       </td>
                       <td><input className="form-control" value={p.position || ''} onChange={e => update(p.studentId, { position: e.target.value })} placeholder="—" /></td>
                       <td><button className="btn-icon text-danger" onClick={() => remove(p.studentId)} aria-label="Quitar"><Trash2 size={15} /></button></td>
@@ -596,11 +692,13 @@ export function MatchCallsModal({ match, onClose, onChanged }) {
   const [calls, setCalls] = useState(null);
   const [candidates, setCandidates] = useState([]);
   const [adding, setAdding] = useState('');
+  const [suspended, setSuspended] = useState([]);
   const load = () => api.get(`/calendar/events/${match.id}/calls`).then(r => setCalls(r.data)).catch(() => setCalls([]));
 
   useEffect(() => {
     load();
     if (match.teamId) api.get(`/tournaments/teams/${match.teamId}/candidates`).then(r => setCandidates(r.data)).catch(() => {});
+    api.get(`/tournaments/matches/${match.id}/suspensions`).then(r => setSuspended(r.data)).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [match.id]);
 
@@ -631,6 +729,13 @@ export function MatchCallsModal({ match, onClose, onChanged }) {
             ))}
           </select>
           <button className="btn btn-primary btn-sm" onClick={add} disabled={!adding}><Plus size={14} /> Convocar</button>
+        </div>
+      )}
+      {suspended.filter(s => !s.overridden).length > 0 && (
+        <div className="alert alert-warning" style={{ fontSize: 12, marginBottom: 12, display: 'block' }}>
+          <strong>No convocados por suspensión:</strong>
+          {suspended.filter(s => !s.overridden).map(s => <div key={s.studentId}>{s.studentName}: {s.reason}</div>)}
+          <div style={{ marginTop: 4 }}>Si el reglamento lo permite, convócalo arriba: la suspensión queda levantada.</div>
         </div>
       )}
       {calls === null ? <p>Cargando…</p> : calls.length === 0 ? (

@@ -37,6 +37,8 @@ public class AppDbContext : DbContext
     public DbSet<TournamentPlayer> TournamentPlayers => Set<TournamentPlayer>();
     public DbSet<TournamentFee> TournamentFees => Set<TournamentFee>();
     public DbSet<TournamentCharge> TournamentCharges => Set<TournamentCharge>();
+    public DbSet<TournamentAuthorization> TournamentAuthorizations => Set<TournamentAuthorization>();
+    public DbSet<TournamentSuspension> TournamentSuspensions => Set<TournamentSuspension>();
     public DbSet<Event> Events => Set<Event>();
     public DbSet<EventCall> EventCalls => Set<EventCall>();
     public DbSet<Announcement> Announcements => Set<Announcement>();
@@ -730,6 +732,21 @@ public class AppDbContext : DbContext
             entity.Property(e => e.ContactName).HasColumnName("contact_name").HasMaxLength(150);
             entity.Property(e => e.ContactPhone).HasColumnName("contact_phone").HasMaxLength(30);
             entity.Property(e => e.Rules).HasColumnName("rules").HasMaxLength(4000);
+            entity.Property(e => e.YellowCardsForSuspension).HasColumnName("yellow_cards_for_suspension");
+            entity.Property(e => e.RedCardSuspensionMatches).HasColumnName("red_card_suspension_matches");
+            entity.Property(e => e.RequiresAuthorization).HasColumnName("requires_authorization");
+            entity.Property(e => e.AuthorizationText).HasColumnName("authorization_text").HasMaxLength(2000);
+            entity.Property(e => e.RequiredDocuments)
+                  .HasColumnName("required_documents")
+                  .HasColumnType("jsonb")
+                  .HasDefaultValueSql("'[]'::jsonb")
+                  .HasConversion(
+                      v => System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions)null),
+                      v => System.Text.Json.JsonSerializer.Deserialize<List<string>>(v, (System.Text.Json.JsonSerializerOptions)null) ?? new List<string>(),
+                      new Microsoft.EntityFrameworkCore.ChangeTracking.ValueComparer<List<string>>(
+                          (a, b) => (a ?? new List<string>()).SequenceEqual(b ?? new List<string>()),
+                          v => v.Aggregate(0, (h, x) => HashCode.Combine(h, x)),
+                          v => v.ToList()));
 
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
@@ -773,6 +790,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.BirthYearFrom).HasColumnName("birth_year_from");
             entity.Property(e => e.BirthYearTo).HasColumnName("birth_year_to");
             entity.Property(e => e.MaxPlayers).HasColumnName("max_players");
+            entity.Property(e => e.MatchFee).HasColumnName("match_fee").HasColumnType("numeric(10,2)");
             entity.Property(e => e.Notes).HasColumnName("notes").HasMaxLength(1000);
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
@@ -799,6 +817,17 @@ public class AppDbContext : DbContext
             entity.Property(e => e.StudentId).HasColumnName("student_id").IsRequired();
             entity.Property(e => e.ShirtNumber).HasColumnName("shirt_number");
             entity.Property(e => e.Position).HasColumnName("position").HasMaxLength(60);
+            entity.Property(e => e.DeliveredDocuments)
+                  .HasColumnName("delivered_documents")
+                  .HasColumnType("jsonb")
+                  .HasDefaultValueSql("'[]'::jsonb")
+                  .HasConversion(
+                      v => System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions)null),
+                      v => System.Text.Json.JsonSerializer.Deserialize<List<string>>(v, (System.Text.Json.JsonSerializerOptions)null) ?? new List<string>(),
+                      new Microsoft.EntityFrameworkCore.ChangeTracking.ValueComparer<List<string>>(
+                          (a, b) => (a ?? new List<string>()).SequenceEqual(b ?? new List<string>()),
+                          v => v.Aggregate(0, (h, x) => HashCode.Combine(h, x)),
+                          v => v.ToList()));
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
             entity.HasIndex(e => new { e.TeamId, e.StudentId }).IsUnique();
@@ -809,6 +838,49 @@ public class AppDbContext : DbContext
                   .HasForeignKey(e => e.TeamId).OnDelete(DeleteBehavior.Cascade);
             entity.HasOne(e => e.Student).WithMany()
                   .HasForeignKey(e => e.StudentId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ----------------------------------------------------------------
+        // TournamentAuthorization / TournamentSuspension
+        // ----------------------------------------------------------------
+        modelBuilder.Entity<TournamentAuthorization>(entity =>
+        {
+            entity.ToTable("tournament_authorizations");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.AcademyId).HasColumnName("academy_id").IsRequired();
+            entity.Property(e => e.TournamentId).HasColumnName("tournament_id").IsRequired();
+            entity.Property(e => e.StudentId).HasColumnName("student_id").IsRequired();
+            entity.Property(e => e.AcceptedAt).HasColumnName("accepted_at");
+            entity.Property(e => e.AcceptedByUserId).HasColumnName("accepted_by_user_id");
+            entity.Property(e => e.AcceptedByName).HasColumnName("accepted_by_name").HasMaxLength(150);
+            entity.Property(e => e.Method).HasColumnName("method").HasMaxLength(10).IsRequired();
+            entity.Property(e => e.Note).HasColumnName("note").HasMaxLength(300);
+            entity.Property(e => e.TextSnapshot).HasColumnName("text_snapshot").HasMaxLength(2000);
+            entity.HasIndex(e => new { e.TournamentId, e.StudentId }).IsUnique();
+            entity.HasQueryFilter(e => !e.Tournament.IsDeleted);
+            entity.HasOne(e => e.Tournament).WithMany().HasForeignKey(e => e.TournamentId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Student).WithMany().HasForeignKey(e => e.StudentId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<TournamentSuspension>(entity =>
+        {
+            entity.ToTable("tournament_suspensions");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.AcademyId).HasColumnName("academy_id").IsRequired();
+            entity.Property(e => e.TeamId).HasColumnName("team_id").IsRequired();
+            entity.Property(e => e.StudentId).HasColumnName("student_id").IsRequired();
+            entity.Property(e => e.EventId).HasColumnName("event_id").IsRequired();
+            entity.Property(e => e.SourceEventId).HasColumnName("source_event_id").IsRequired();
+            entity.Property(e => e.Reason).HasColumnName("reason").HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Overridden).HasColumnName("overridden");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.HasIndex(e => new { e.EventId, e.StudentId }).IsUnique();
+            entity.HasIndex(e => e.TeamId);
+            entity.HasQueryFilter(e => !e.Team.IsDeleted);
+            entity.HasOne(e => e.Team).WithMany().HasForeignKey(e => e.TeamId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Student).WithMany().HasForeignKey(e => e.StudentId).OnDelete(DeleteBehavior.Cascade);
         });
 
         // ----------------------------------------------------------------

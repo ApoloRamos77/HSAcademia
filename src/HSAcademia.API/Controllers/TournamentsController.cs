@@ -145,6 +145,29 @@ public class TournamentsController : ControllerBase
         return Ok(await _billing.DecideAsync(AcademyId, chargeId, dto, name?.Trim()));
     });
 
+    // ── Fase C: suspensiones y autorizaciones ──
+    [HttpGet("matches/{eventId:guid}/suspensions")]
+    public Task<IActionResult> MatchSuspensions(Guid eventId, [FromServices] TournamentComplianceService compliance) =>
+        Run(async () => Ok(await compliance.MatchSuspensionsAsync(AcademyId, eventId)));
+
+    /// <summary>Registra la autorización firmada en papel.</summary>
+    [HttpPost("{id:guid}/authorizations")]
+    [RequirePermission(Permissions.EventsManage)]
+    public Task<IActionResult> Authorize(Guid id, [FromBody] AuthorizeTournamentDto dto, [FromServices] TournamentComplianceService compliance,
+        [FromServices] HSAcademia.Infrastructure.Persistence.AppDbContext db) => Run(async () =>
+    {
+        var uid = User.GetUserId();
+        var name = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
+            db.Users.Where(u => u.Id == uid).Select(u => u.FirstName + " " + u.LastName));
+        await compliance.AuthorizeAsync(AcademyId, id, dto.StudentId, "papel", uid, name?.Trim(), dto.Note);
+        return NoContent();
+    });
+
+    [HttpDelete("{id:guid}/authorizations/{studentId:guid}")]
+    [RequirePermission(Permissions.EventsManage)]
+    public Task<IActionResult> RevokeAuthorization(Guid id, Guid studentId, [FromServices] TournamentComplianceService compliance) =>
+        Run(async () => { await compliance.RevokeAsync(AcademyId, id, studentId); return NoContent(); });
+
     // ── Gastos del torneo ──
     [HttpPost("{id:guid}/expenses")]
     [RequirePermission(Permissions.FinancesExpenses, AcademyWide = true)]

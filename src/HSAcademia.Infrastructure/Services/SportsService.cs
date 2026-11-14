@@ -15,10 +15,13 @@ public class SportsService
     private readonly AppDbContext _db;
     private readonly AuditService _audit;
 
-    public SportsService(AppDbContext db, AuditService audit)
+    private readonly TournamentComplianceService? _compliance;
+
+    public SportsService(AppDbContext db, AuditService audit, TournamentComplianceService? compliance = null)
     {
         _db = db;
         _audit = audit;
+        _compliance = compliance;
     }
 
     // ═════════════════════════════════════════════════════════════
@@ -365,6 +368,8 @@ public class SportsService
         ev.GoalsFor = dto.GoalsFor;
         ev.GoalsAgainst = dto.GoalsAgainst;
         ev.MatchNotes = dto.MatchNotes?.Trim();
+        if (ev.GoalsFor.HasValue && ev.GoalsAgainst.HasValue && ev.MatchStatus is null or MatchStatus.Scheduled)
+            ev.MatchStatus = MatchStatus.Played;
         ev.UpdatedAt = DateTime.UtcNow;
 
         var existing = await _db.MatchPlayerStats.Where(s => s.EventId == eventId).ToListAsync();
@@ -391,6 +396,8 @@ public class SportsService
         _audit.Add(academyId, "calendar.match.result", nameof(Event), eventId,
             new { dto.GoalsFor, dto.GoalsAgainst, players = dto.Players.Count });
         await _db.SaveChangesAsync();
+        // Las tarjetas del partido pueden suspender a alguien en los siguientes.
+        if (_compliance != null && ev.TournamentTeamId.HasValue) await _compliance.TrySyncTeamAsync(ev.TournamentTeamId.Value);
         return await GetMatchResultAsync(academyId, eventId);
     }
 

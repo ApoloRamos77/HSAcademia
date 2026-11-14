@@ -20,6 +20,11 @@ public class TournamentDto
     public string? ContactName { get; set; }
     public string? ContactPhone { get; set; }
     public string? Rules { get; set; }
+    public int? YellowCardsForSuspension { get; set; }
+    public int? RedCardSuspensionMatches { get; set; }
+    public bool RequiresAuthorization { get; set; }
+    public string? AuthorizationText { get; set; }
+    public List<string> RequiredDocuments { get; set; } = new();
 
     public int TeamsCount { get; set; }
     public int MatchesCount { get; set; }
@@ -48,6 +53,13 @@ public class CreateTournamentDto
     [MaxLength(150)] public string? ContactName { get; set; }
     [MaxLength(30)] public string? ContactPhone { get; set; }
     [MaxLength(4000)] public string? Rules { get; set; }
+
+    // Fase C (opcionales: null = conservar)
+    [Range(0, 20)] public int? YellowCardsForSuspension { get; set; }
+    [Range(0, 20)] public int? RedCardSuspensionMatches { get; set; }
+    public bool? RequiresAuthorization { get; set; }
+    [MaxLength(2000)] public string? AuthorizationText { get; set; }
+    public List<string>? RequiredDocuments { get; set; }
 }
 
 public class UpdateTournamentDto : CreateTournamentDto { }
@@ -76,6 +88,8 @@ public class TournamentTeamDto
     public int? BirthYearTo { get; set; }
     public int? MaxPlayers { get; set; }
     public string? Notes { get; set; }
+    public decimal? MatchFee { get; set; }
+    public TeamRecordDto Record { get; set; } = new();
     public List<TournamentPlayerDto> Players { get; set; } = new();
     public List<string> Warnings { get; set; } = new();
 }
@@ -91,6 +105,16 @@ public class TournamentPlayerDto
     public bool IsActive { get; set; }
     /// <summary>Fuera de los años de nacimiento del reglamento (aviso, no bloqueo).</summary>
     public bool OutsideBirthYears { get; set; }
+    public List<string> DeliveredDocuments { get; set; } = new();
+    public List<string> MissingDocuments { get; set; } = new();
+    /// <summary>null = el torneo no pide autorización.</summary>
+    public bool? Authorized { get; set; }
+    public string? AuthorizationMethod { get; set; }
+    /// <summary>Próximo partido que no juega por suspensión y motivo.</summary>
+    public string? SuspendedFor { get; set; }
+    /// <summary>Apto: documentos completos, autorizado (si se pide) y sin suspensión.</summary>
+    public bool Fit { get; set; }
+    public PlayerTournamentStatsDto Stats { get; set; } = new();
 }
 
 public class TournamentMatchDto
@@ -131,6 +155,8 @@ public class SaveTournamentTeamDto
     [Range(1900, 2100)] public int? BirthYearTo { get; set; }
     [Range(1, 200)] public int? MaxPlayers { get; set; }
     [MaxLength(1000)] public string? Notes { get; set; }
+    /// <summary>Honorario por partido del responsable (null o 0 = sin honorario).</summary>
+    [Range(0, 100000)] public decimal? MatchFee { get; set; }
     /// <summary>Al cambiar de responsable, pasar también los partidos por jugar que tenía el anterior (por defecto sí).</summary>
     public bool ApplyCoachToUpcoming { get; set; } = true;
 }
@@ -140,6 +166,8 @@ public class SaveTournamentPlayerDto
     public Guid StudentId { get; set; }
     [Range(0, 999)] public int? ShirtNumber { get; set; }
     [MaxLength(60)] public string? Position { get; set; }
+    /// <summary>Documentos entregados (null = conservar).</summary>
+    public List<string>? DeliveredDocuments { get; set; }
 }
 
 public class SaveTournamentRosterDto
@@ -215,4 +243,72 @@ public class GeneratedSkipDto
 {
     public DateTime Date { get; set; }
     public string Reason { get; set; } = string.Empty;
+}
+
+// ─────────────────────────── Fase C ───────────────────────────
+
+public class TournamentSuspensionDto
+{
+    public Guid StudentId { get; set; }
+    public string StudentName { get; set; } = string.Empty;
+    public Guid EventId { get; set; }
+    public string Reason { get; set; } = string.Empty;
+    public bool Overridden { get; set; }
+}
+
+public class TeamRecordDto
+{
+    public int Played { get; set; }
+    public int Won { get; set; }
+    public int Drawn { get; set; }
+    public int Lost { get; set; }
+    public int GoalsFor { get; set; }
+    public int GoalsAgainst { get; set; }
+    public int Points { get; set; }
+}
+
+public class MatchResultLineDto
+{
+    public DateTime Date { get; set; }
+    public string? Round { get; set; }
+    public string? Opponent { get; set; }
+    public int GoalsFor { get; set; }
+    public int GoalsAgainst { get; set; }
+}
+
+public class PlayerTournamentStatsDto
+{
+    public int Matches { get; set; }
+    public int Minutes { get; set; }
+    public int Goals { get; set; }
+    public int YellowCards { get; set; }
+    public int RedCards { get; set; }
+}
+
+/// <summary>Torneo de un alumno para la app de la familia.</summary>
+public class MyTournamentDto
+{
+    public Guid TournamentId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Organizer { get; set; } = string.Empty;
+    public int Status { get; set; }
+    public Guid StudentId { get; set; }
+    public string StudentName { get; set; } = string.Empty;
+    public string TeamName { get; set; } = string.Empty;
+    public int? ShirtNumber { get; set; }
+    public bool RequiresAuthorization { get; set; }
+    public string? AuthorizationText { get; set; }
+    public bool Authorized { get; set; }
+    public DateTime? AuthorizedAt { get; set; }
+    public List<string> MissingDocuments { get; set; } = new();
+    public string? SuspendedFor { get; set; }
+    public TeamRecordDto Record { get; set; } = new();
+    public string? NextMatch { get; set; }
+    public List<MatchResultLineDto> LastResults { get; set; } = new();
+}
+
+public class AuthorizeTournamentDto
+{
+    public Guid StudentId { get; set; }
+    [MaxLength(300)] public string? Note { get; set; }
 }

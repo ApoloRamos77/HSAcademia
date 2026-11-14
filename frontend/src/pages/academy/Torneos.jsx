@@ -197,14 +197,23 @@ function TournamentDetail({ id, onBack }) {
       )}
       {tab === 'finance' && canFinance && <TorneoFinanzas t={t} can={can} />}
       {tab === 'rules' && (
-        <div className="card" style={{ padding: 18, whiteSpace: 'pre-wrap', fontSize: 14 }}>
-          {t.rules || <span className="text-muted">Sin reglamento registrado. Anota documentos exigidos, tiempos, cambios y tope de planilla en Editar.</span>}
+        <div className="card" style={{ padding: 18, fontSize: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <span className="badge badge-info">{t.yellowCardsForSuspension ? `${t.yellowCardsForSuspension} amarillas = 1 partido` : 'Amarillas sin control'}</span>
+            <span className="badge badge-info">{t.redCardSuspensionMatches ? `Roja = ${t.redCardSuspensionMatches} partido(s)` : 'Rojas sin control'}</span>
+            <span className="badge badge-info">{t.requiresAuthorization ? 'Pide autorización del apoderado' : 'Sin autorización'}</span>
+            {t.requiredDocuments?.length > 0 && <span className="badge badge-info">Documentos: {t.requiredDocuments.join(', ')}</span>}
+          </div>
+          {t.requiresAuthorization && t.authorizationText && <div className="text-muted" style={{ fontSize: 13 }}>Texto de la autorización: “{t.authorizationText}”</div>}
+          <div style={{ whiteSpace: 'pre-wrap' }}>
+            {t.rules || <span className="text-muted">Sin reglamento registrado. Anota tiempos, cambios y tope de planilla en Editar.</span>}
+          </div>
         </div>
       )}
 
       {modal?.kind === 'tournament' && <TournamentFormModal tournament={t} onClose={close} onSaved={saved} />}
       {modal?.kind === 'team' && <TeamFormModal tournamentId={t.id} team={modal.team} categories={support.categories} staff={support.staff} onClose={close} onSaved={saved} />}
-      {modal?.kind === 'roster' && <RosterModal team={modal.team} onClose={close} onSaved={saved} />}
+      {modal?.kind === 'roster' && <RosterModal team={modal.team} tournament={t} onClose={close} onSaved={saved} />}
       {modal?.kind === 'generate' && <GenerateMatchesModal team={modal.team} tournament={t} headquarters={support.headquarters} onClose={close} onDone={load} />}
       {modal?.kind === 'match' && (
         <MatchFormModal match={modal.match} team={modal.team} teams={t.teams} headquarters={support.headquarters} staff={support.staff} onClose={close} onSaved={saved} />
@@ -268,11 +277,15 @@ function TeamsTab({ t, onNew, onEdit, onRoster, onGenerate, onMatch, onDelete })
                   <span><UserCheck size={13} /> Responsable: <strong>{team.headCoachName || 'Sin asignar'}</strong></span>
                   {team.assistantName && <span><Users size={13} /> Asistente: {team.assistantName}</span>}
                   <span><Shirt size={13} /> Plantel: {team.players.length}{team.maxPlayers ? ` / ${team.maxPlayers}` : ''} jugadores</span>
+                  {team.record?.played > 0 && (
+                    <span><Trophy size={13} /> {team.record.played} PJ · {team.record.won}G {team.record.drawn}E {team.record.lost}P · {team.record.goalsFor}-{team.record.goalsAgainst} · <strong>{team.record.points} pts</strong></span>
+                  )}
+                  {team.matchFee > 0 && <span className="text-muted" style={{ fontSize: 12 }}>Honorario por partido: S/ {Number(team.matchFee).toFixed(2)}</span>}
                   <span><CalendarDays size={13} /> {upcoming.length} partido(s) por jugar
                     {upcoming[0] && ` · próximo ${fmtDate(upcoming[0].startTime)} ${timeOf(upcoming[0].startTime)}`}</span>
                 </div>
                 {team.warnings.length > 0 && (
-                  <div className="alert alert-warning" style={{ fontSize: 12, padding: '8px 10px', margin: 0 }}>
+                  <div className="alert alert-warning" style={{ fontSize: 12, padding: '8px 10px', margin: 0, display: 'block' }}>
                     {team.warnings.map(w => <div key={w}><AlertTriangle size={12} /> {w}</div>)}
                   </div>
                 )}
