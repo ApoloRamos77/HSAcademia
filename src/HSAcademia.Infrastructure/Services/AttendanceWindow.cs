@@ -29,12 +29,20 @@ public static class AttendanceWindow
     /// <summary>Por qué no se puede marcar ahora; null si se puede.</summary>
     public static string? BlockReason(Event ev, bool isAdmin, DateTime? markedAt = null)
     {
+        var pending = PendingMatchReason(ev);
+        if (pending != null) return pending;
         var now = AcademyClock.WallNow;
         if (now < OpensAt(ev))
             return $"La lista abre a las {OpensAt(ev):HH:mm}, {OpensMinutesBefore} minutos antes del inicio.";
         if (isAdmin || now < ClosesAt(ev) || (markedAt.HasValue && MarkedInTime(ev, markedAt.Value))) return null;
         return "El plazo para marcar venció. Solo un administrador puede modificarla.";
     }
+
+    /// <summary>Fecha de torneo sin hora o sin rival: no se toma asistencia (ni de alumnos ni de entrenadores).</summary>
+    public static string? PendingMatchReason(Event ev) =>
+        ev.TimePending || (ev.TournamentTeamId != null && string.IsNullOrWhiteSpace(ev.OpponentTeam))
+            ? "Registra la hora y el rival del partido antes de tomar asistencia."
+            : null;
 
     private static DateTime ToWall(DateTime instant) =>
         DateTime.SpecifyKind(TimeZoneInfo.ConvertTimeFromUtc(instant.ToUniversalTime(), AcademyClock.Zone), DateTimeKind.Utc);

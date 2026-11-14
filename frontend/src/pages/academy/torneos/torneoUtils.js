@@ -12,8 +12,24 @@ export const FORMATS = [
 
 export const SCHEDULE_MODES = [
   { value: 1, label: 'Un solo día', hint: 'Relámpago o festival de una jornada' },
-  { value: 2, label: 'Rango de fechas', hint: 'Ej. sábados y domingos del 15/11 al 20/12' },
-  { value: 3, label: 'Continuo', hint: 'Liga o temporada; el fin es opcional' },
+  { value: 4, label: 'Días seguidos', hint: 'Todos los días entre el inicio y el fin' },
+  { value: 2, label: 'Semanal', hint: 'Solo los días marcados (ej. sábados y domingos)' },
+];
+/** Torneos antiguos "continuos": se siguen mostrando al editarlos. */
+export const LEGACY_SCHEDULE = { value: 3, label: 'Continuo (temporada)', hint: 'Fin opcional; usa los días marcados' };
+
+export const MODALITIES = [
+  { value: 7, label: 'Fútbol 7' },
+  { value: 9, label: 'Fútbol 9' },
+  { value: 11, label: 'Fútbol 11' },
+  { value: 5, label: 'Fútbol 5 / futsal' },
+  { value: 0, label: 'Otra' },
+];
+export const LEVELS = [
+  { value: 1, label: 'Formativo' },
+  { value: 2, label: 'Intermedio' },
+  { value: 3, label: 'Competitivo' },
+  { value: 0, label: 'Sin definir' },
 ];
 
 export const STATUSES = [
@@ -64,6 +80,7 @@ export const scheduleText = t => {
   if (!t.startDate) return 'Sin fechas';
   const days = playDaysText(t.playDays);
   if (t.scheduleMode === 1) return `Un día · ${short(t.startDate)}`;
+  if (t.scheduleMode === 4) return `Días seguidos · ${short(t.startDate)} – ${t.endDate ? short(t.endDate) : '…'}`;
   if (t.scheduleMode === 3) return `Continuo desde ${short(t.startDate)}${t.endDate ? ` hasta ${short(t.endDate)}` : ''}${days ? ` · ${days}` : ''}`;
   return `${days ? `${days} · ` : ''}${short(t.startDate)} – ${t.endDate ? short(t.endDate) : '…'}`;
 };

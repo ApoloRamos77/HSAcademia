@@ -11,10 +11,10 @@ import {
   Shirt, AlertTriangle, Phone, ChevronRight, Send, UserCheck,
 } from 'lucide-react';
 import {
-  TournamentFormModal, TeamFormModal, RosterModal, GenerateMatchesModal, MatchFormModal, MatchCallsModal,
+  TournamentFormModal, TeamFormModal, RosterModal, GenerateMatchesModal, MatchFormModal, MatchCallsModal, ParticipationModal,
 } from './torneos/TorneoModals';
 import {
-  FORMATS, STATUSES, MATCH_STATUSES, labelOf, scheduleText, fmtDate, timeOf, dateOf, errMsg, todayLima,
+  FORMATS, MODALITIES, LEVELS, STATUSES, MATCH_STATUSES, labelOf, scheduleText, fmtDate, timeOf, dateOf, errMsg, todayLima,
 } from './torneos/torneoUtils';
 
 const STATUS_FILTERS = [{ value: 0, label: 'Todos' }, ...STATUSES];
@@ -76,7 +76,7 @@ export default function Torneos() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
                   <div>
                     <strong style={{ fontSize: 16 }}>{t.name}</strong>
-                    <div className="text-muted" style={{ fontSize: 12 }}>{t.organizer} · {labelOf(FORMATS, t.format).label}</div>
+                    <div className="text-muted" style={{ fontSize: 12 }}>{t.organizer} · {labelOf(MODALITIES, t.modality).label}{t.level ? ` · ${labelOf(LEVELS, t.level).label}` : ''}</div>
                   </div>
                   <span className={`badge ${st.badge}`}>{st.label}</span>
                 </div>
@@ -85,7 +85,7 @@ export default function Torneos() {
                   <span><MapPin size={13} /> {t.mainLocation}</span>
                 </div>
                 <div style={{ display: 'flex', gap: 14, fontSize: 12, borderTop: '1px solid var(--border)', paddingTop: 10, alignItems: 'center' }}>
-                  <span><Users size={13} /> {t.teamsCount} equipo(s)</span>
+                  <span><Users size={13} /> {t.teamsCount} grupo(s)</span>
                   <span><Trophy size={13} /> {t.matchesPlayed}/{t.matchesCount} jugados</span>
                   {t.nextMatchAt && <span style={{ marginLeft: 'auto' }}>Próximo: {fmtDate(t.nextMatchAt)} {timeOf(t.nextMatchAt)}</span>}
                   {!t.nextMatchAt && <ChevronRight size={16} style={{ marginLeft: 'auto', opacity: 0.6 }} />}
@@ -107,7 +107,7 @@ export default function Torneos() {
 // ═══════════════════════════════ Detalle ═══════════════════════════════
 function TournamentDetail({ id, onBack }) {
   const [t, setT] = useState(null);
-  const [tab, setTab] = useState('teams');
+  const [tab, setTab] = useState('matches');
   const [support, setSupport] = useState({ categories: [], headquarters: [], staff: [] });
   const [modal, setModal] = useState(null); // { kind, ...data }
   const [confirm, setConfirm] = useState(null);
@@ -158,7 +158,10 @@ function TournamentDetail({ id, onBack }) {
         <div>
           <h2 className="page-title"><Trophy size={26} /> {t.name} <span className={`badge ${st.badge}`} style={{ fontSize: 12 }}>{st.label}</span></h2>
           <p className="page-subtitle" style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-            <span>{t.organizer} · {labelOf(FORMATS, t.format).label}</span>
+            <span>{t.organizer} · {labelOf(MODALITIES, t.modality).label}{t.level ? ` · ${labelOf(LEVELS, t.level).label}` : ''} · {labelOf(FORMATS, t.format).label}</span>
+            {(t.inscriptionFee || t.refereeFee) && (
+              <span>{t.inscriptionFee ? `Inscripción S/ ${Number(t.inscriptionFee).toFixed(2)}` : ''}{t.inscriptionFee && t.refereeFee ? ' · ' : ''}{t.refereeFee ? `Arbitraje S/ ${Number(t.refereeFee).toFixed(2)} por partido` : ''}</span>
+            )}
             <span><CalendarDays size={13} /> {scheduleText(t)}</span>
             <span><MapPin size={13} /> {t.mainLocation}</span>
             {t.contactName && <span><Phone size={13} /> {t.contactName}{t.contactPhone ? ` · ${t.contactPhone}` : ''}</span>}
@@ -171,23 +174,23 @@ function TournamentDetail({ id, onBack }) {
       </div>
 
       <div className="stats-grid" style={{ marginBottom: 16 }}>
-        <Stat label="Equipos" value={t.teamsCount} />
-        <Stat label="Jugadores" value={t.teams.reduce((n, x) => n + x.players.length, 0)} />
+        <Stat label="Por completar (hora / rival)" value={t.matches.filter(m => m.needsDetails).length} />
+        <Stat label="Alumnos" value={t.teams.reduce((n, x) => n + x.players.length, 0)} />
         <Stat label="Partidos jugados" value={`${t.matchesPlayed}/${t.matchesCount}`} />
         <Stat label="Próximo partido" value={t.nextMatchAt ? `${fmtDate(t.nextMatchAt)} ${timeOf(t.nextMatchAt)}` : '—'} />
       </div>
 
       <div className="tabs" style={{ maxWidth: 680, overflowX: 'auto' }}>
+        <button className={`tab-pill ${tab === 'matches' ? 'active' : ''}`} onClick={() => setTab('matches')}>Fechas ({t.matchesCount})</button>
         <button className={`tab-pill ${tab === 'teams' ? 'active' : ''}`} onClick={() => setTab('teams')}>
-          Equipos y planteles {warnings > 0 && <AlertTriangle size={12} style={{ marginLeft: 4 }} />}
+          Categorías y alumnos {warnings > 0 && <AlertTriangle size={12} style={{ marginLeft: 4 }} />}
         </button>
-        <button className={`tab-pill ${tab === 'matches' ? 'active' : ''}`} onClick={() => setTab('matches')}>Partidos ({t.matchesCount})</button>
         {canFinance && <button className={`tab-pill ${tab === 'finance' ? 'active' : ''}`} onClick={() => setTab('finance')}>Cobros y gastos</button>}
         <button className={`tab-pill ${tab === 'rules' ? 'active' : ''}`} onClick={() => setTab('rules')}>Reglamento</button>
       </div>
 
       {tab === 'teams' && (
-        <TeamsTab t={t} onNew={() => setModal({ kind: 'team' })} onEdit={team => setModal({ kind: 'team', team })}
+        <TeamsTab t={t} onNew={() => setModal({ kind: 'participation' })} onEdit={team => setModal({ kind: 'team', team })}
           onRoster={team => setModal({ kind: 'roster', team })} onGenerate={team => setModal({ kind: 'generate', team })}
           onMatch={team => setModal({ kind: 'match', team })} onDelete={team => setConfirm({ kind: 'team', team })} />
       )}
@@ -219,11 +222,14 @@ function TournamentDetail({ id, onBack }) {
         <MatchFormModal match={modal.match} team={modal.team} teams={t.teams} headquarters={support.headquarters} staff={support.staff} onClose={close} onSaved={saved} />
       )}
       {modal?.kind === 'calls' && <MatchCallsModal match={modal.match} onClose={close} onChanged={load} />}
+      {modal?.kind === 'participation' && (
+        <ParticipationModal tournament={t} categories={support.categories} staff={support.staff} onClose={close} onSaved={() => { close(); load(); }} />
+      )}
 
       <ConfirmDialog
         isOpen={!!confirm}
-        title={confirm?.kind === 'tournament' ? 'Eliminar torneo' : confirm?.kind === 'team' ? 'Retirar equipo' : 'Eliminar partido'}
-        message={confirm?.kind === 'tournament' ? `¿Eliminar "${t.name}"?` : confirm?.kind === 'team' ? `¿Retirar a ${confirm.team.name} del torneo?` : '¿Eliminar este partido?'}
+        title={confirm?.kind === 'tournament' ? 'Eliminar torneo' : confirm?.kind === 'team' ? 'Quitar del torneo' : 'Eliminar fecha'}
+        message={confirm?.kind === 'tournament' ? `¿Eliminar "${t.name}"?` : confirm?.kind === 'team' ? `¿Quitar a ${confirm.team.name} del torneo?` : '¿Eliminar esta fecha?'}
         detail={confirm?.kind === 'match' ? 'Se quita del calendario y de la agenda de las familias.'
           : 'Se quitan los partidos por jugar que aún no tienen asistencia. Lo ya jugado queda en el historial.'}
         confirmLabel="Sí, eliminar"
@@ -249,12 +255,12 @@ function TeamsTab({ t, onNew, onEdit, onRoster, onGenerate, onMatch, onDelete })
   return (
     <>
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
-        <button className="btn btn-primary" onClick={onNew}><Plus size={15} /> Inscribir equipo</button>
+        <button className="btn btn-primary" onClick={onNew}><Plus size={15} /> Agregar categorías</button>
       </div>
       {t.teams.length === 0 ? (
         <div className="card" style={{ padding: 24, textAlign: 'center' }}>
           <Users size={32} style={{ opacity: 0.4 }} />
-          <p className="text-muted">Inscribe un equipo por cada categoría que participa. Una categoría puede llevar más de un equipo (Sub-12 A, Sub-12 B).</p>
+          <p className="text-muted">Agrega las categorías que juegan el torneo (o hazlo desde el Calendario con un evento de tipo Torneo). Se crean sus días con hora y rival por definir.</p>
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 16 }}>
@@ -276,7 +282,7 @@ function TeamsTab({ t, onNew, onEdit, onRoster, onGenerate, onMatch, onDelete })
                 <div style={{ fontSize: 13, display: 'flex', flexDirection: 'column', gap: 3 }}>
                   <span><UserCheck size={13} /> Responsable: <strong>{team.headCoachName || 'Sin asignar'}</strong></span>
                   {team.assistantName && <span><Users size={13} /> Asistente: {team.assistantName}</span>}
-                  <span><Shirt size={13} /> Plantel: {team.players.length}{team.maxPlayers ? ` / ${team.maxPlayers}` : ''} jugadores</span>
+                  <span><Shirt size={13} /> {team.autoRoster ? 'Alumnos' : 'Plantel'}: {team.players.length}{team.maxPlayers ? ` / ${team.maxPlayers}` : ''}</span>
                   {team.record?.played > 0 && (
                     <span><Trophy size={13} /> {team.record.played} PJ · {team.record.won}G {team.record.drawn}E {team.record.lost}P · {team.record.goalsFor}-{team.record.goalsAgainst} · <strong>{team.record.points} pts</strong></span>
                   )}
@@ -300,9 +306,9 @@ function TeamsTab({ t, onNew, onEdit, onRoster, onGenerate, onMatch, onDelete })
                   </div>
                 )}
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 'auto' }}>
-                  <button className="btn btn-secondary btn-sm" onClick={() => onRoster(team)}><Shirt size={14} /> Plantel</button>
-                  <button className="btn btn-secondary btn-sm" onClick={() => onGenerate(team)}><CalendarPlus size={14} /> Generar fechas</button>
-                  <button className="btn btn-secondary btn-sm" onClick={() => onMatch(team)}><Plus size={14} /> Partido</button>
+                  <button className="btn btn-secondary btn-sm" onClick={() => onRoster(team)}><Shirt size={14} /> {team.autoRoster ? 'Alumnos' : 'Plantel'}</button>
+                  {!team.autoRoster && <button className="btn btn-secondary btn-sm" onClick={() => onGenerate(team)}><CalendarPlus size={14} /> Generar fechas</button>}
+                  <button className="btn btn-secondary btn-sm" onClick={() => onMatch(team)}><Plus size={14} /> Fecha extra</button>
                 </div>
               </div>
             );
@@ -321,6 +327,7 @@ function MatchesTab({ t, onNew, onEdit, onCalls, onDelete }) {
     let l = t.matches.filter(m => !teamFilter || m.teamId === teamFilter);
     if (when === 'upcoming') l = l.filter(m => dateOf(m.startTime) >= today);
     if (when === 'past') l = l.filter(m => dateOf(m.startTime) < today).reverse();
+    if (when === 'pending') l = l.filter(m => m.needsDetails);
     return l;
   }, [t.matches, teamFilter, when, today]);
 
@@ -328,21 +335,22 @@ function MatchesTab({ t, onNew, onEdit, onCalls, onDelete }) {
     <>
       <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
         <select className="form-control" style={{ maxWidth: 220 }} value={teamFilter} onChange={e => setTeamFilter(e.target.value)}>
-          <option value="">Todos los equipos</option>
+          <option value="">Todas las categorías</option>
           {t.teams.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
         </select>
         <select className="form-control" style={{ maxWidth: 180 }} value={when} onChange={e => setWhen(e.target.value)}>
           <option value="upcoming">Por jugar</option>
+          <option value="pending">Por completar</option>
           <option value="past">Anteriores</option>
           <option value="all">Todos</option>
         </select>
         <button className="btn btn-primary" style={{ marginLeft: 'auto' }} onClick={onNew} disabled={t.teams.length === 0}
-          title={t.teams.length === 0 ? 'Primero inscribe un equipo' : undefined}><Plus size={15} /> Nuevo partido</button>
+          title={t.teams.length === 0 ? 'Primero agrega categorías' : undefined}><Plus size={15} /> Fecha extra</button>
       </div>
       {list.length === 0 ? (
         <div className="card" style={{ padding: 24 }}>
           <p className="text-muted" style={{ margin: 0 }}>
-            {t.teams.length === 0 ? 'Inscribe un equipo y usa "Generar fechas" para crear sus partidos.' : 'No hay partidos en esta vista.'}
+            {t.teams.length === 0 ? 'Aún no hay fechas: agrega categorías (aquí en "Categorías y alumnos" o desde el Calendario con un evento de tipo Torneo).' : 'No hay fechas en esta vista.'}
           </p>
         </div>
       ) : (
@@ -350,7 +358,7 @@ function MatchesTab({ t, onNew, onEdit, onCalls, onDelete }) {
           <table className="table" style={{ width: '100%', fontSize: 13 }}>
             <thead>
               <tr>
-                <th>Fecha</th><th>Equipo</th><th>Rival · fase</th><th>Lugar</th><th>Responsable</th><th>Estado</th><th>Convocados</th><th style={{ width: 110 }} />
+                <th>Fecha</th><th>Categorías</th><th>Rival · fase</th><th>Lugar</th><th>Responsable</th><th>Estado</th><th>Convocados</th><th style={{ width: 110 }} />
               </tr>
             </thead>
             <tbody>
@@ -360,17 +368,21 @@ function MatchesTab({ t, onNew, onEdit, onCalls, onDelete }) {
                 return (
                   <tr key={m.id}>
                     <td style={{ whiteSpace: 'nowrap' }}>
-                      <strong>{fmtDate(m.startTime)}</strong> {timeOf(m.startTime)}
+                      <strong>{fmtDate(m.startTime)}</strong> {m.timePending ? <span style={{ color: '#d97706' }}>hora por definir</span> : timeOf(m.startTime)}
                       {m.callTime && <div className="text-muted" style={{ fontSize: 11 }}><Clock size={11} /> citación {timeOf(m.callTime)}</div>}
                     </td>
                     <td>{m.teamName || <span className="text-muted">Sin equipo</span>}</td>
-                    <td>{m.opponentTeam || <span className="text-muted">Por definir</span>}{m.round && <div className="text-muted" style={{ fontSize: 11 }}>{m.round}</div>}</td>
+                    <td>{m.opponentTeam || <span style={{ color: '#d97706' }}>Por definir</span>}{m.round && <div className="text-muted" style={{ fontSize: 11 }}>{m.round}</div>}</td>
                     <td>{m.location || m.headquarterName || <span className="text-muted">—</span>}</td>
                     <td>
                       {m.teacherName || <span className="text-muted">Sin asignar</span>}
                       {m.isReplacement && <div><span className="badge badge-warning" style={{ fontSize: 10 }}>Reemplazo</span></div>}
+                      {m.coachFee ? <div className="text-muted" style={{ fontSize: 11 }}>Honorario S/ {Number(m.coachFee).toFixed(2)}</div> : null}
                     </td>
-                    <td><span className={`badge ${ms.badge}`}>{ms.label}</span>{score && <div style={{ fontWeight: 700, marginTop: 2 }}>{score}</div>}</td>
+                    <td>
+                      {m.needsDetails ? <span className="badge badge-warning">Completar</span> : <span className={`badge ${ms.badge}`}>{ms.label}</span>}
+                      {score && <div style={{ fontWeight: 700, marginTop: 2 }}>{score}</div>}
+                    </td>
                     <td style={{ whiteSpace: 'nowrap' }}>
                       {m.calledCount}
                       <span className="text-muted" style={{ fontSize: 11 }}> · ✓{m.confirmedCount} ✗{m.declinedCount}</span>

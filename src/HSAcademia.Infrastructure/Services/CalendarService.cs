@@ -207,6 +207,7 @@ public class CalendarService : ICalendarService
         ev.Type          = dto.Type;
         ev.StartTime     = dto.StartTime.ToUniversalTime();
         ev.EndTime       = dto.EndTime.ToUniversalTime();
+        ev.TimePending   = false;
         ev.HeadquarterId = dto.HeadquarterId;
         ev.CategoryId    = dto.CategoryId;
         ev.CategoryIds   = dto.CategoryIds ?? new List<Guid>();
@@ -493,6 +494,8 @@ public class CalendarService : ICalendarService
         CallTime       = e.CallTime,
         Location       = e.Location,
         MatchStatus    = e.MatchStatus.HasValue ? (int)e.MatchStatus.Value : null,
+        TimePending    = e.TimePending,
+        CoachFee       = e.CoachFee,
         SeriesId       = e.SeriesId,
         GoalsFor       = e.GoalsFor,
         GoalsAgainst   = e.GoalsAgainst,
@@ -766,7 +769,7 @@ public class CalendarService : ICalendarService
                 (e.CategoryIds != null && e.CategoryIds.Contains(categoryId.Value)));
         }
 
-        var next = (await ApplyFamilyTeamMatchesAsync(academyId, candidateEvents, filtered, userId, userRole, studentId)).FirstOrDefault();
+        var next = (await ApplyFamilyTeamMatchesAsync(academyId, candidateEvents, filtered, userId, userRole, studentId)).FirstOrDefault(e => !e.TimePending);
 
         if (next is null) return null;
 
@@ -801,8 +804,8 @@ public class CalendarService : ICalendarService
         Id          = e.Id.ToString(),
         Title       = e.Title,
         Date        = e.StartTime.ToString("yyyy-MM-dd"),
-        StartTime   = e.StartTime.ToString("HH:mm"),
-        EndTime     = e.EndTime.ToString("HH:mm"),
+        StartTime   = e.TimePending ? null : e.StartTime.ToString("HH:mm"),
+        EndTime     = e.TimePending ? null : e.EndTime.ToString("HH:mm"),
         Type        = MapEventTypeKey(e.Type),
         Location    = e.Location ?? e.Headquarter?.Name,
         Category    = e.Category?.Name,
@@ -813,6 +816,7 @@ public class CalendarService : ICalendarService
         Round       = e.Round,
         Tournament  = e.Tournament?.Name,
         MatchStatus = e.MatchStatus.HasValue ? (int)e.MatchStatus.Value : null,
+        TimePending = e.TimePending,
     };
 
     /// <summary>

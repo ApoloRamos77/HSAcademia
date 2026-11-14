@@ -14,6 +14,11 @@ public class TournamentDto
     public int Format { get; set; }
     public int ScheduleMode { get; set; }
     public int Status { get; set; }
+    public int Modality { get; set; }
+    public int Level { get; set; }
+    public decimal? InscriptionFee { get; set; }
+    public decimal? RefereeFee { get; set; }
+    public decimal? DefaultCoachFee { get; set; }
     public DateTime? StartDate { get; set; }
     public DateTime? EndDate { get; set; }
     public List<int> PlayDays { get; set; } = new();
@@ -45,7 +50,14 @@ public class CreateTournamentDto
 
     // Campos nuevos: opcionales para no romper clientes anteriores (null = conservar / valor por defecto).
     [Range(0, 4)] public int? Format { get; set; }
-    [Range(1, 3)] public int? ScheduleMode { get; set; }
+    [Range(1, 4)] public int? ScheduleMode { get; set; }
+    /// <summary>0 otra, 5/7/9/11 = fútbol 5/7/9/11.</summary>
+    [Range(0, 11)] public int? Modality { get; set; }
+    [Range(0, 3)] public int? Level { get; set; }
+    /// <summary>Por alumno; 0 = no se cobra; null = conservar.</summary>
+    [Range(0, 100000)] public decimal? InscriptionFee { get; set; }
+    [Range(0, 100000)] public decimal? RefereeFee { get; set; }
+    [Range(0, 100000)] public decimal? DefaultCoachFee { get; set; }
     [Range(1, 4)] public int? Status { get; set; }
     public DateTime? StartDate { get; set; }
     public DateTime? EndDate { get; set; }
@@ -89,6 +101,8 @@ public class TournamentTeamDto
     public int? MaxPlayers { get; set; }
     public string? Notes { get; set; }
     public decimal? MatchFee { get; set; }
+    public bool AutoRoster { get; set; }
+    public int MatchesCount { get; set; }
     public TeamRecordDto Record { get; set; } = new();
     public List<TournamentPlayerDto> Players { get; set; } = new();
     public List<string> Warnings { get; set; } = new();
@@ -141,6 +155,10 @@ public class TournamentMatchDto
     public int CalledCount { get; set; }
     public int ConfirmedCount { get; set; }
     public int DeclinedCount { get; set; }
+    public bool TimePending { get; set; }
+    public decimal? CoachFee { get; set; }
+    /// <summary>Falta la hora o el rival: no se puede tomar asistencia.</summary>
+    public bool NeedsDetails { get; set; }
 }
 
 // ─────────────────────────── Equipos y plantel ───────────────────────────
@@ -214,6 +232,26 @@ public class SaveTournamentMatchDto
     [Range(0, 99)] public int? GoalsFor { get; set; }
     [Range(0, 99)] public int? GoalsAgainst { get; set; }
     [MaxLength(1000)] public string? Description { get; set; }
+    /// <summary>Honorario del responsable por este partido (null = sin honorario propio).</summary>
+    [Range(0, 100000)] public decimal? CoachFee { get; set; }
+}
+
+/// <summary>Desde el calendario: categorías que juegan el torneo, con su responsable. Crea los días del torneo.</summary>
+public class CreateParticipationDto
+{
+    public List<Guid> CategoryIds { get; set; } = new();
+    public Guid? HeadCoachId { get; set; }
+    /// <summary>Honorario por fecha (null = el sugerido del torneo).</summary>
+    [Range(0, 100000)] public decimal? CoachFee { get; set; }
+}
+
+public class ParticipationResultDto
+{
+    public Guid TeamId { get; set; }
+    public string TeamName { get; set; } = string.Empty;
+    public int DaysCreated { get; set; }
+    public int Players { get; set; }
+    public List<string> Warnings { get; set; } = new();
 }
 
 public class GenerateTournamentMatchesDto

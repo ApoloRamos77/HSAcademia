@@ -31,6 +31,10 @@ public class Event
     public string? Location { get; set; }
     /// <summary>Estado del partido (amistoso o torneo). Null en eventos que no son partidos.</summary>
     public MatchStatus? MatchStatus { get; set; }
+    /// <summary>Fecha de torneo creada sin hora: se muestra "Hora por definir" y no se toma asistencia.</summary>
+    public bool TimePending { get; set; }
+    /// <summary>Honorario del entrenador por este partido (manda sobre el del equipo).</summary>
+    public decimal? CoachFee { get; set; }
 
     // Si es tipo FriendlyMatch u otro
     public string? OpponentTeam { get; set; }

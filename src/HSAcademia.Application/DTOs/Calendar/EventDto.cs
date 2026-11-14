@@ -29,6 +29,9 @@ public class EventDto
     public string? Location { get; set; }
     /// <summary>1 Programado, 2 Jugado, 3 Postergado, 4 Suspendido, 5 W.O. a favor, 6 W.O. en contra.</summary>
     public int? MatchStatus { get; set; }
+    /// <summary>Fecha de torneo sin hora definida.</summary>
+    public bool TimePending { get; set; }
+    public decimal? CoachFee { get; set; }
 
     /// <summary>Serie de horario recurrente (null = evento suelto).</summary>
     public Guid? SeriesId { get; set; }

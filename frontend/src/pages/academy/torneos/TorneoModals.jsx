@@ -3,7 +3,7 @@ import { X, Search, Trash2, Plus, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../../api/axios';
 import {
-  FORMATS, SCHEDULE_MODES, STATUSES, MATCH_STATUSES, DAYS, errMsg,
+  FORMATS, SCHEDULE_MODES, LEGACY_SCHEDULE, MODALITIES, LEVELS, STATUSES, MATCH_STATUSES, DAYS, errMsg,
   dateOf, timeOf, wall, addMinutesWall, fmtDate,
 } from './torneoUtils';
 
@@ -43,6 +43,11 @@ export function TournamentFormModal({ tournament, onClose, onSaved }) {
     organizer: tournament?.organizer || '',
     mainLocation: tournament?.mainLocation || '',
     format: tournament?.format ?? 1,
+    modality: tournament?.modality ?? 7,
+    level: tournament?.level ?? 1,
+    inscriptionFee: tournament?.inscriptionFee ?? '',
+    refereeFee: tournament?.refereeFee ?? '',
+    defaultCoachFee: tournament?.defaultCoachFee ?? '',
     scheduleMode: tournament?.scheduleMode ?? 2,
     status: tournament?.status ?? 1,
     startDate: dateOf(tournament?.startDate) || '',
@@ -69,14 +74,19 @@ export function TournamentFormModal({ tournament, onClose, onSaved }) {
   const save = async () => {
     if (!form.name.trim() || !form.organizer.trim() || !form.mainLocation.trim()) return toast.error('Nombre, organizador y lugar son obligatorios');
     if (!form.startDate) return toast.error(form.scheduleMode === 1 ? 'Indica el día del torneo' : 'Indica la fecha de inicio');
-    if (form.scheduleMode === 2 && !form.endDate) return toast.error('Indica la fecha de fin');
+    if ([2, 4].includes(form.scheduleMode) && !form.endDate) return toast.error('Indica la fecha de fin');
+    if ([2, 3].includes(form.scheduleMode) && form.playDays.length === 0) return toast.error('Marca los días de juego');
+    const money = v => (v === '' || v == null ? 0 : Number(v));
     const body = {
       ...form,
       yellowCardsForSuspension: form.yellowCardsForSuspension === '' ? 0 : Number(form.yellowCardsForSuspension),
       redCardSuspensionMatches: form.redCardSuspensionMatches === '' ? 0 : Number(form.redCardSuspensionMatches),
       startDate: form.startDate,
       endDate: form.scheduleMode === 1 ? form.startDate : (form.endDate || null),
-      playDays: form.scheduleMode === 1 ? [] : form.playDays,
+      playDays: [1, 4].includes(form.scheduleMode) ? [] : form.playDays,
+      inscriptionFee: money(form.inscriptionFee),
+      refereeFee: money(form.refereeFee),
+      defaultCoachFee: money(form.defaultCoachFee),
     };
     setSaving(true);
     try {
@@ -109,6 +119,18 @@ export function TournamentFormModal({ tournament, onClose, onSaved }) {
           <input className="form-control" value={form.mainLocation} onChange={e => set({ mainLocation: e.target.value })} placeholder="Ej: Estadio municipal" />
         </div>
         <div className="form-group">
+          <label>Modalidad</label>
+          <select className="form-control" value={form.modality} onChange={e => set({ modality: Number(e.target.value) })}>
+            {MODALITIES.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+          </select>
+        </div>
+        <div className="form-group">
+          <label>Nivel</label>
+          <select className="form-control" value={form.level} onChange={e => set({ level: Number(e.target.value) })}>
+            {LEVELS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+          </select>
+        </div>
+        <div className="form-group">
           <label>Formato</label>
           <select className="form-control" value={form.format} onChange={e => set({ format: Number(e.target.value) })}>
             {FORMATS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
@@ -124,7 +146,7 @@ export function TournamentFormModal({ tournament, onClose, onSaved }) {
         <div className="form-group" style={{ gridColumn: '1/-1' }}>
           <label>¿Cómo se juega?</label>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 8 }}>
-            {SCHEDULE_MODES.map(m => (
+            {(form.scheduleMode === 3 ? [...SCHEDULE_MODES, LEGACY_SCHEDULE] : SCHEDULE_MODES).map(m => (
               <button key={m.value} type="button" onClick={() => set({ scheduleMode: m.value })}
                 className={`btn ${form.scheduleMode === m.value ? 'btn-primary' : 'btn-secondary'}`}
                 style={{ flexDirection: 'column', alignItems: 'flex-start', textAlign: 'left', height: 'auto', padding: '10px 12px' }}>
@@ -145,13 +167,30 @@ export function TournamentFormModal({ tournament, onClose, onSaved }) {
             <input type="date" className="form-control" value={form.endDate} min={form.startDate || undefined} onChange={e => set({ endDate: e.target.value })} />
           </div>
         )}
-        {form.scheduleMode !== 1 && (
+        {[2, 3].includes(form.scheduleMode) && (
           <div className="form-group" style={{ gridColumn: '1/-1' }}>
-            <label>Días de juego habituales</label>
+            <label>Días de juego *</label>
             <DayPicker value={form.playDays} onChange={playDays => set({ playDays })} />
-            <small className="text-muted">Se usan como sugerencia al generar las fechas de cada equipo.</small>
+            <small className="text-muted">Al asociar categorías desde el Calendario se crean estos días con hora y rival por definir.</small>
           </div>
         )}
+
+        <div className="form-group" style={{ gridColumn: '1/-1', marginBottom: 0 }}><strong style={{ fontSize: 13 }}>Costos y honorario</strong></div>
+        <div className="form-group">
+          <label>Inscripción por alumno (S/)</label>
+          <input type="number" min={0} step="0.50" className="form-control" value={form.inscriptionFee} onChange={e => set({ inscriptionFee: e.target.value })} placeholder="Vacío = no se cobra" />
+          <small className="text-muted">Se cobra una vez a cada alumno de las categorías participantes.</small>
+        </div>
+        <div className="form-group">
+          <label>Arbitraje por partido (S/)</label>
+          <input type="number" min={0} step="0.50" className="form-control" value={form.refereeFee} onChange={e => set({ refereeFee: e.target.value })} placeholder="Vacío = no se cobra" />
+          <small className="text-muted">Por alumno, en cada fecha a la que asiste.</small>
+        </div>
+        <div className="form-group">
+          <label>Honorario del entrenador por fecha (S/)</label>
+          <input type="number" min={0} step="0.50" className="form-control" value={form.defaultCoachFee} onChange={e => set({ defaultCoachFee: e.target.value })} placeholder="Sugerido; se cambia por día" />
+        </div>
+        <div className="form-group" />
 
         <div className="form-group">
           <label>Contacto del organizador</label>
@@ -392,8 +431,14 @@ export function RosterModal({ team, tournament, onClose, onSaved }) {
         <button className="btn btn-secondary" onClick={onClose}>Cancelar</button>
         <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Guardando…' : 'Guardar plantel'}</button>
       </>}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 }}>
-        <div>
+      {team.autoRoster && (
+        <p className="text-muted" style={{ marginTop: 0, fontSize: 13 }}>
+          Son los alumnos activos de {team.name}: se actualiza solo cuando alguien entra o sale de la categoría.
+          Aquí registras camiseta, posición, documentos y autorizaciones.
+        </p>
+      )}
+      <div style={{ display: 'grid', gridTemplateColumns: team.autoRoster ? '1fr' : 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 }}>
+        {!team.autoRoster && <div>
           <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
             <div style={{ position: 'relative', flex: 1 }}>
               <Search size={14} style={{ position: 'absolute', left: 10, top: 11, opacity: 0.6 }} />
@@ -428,7 +473,7 @@ export function RosterModal({ team, tournament, onClose, onSaved }) {
               </button>
             ))}
           </div>
-        </div>
+        </div>}
 
         <div>
           <div className="table-wrap" style={{ maxHeight: 440, overflowY: 'auto' }}>
@@ -479,14 +524,14 @@ export function RosterModal({ team, tournament, onClose, onSaved }) {
                         )}
                       </td>
                       <td><input className="form-control" value={p.position || ''} onChange={e => update(p.studentId, { position: e.target.value })} placeholder="—" /></td>
-                      <td><button className="btn-icon text-danger" onClick={() => remove(p.studentId)} aria-label="Quitar"><Trash2 size={15} /></button></td>
+                      <td>{!team.autoRoster && <button className="btn-icon text-danger" onClick={() => remove(p.studentId)} aria-label="Quitar"><Trash2 size={15} /></button>}</td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
           </div>
-          <small className="text-muted">Al guardar, los partidos por jugar convocan a los nuevos y retiran a quienes salieron. La familia recibe un aviso.</small>
+          {!team.autoRoster && <small className="text-muted">Al guardar, los partidos por jugar convocan a los nuevos y retiran a quienes salieron. La familia recibe un aviso.</small>}
         </div>
       </div>
     </Modal>
@@ -579,8 +624,9 @@ export function MatchFormModal({ match, team, teams, headquarters, staff, onClos
   const currentTeam = teamOf(teamId);
   const [form, setForm] = useState(() => ({
     date: dateOf(match?.startTime) || '',
-    start: timeOf(match?.startTime) || '09:00',
-    end: timeOf(match?.endTime) || '10:30',
+    start: match?.timePending ? '' : (timeOf(match?.startTime) || '09:00'),
+    end: match?.timePending ? '' : (timeOf(match?.endTime) || '10:30'),
+    coachFee: match?.coachFee ?? '',
     call: timeOf(match?.callTime) || '',
     opponentTeam: match?.opponentTeam || '',
     round: match?.round || '',
@@ -597,6 +643,7 @@ export function MatchFormModal({ match, team, teams, headquarters, staff, onClos
 
   const save = async () => {
     if (!form.date) return toast.error('Indica la fecha del partido');
+    if (!form.start || !form.end) return toast.error('Indica la hora de inicio y de fin');
     if (form.end <= form.start) return toast.error('La hora de fin debe ser posterior al inicio');
     if (form.call && form.call > form.start) return toast.error('La citación debe ser antes del partido');
     const num = v => (v === '' || v === null ? null : Number(v));
@@ -606,6 +653,7 @@ export function MatchFormModal({ match, team, teams, headquarters, staff, onClos
       opponentTeam: form.opponentTeam || null, round: form.round || null, location: form.location || null,
       headquarterId: form.headquarterId || null, teacherId: form.teacherId || null,
       matchStatus: Number(form.matchStatus), goalsFor: num(form.goalsFor), goalsAgainst: num(form.goalsAgainst),
+      coachFee: num(form.coachFee),
     };
     setSaving(true);
     try {
@@ -663,6 +711,15 @@ export function MatchFormModal({ match, team, teams, headquarters, staff, onClos
           </select>
           <small className="text-muted">El reemplazo solo aplica a este partido y es quien figura en la planilla.</small>
         </div>
+        <div className="form-group">
+          <label>Honorario de este día (S/)</label>
+          <input type="number" min={0} step="0.50" className="form-control" value={form.coachFee} onChange={e => set({ coachFee: e.target.value })} placeholder="Vacío = sin honorario" />
+        </div>
+        {match?.needsDetails && (
+          <div className="alert alert-warning" style={{ gridColumn: '1/-1', fontSize: 12, display: 'block', margin: 0 }}>
+            Completa la hora y el rival: sin ellos no se puede tomar asistencia. Al guardarlos se convoca a los alumnos.
+          </div>
+        )}
         {match && (
           <>
             <div className="form-group">
@@ -766,6 +823,61 @@ export function MatchCallsModal({ match, onClose, onChanged }) {
           <AlertTriangle size={14} /> Partido sin equipo (registrado antes): se convoca desde el Calendario.
         </div>
       )}
+    </Modal>
+  );
+}
+
+// ───────────────────────── Agregar categorías (mismo flujo que el Calendario) ─────────────────────────
+export function ParticipationModal({ tournament, categories, staff, onClose, onSaved }) {
+  const [categoryIds, setCategoryIds] = useState([]);
+  const [headCoachId, setHeadCoachId] = useState('');
+  const [coachFee, setCoachFee] = useState(tournament.defaultCoachFee ?? '');
+  const [saving, setSaving] = useState(false);
+  const toggle = id => setCategoryIds(c => (c.includes(id) ? c.filter(x => x !== id) : [...c, id]));
+  const save = async () => {
+    if (categoryIds.length === 0) return toast.error('Elige al menos una categoría');
+    setSaving(true);
+    try {
+      const { data } = await api.post(`/tournaments/${tournament.id}/participations`, {
+        categoryIds, headCoachId: headCoachId || null, coachFee: coachFee === '' ? null : Number(coachFee),
+      });
+      toast.success(`${data.daysCreated} día(s) creados para ${data.teamName}`);
+      data.warnings?.forEach(w => toast(w, { icon: 'ℹ️' }));
+      onSaved(data);
+    } catch (e) { toast.error(errMsg(e, 'No se pudo agregar')); }
+    finally { setSaving(false); }
+  };
+  return (
+    <Modal title="Agregar categorías al torneo" onClose={onClose}
+      footer={<>
+        <button className="btn btn-secondary" onClick={onClose}>Cancelar</button>
+        <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Creando…' : 'Crear días del torneo'}</button>
+      </>}>
+      <p className="text-muted" style={{ marginTop: 0, fontSize: 13 }}>
+        Se crean los días del torneo para estas categorías con hora y rival por definir. Para otra categoría con otro entrenador, agrégala aparte.
+      </p>
+      <div className="form-group">
+        <label>Categorías *</label>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {categories.map(c => (
+            <button key={c.id} type="button" onClick={() => toggle(c.id)}
+              className={`btn btn-sm ${categoryIds.includes(c.id) ? 'btn-primary' : 'btn-secondary'}`}>{c.name}</button>
+          ))}
+        </div>
+      </div>
+      <div className="form-row-2">
+        <div className="form-group">
+          <label>Entrenador responsable</label>
+          <select className="form-control" value={headCoachId} onChange={e => setHeadCoachId(e.target.value)}>
+            <option value="">Sin asignar</option>
+            {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        </div>
+        <div className="form-group">
+          <label>Honorario por fecha (S/)</label>
+          <input type="number" min={0} step="0.50" className="form-control" value={coachFee} onChange={e => setCoachFee(e.target.value)} placeholder="Vacío = sin honorario" />
+        </div>
+      </div>
     </Modal>
   );
 }

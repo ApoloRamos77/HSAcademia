@@ -51,6 +51,8 @@ public class TournamentFee
     /// <summary>Inactivo: deja de generar cobros y anula los que no tienen pagos.</summary>
     public bool IsActive { get; set; } = true;
     public string? Notes { get; set; }
+    /// <summary>Concepto mantenido desde la ficha del torneo ("inscription" o "referee"); null = creado a mano.</summary>
+    public string? SystemKey { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
