@@ -21,6 +21,16 @@ public class Event
     
     // Si es tipo TournamentMatch
     public Guid? TournamentId { get; set; }
+    /// <summary>Equipo de la academia que juega el partido de torneo: define plantel convocado y responsable.</summary>
+    public Guid? TournamentTeamId { get; set; }
+    /// <summary>Fase o fecha del torneo ("Fecha 3", "Semifinal").</summary>
+    public string? Round { get; set; }
+    /// <summary>Hora de citación (hora de pared, como StartTime). Null = misma hora del partido.</summary>
+    public DateTime? CallTime { get; set; }
+    /// <summary>Cancha o lugar del partido cuando no es una sede de la academia.</summary>
+    public string? Location { get; set; }
+    /// <summary>Estado del partido (amistoso o torneo). Null en eventos que no son partidos.</summary>
+    public MatchStatus? MatchStatus { get; set; }
 
     // Si es tipo FriendlyMatch u otro
     public string? OpponentTeam { get; set; }
@@ -61,4 +71,5 @@ public class Event
     public virtual Category? Category { get; set; }
     public virtual User? Teacher { get; set; }
     public virtual Tournament? Tournament { get; set; }
+    public virtual TournamentTeam? TournamentTeam { get; set; }
 }

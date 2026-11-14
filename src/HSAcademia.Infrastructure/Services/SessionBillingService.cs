@@ -86,14 +86,25 @@ public class SessionBillingService
         return new Computation(attended, billable, gross, capped, charged, discount, string.Join(" · ", parts), capApplied);
     }
 
-    /// <summary>Asistencias que cuentan como sesión (Presente o Tarde), una por sesión o por día sin sesión.</summary>
+    /// <summary>Los partidos (amistosos y de torneo) no se cobran como sesión: sus costos van aparte.</summary>
+    public static bool IsMatch(EventType type) => type is EventType.FriendlyMatch or EventType.TournamentMatch;
+    public const string MatchNotSessionMessage = "Los partidos no se cobran como sesión: sus costos (arbitraje, cancha, pasaje) se cobran aparte.";
+
+    /// <summary>
+    /// Asistencias que cuentan como sesión (Presente o Tarde), una por sesión o por día sin sesión.
+    /// Las de partidos no cuentan.
+    /// </summary>
     public async Task<Dictionary<Guid, int>> AttendedAsync(Guid academyId, IReadOnlyCollection<Guid> studentIds, int year, int month)
     {
         var from = new DateTime(year, month, 1);
         var to = from.AddMonths(1);
+        var matches = _db.Events.IgnoreQueryFilters()
+            .Where(e => e.AcademyId == academyId && (e.Type == EventType.FriendlyMatch || e.Type == EventType.TournamentMatch))
+            .Select(e => e.Id);
         var rows = await _db.Attendances.AsNoTracking()
             .Where(a => a.AcademyId == academyId && studentIds.Contains(a.StudentId) && a.Date >= from && a.Date < to
-                        && (a.Status == AttendanceStatus.Present || a.Status == AttendanceStatus.Late))
+                        && (a.Status == AttendanceStatus.Present || a.Status == AttendanceStatus.Late)
+                        && (a.EventId == null || !matches.Contains(a.EventId.Value)))
             .Select(a => new { a.StudentId, a.EventId, a.Date })
             .ToListAsync();
         return rows.GroupBy(r => r.StudentId)
@@ -122,6 +133,7 @@ public class SessionBillingService
         {
             var ev = await _db.Events.AsNoTracking().FirstOrDefaultAsync(e => e.Id == eventId && e.AcademyId == academyId && !e.IsDeleted)
                 ?? throw new KeyNotFoundException("Sesión no encontrada.");
+            if (IsMatch(ev.Type)) throw new Exception(MatchNotSessionMessage);
             var cats = new List<Guid>(ev.CategoryIds ?? new List<Guid>());
             if (ev.CategoryId.HasValue) cats.Add(ev.CategoryId.Value);
             if (!cats.Contains(student.CategoryId)) throw new Exception("El alumno no pertenece a esta sesión.");
@@ -224,8 +236,13 @@ public class SessionBillingService
 
         DateTime sessionDate = (date ?? AcademyClock.Today).Date;
         if (eventId.HasValue)
-            sessionDate = (await _db.Events.AsNoTracking().Where(e => e.Id == eventId && e.AcademyId == academyId).Select(e => (DateTime?)e.StartTime).FirstOrDefaultAsync())?.Date
-                ?? throw new KeyNotFoundException("Sesión no encontrada.");
+        {
+            var ev = await _db.Events.AsNoTracking().Where(e => e.Id == eventId && e.AcademyId == academyId)
+                         .Select(e => new { e.StartTime, e.Type }).FirstOrDefaultAsync()
+                     ?? throw new KeyNotFoundException("Sesión no encontrada.");
+            if (IsMatch(ev.Type)) throw new Exception(MatchNotSessionMessage);
+            sessionDate = ev.StartTime.Date;
+        }
         var sessionUtc = DateTime.SpecifyKind(sessionDate, DateTimeKind.Utc);
         var existing = await _db.PaymentRecords.AsNoTracking().FirstOrDefaultAsync(p =>
             p.AcademyId == academyId && p.StudentId == studentId && p.Type == PaymentType.Sessions && p.SessionDate != null &&

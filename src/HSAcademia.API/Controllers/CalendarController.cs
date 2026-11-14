@@ -153,10 +153,10 @@ public class CalendarController : ControllerBase
     /// GET /api/calendar/tournaments
     /// </summary>
     [HttpGet("tournaments")]
-    public async Task<IActionResult> GetTournaments()
+    public async Task<IActionResult> GetTournaments([FromServices] TournamentService tournaments)
     {
         var academyId = GetAcademyId();
-        var list = await _calendarService.GetTournamentsAsync(academyId);
+        var list = await tournaments.ListAsync(academyId);
         return Ok(list);
     }
 
@@ -166,38 +166,43 @@ public class CalendarController : ControllerBase
     [HttpPost("tournaments")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
     [RequirePermission(Permissions.EventsManage)]
-    public async Task<IActionResult> CreateTournament([FromBody] CreateTournamentDto dto)
+    public async Task<IActionResult> CreateTournament([FromBody] CreateTournamentDto dto, [FromServices] TournamentService tournaments)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
-        var academyId = GetAcademyId();
-        var created = await _calendarService.CreateTournamentAsync(academyId, dto);
-        return Created($"/api/calendar/tournaments/{created.Id}", created);
+        try
+        {
+            var academyId = GetAcademyId();
+            var created = await tournaments.CreateAsync(academyId, dto);
+            return Created($"/api/calendar/tournaments/{created.Id}", created);
+        }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
     }
 
     [HttpPut("tournaments/{id:guid}")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
     [RequirePermission(Permissions.EventsManage)]
-    public async Task<IActionResult> UpdateTournament(Guid id, [FromBody] UpdateTournamentDto dto)
+    public async Task<IActionResult> UpdateTournament(Guid id, [FromBody] UpdateTournamentDto dto, [FromServices] TournamentService tournaments)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
         try
         {
             var academyId = GetAcademyId();
-            var updated = await _calendarService.UpdateTournamentAsync(academyId, id, dto);
+            var updated = await tournaments.UpdateAsync(academyId, id, dto);
             return Ok(updated);
         }
         catch (KeyNotFoundException) { return NotFound(); }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
     }
 
     [HttpDelete("tournaments/{id:guid}")]
     [Authorize(Roles = "AcademyAdmin,Staff")]
     [RequirePermission(Permissions.EventsManage)]
-    public async Task<IActionResult> DeleteTournament(Guid id)
+    public async Task<IActionResult> DeleteTournament(Guid id, [FromServices] TournamentService tournaments)
     {
         try
         {
             var academyId = GetAcademyId();
-            await _calendarService.DeleteTournamentAsync(academyId, id);
+            await tournaments.DeleteAsync(academyId, id);
             return NoContent();
         }
         catch (KeyNotFoundException) { return NotFound(); }
@@ -259,7 +264,8 @@ public class CalendarController : ControllerBase
     [HttpGet("mobile/events")]
     public async Task<IActionResult> GetMobileEvents(
         [FromQuery] Guid? categoryId = null,
-        [FromQuery] Guid? headquarterId = null)
+        [FromQuery] Guid? headquarterId = null,
+        [FromQuery] Guid? studentId = null)
     {
         try
         {
@@ -269,7 +275,7 @@ public class CalendarController : ControllerBase
             var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "";
 
             var events = await _calendarService.GetMobileEventsAsync(
-                academyId, categoryId, headquarterId, userId, userRole);
+                academyId, categoryId, headquarterId, userId, userRole, studentId);
             return Ok(events);
         }
         catch (UnauthorizedAccessException ex)
@@ -284,7 +290,7 @@ public class CalendarController : ControllerBase
     /// Returns 204 No Content when there are no upcoming events.
     /// </summary>
     [HttpGet("mobile/next")]
-    public async Task<IActionResult> GetNextEvent([FromQuery] Guid? categoryId = null)
+    public async Task<IActionResult> GetNextEvent([FromQuery] Guid? categoryId = null, [FromQuery] Guid? studentId = null)
     {
         try
         {
@@ -293,7 +299,7 @@ public class CalendarController : ControllerBase
             var userId = Guid.TryParse(userIdStr, out var uId) ? uId : (Guid?)null;
             var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "";
 
-            var next = await _calendarService.GetNextEventAsync(academyId, categoryId, userId, userRole);
+            var next = await _calendarService.GetNextEventAsync(academyId, categoryId, userId, userRole, studentId);
             return next is null ? NoContent() : Ok(next);
         }
         catch (UnauthorizedAccessException ex)
@@ -327,7 +333,12 @@ public class CalendarController : ControllerBase
                   opponent = c.Event.OpponentTeam,
                   startTime = c.Event.StartTime,
                   endTime = c.Event.EndTime,
-                  location = c.Event.Headquarter != null ? c.Event.Headquarter.Name : null,
+                  location = c.Event.Location ?? (c.Event.Headquarter != null ? c.Event.Headquarter.Name : null),
+                  callTime = c.Event.CallTime,
+                  round = c.Event.Round,
+                  tournamentName = c.Event.Tournament != null ? c.Event.Tournament.Name : null,
+                  teamName = c.Event.TournamentTeam != null ? c.Event.TournamentTeam.Name : null,
+                  matchStatus = (int?)c.Event.MatchStatus,
                   studentId = c.StudentId,
                   studentName = c.Student.FirstName + " " + c.Student.LastName,
                   isConfirmed = c.IsConfirmed

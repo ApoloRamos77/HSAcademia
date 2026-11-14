@@ -24,7 +24,7 @@ export default function FamilyHomeScreen({ navigation }: any) {
       api.get<MyCall[]>('/calendar/mobile/my-calls').then(r => r.data).catch(() => [] as MyCall[]),
       api.get<AttendanceMonth[]>('/attendance/my-history', { params: { studentId: student.id, months: 1 } }).then(r => r.data).catch(() => []),
       api.get<Announcement[]>('/announcement').then(r => r.data).catch(() => [] as Announcement[]),
-      api.get<NextEvent>('/calendar/mobile/next', { params: { categoryId: student.categoryId } }).then(r => (r.status === 204 ? null : r.data)).catch(() => null),
+      api.get<NextEvent>('/calendar/mobile/next', { params: { categoryId: student.categoryId, studentId: student.id } }).then(r => (r.status === 204 ? null : r.data)).catch(() => null),
       api.get<FamilyNotice[]>('/notices/mine').then(r => r.data).catch(() => [] as FamilyNotice[]),
     ]);
     if (notices.some(n => !n.isRead)) api.post('/notices/mine/read').catch(() => {});

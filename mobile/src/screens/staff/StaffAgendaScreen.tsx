@@ -8,7 +8,7 @@ import { Badge, Card, Empty, Loading, Row, Screen } from '../../components/ui';
 import { useApi } from '../../hooks/useApi';
 import { colors, font, spacing } from '../../theme';
 import { longDay, todayISO } from '../../utils/format';
-import { EVENT_TYPE_LABEL, EventIcon } from '../family/AgendaScreen';
+import { EVENT_TYPE_LABEL, EventIcon, MATCH_STATUS, matchExtra } from '../family/AgendaScreen';
 
 /** Agenda del personal: entrenamientos, partidos (con registro de resultado) y cumpleaños. */
 export default function StaffAgendaScreen({ navigation }: any) {
@@ -43,7 +43,9 @@ export default function StaffAgendaScreen({ navigation }: any) {
                   <View style={{ flex: 1 }}>
                     <Text style={font.h3}>{e.title}</Text>
                     <Text style={font.small}>{EVENT_TYPE_LABEL[e.type]}{e.startTime && !e.allDay ? ` · ${e.startTime}` : ''}{e.category ? ` · ${e.category}` : ''}</Text>
+                    {matchExtra(e.round, e.callTime) ? <Text style={[font.small, { fontWeight: '600' }]}>{matchExtra(e.round, e.callTime)}</Text> : null}
                     {e.location ? <Text style={font.tiny}>{e.location}</Text> : null}
+                    {e.matchStatus && MATCH_STATUS[e.matchStatus] ? <Text style={font.tiny}>{MATCH_STATUS[e.matchStatus].text}</Text> : null}
                   </View>
                   {canRecord && <Badge tone={day < today ? 'warning' : 'info'} text={day < today ? 'Registrar resultado' : 'Resultado'} />}
                   {canRecord && <ChevronRight color={colors.textMuted} />}

@@ -59,7 +59,8 @@ public interface ICalendarService
         Guid? categoryId = null,
         Guid? headquarterId = null,
         Guid? userId = null,
-        string userRole = "");
+        string userRole = "",
+        Guid? studentId = null);
 
     /// <summary>
     /// Returns the next upcoming event for the academy (or the student's category)
@@ -70,6 +71,7 @@ public interface ICalendarService
         Guid academyId,
         Guid? categoryId = null,
         Guid? userId = null,
-        string userRole = "");
+        string userRole = "",
+        Guid? studentId = null);
 }
 

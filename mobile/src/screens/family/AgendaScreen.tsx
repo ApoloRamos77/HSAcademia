@@ -18,13 +18,30 @@ export function EventIcon({ type, size = 18 }: { type: string; size?: number }) 
 
 export const EVENT_TYPE_LABEL: Record<string, string> = { Training: 'Entrenamiento', Tournament: 'Partido', Birthday: 'Cumpleaños', Other: 'Evento' };
 
+/** Estados de partido que la familia debe notar (programado no se muestra). */
+export const MATCH_STATUS: Record<number, { text: string; tone: 'success' | 'warning' | 'danger' | 'muted' }> = {
+  2: { text: 'Jugado', tone: 'muted' },
+  3: { text: 'Postergado', tone: 'warning' },
+  4: { text: 'Suspendido', tone: 'danger' },
+  5: { text: 'W.O. a favor', tone: 'success' },
+  6: { text: 'W.O. en contra', tone: 'danger' },
+};
+
+/** "Fecha 3 · citación 08:15" para la tarjeta de un partido. */
+export function matchExtra(round?: string | null, callTime?: string | null) {
+  const parts = [round, callTime ? `citación ${callTime}` : null].filter(Boolean);
+  return parts.length ? parts.join(' · ') : null;
+}
+
+const timeOfIso = (iso?: string | null) => (iso ? iso.slice(11, 16) : null);
+
 export default function AgendaScreen() {
   const { student } = useFamily();
   const [busy, setBusy] = useState<string | null>(null);
   const { data, loading, refreshing, refresh, setData } = useApi(async () => {
     if (!student) return null;
     const [events, calls] = await Promise.all([
-      api.get<MobileEvent[]>('/calendar/mobile/events', { params: { categoryId: student.categoryId } }).then(r => r.data),
+      api.get<MobileEvent[]>('/calendar/mobile/events', { params: { categoryId: student.categoryId, studentId: student.id } }).then(r => r.data),
       api.get<MyCall[]>('/calendar/mobile/my-calls').then(r => r.data).catch(() => [] as MyCall[]),
     ]);
     return { events, calls };
@@ -60,9 +77,11 @@ export default function AgendaScreen() {
             <Card key={c.callId}>
               <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <View style={{ flex: 1 }}>
-                  <Text style={font.h3}>{c.title}{c.opponent ? ` vs. ${c.opponent}` : ''}</Text>
+                  <Text style={font.h3}>{c.title}{c.opponent && !c.title.includes(' vs ') ? ` vs. ${c.opponent}` : ''}</Text>
                   <Text style={font.small}>{eventLabel(c.startTime)}{c.location ? ` · ${c.location}` : ''}</Text>
+                  {matchExtra(c.round, timeOfIso(c.callTime)) && <Text style={[font.small, { fontWeight: '600' }]}>{matchExtra(c.round, timeOfIso(c.callTime))}</Text>}
                 </View>
+                {c.matchStatus && MATCH_STATUS[c.matchStatus] && <Badge tone={MATCH_STATUS[c.matchStatus].tone} text={MATCH_STATUS[c.matchStatus].text} />}
                 {c.isConfirmed === true && <Badge tone="success" text="Asistirá" />}
                 {c.isConfirmed === false && <Badge tone="danger" text="No asistirá" />}
                 {c.isConfirmed === null && <Badge tone="warning" text="Por confirmar" />}
@@ -95,8 +114,10 @@ export default function AgendaScreen() {
                   <Text style={font.small}>
                     {EVENT_TYPE_LABEL[e.type] ?? 'Evento'}{e.startTime && !e.allDay ? ` · ${e.startTime}${e.endTime ? `–${e.endTime}` : ''}` : ''}
                   </Text>
+                  {matchExtra(e.round, e.callTime) && <Text style={[font.small, { fontWeight: '600' }]}>{matchExtra(e.round, e.callTime)}</Text>}
                   {e.location && <Row style={{ marginTop: 2 }}><MapPin color={colors.textMuted} size={12} /><Text style={font.tiny}>{e.location}</Text></Row>}
                 </View>
+                {e.matchStatus && MATCH_STATUS[e.matchStatus] && <Badge tone={MATCH_STATUS[e.matchStatus].tone} text={MATCH_STATUS[e.matchStatus].text} />}
               </Row>
             </Card>
           ))}
