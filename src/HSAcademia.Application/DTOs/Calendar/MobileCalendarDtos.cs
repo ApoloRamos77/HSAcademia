@@ -37,6 +37,8 @@ public class MobileEventDto
     public string? Round { get; set; }
     public string? Tournament { get; set; }
     public int? MatchStatus { get; set; }
+    /// <summary>Fecha de torneo con hora por definir (StartTime/EndTime vienen vacíos).</summary>
+    public bool TimePending { get; set; }
 }
 
 /// <summary>

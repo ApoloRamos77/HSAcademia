@@ -34,6 +34,8 @@ public sealed class SessionLiquidationWorker : BackgroundService
                 await scope.ServiceProvider.GetRequiredService<SessionBillingService>().ReconcileAllAsync(stoppingToken);
                 await scope.ServiceProvider.GetRequiredService<ReferralService>().SyncAllAsync(stoppingToken);
                 // Cobros de torneo: respaldo por si una lista se cerró sola o cambió algo sin pasar por la pantalla.
+                // Planteles automáticos de torneos (altas y retiros de alumnos de sus categorías), luego cobros.
+                await scope.ServiceProvider.GetRequiredService<TournamentService>().SyncAutoRostersAllAsync(stoppingToken);
                 await scope.ServiceProvider.GetRequiredService<TournamentBillingService>().SyncAllAsync(stoppingToken);
             }
             catch (Exception ex) when (!stoppingToken.IsCancellationRequested)

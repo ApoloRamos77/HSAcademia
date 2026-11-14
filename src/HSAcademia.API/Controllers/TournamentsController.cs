@@ -145,6 +145,12 @@ public class TournamentsController : ControllerBase
         return Ok(await _billing.DecideAsync(AcademyId, chargeId, dto, name?.Trim()));
     });
 
+    // ── Desde el calendario: categorías que juegan el torneo ──
+    [HttpPost("{id:guid}/participations")]
+    [RequirePermission(Permissions.EventsManage)]
+    public Task<IActionResult> CreateParticipation(Guid id, [FromBody] CreateParticipationDto dto) =>
+        Run(async () => Ok(await _service.CreateParticipationAsync(AcademyId, id, dto)));
+
     // ── Fase C: suspensiones y autorizaciones ──
     [HttpGet("matches/{eventId:guid}/suspensions")]
     public Task<IActionResult> MatchSuspensions(Guid eventId, [FromServices] TournamentComplianceService compliance) =>

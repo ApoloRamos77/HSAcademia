@@ -103,8 +103,9 @@ public class TournamentService
         var t = new Tournament { AcademyId = academyId, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
         Apply(t, dto, isNew: true);
         _db.Tournaments.Add(t);
-        _audit?.Add(academyId, "tournaments.create", nameof(Tournament), t.Id, new { t.Name, t.Format, t.ScheduleMode, t.StartDate, t.EndDate });
+        _audit?.Add(academyId, "tournaments.create", nameof(Tournament), t.Id, new { t.Name, t.Format, t.ScheduleMode, t.StartDate, t.EndDate, t.Modality, t.Level, t.InscriptionFee, t.RefereeFee });
         await _db.SaveChangesAsync();
+        if (_billing != null) await _billing.SyncSystemFeesAsync(t.Id);
         return Map(t);
     }
 
@@ -116,7 +117,11 @@ public class TournamentService
         t.UpdatedAt = DateTime.UtcNow;
         _audit?.Add(academyId, "tournaments.update", nameof(Tournament), t.Id, new { t.Name, t.Format, t.ScheduleMode, t.Status, t.StartDate, t.EndDate });
         await _db.SaveChangesAsync();
+        if (_billing != null) await _billing.SyncSystemFeesAsync(t.Id);
         await SyncChargesAsync(academyId, t.Id);
+        // Si cambiaron las fechas del torneo, se ajustan los días pendientes de cada categoría.
+        foreach (var teamId in await _db.TournamentTeams.Where(x => x.TournamentId == t.Id && x.AutoRoster).Select(x => x.Id).ToListAsync())
+            await SyncDaysAsync(teamId, null);
         if (_compliance != null) await _compliance.TrySyncTournamentAsync(t.Id);
         return Map(t);
     }
@@ -147,6 +152,11 @@ public class TournamentService
         if (dto.Format.HasValue) t.Format = (TournamentFormat)dto.Format.Value;
         if (dto.ScheduleMode.HasValue) t.ScheduleMode = (TournamentScheduleMode)dto.ScheduleMode.Value;
         if (dto.Status.HasValue) t.Status = (TournamentStatus)dto.Status.Value;
+        if (dto.Modality.HasValue) t.Modality = (TournamentModality)dto.Modality.Value;
+        if (dto.Level.HasValue) t.Level = (TournamentLevel)dto.Level.Value;
+        if (dto.InscriptionFee.HasValue) t.InscriptionFee = dto.InscriptionFee > 0 ? Math.Round(dto.InscriptionFee.Value, 2) : null;
+        if (dto.RefereeFee.HasValue) t.RefereeFee = dto.RefereeFee > 0 ? Math.Round(dto.RefereeFee.Value, 2) : null;
+        if (dto.DefaultCoachFee.HasValue) t.DefaultCoachFee = dto.DefaultCoachFee > 0 ? Math.Round(dto.DefaultCoachFee.Value, 2) : null;
         // Clientes anteriores no mandan las fechas: se conservan.
         var touchesSchedule = isNew || dto.ScheduleMode.HasValue || dto.StartDate.HasValue || dto.EndDate.HasValue || dto.PlayDays != null;
         if (touchesSchedule)
@@ -177,6 +187,11 @@ public class TournamentService
                 break;
             case TournamentScheduleMode.DateRange:
                 if (t.StartDate == null || t.EndDate == null) throw new InvalidOperationException("Indica la fecha de inicio y de fin del torneo.");
+                if (t.PlayDays.Count == 0) throw new InvalidOperationException("Marca los días de la semana en que se juega.");
+                break;
+            case TournamentScheduleMode.ConsecutiveDays:
+                if (t.StartDate == null || t.EndDate == null) throw new InvalidOperationException("Indica la fecha de inicio y de fin del torneo.");
+                if ((t.EndDate.Value - t.StartDate.Value).TotalDays > 120) throw new InvalidOperationException("Días seguidos: el rango máximo es de 120 días.");
                 break;
             case TournamentScheduleMode.Continuous:
                 if (t.StartDate == null) throw new InvalidOperationException("Indica desde cuándo se juega el torneo.");
@@ -198,6 +213,11 @@ public class TournamentService
         Format = (int)t.Format,
         ScheduleMode = (int)t.ScheduleMode,
         Status = (int)t.Status,
+        Modality = (int)t.Modality,
+        Level = (int)t.Level,
+        InscriptionFee = t.InscriptionFee,
+        RefereeFee = t.RefereeFee,
+        DefaultCoachFee = t.DefaultCoachFee,
         StartDate = t.StartDate,
         EndDate = t.EndDate,
         PlayDays = t.PlayDays ?? new List<int>(),
@@ -393,6 +413,8 @@ public class TournamentService
                 MaxPlayers = team.MaxPlayers,
                 Notes = team.Notes,
                 MatchFee = team.MatchFee,
+                AutoRoster = team.AutoRoster,
+                MatchesCount = teamMatches.Count(m => m.TournamentTeamId == team.Id),
                 Record = TournamentComplianceService.Record(teamMatches.Where(m => m.TournamentTeamId == team.Id)),
                 Players = roster,
             };
@@ -503,7 +525,7 @@ public class TournamentService
         var activeAdded = added.Where(id => validIds.Any(v => v.Id == id && v.IsActive)).ToList();
 
         var upcoming = (await _db.Events.Where(e => e.AcademyId == academyId && e.TournamentTeamId == teamId).ToListAsync())
-            .Where(IsUpcoming).OrderBy(e => e.StartTime).ToList();
+            .Where(e => IsUpcoming(e) && !e.TimePending).OrderBy(e => e.StartTime).ToList();
         var result = new RosterSaveResultDto();
         if (upcoming.Count > 0 && (activeAdded.Count > 0 || removed.Count > 0))
         {
@@ -589,6 +611,162 @@ public class TournamentService
     private static string Vs(Event e) => string.IsNullOrWhiteSpace(e.OpponentTeam) ? "" : $" vs {e.OpponentTeam}";
 
     // =========================================================
+    // FLUJO DESDE EL CALENDARIO: categorías que juegan el torneo
+    // =========================================================
+    /// <summary>
+    /// Asocia categorías al torneo (una "participación" interna con su responsable) y crea los días del torneo
+    /// según su configuración, con hora y rival por definir. Si ya existe para esas mismas categorías, la reutiliza.
+    /// </summary>
+    public async Task<ParticipationResultDto> CreateParticipationAsync(Guid academyId, Guid tournamentId, CreateParticipationDto dto)
+    {
+        var t = await _db.Tournaments.FirstOrDefaultAsync(x => x.AcademyId == academyId && x.Id == tournamentId)
+                ?? throw new KeyNotFoundException("Torneo no encontrado.");
+        if (t.Status == TournamentStatus.Cancelled) throw new InvalidOperationException("El torneo está cancelado.");
+        if (t.StartDate == null) throw new InvalidOperationException("Configura las fechas del torneo antes de agregar categorías.");
+        var categoryIds = dto.CategoryIds.Distinct().ToList();
+        if (categoryIds.Count == 0) throw new InvalidOperationException("Elige al menos una categoría.");
+        var categories = await _db.Categories.AsNoTracking().Where(c => c.AcademyId == academyId && categoryIds.Contains(c.Id))
+            .OrderBy(c => c.Name).ToListAsync();
+        if (categories.Count != categoryIds.Count) throw new InvalidOperationException("Alguna categoría no existe.");
+        if (dto.HeadCoachId.HasValue && !await _db.Users.AnyAsync(u => u.Id == dto.HeadCoachId && u.AcademyId == academyId &&
+                                                                       (u.Role == UserRole.Staff || u.Role == UserRole.AcademyAdmin)))
+            throw new InvalidOperationException("El responsable debe ser parte del personal.");
+
+        var sorted = categoryIds.OrderBy(x => x).ToList();
+        var existing = (await _db.TournamentTeams.Where(x => x.TournamentId == tournamentId && x.AutoRoster).ToListAsync())
+            .FirstOrDefault(x => x.CategoryIds.OrderBy(c => c).SequenceEqual(sorted));
+        var result = new ParticipationResultDto();
+        TournamentTeam team;
+        if (existing == null)
+        {
+            var name = string.Join(" + ", categories.Select(c => c.Name));
+            team = new TournamentTeam
+            {
+                AcademyId = academyId, TournamentId = tournamentId, Name = name.Length <= 120 ? name : name[..120],
+                CategoryIds = categoryIds, HeadCoachId = dto.HeadCoachId, AutoRoster = true,
+            };
+            _db.TournamentTeams.Add(team);
+            _audit?.Add(academyId, "tournaments.participation.create", nameof(TournamentTeam), team.Id, new { tournament = t.Name, team.Name, team.HeadCoachId });
+            await _db.SaveChangesAsync();
+        }
+        else
+        {
+            team = existing;
+            if (dto.HeadCoachId.HasValue && dto.HeadCoachId != team.HeadCoachId)
+            {
+                team.HeadCoachId = dto.HeadCoachId;
+                result.Warnings.Add("Las categorías ya estaban en el torneo: se actualizó el responsable de sus días pendientes.");
+            }
+            else result.Warnings.Add("Estas categorías ya estaban en el torneo: se agregaron solo los días que faltaban.");
+            await _db.SaveChangesAsync();
+        }
+
+        await SyncAutoRosterAsync(team.Id);
+        result.DaysCreated = await SyncDaysAsync(team.Id, dto.CoachFee);
+        result.TeamId = team.Id;
+        result.TeamName = team.Name;
+        result.Players = await _db.TournamentPlayers.CountAsync(p => p.TeamId == team.Id);
+        if (result.DaysCreated == 0 && existing == null) result.Warnings.Add("No quedan días por jugar en las fechas del torneo.");
+        return result;
+    }
+
+    /// <summary>Días del torneo según su configuración (solo fecha).</summary>
+    public static List<DateTime> ScheduleDays(Tournament t)
+    {
+        var days = new List<DateTime>();
+        if (t.StartDate == null) return days;
+        var from = t.StartDate.Value.Date;
+        var to = (t.EndDate ?? from.AddDays(56)).Date;
+        if ((to - from).TotalDays > 370) to = from.AddDays(370);
+        for (var d = from; d <= to; d = d.AddDays(1))
+        {
+            var ok = t.ScheduleMode switch
+            {
+                TournamentScheduleMode.SingleDay => d == from,
+                TournamentScheduleMode.ConsecutiveDays => true,
+                _ => t.PlayDays.Count == 0 || t.PlayDays.Contains((int)d.DayOfWeek),
+            };
+            if (ok) days.Add(DateTime.SpecifyKind(d, DateTimeKind.Utc));
+        }
+        return days;
+    }
+
+    /// <summary>
+    /// Crea los días que faltan (desde hoy) con hora y rival por definir, y quita los días pendientes que ya no
+    /// están en las fechas del torneo (si no tienen asistencia). Devuelve cuántos creó.
+    /// </summary>
+    public async Task<int> SyncDaysAsync(Guid teamId, decimal? coachFeeForNew)
+    {
+        var team = await _db.TournamentTeams.Include(x => x.Tournament).FirstOrDefaultAsync(x => x.Id == teamId);
+        if (team == null || !team.AutoRoster) return 0;
+        var t = team.Tournament;
+        var today = DateTime.SpecifyKind(AcademyClock.Today, DateTimeKind.Utc);
+        var schedule = t.Status == TournamentStatus.Cancelled ? new List<DateTime>() : ScheduleDays(t);
+        var events = await _db.Events.Where(e => e.TournamentTeamId == teamId).ToListAsync();
+        var taken = events.Select(e => e.StartTime.Date).ToHashSet();
+
+        var marked = (await _db.Attendances.Where(a => a.EventId != null && events.Select(e => e.Id).Contains(a.EventId.Value))
+            .Select(a => a.EventId!.Value).Distinct().ToListAsync()).ToHashSet();
+        foreach (var ev in events.Where(e => e.TimePending && e.StartTime.Date >= today && !schedule.Contains(e.StartTime.Date) && !marked.Contains(e.Id)))
+        {
+            ev.IsDeleted = true; ev.DeletedAt = DateTime.UtcNow; ev.IsActive = false;
+        }
+        foreach (var ev in events.Where(e => e.TimePending && e.StartTime.Date >= today && !e.IsDeleted))
+            ev.TeacherId = team.HeadCoachId;
+
+        var number = events.Count(e => !e.IsDeleted);
+        var created = 0;
+        foreach (var day in schedule.Where(d => d >= today && !taken.Contains(d)))
+        {
+            number++;
+            var ev = NewMatch(team.AcademyId, team, day, day.AddHours(1));
+            ev.TimePending = true;
+            ev.Round = $"Fecha {number}";
+            ev.Location = Clean(t.MainLocation);
+            ev.CoachFee = coachFeeForNew is > 0 ? coachFeeForNew : t.DefaultCoachFee;
+            ev.Title = MatchTitle(team, ev);
+            _db.Events.Add(ev);
+            created++;
+        }
+        if (created > 0)
+            _audit?.Add(team.AcademyId, "tournaments.days.create", nameof(TournamentTeam), teamId, new { team.Name, created });
+        await _db.SaveChangesAsync();
+        return created;
+    }
+
+    /// <summary>Plantel automático = alumnos activos de las categorías (conserva camisetas y documentos).</summary>
+    public async Task SyncAutoRosterAsync(Guid teamId)
+    {
+        var team = await _db.TournamentTeams.AsNoTracking().FirstOrDefaultAsync(x => x.Id == teamId);
+        if (team == null || !team.AutoRoster) return;
+        var students = await _db.Students.AsNoTracking()
+            .Where(s => s.AcademyId == team.AcademyId && s.IsActive && team.CategoryIds.Contains(s.CategoryId))
+            .Select(s => s.Id).ToListAsync();
+        var current = await _db.TournamentPlayers.AsNoTracking().Where(p => p.TeamId == teamId).ToListAsync();
+        var currentIds = current.Select(p => p.StudentId).ToHashSet();
+        if (currentIds.SetEquals(students)) return;
+        var players = current.Where(p => students.Contains(p.StudentId))
+            .Select(p => new SaveTournamentPlayerDto { StudentId = p.StudentId, ShirtNumber = p.ShirtNumber, Position = p.Position, DeliveredDocuments = p.DeliveredDocuments })
+            .Concat(students.Where(id => !currentIds.Contains(id)).Select(id => new SaveTournamentPlayerDto { StudentId = id }))
+            .ToList();
+        await SaveRosterAsync(team.AcademyId, teamId, new SaveTournamentRosterDto { Players = players });
+    }
+
+    /// <summary>Respaldo horario: planteles automáticos de torneos vigentes (altas y retiros de alumnos).</summary>
+    public async Task SyncAutoRostersAllAsync(CancellationToken ct = default)
+    {
+        var ids = await _db.TournamentTeams.AsNoTracking()
+            .Where(x => x.AutoRoster && x.Tournament.Status != TournamentStatus.Cancelled && x.Tournament.Status != TournamentStatus.Finished)
+            .Select(x => x.Id).ToListAsync(ct);
+        foreach (var id in ids)
+        {
+            if (ct.IsCancellationRequested) break;
+            try { await SyncAutoRosterAsync(id); }
+            catch { _db.ChangeTracker.Clear(); }
+        }
+    }
+
+    // =========================================================
     // PARTIDOS
     // =========================================================
     public async Task<TournamentMatchDto> CreateMatchAsync(Guid academyId, Guid teamId, SaveTournamentMatchDto dto)
@@ -624,10 +802,24 @@ public class TournamentService
 
         var oldStart = ev.StartTime;
         var oldTeacher = ev.TeacherId;
+        var wasPending = AttendanceWindow.PendingMatchReason(ev) != null;
         ev.StartTime = Wall(dto.StartTime);
         ev.EndTime = Wall(dto.EndTime);
+        ev.TimePending = false;
         ApplyMatch(ev, team, dto);
+        ev.CoachFee = dto.CoachFee is > 0 ? Math.Round(dto.CoachFee.Value, 2) : null;
         ev.UpdatedAt = DateTime.UtcNow;
+
+        // Recién con hora y rival se convoca al plantel y se avisa a las familias.
+        // (Aunque el partido ya haya empezado: la lista de asistencia son los convocados.)
+        if (team != null && wasPending && AttendanceWindow.PendingMatchReason(ev) == null && ev.MatchStatus is not (MatchStatus.Postponed or MatchStatus.Suspended))
+        {
+            var roster = await ActiveRosterAsync(team.Id);
+            var already = (await _db.EventCalls.Where(c => c.EventId == ev.Id).Select(c => c.StudentId).ToListAsync()).ToHashSet();
+            var fresh = roster.Where(id => !already.Contains(id)).ToList();
+            _db.EventCalls.AddRange(fresh.Select(sid => NewCall(academyId, ev.Id, sid)));
+            if (IsUpcoming(ev)) await AddCallNoticesAsync(academyId, team, new() { ev }, fresh);
+        }
 
         _audit?.Add(academyId, "tournaments.match.update", nameof(Event), ev.Id, new
         {
@@ -830,7 +1022,7 @@ public class TournamentService
                 e.Id, e.Title, e.StartTime, e.EndTime, e.CallTime, e.Round, e.OpponentTeam, e.Location,
                 e.HeadquarterId, HeadquarterName = e.Headquarter != null ? e.Headquarter.Name : null,
                 e.TeacherId, TeacherName = e.Teacher != null ? e.Teacher.FirstName + " " + e.Teacher.LastName : null,
-                e.TournamentTeamId, e.MatchStatus, e.GoalsFor, e.GoalsAgainst
+                e.TournamentTeamId, e.MatchStatus, e.GoalsFor, e.GoalsAgainst, e.TimePending, e.CoachFee
             })
             .ToListAsync();
         var ids = events.Select(e => e.Id).ToList();
@@ -867,6 +1059,9 @@ public class TournamentService
                 CalledCount = c?.Total ?? 0,
                 ConfirmedCount = c?.Yes ?? 0,
                 DeclinedCount = c?.No ?? 0,
+                TimePending = e.TimePending,
+                CoachFee = e.CoachFee,
+                NeedsDetails = e.TimePending || (e.TournamentTeamId != null && string.IsNullOrWhiteSpace(e.OpponentTeam)),
             };
         }).ToList();
     }

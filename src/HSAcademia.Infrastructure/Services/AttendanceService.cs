@@ -729,6 +729,7 @@ public class AttendanceService : IAttendanceService
         var sessions = events
             .Where(e => e.Type is Domain.Enums.EventType.Training or Domain.Enums.EventType.FriendlyMatch or Domain.Enums.EventType.TournamentMatch)
             .Where(e => e.TournamentTeamId.HasValue ? calledTo.Contains(e.Id) : CategoriesOf(e).Contains(categoryId))
+            .Where(e => AttendanceWindow.PendingMatchReason(e) == null)
             .ToList();
         if (sessions.Count == 0) return null;
 
@@ -751,6 +752,8 @@ public class AttendanceService : IAttendanceService
     /// </summary>
     private static void EnforceWindowRule(Domain.Entities.Event ev)
     {
+        var pending = AttendanceWindow.PendingMatchReason(ev);
+        if (pending != null) throw new InvalidOperationException(pending);
         var openAt = ev.StartTime.AddMinutes(-15);
         if (AcademyClock.WallNow < openAt)
         {

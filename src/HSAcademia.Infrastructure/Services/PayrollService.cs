@@ -340,13 +340,19 @@ public class PayrollService
     /// <summary>Partidos cuyo equipo de torneo tiene honorario por partido: evento → monto.</summary>
     private async Task<Dictionary<Guid, decimal>> TournamentMatchFeesAsync(IEnumerable<Event> events)
     {
-        var teamIds = events.Where(e => e.TournamentTeamId.HasValue).Select(e => e.TournamentTeamId!.Value).Distinct().ToList();
-        if (teamIds.Count == 0) return new();
-        var fees = await _db.TournamentTeams.IgnoreQueryFilters().AsNoTracking()
+        // El honorario del día manda; si no tiene, el del equipo.
+        var list = events.ToList();
+        var teamIds = list.Where(e => e.TournamentTeamId.HasValue).Select(e => e.TournamentTeamId!.Value).Distinct().ToList();
+        var fees = teamIds.Count == 0 ? new Dictionary<Guid, decimal>() : await _db.TournamentTeams.IgnoreQueryFilters().AsNoTracking()
             .Where(t => teamIds.Contains(t.Id) && t.MatchFee != null && t.MatchFee > 0)
             .ToDictionaryAsync(t => t.Id, t => t.MatchFee!.Value);
-        return events.Where(e => e.TournamentTeamId.HasValue && fees.ContainsKey(e.TournamentTeamId.Value))
-            .ToDictionary(e => e.Id, e => fees[e.TournamentTeamId!.Value]);
+        var result = new Dictionary<Guid, decimal>();
+        foreach (var e in list)
+        {
+            if (e.CoachFee is > 0) result[e.Id] = e.CoachFee.Value;
+            else if (e.TournamentTeamId.HasValue && fees.TryGetValue(e.TournamentTeamId.Value, out var f)) result[e.Id] = f;
+        }
+        return result;
     }
 
     public async Task<Period> SuggestPeriodAsync(Guid academyId, Guid staffId)

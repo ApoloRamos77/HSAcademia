@@ -32,6 +32,8 @@ public class TournamentFeeDto
     public bool ExemptScholarship { get; set; }
     public bool IsActive { get; set; }
     public string? Notes { get; set; }
+    /// <summary>Concepto automático de la ficha ("inscription" / "referee").</summary>
+    public string? SystemKey { get; set; }
 
     public decimal Charged { get; set; }
     public decimal Collected { get; set; }

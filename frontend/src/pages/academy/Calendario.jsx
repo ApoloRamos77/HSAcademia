@@ -76,6 +76,10 @@ export default function Calendario() {
   const [saving, setSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  // Día de torneo (creado desde el torneo): se edita con hora, rival, responsable y honorario.
+  const [tourDay, setTourDay] = useState(null); // evento | null
+  const [dayForm, setDayForm] = useState({ date: '', start: '', end: '', opponentTeam: '', teacherId: '', coachFee: '' });
+  const [coachFee, setCoachFee] = useState('');
 
   // Calls
   const [showCallsModal, setShowCallsModal] = useState(false);
@@ -165,12 +169,55 @@ export default function Calendario() {
   });
 
   const isEditingSeries = isEditing && !!editingSeriesId && seriesScope !== 'single';
+  // Nuevo evento de torneo: se eligen torneo, categorías y responsable; los días los crea el torneo.
+  const isTournamentNew = !isEditing && form.type === 3;
+  const selectedTournament = tournaments.find(t => t.id === form.tournamentId);
+  const scheduleHint = t => {
+    if (!t?.startDate) return 'El torneo no tiene fechas configuradas: edítalo en Torneos.';
+    const d = x => `${x.slice(8, 10)}/${x.slice(5, 7)}`;
+    const names = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+    if (t.scheduleMode === 1) return `Un día: ${d(t.startDate)}.`;
+    if (t.scheduleMode === 4) return `Días seguidos del ${d(t.startDate)} al ${d(t.endDate)}.`;
+    return `${(t.playDays || []).map(x => names[x]).join(', ') || 'Todos los días'} · del ${d(t.startDate)}${t.endDate ? ` al ${d(t.endDate)}` : ''}.`;
+  };
 
   // ── Save event (single or recurring) ──
   const handleSave = async () => {
     setSaving(true);
     try {
-      if (isEditingSeries) {
+      if (tourDay) {
+        // ── Día de torneo: hora, rival, responsable y honorario ──
+        if (!dayForm.date || !dayForm.start || !dayForm.end) { toast.error('Indica la fecha y las horas del partido'); setSaving(false); return; }
+        if (dayForm.end <= dayForm.start) { toast.error('La hora de fin debe ser posterior al inicio'); setSaving(false); return; }
+        const { data } = await api.put(`/tournaments/matches/${tourDay.id}`, {
+          startTime: `${dayForm.date}T${dayForm.start}:00.000Z`,
+          endTime: `${dayForm.date}T${dayForm.end}:00.000Z`,
+          callTime: tourDay.callTime || null,
+          round: tourDay.round || null,
+          opponentTeam: dayForm.opponentTeam.trim() || null,
+          location: tourDay.location || null,
+          headquarterId: form.headquarterId || null,
+          teacherId: dayForm.teacherId || null,
+          matchStatus: tourDay.matchStatus || 1,
+          goalsFor: tourDay.goalsFor ?? null,
+          goalsAgainst: tourDay.goalsAgainst ?? null,
+          description: form.description || null,
+          coachFee: dayForm.coachFee === '' ? null : Number(dayForm.coachFee),
+        });
+        if (data.needsDetails) toast('Guardado. Falta el rival: sin él no se puede tomar asistencia.', { icon: '⚠️', duration: 6000 });
+        else toast.success(`Partido listo · ${data.calledCount} alumno(s) convocados`);
+      } else if (isTournamentNew) {
+        // ── Nuevo evento de torneo: crea los días según su configuración ──
+        if (!form.tournamentId) { toast.error('Elige el torneo'); setSaving(false); return; }
+        if (form.categoryIds.length === 0) { toast.error('Elige al menos una categoría'); setSaving(false); return; }
+        const { data } = await api.post(`/tournaments/${form.tournamentId}/participations`, {
+          categoryIds: form.categoryIds,
+          headCoachId: form.teacherId || null,
+          coachFee: coachFee === '' ? null : Number(coachFee),
+        });
+        toast.success(`${data.daysCreated} día(s) del torneo creados para ${data.teamName}. Completa la hora y el rival en cada día.`, { duration: 7000 });
+        data.warnings?.forEach(w => toast(w, { icon: 'ℹ️', duration: 6000 }));
+      } else if (isEditingSeries) {
         if (!form.title || !recurringStart || !recurringEnd || recurringDays.length === 0) {
           toast.error('Completa título, horario y selecciona al menos un día'); setSaving(false); return;
         }
@@ -246,6 +293,8 @@ export default function Calendario() {
       setShowModal(false);
       setIsEditing(false);
       setEditingId(null);
+      setTourDay(null);
+      setCoachFee('');
       setEditingSeriesId(null);
       setSeriesScope('single');
       setForm({ title:'', description:'', type:1, startTime:'', endTime:'',
@@ -262,6 +311,17 @@ export default function Calendario() {
 
   // ── Edit event ──
   const openEdit = (e) => {
+    if (e.tournamentTeamId) {
+      setTourDay(e);
+      setDayForm({
+        date: e.startTime.slice(0, 10),
+        start: e.timePending ? '' : e.startTime.slice(11, 16),
+        end: e.timePending ? '' : e.endTime.slice(11, 16),
+        opponentTeam: e.opponentTeam || '',
+        teacherId: e.teacherId || '',
+        coachFee: e.coachFee ?? '',
+      });
+    } else setTourDay(null);
     setForm({
       title: e.title,
       description: e.description || '',
@@ -388,7 +448,7 @@ export default function Calendario() {
               +1 Día
             </button>
             <button className="btn btn-primary" onClick={() => {
-              setIsEditing(false); setEditingId(null);
+              setIsEditing(false); setEditingId(null); setTourDay(null); setCoachFee('');
               setForm({ title:'', description:'', type:1, startTime:'', endTime:'',
                 headquarterId:'', categoryIds:[], teacherId:'', tournamentId:'', opponentTeam:'' });
               setShowModal(true);
@@ -451,8 +511,11 @@ export default function Calendario() {
                       {dayEvts.slice(0,3).map(e => {
                         const cfg = typeConfig(e.type);
                         return (
-                          <div key={e.id} className="cal-chip" style={{ background: cfg.bg, borderLeft:`3px solid ${cfg.color}` }}>
-                            <span style={{ color: cfg.color, fontSize:11 }}>{e.title}</span>
+                          <div key={e.id} className="cal-chip" style={{ background: cfg.bg, borderLeft:`3px solid ${cfg.color}` }}
+                            title={e.timePending || (e.tournamentTeamId && !e.opponentTeam) ? 'Hora o rival por definir' : undefined}>
+                            <span style={{ color: cfg.color, fontSize:11 }}>
+                              {(e.timePending || (e.tournamentTeamId && !e.opponentTeam)) ? '⏱ ' : ''}{e.title}
+                            </span>
                           </div>
                         );
                       })}
@@ -542,9 +605,15 @@ export default function Calendario() {
                     )}
                   </div>
                   <div style={{ display:'flex', flexDirection:'column', gap:4, marginTop:6 }}>
-                    <span style={{ fontSize:12, color:'var(--text-muted)', display:'flex', gap:6, alignItems:'center' }}>
-                      <Clock size={12}/> {fmt(st)} – {fmt(et)}
+                    <span style={{ fontSize:12, color: e.timePending ? '#d97706' : 'var(--text-muted)', display:'flex', gap:6, alignItems:'center' }}>
+                      <Clock size={12}/> {e.timePending ? 'Hora por definir' : `${fmt(st)} – ${fmt(et)}`}
                     </span>
+                    {e.tournamentTeamId && (
+                      <span style={{ fontSize:12, color: e.opponentTeam ? 'var(--text-muted)' : '#d97706', display:'flex', gap:6, alignItems:'center' }}>
+                        <Swords size={12}/> {e.opponentTeam ? `vs ${e.opponentTeam}` : 'Rival por definir'}
+                        {e.coachFee ? ` · honorario S/ ${Number(e.coachFee).toFixed(2)}` : ''}
+                      </span>
+                    )}
                     {e.headquarterName && (
                       <span style={{ fontSize:12, color:'var(--text-muted)', display:'flex', gap:6, alignItems:'center' }}>
                         <MapPin size={12}/> {e.headquarterName}
@@ -596,17 +665,26 @@ export default function Calendario() {
         <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowModal(false)}>
           <div className="modal-box" style={{ maxWidth:600 }}>
             <div className="modal-header">
-              <h3>{isEditing ? <RefreshCw size={18}/> : <Plus size={18}/>} {isEditing ? 'Editar Evento' : 'Nuevo Evento'}</h3>
+              <h3>{isEditing ? <RefreshCw size={18}/> : <Plus size={18}/>} {tourDay ? 'Partido del torneo' : isEditing ? 'Editar Evento' : 'Nuevo Evento'}</h3>
               <button className="btn-icon" onClick={() => setShowModal(false)}><X size={18}/></button>
             </div>
             <div className="modal-body">
               <div className="form-row-2">
+                {!isTournamentNew && !tourDay && (
                 <div className="form-group" style={{ gridColumn:'1/-1' }}>
                   <label>Título *</label>
                   <input className="form-control" placeholder="Ej: Entrenamiento Sub-12"
                     value={form.title} onChange={e => setForm({...form, title: e.target.value})} />
                 </div>
+                )}
+                {tourDay && (
+                  <div className="form-group" style={{ gridColumn:'1/-1' }}>
+                    <div style={{ fontWeight:600 }}>{tourDay.title}</div>
+                    <small className="text-muted">{tourDay.tournamentName}{tourDay.round ? ` · ${tourDay.round}` : ''}. Sin hora y rival no se puede tomar asistencia.</small>
+                  </div>
+                )}
 
+                {!tourDay && (
                 <div className="form-group">
                   <label>Tipo de Evento *</label>
                   <select className="form-control" value={form.type}
@@ -616,6 +694,7 @@ export default function Calendario() {
                     )}
                   </select>
                 </div>
+                )}
 
                 {form.type === 2 && (
                   <div className="form-group">
@@ -624,15 +703,67 @@ export default function Calendario() {
                       value={form.opponentTeam} onChange={e => setForm({...form, opponentTeam: e.target.value})} />
                   </div>
                 )}
-                {form.type === 3 && (
+                {form.type === 3 && !tourDay && (
                   <div className="form-group">
-                    <label>Torneo</label>
+                    <label>Torneo{isTournamentNew ? ' *' : ''}</label>
                     <select className="form-control" value={form.tournamentId}
-                      onChange={e => setForm({...form, tournamentId: e.target.value})}>
-                      <option value="">Sin torneo vinculado</option>
-                      {tournaments.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      onChange={e => {
+                        const t = tournaments.find(x => x.id === e.target.value);
+                        setForm({...form, tournamentId: e.target.value});
+                        if (isTournamentNew) setCoachFee(t?.defaultCoachFee ?? '');
+                      }}>
+                      <option value="">{isTournamentNew ? 'Elige el torneo' : 'Sin torneo vinculado'}</option>
+                      {tournaments.filter(t => !isTournamentNew || (t.status !== 3 && t.status !== 4)).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                     </select>
                   </div>
+                )}
+                {isTournamentNew && (
+                  <div className="form-group">
+                    <label>Honorario del responsable por fecha (S/)</label>
+                    <input type="number" min={0} step="0.50" className="form-control" value={coachFee}
+                      onChange={e => setCoachFee(e.target.value)} placeholder="Vacío = sin honorario" />
+                  </div>
+                )}
+                {isTournamentNew && selectedTournament && (
+                  <div style={{ gridColumn:'1/-1', fontSize:13, margin:0, padding:'10px 12px', borderRadius:8, background:'rgba(59,130,246,0.08)', border:'1px solid rgba(59,130,246,0.3)' }}>
+                    <strong>{scheduleHint(selectedTournament)}</strong> Se crearán esos días para las categorías elegidas con <em>hora y rival por definir</em>;
+                    luego completas cada día (hora, rival, responsable y honorario).
+                    {selectedTournament.inscriptionFee ? ` Inscripción S/ ${Number(selectedTournament.inscriptionFee).toFixed(2)} por alumno.` : ''}
+                    {selectedTournament.refereeFee ? ` Arbitraje S/ ${Number(selectedTournament.refereeFee).toFixed(2)} por partido a quien asista.` : ''}
+                  </div>
+                )}
+                {tourDay && (
+                  <>
+                    <div className="form-group">
+                      <label>Equipo rival *</label>
+                      <input className="form-control" placeholder="Nombre del equipo rival" value={dayForm.opponentTeam}
+                        onChange={e => setDayForm({...dayForm, opponentTeam: e.target.value})} />
+                    </div>
+                    <div className="form-group">
+                      <label>Fecha *</label>
+                      <input type="date" className="form-control" value={dayForm.date} onChange={e => setDayForm({...dayForm, date: e.target.value})} />
+                    </div>
+                    <div className="form-group">
+                      <label>Hora de inicio *</label>
+                      <input type="time" className="form-control" value={dayForm.start} onChange={e => setDayForm({...dayForm, start: e.target.value})} />
+                    </div>
+                    <div className="form-group">
+                      <label>Hora de fin *</label>
+                      <input type="time" className="form-control" value={dayForm.end} onChange={e => setDayForm({...dayForm, end: e.target.value})} />
+                    </div>
+                    <div className="form-group">
+                      <label>Entrenador responsable</label>
+                      <select className="form-control" value={dayForm.teacherId} onChange={e => setDayForm({...dayForm, teacherId: e.target.value})}>
+                        <option value="">Sin responsable</option>
+                        {staff.map(s => <option key={s.id} value={s.id}>{s.firstName} {s.lastName}</option>)}
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Honorario de este día (S/)</label>
+                      <input type="number" min={0} step="0.50" className="form-control" value={dayForm.coachFee}
+                        onChange={e => setDayForm({...dayForm, coachFee: e.target.value})} placeholder="Vacío = sin honorario" />
+                    </div>
+                  </>
                 )}
 
                 {/* ── Recurring option (Training only) - Hidden when editing ── */}
@@ -733,7 +864,7 @@ export default function Calendario() {
                 )}
 
                 {/* Single event date/time (hidden when creating recurring or editing several sessions) */}
-                {(!recurringEnabled || isEditing) && !isEditingSeries && (
+                {(!recurringEnabled || isEditing) && !isEditingSeries && !isTournamentNew && !tourDay && (
                   <>
                     <div className="form-group">
                       <label>Inicio *</label>
@@ -757,21 +888,24 @@ export default function Calendario() {
                   </select>
                 </div>
 
+                {!tourDay && (
                 <div className="form-group">
-                  <label>Profesor Responsable</label>
+                  <label>{isTournamentNew ? 'Entrenador responsable' : 'Profesor Responsable'}</label>
                   <select className="form-control" value={form.teacherId}
                     onChange={e => setForm({...form, teacherId: e.target.value})}>
                     <option value="">Ninguno / Sin profesor</option>
                     {staff.map(s => <option key={s.id} value={s.id}>{s.firstName} {s.lastName}</option>)}
                   </select>
                 </div>
+                )}
 
+                {!tourDay && (
                 <div className="form-group">
-                  <label>Categorías</label>
+                  <label>Categorías{isTournamentNew ? ' *' : ''}</label>
                   <div style={{ maxHeight: 150, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 6, padding: 8 }}>
                     {categories.filter(c => {
                       if (form.headquarterId && c.headquarterId !== form.headquarterId) return false;
-                      if (form.teacherId) {
+                      if (form.teacherId && !isTournamentNew) {
                         const teacher = staff.find(s => s.id === form.teacherId);
                         if (teacher && teacher.categoryIds && teacher.categoryIds.length > 0) {
                           return teacher.categoryIds.includes(c.id);
@@ -789,7 +923,7 @@ export default function Calendario() {
                     ))}
                     {categories.filter(c => {
                       if (form.headquarterId && c.headquarterId !== form.headquarterId) return false;
-                      if (form.teacherId) {
+                      if (form.teacherId && !isTournamentNew) {
                         const teacher = staff.find(s => s.id === form.teacherId);
                         if (teacher && teacher.categoryIds && teacher.categoryIds.length > 0) return teacher.categoryIds.includes(c.id);
                       }
@@ -797,6 +931,7 @@ export default function Calendario() {
                     }).length === 0 && <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>No hay categorías disponibles</span>}
                   </div>
                 </div>
+                )}
 
                 <div className="form-group" style={{ gridColumn:'1/-1' }}>
                   <label>Descripción</label>
@@ -808,7 +943,7 @@ export default function Calendario() {
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancelar</button>
               <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-                {saving ? 'Guardando...' : (isEditing ? 'Actualizar Evento' : (form.type === 1 && recurringEnabled ? '📅 Crear Entrenamientos' : 'Crear Evento'))}
+                {saving ? 'Guardando...' : (tourDay ? 'Guardar partido' : isEditing ? 'Actualizar Evento' : isTournamentNew ? '🏆 Crear días del torneo' : (form.type === 1 && recurringEnabled ? '📅 Crear Entrenamientos' : 'Crear Evento'))}
               </button>
             </div>
           </div>

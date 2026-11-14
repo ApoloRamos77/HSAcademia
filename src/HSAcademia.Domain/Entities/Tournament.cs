@@ -22,7 +22,27 @@ public enum TournamentScheduleMode
     /// <summary>Rango de fechas con días de juego (ej. sábados y domingos).</summary>
     DateRange = 2,
     /// <summary>Continuo / temporada: fecha de fin opcional.</summary>
-    Continuous = 3
+    Continuous = 3,
+    /// <summary>Días seguidos: todos los días entre inicio y fin.</summary>
+    ConsecutiveDays = 4
+}
+
+/// <summary>Modalidad de juego.</summary>
+public enum TournamentModality
+{
+    Other = 0,
+    Football5 = 5,
+    Football7 = 7,
+    Football9 = 9,
+    Football11 = 11
+}
+
+public enum TournamentLevel
+{
+    Unspecified = 0,
+    Formative = 1,
+    Intermediate = 2,
+    Competitive = 3
 }
 
 public enum TournamentStatus
@@ -44,6 +64,14 @@ public class Tournament
     public TournamentFormat Format { get; set; } = TournamentFormat.Other;
     public TournamentScheduleMode ScheduleMode { get; set; } = TournamentScheduleMode.DateRange;
     public TournamentStatus Status { get; set; } = TournamentStatus.Registration;
+    public TournamentModality Modality { get; set; } = TournamentModality.Other;
+    public TournamentLevel Level { get; set; } = TournamentLevel.Unspecified;
+    /// <summary>Inscripción por alumno participante (se cobra una vez). Null = no se cobra.</summary>
+    public decimal? InscriptionFee { get; set; }
+    /// <summary>Arbitraje por alumno en cada partido al que asiste. Null = no se cobra.</summary>
+    public decimal? RefereeFee { get; set; }
+    /// <summary>Honorario sugerido del entrenador por fecha (se puede cambiar en cada día).</summary>
+    public decimal? DefaultCoachFee { get; set; }
     /// <summary>Fecha de inicio (solo fecha). Null en torneos migrados sin partidos.</summary>
     public DateTime? StartDate { get; set; }
     /// <summary>Fecha de fin (solo fecha). Null = continuo sin fin conocido.</summary>
@@ -101,6 +129,8 @@ public class TournamentTeam
     public int? MaxPlayers { get; set; }
     /// <summary>Honorario por partido del responsable (o su reemplazo). Con honorario, el partido no cuenta como sesión u hora.</summary>
     public decimal? MatchFee { get; set; }
+    /// <summary>Participación creada desde el calendario: el plantel son los alumnos activos de sus categorías (se mantiene solo).</summary>
+    public bool AutoRoster { get; set; }
     public string? Notes { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

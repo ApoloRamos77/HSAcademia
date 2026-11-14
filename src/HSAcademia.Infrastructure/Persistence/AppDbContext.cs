@@ -733,6 +733,11 @@ public class AppDbContext : DbContext
             entity.Property(e => e.ContactPhone).HasColumnName("contact_phone").HasMaxLength(30);
             entity.Property(e => e.Rules).HasColumnName("rules").HasMaxLength(4000);
             entity.Property(e => e.YellowCardsForSuspension).HasColumnName("yellow_cards_for_suspension");
+            entity.Property(e => e.Modality).HasColumnName("modality").HasConversion<int>();
+            entity.Property(e => e.Level).HasColumnName("level").HasConversion<int>();
+            entity.Property(e => e.InscriptionFee).HasColumnName("inscription_fee").HasColumnType("numeric(10,2)");
+            entity.Property(e => e.RefereeFee).HasColumnName("referee_fee").HasColumnType("numeric(10,2)");
+            entity.Property(e => e.DefaultCoachFee).HasColumnName("default_coach_fee").HasColumnType("numeric(10,2)");
             entity.Property(e => e.RedCardSuspensionMatches).HasColumnName("red_card_suspension_matches");
             entity.Property(e => e.RequiresAuthorization).HasColumnName("requires_authorization");
             entity.Property(e => e.AuthorizationText).HasColumnName("authorization_text").HasMaxLength(2000);
@@ -791,6 +796,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.BirthYearTo).HasColumnName("birth_year_to");
             entity.Property(e => e.MaxPlayers).HasColumnName("max_players");
             entity.Property(e => e.MatchFee).HasColumnName("match_fee").HasColumnType("numeric(10,2)");
+            entity.Property(e => e.AutoRoster).HasColumnName("auto_roster");
             entity.Property(e => e.Notes).HasColumnName("notes").HasMaxLength(1000);
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
@@ -902,6 +908,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.ExemptScholarship).HasColumnName("exempt_scholarship");
             entity.Property(e => e.IsActive).HasColumnName("is_active");
             entity.Property(e => e.Notes).HasColumnName("notes").HasMaxLength(500);
+            entity.Property(e => e.SystemKey).HasColumnName("system_key").HasMaxLength(20);
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
             entity.Property(e => e.IsDeleted).HasColumnName("is_deleted").HasDefaultValue(false);
@@ -977,6 +984,8 @@ public class AppDbContext : DbContext
             entity.Property(e => e.CallTime).HasColumnName("call_time");
             entity.Property(e => e.Location).HasColumnName("location").HasMaxLength(300);
             entity.Property(e => e.MatchStatus).HasColumnName("match_status").HasConversion<int?>();
+            entity.Property(e => e.TimePending).HasColumnName("time_pending");
+            entity.Property(e => e.CoachFee).HasColumnName("coach_fee").HasColumnType("numeric(10,2)");
             entity.HasIndex(e => e.TournamentTeamId);
             entity.Property(e => e.IsActive).HasColumnName("is_active").HasDefaultValue(true);
 

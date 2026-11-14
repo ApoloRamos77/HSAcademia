@@ -59,6 +59,7 @@ public class TournamentBillingService
     {
         var fee = await _db.TournamentFees.FirstOrDefaultAsync(x => x.AcademyId == academyId && x.Id == feeId)
                   ?? throw new KeyNotFoundException("Concepto no encontrado.");
+        if (fee.SystemKey != null) throw new InvalidOperationException("La inscripción y el arbitraje se cambian en la ficha del torneo (Editar).");
         await ValidateFeeAsync(academyId, fee.TournamentId, dto);
         if ((int)fee.Frequency != dto.Frequency && await _db.TournamentCharges.AnyAsync(c => c.FeeId == feeId))
             throw new InvalidOperationException("No se puede cambiar la frecuencia de un concepto que ya generó cobros. Crea otro concepto.");
@@ -77,6 +78,7 @@ public class TournamentBillingService
     {
         var fee = await _db.TournamentFees.FirstOrDefaultAsync(x => x.AcademyId == academyId && x.Id == feeId)
                   ?? throw new KeyNotFoundException("Concepto no encontrado.");
+        if (fee.SystemKey != null) throw new InvalidOperationException("La inscripción y el arbitraje se quitan en la ficha del torneo (monto en 0).");
         var charges = await _db.TournamentCharges.Include(c => c.PaymentRecord).Where(c => c.FeeId == feeId).ToListAsync();
         if (charges.Any(c => Paid(c.PaymentRecord)))
             throw new InvalidOperationException("Este concepto ya tiene pagos: desactívalo en lugar de eliminarlo (se anulan solo las deudas sin pagos).");
@@ -106,6 +108,45 @@ public class TournamentBillingService
         fee.ExemptScholarship = dto.ExemptScholarship;
         fee.IsActive = dto.IsActive;
         fee.Notes = Clean(dto.Notes);
+    }
+
+    /// <summary>Inscripción y arbitraje de la ficha del torneo: se mantienen como conceptos automáticos.</summary>
+    public async Task SyncSystemFeesAsync(Guid tournamentId)
+    {
+        var t = await _db.Tournaments.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.Id == tournamentId);
+        if (t == null) return;
+        var fees = await _db.TournamentFees.Where(f => f.TournamentId == tournamentId && f.SystemKey != null).ToListAsync();
+        var changed = new List<Guid>();
+        void Upsert(string key, string name, TournamentFeeFrequency freq, decimal? amount)
+        {
+            var fee = fees.FirstOrDefault(f => f.SystemKey == key);
+            var active = amount is > 0 && !t.IsDeleted;
+            if (fee == null)
+            {
+                if (!active) return;
+                fee = new TournamentFee
+                {
+                    AcademyId = t.AcademyId, TournamentId = t.Id, SystemKey = key, Name = name, Frequency = freq,
+                    AmountMode = TournamentFeeAmountMode.PerPlayer, Amount = amount!.Value, ExemptScholarship = true, IsActive = true,
+                };
+                _db.TournamentFees.Add(fee);
+                changed.Add(fee.Id);
+                return;
+            }
+            var newAmount = active ? amount!.Value : fee.Amount;
+            if (fee.IsActive != active || fee.Amount != newAmount)
+            {
+                fee.IsActive = active;
+                fee.Amount = newAmount;
+                fee.UpdatedAt = DateTime.UtcNow;
+                changed.Add(fee.Id);
+            }
+        }
+        Upsert("inscription", "Inscripción", TournamentFeeFrequency.Once, t.InscriptionFee);
+        Upsert("referee", "Arbitraje", TournamentFeeFrequency.PerMatch, t.RefereeFee);
+        if (changed.Count == 0) return;
+        await _db.SaveChangesAsync();
+        foreach (var id in changed) await TrySyncFeeAsync(id);
     }
 
     // =========================================================
@@ -234,7 +275,7 @@ public class TournamentBillingService
                 var matches = (await _db.Events.AsNoTracking()
                         .Where(e => e.AcademyId == fee.AcademyId && e.TournamentTeamId != null && teamIds.Contains(e.TournamentTeamId.Value) && e.StartTime <= now)
                         .ToListAsync())
-                    .Where(e => e.MatchStatus is not (MatchStatus.Postponed or MatchStatus.Suspended))
+                    .Where(e => e.MatchStatus is not (MatchStatus.Postponed or MatchStatus.Suspended) && !e.TimePending)
                     .ToList();
                 var ids = matches.Select(e => e.Id).ToList();
                 var marks = await _db.Attendances.AsNoTracking().Where(a => a.EventId != null && ids.Contains(a.EventId.Value))
@@ -549,7 +590,7 @@ public class TournamentBillingService
             {
                 Id = x.f.Id, TournamentId = x.f.TournamentId, TeamId = x.f.TeamId, TeamName = x.TeamName,
                 Name = x.f.Name, Frequency = (int)x.f.Frequency, AmountMode = (int)x.f.AmountMode, Amount = x.f.Amount,
-                DueDate = x.f.DueDate, ExemptScholarship = x.f.ExemptScholarship, IsActive = x.f.IsActive, Notes = x.f.Notes,
+                DueDate = x.f.DueDate, ExemptScholarship = x.f.ExemptScholarship, IsActive = x.f.IsActive, Notes = x.f.Notes, SystemKey = x.f.SystemKey,
                 Charged = charged.Sum(s => s.Amount),
                 Collected = charged.Sum(s => s.Paid),
                 Pending = charged.Sum(s => Math.Max(0, s.Amount - s.Paid)),

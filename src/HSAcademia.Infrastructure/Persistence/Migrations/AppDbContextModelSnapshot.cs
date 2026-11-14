@@ -964,6 +964,10 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasColumnName("category_ids")
                         .HasDefaultValueSql("'[]'::jsonb");
 
+                    b.Property<decimal?>("CoachFee")
+                        .HasColumnType("numeric(10,2)")
+                        .HasColumnName("coach_fee");
+
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -1042,6 +1046,10 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("TeacherId")
                         .HasColumnType("uuid")
                         .HasColumnName("teacher_id");
+
+                    b.Property<bool>("TimePending")
+                        .HasColumnType("boolean")
+                        .HasColumnName("time_pending");
 
                     b.Property<string>("Title")
                         .IsRequired()
@@ -3379,6 +3387,10 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasColumnName("created_at")
                         .HasDefaultValueSql("NOW()");
 
+                    b.Property<decimal?>("DefaultCoachFee")
+                        .HasColumnType("numeric(10,2)")
+                        .HasColumnName("default_coach_fee");
+
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("deleted_at");
@@ -3393,17 +3405,29 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasDefaultValue(0)
                         .HasColumnName("format");
 
+                    b.Property<decimal?>("InscriptionFee")
+                        .HasColumnType("numeric(10,2)")
+                        .HasColumnName("inscription_fee");
+
                     b.Property<bool>("IsDeleted")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
                         .HasDefaultValue(false)
                         .HasColumnName("is_deleted");
 
+                    b.Property<int>("Level")
+                        .HasColumnType("integer")
+                        .HasColumnName("level");
+
                     b.Property<string>("MainLocation")
                         .IsRequired()
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)")
                         .HasColumnName("main_location");
+
+                    b.Property<int>("Modality")
+                        .HasColumnType("integer")
+                        .HasColumnName("modality");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -3427,6 +3451,10 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.Property<int?>("RedCardSuspensionMatches")
                         .HasColumnType("integer")
                         .HasColumnName("red_card_suspension_matches");
+
+                    b.Property<decimal?>("RefereeFee")
+                        .HasColumnType("numeric(10,2)")
+                        .HasColumnName("referee_fee");
 
                     b.Property<string>("RequiredDocuments")
                         .IsRequired()
@@ -3677,6 +3705,11 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(500)")
                         .HasColumnName("notes");
 
+                    b.Property<string>("SystemKey")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("system_key");
+
                     b.Property<Guid?>("TeamId")
                         .HasColumnType("uuid")
                         .HasColumnName("team_id");
@@ -3830,6 +3863,10 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("AssistantId")
                         .HasColumnType("uuid")
                         .HasColumnName("assistant_id");
+
+                    b.Property<bool>("AutoRoster")
+                        .HasColumnType("boolean")
+                        .HasColumnName("auto_roster");
 
                     b.Property<int?>("BirthYearFrom")
                         .HasColumnType("integer")
