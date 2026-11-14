@@ -53,6 +53,7 @@ builder.Services.AddScoped<SessionBillingService>();
 builder.Services.AddScoped<PayrollService>();
 builder.Services.AddScoped<TournamentService>();
 builder.Services.AddScoped<TournamentBillingService>();
+builder.Services.AddScoped<TournamentComplianceService>();
 builder.Services.AddScoped<ReceiptRecorder>();
 builder.Services.AddScoped<ReceiptService>();
 builder.Services.AddScoped<DiscountService>();

@@ -199,6 +199,34 @@ public class PayrollService
         int sessions = 0;
         string rateLabel = scheme == StaffPaymentType.Monthly ? $"{Money(staff.PaymentRate)} al mes" : string.Empty;
 
+        // Las horas del calendario se guardan como hora local marcada UTC (igual que el resto del sistema).
+        var from = DateTime.SpecifyKind(start, DateTimeKind.Utc);
+        var to = DateTime.SpecifyKind(end.AddDays(1), DateTimeKind.Utc);
+        var events = (await _db.Events.AsNoTracking()
+                .Where(e => e.AcademyId == academyId && !e.IsDeleted && e.StartTime >= from && e.StartTime < to)
+                .ToListAsync())
+            .Where(e => e.Type is EventType.Training or EventType.FriendlyMatch or EventType.TournamentMatch)
+            .ToDictionary(e => e.Id);
+        var ids = events.Keys.ToList();
+        var marks = await _db.StaffAttendances.AsNoTracking()
+            .Where(a => a.AcademyId == academyId && a.EventId != null && ids.Contains(a.EventId.Value))
+            .ToListAsync();
+        var markedEvents = marks.Select(m => m.EventId!.Value).ToHashSet();
+
+        // Partidos de torneo con honorario: se pagan con ese monto y no cuentan como sesión u hora.
+        var feeByEvent = await TournamentMatchFeesAsync(events.Values);
+        var unmarked = events.Values.Count(e => e.TeacherId == staffId && !markedEvents.Contains(e.Id) && e.StartTime <= AcademyClock.WallNow
+                                                && (scheme != StaffPaymentType.Monthly || feeByEvent.ContainsKey(e.Id)));
+        if (unmarked > 0) warnings.Add($"{unmarked} sesión(es) suya(s) sin asistencia del entrenador: no se pagan hasta marcarlas.");
+
+        var mine = marks.Where(m =>
+                (m.StaffId == staffId && m.SubstituteStaffId == null && m.Status is AttendanceStatus.Present or AttendanceStatus.Late)
+                || m.SubstituteStaffId == staffId)
+            .ToList();
+        var paidElsewhere = mine.Count(m => m.StaffPaymentId != null && m.StaffPaymentId != excludePaymentId);
+        if (paidElsewhere > 0) warnings.Add($"{paidElsewhere} sesión(es) ya pagada(s) en otra liquidación: no se vuelven a pagar.");
+        mine = mine.Where(m => m.StaffPaymentId == null || m.StaffPaymentId == excludePaymentId).ToList();
+
         if (scheme != StaffPaymentType.Monthly)
         {
             var scale = await ScaleForAsync(staff);
@@ -222,32 +250,8 @@ public class PayrollService
                 warnings.Add(byHour ? "No hay tarifario por hora (ni propio ni predeterminado)." : "No hay tarifa por sesión configurada.");
             }
 
-            // Las horas del calendario se guardan como hora local marcada UTC (igual que el resto del sistema).
-            var from = DateTime.SpecifyKind(start, DateTimeKind.Utc);
-            var to = DateTime.SpecifyKind(end.AddDays(1), DateTimeKind.Utc);
-            var events = (await _db.Events.AsNoTracking()
-                    .Where(e => e.AcademyId == academyId && !e.IsDeleted && e.StartTime >= from && e.StartTime < to)
-                    .ToListAsync())
-                .Where(e => e.Type is EventType.Training or EventType.FriendlyMatch or EventType.TournamentMatch)
-                .ToDictionary(e => e.Id);
-            var ids = events.Keys.ToList();
-            var marks = await _db.StaffAttendances.AsNoTracking()
-                .Where(a => a.AcademyId == academyId && a.EventId != null && ids.Contains(a.EventId.Value))
-                .ToListAsync();
-            var markedEvents = marks.Select(m => m.EventId!.Value).ToHashSet();
 
-            var unmarked = events.Values.Count(e => e.TeacherId == staffId && !markedEvents.Contains(e.Id) && e.StartTime <= AcademyClock.WallNow);
-            if (unmarked > 0) warnings.Add($"{unmarked} sesión(es) suya(s) sin asistencia del entrenador: no se pagan hasta marcarlas.");
-
-            var mine = marks.Where(m =>
-                    (m.StaffId == staffId && m.SubstituteStaffId == null && m.Status is AttendanceStatus.Present or AttendanceStatus.Late)
-                    || m.SubstituteStaffId == staffId)
-                .ToList();
-            var paidElsewhere = mine.Count(m => m.StaffPaymentId != null && m.StaffPaymentId != excludePaymentId);
-            if (paidElsewhere > 0) warnings.Add($"{paidElsewhere} sesión(es) ya pagada(s) en otra liquidación: no se vuelven a pagar.");
-            mine = mine.Where(m => m.StaffPaymentId == null || m.StaffPaymentId == excludePaymentId).ToList();
-
-            foreach (var day in mine.Select(m => (Mark: m, Event: events[m.EventId!.Value]))
+            foreach (var day in mine.Where(m => !feeByEvent.ContainsKey(m.EventId!.Value)).Select(m => (Mark: m, Event: events[m.EventId!.Value]))
                          .GroupBy(x => x.Event.StartTime.Date).OrderBy(g => g.Key))
             {
                 var items = new List<SessionLine>();
@@ -297,6 +301,32 @@ public class PayrollService
             }
         }
 
+        // Honorarios por partido de torneo (cualquier esquema, también sueldo fijo).
+        var feeItems = mine.Where(m => feeByEvent.ContainsKey(m.EventId!.Value))
+            .Select(m => (Mark: m, Event: events[m.EventId!.Value]))
+            .OrderBy(x => x.Event.StartTime)
+            .Select(x => new SessionLine(x.Event.Id, x.Event.Title, $"{x.Event.StartTime:HH:mm}–{x.Event.EndTime:HH:mm}", 0m,
+                x.Mark.SubstituteStaffId == staffId ? "Reemplazo" : "Titular",
+                x.Mark.Status == AttendanceStatus.Late && x.Mark.SubstituteStaffId != staffId,
+                feeByEvent[x.Event.Id], $"Honorario de torneo {Money(feeByEvent[x.Event.Id])}"))
+            .ToList();
+        if (feeItems.Count > 0)
+        {
+            var merged = days.ToDictionary(d => d.Date.Date, d => d.Items.ToList());
+            foreach (var item in feeItems)
+            {
+                var date = events[item.EventId].StartTime.Date;
+                (merged.TryGetValue(date, out var list) ? list : merged[date] = new()).Add(item);
+            }
+            days = merged.OrderBy(kv => kv.Key)
+                .Select(kv => new DayLine(kv.Key, kv.Value.Sum(i => i.Hours), kv.Value.Count, kv.Value.Sum(i => i.Amount), kv.Value))
+                .ToList();
+            sessions += feeItems.Count;
+            unitsAmount += feeItems.Sum(i => i.Amount);
+            if (scheme == StaffPaymentType.Monthly)
+                rateLabel += $" + honorarios de torneo";
+        }
+
         var advances = await _db.StaffAdvances.AsNoTracking()
             .Where(a => a.AcademyId == academyId && a.StaffId == staffId && a.StaffPaymentId == null && a.Date <= end)
             .OrderBy(a => a.Date)
@@ -305,6 +335,18 @@ public class PayrollService
 
         return new Calculation(staffId, $"{staff.FirstName} {staff.LastName}", SchemeLabel(scheme), FrequencyLabel(staff.PayFrequency),
             start, end, rateLabel, baseAmount, Math.Round(unitsAmount, 2), hours, sessions, days, advances, warnings);
+    }
+
+    /// <summary>Partidos cuyo equipo de torneo tiene honorario por partido: evento → monto.</summary>
+    private async Task<Dictionary<Guid, decimal>> TournamentMatchFeesAsync(IEnumerable<Event> events)
+    {
+        var teamIds = events.Where(e => e.TournamentTeamId.HasValue).Select(e => e.TournamentTeamId!.Value).Distinct().ToList();
+        if (teamIds.Count == 0) return new();
+        var fees = await _db.TournamentTeams.IgnoreQueryFilters().AsNoTracking()
+            .Where(t => teamIds.Contains(t.Id) && t.MatchFee != null && t.MatchFee > 0)
+            .ToDictionaryAsync(t => t.Id, t => t.MatchFee!.Value);
+        return events.Where(e => e.TournamentTeamId.HasValue && fees.ContainsKey(e.TournamentTeamId.Value))
+            .ToDictionary(e => e.Id, e => fees[e.TournamentTeamId!.Value]);
     }
 
     public async Task<Period> SuggestPeriodAsync(Guid academyId, Guid staffId)

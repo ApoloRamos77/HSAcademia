@@ -18,13 +18,18 @@ public class TournamentService
     private readonly AppDbContext _db;
     private readonly AuditService? _audit;
     private readonly TournamentBillingService? _billing;
+    private readonly TournamentComplianceService? _compliance;
 
-    public TournamentService(AppDbContext db, AuditService? audit = null, TournamentBillingService? billing = null)
+    public TournamentService(AppDbContext db, AuditService? audit = null, TournamentBillingService? billing = null,
+        TournamentComplianceService? compliance = null)
     {
         _db = db;
         _audit = audit;
         _billing = billing;
+        _compliance = compliance;
     }
+
+    private Task SyncSuspensionsAsync(Guid teamId) => _compliance == null ? Task.CompletedTask : _compliance.TrySyncTeamAsync(teamId);
 
     private Task SyncChargesAsync(Guid academyId, Guid tournamentId) =>
         _billing == null ? Task.CompletedTask : _billing.TrySyncTournamentAsync(academyId, tournamentId);
@@ -112,6 +117,7 @@ public class TournamentService
         _audit?.Add(academyId, "tournaments.update", nameof(Tournament), t.Id, new { t.Name, t.Format, t.ScheduleMode, t.Status, t.StartDate, t.EndDate });
         await _db.SaveChangesAsync();
         await SyncChargesAsync(academyId, t.Id);
+        if (_compliance != null) await _compliance.TrySyncTournamentAsync(t.Id);
         return Map(t);
     }
 
@@ -152,6 +158,15 @@ public class TournamentService
         if (dto.ContactName != null) t.ContactName = Clean(dto.ContactName);
         if (dto.ContactPhone != null) t.ContactPhone = Clean(dto.ContactPhone);
         if (dto.Rules != null) t.Rules = Clean(dto.Rules);
+        if (dto.YellowCardsForSuspension.HasValue) t.YellowCardsForSuspension = dto.YellowCardsForSuspension > 0 ? dto.YellowCardsForSuspension : null;
+        if (dto.RedCardSuspensionMatches.HasValue) t.RedCardSuspensionMatches = dto.RedCardSuspensionMatches > 0 ? dto.RedCardSuspensionMatches : null;
+        if (dto.RequiresAuthorization.HasValue) t.RequiresAuthorization = dto.RequiresAuthorization.Value;
+        if (dto.AuthorizationText != null) t.AuthorizationText = Clean(dto.AuthorizationText);
+        if (dto.RequiredDocuments != null)
+            t.RequiredDocuments = dto.RequiredDocuments.Select(d => d?.Trim()).Where(d => !string.IsNullOrEmpty(d)).Select(d => d!.Length <= 60 ? d : d[..60])
+                .Distinct(StringComparer.OrdinalIgnoreCase).Take(15).ToList();
+        if (t.RequiresAuthorization && string.IsNullOrWhiteSpace(t.AuthorizationText))
+            t.AuthorizationText = "Autorizo a mi hijo(a) a participar en este torneo, incluidos los traslados con la delegación de la academia.";
 
         if (!touchesSchedule) return;
         switch (t.ScheduleMode)
@@ -189,6 +204,11 @@ public class TournamentService
         ContactName = t.ContactName,
         ContactPhone = t.ContactPhone,
         Rules = t.Rules,
+        YellowCardsForSuspension = t.YellowCardsForSuspension,
+        RedCardSuspensionMatches = t.RedCardSuspensionMatches,
+        RequiresAuthorization = t.RequiresAuthorization,
+        AuthorizationText = t.AuthorizationText,
+        RequiredDocuments = t.RequiredDocuments ?? new List<string>(),
     };
 
     private static void CopyTo(TournamentDto src, TournamentDto dst)
@@ -295,6 +315,7 @@ public class TournamentService
         team.BirthYearTo = dto.BirthYearTo;
         team.MaxPlayers = dto.MaxPlayers;
         team.Notes = Clean(dto.Notes);
+        team.MatchFee = dto.MatchFee is > 0 ? Math.Round(dto.MatchFee.Value, 2) : null;
     }
 
     private static bool OutsideYears(TournamentTeam team, DateTime? birth) =>
@@ -308,11 +329,21 @@ public class TournamentService
             .Where(p => teamIds.Contains(p.TeamId))
             .Select(p => new
             {
-                p.TeamId, p.StudentId, p.ShirtNumber, p.Position,
+                p.TeamId, p.StudentId, p.ShirtNumber, p.Position, p.DeliveredDocuments,
                 p.Student.FirstName, p.Student.LastName, p.Student.DateOfBirth, p.Student.IsActive,
                 CategoryName = p.Student.Category.Name
             })
             .ToListAsync();
+        var tournamentIds = teams.Select(t => t.TournamentId).Distinct().ToList();
+        var tournaments = await _db.Tournaments.IgnoreQueryFilters().AsNoTracking().Where(t => tournamentIds.Contains(t.Id)).ToDictionaryAsync(t => t.Id);
+        var auths = await _db.TournamentAuthorizations.IgnoreQueryFilters().AsNoTracking().Where(a => tournamentIds.Contains(a.TournamentId))
+            .Select(a => new { a.TournamentId, a.StudentId, a.Method }).ToListAsync();
+        var teamMatches = await _db.Events.AsNoTracking().Where(e => e.TournamentTeamId != null && teamIds.Contains(e.TournamentTeamId.Value)).ToListAsync();
+        var matchIds = teamMatches.Select(m => m.Id).ToList();
+        var stats = await _db.MatchPlayerStats.AsNoTracking().Where(s => matchIds.Contains(s.EventId))
+            .Select(s => new { s.EventId, s.StudentId, s.Minutes, s.Goals, s.YellowCards, s.RedCards }).ToListAsync();
+        var suspensions = new Dictionary<Guid, Dictionary<Guid, string>>();
+        if (_compliance != null) foreach (var id in teamIds) suspensions[id] = await _compliance.NextSuspensionsAsync(id);
         var categoryIds = teams.SelectMany(t => t.CategoryIds).Distinct().ToList();
         var categories = await _db.Categories.AsNoTracking().Where(c => categoryIds.Contains(c.Id))
             .ToDictionaryAsync(c => c.Id, c => c.Name);
@@ -334,7 +365,17 @@ public class TournamentService
                     Position = p.Position,
                     IsActive = p.IsActive,
                     OutsideBirthYears = OutsideYears(team, p.DateOfBirth),
+                    DeliveredDocuments = p.DeliveredDocuments ?? new List<string>(),
+                    MissingDocuments = (tournaments.GetValueOrDefault(team.TournamentId)?.RequiredDocuments ?? new List<string>())
+                        .Where(d => !(p.DeliveredDocuments ?? new List<string>()).Contains(d)).ToList(),
+                    Authorized = tournaments.GetValueOrDefault(team.TournamentId)?.RequiresAuthorization == true
+                        ? auths.Any(a => a.TournamentId == team.TournamentId && a.StudentId == p.StudentId) : null,
+                    AuthorizationMethod = auths.FirstOrDefault(a => a.TournamentId == team.TournamentId && a.StudentId == p.StudentId)?.Method,
+                    SuspendedFor = suspensions.GetValueOrDefault(team.Id)?.GetValueOrDefault(p.StudentId),
+                    Stats = PlayerStats(stats.Where(s => s.StudentId == p.StudentId && teamMatches.Any(m => m.Id == s.EventId && m.TournamentTeamId == team.Id))
+                        .Select(s => (s.Minutes, s.Goals, s.YellowCards, s.RedCards))),
                 }).ToList();
+            foreach (var pl in roster) pl.Fit = pl.IsActive && pl.MissingDocuments.Count == 0 && pl.Authorized != false && pl.SuspendedFor == null;
 
             var dto = new TournamentTeamDto
             {
@@ -351,8 +392,16 @@ public class TournamentService
                 BirthYearTo = team.BirthYearTo,
                 MaxPlayers = team.MaxPlayers,
                 Notes = team.Notes,
+                MatchFee = team.MatchFee,
+                Record = TournamentComplianceService.Record(teamMatches.Where(m => m.TournamentTeamId == team.Id)),
                 Players = roster,
             };
+            var noAuth = roster.Count(p => p.Authorized == false && p.IsActive);
+            if (noAuth > 0) dto.Warnings.Add($"{noAuth} jugador(es) sin autorización del apoderado.");
+            var noDocs = roster.Count(p => p.MissingDocuments.Count > 0 && p.IsActive);
+            if (noDocs > 0) dto.Warnings.Add($"{noDocs} jugador(es) con documentos pendientes.");
+            var suspended = roster.Count(p => p.SuspendedFor != null);
+            if (suspended > 0) dto.Warnings.Add($"{suspended} jugador(es) suspendido(s) para un próximo partido.");
             if (!team.HeadCoachId.HasValue) dto.Warnings.Add("Sin entrenador responsable.");
             if (roster.Count == 0) dto.Warnings.Add("Plantel vacío.");
             if (team.MaxPlayers.HasValue && roster.Count > team.MaxPlayers)
@@ -431,14 +480,21 @@ public class TournamentService
                 _db.TournamentPlayers.Add(new TournamentPlayer
                 {
                     AcademyId = academyId, TeamId = teamId, StudentId = w.StudentId,
-                    ShirtNumber = w.ShirtNumber, Position = Clean(w.Position), CreatedAt = now, UpdatedAt = now
+                    ShirtNumber = w.ShirtNumber, Position = Clean(w.Position), CreatedAt = now, UpdatedAt = now,
+                    DeliveredDocuments = CleanDocs(w.DeliveredDocuments, team.Tournament.RequiredDocuments) ?? new List<string>(),
                 });
             }
-            else if (existing.ShirtNumber != w.ShirtNumber || existing.Position != Clean(w.Position))
+            else
             {
-                existing.ShirtNumber = w.ShirtNumber;
-                existing.Position = Clean(w.Position);
-                existing.UpdatedAt = now;
+                var docs = CleanDocs(w.DeliveredDocuments, team.Tournament.RequiredDocuments);
+                if (existing.ShirtNumber != w.ShirtNumber || existing.Position != Clean(w.Position) ||
+                    (docs != null && !docs.SequenceEqual(existing.DeliveredDocuments)))
+                {
+                    existing.ShirtNumber = w.ShirtNumber;
+                    existing.Position = Clean(w.Position);
+                    if (docs != null) existing.DeliveredDocuments = docs;
+                    existing.UpdatedAt = now;
+                }
             }
         }
 
@@ -470,10 +526,30 @@ public class TournamentService
 
         _audit?.Add(academyId, "tournaments.team.roster", nameof(TournamentTeam), team.Id,
             new { team.Name, added, removed, players = wantedIds.Count });
+        if (_compliance != null && activeAdded.Count > 0)
+        {
+            var names = await _db.Students.AsNoTracking().Where(s => activeAdded.Contains(s.Id)).Select(s => new { s.Id, s.FirstName }).ToListAsync();
+            await _compliance.AddAuthorizationNoticesAsync(team.Tournament, names.Select(n => (n.Id, n.FirstName)));
+        }
         await _db.SaveChangesAsync();
         await SyncChargesAsync(academyId, team.TournamentId);
+        await SyncSuspensionsAsync(team.Id);
         result.Team = (await MapTeamsAsync(academyId, new() { team })).Single();
         return result;
+    }
+
+    /// <summary>Solo documentos que pide el torneo; null = conservar.</summary>
+    private static List<string>? CleanDocs(List<string>? docs, List<string> required) =>
+        docs?.Where(d => required.Contains(d)).Distinct().ToList();
+
+    private static PlayerTournamentStatsDto PlayerStats(IEnumerable<(int Minutes, int Goals, int Yellow, int Red)> rows)
+    {
+        var list = rows.ToList();
+        return new PlayerTournamentStatsDto
+        {
+            Matches = list.Count, Minutes = list.Sum(r => r.Minutes), Goals = list.Sum(r => r.Goals),
+            YellowCards = list.Sum(r => r.Yellow), RedCards = list.Sum(r => r.Red),
+        };
     }
 
     private static EventCall NewCall(Guid academyId, Guid eventId, Guid studentId) => new()
@@ -533,6 +609,7 @@ public class TournamentService
         _audit?.Add(academyId, "tournaments.match.create", nameof(Event), ev.Id,
             new { team = team.Name, ev.StartTime, ev.OpponentTeam, ev.Round, called = roster.Count });
         await _db.SaveChangesAsync();
+        await SyncSuspensionsAsync(team.Id);
         return (await LoadMatchesAsync(academyId, team.TournamentId, new() { team }, ev.Id)).Single();
     }
 
@@ -560,6 +637,7 @@ public class TournamentService
         });
         await _db.SaveChangesAsync();
         await SyncMatchChargesAsync(academyId, ev.Id);
+        if (ev.TournamentTeamId.HasValue) await SyncSuspensionsAsync(ev.TournamentTeamId.Value);
         return (await LoadMatchesAsync(academyId, ev.TournamentId!.Value, team != null ? new() { team } : new(), ev.Id)).Single();
     }
 
@@ -619,6 +697,7 @@ public class TournamentService
             _audit?.Add(academyId, "tournaments.match.generate", nameof(TournamentTeam), team.Id,
                 new { team.Name, created = created.Count, skipped = result.Skipped.Count, from, to, days, dto.StartTime, dto.EndTime });
             await _db.SaveChangesAsync();
+            await SyncSuspensionsAsync(team.Id);
         }
         result.Created = created.Count;
         return result;
@@ -708,6 +787,7 @@ public class TournamentService
         }
         _audit?.Add(academyId, "tournaments.match.call.add", nameof(Event), eventId, new { studentId });
         await _db.SaveChangesAsync();
+        if (_compliance != null) await _compliance.OverrideIfSuspendedAsync(eventId, studentId);
         await SyncMatchChargesAsync(academyId, eventId);
     }
 

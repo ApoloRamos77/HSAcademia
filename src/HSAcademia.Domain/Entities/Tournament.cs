@@ -56,6 +56,17 @@ public class Tournament
     /// <summary>Reglamento, documentos exigidos y notas generales.</summary>
     public string? Rules { get; set; }
 
+    /// <summary>Amarillas acumuladas que suspenden un partido (null = no se controla).</summary>
+    public int? YellowCardsForSuspension { get; set; }
+    /// <summary>Partidos de suspensión por tarjeta roja (null = no se controla).</summary>
+    public int? RedCardSuspensionMatches { get; set; }
+    /// <summary>Pide autorización del apoderado (viajes, salidas con menores).</summary>
+    public bool RequiresAuthorization { get; set; }
+    /// <summary>Texto que acepta el apoderado.</summary>
+    public string? AuthorizationText { get; set; }
+    /// <summary>Documentos que cada jugador debe entregar (ej. "DNI", "Certificado médico", "Carné de la liga").</summary>
+    public List<string> RequiredDocuments { get; set; } = new();
+
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public bool IsDeleted { get; set; }
@@ -88,6 +99,8 @@ public class TournamentTeam
     public int? BirthYearTo { get; set; }
     /// <summary>Tope de jugadores inscritos en la planilla del torneo.</summary>
     public int? MaxPlayers { get; set; }
+    /// <summary>Honorario por partido del responsable (o su reemplazo). Con honorario, el partido no cuenta como sesión u hora.</summary>
+    public decimal? MatchFee { get; set; }
     public string? Notes { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
@@ -111,9 +124,51 @@ public class TournamentPlayer
 
     public int? ShirtNumber { get; set; }
     public string? Position { get; set; }
+    /// <summary>Documentos del torneo ya entregados por el jugador.</summary>
+    public List<string> DeliveredDocuments { get; set; } = new();
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+    public virtual TournamentTeam Team { get; set; } = null!;
+    public virtual Student Student { get; set; } = null!;
+}
+
+/// <summary>Autorización del apoderado para que el alumno participe en el torneo.</summary>
+public class TournamentAuthorization
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid AcademyId { get; set; }
+    public Guid TournamentId { get; set; }
+    public Guid StudentId { get; set; }
+    public DateTime AcceptedAt { get; set; } = DateTime.UtcNow;
+    public Guid? AcceptedByUserId { get; set; }
+    public string? AcceptedByName { get; set; }
+    /// <summary>"app" (la aceptó la familia) o "papel" (la registró la academia).</summary>
+    public string Method { get; set; } = "app";
+    public string? Note { get; set; }
+    /// <summary>Texto aceptado, tal como estaba en ese momento.</summary>
+    public string? TextSnapshot { get; set; }
+
+    public virtual Tournament Tournament { get; set; } = null!;
+    public virtual Student Student { get; set; } = null!;
+}
+
+/// <summary>Suspensión de un jugador para un partido por tarjetas (calculada; el administrador puede levantarla convocándolo).</summary>
+public class TournamentSuspension
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid AcademyId { get; set; }
+    public Guid TeamId { get; set; }
+    public Guid StudentId { get; set; }
+    /// <summary>Partido que no juega.</summary>
+    public Guid EventId { get; set; }
+    /// <summary>Partido donde recibió la tarjeta que la originó.</summary>
+    public Guid SourceEventId { get; set; }
+    public string Reason { get; set; } = string.Empty;
+    /// <summary>El administrador lo convocó igual: no se le vuelve a quitar.</summary>
+    public bool Overridden { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public virtual TournamentTeam Team { get; set; } = null!;
     public virtual Student Student { get; set; } = null!;
