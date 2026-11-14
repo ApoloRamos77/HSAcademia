@@ -625,9 +625,13 @@ public class TournamentService
         if (t.StartDate == null) throw new InvalidOperationException("Configura las fechas del torneo antes de agregar categorías.");
         var categoryIds = dto.CategoryIds.Distinct().ToList();
         if (categoryIds.Count == 0) throw new InvalidOperationException("Elige al menos una categoría.");
-        var categories = await _db.Categories.AsNoTracking().Where(c => c.AcademyId == academyId && categoryIds.Contains(c.Id))
+        var categories = await _db.Categories.AsNoTracking().Include(c => c.Headquarter)
+            .Where(c => c.AcademyId == academyId && categoryIds.Contains(c.Id))
             .OrderBy(c => c.Name).ToListAsync();
         if (categories.Count != categoryIds.Count) throw new InvalidOperationException("Alguna categoría no existe.");
+        if (categories.Select(c => c.HeadquarterId).Distinct().Count() > 1)
+            throw new InvalidOperationException("Las categorías deben ser de una misma sede. Para otra sede, agrégalas aparte.");
+        var hqName = categories[0].Headquarter?.Name;
         if (dto.HeadCoachId.HasValue && !await _db.Users.AnyAsync(u => u.Id == dto.HeadCoachId && u.AcademyId == academyId &&
                                                                        (u.Role == UserRole.Staff || u.Role == UserRole.AcademyAdmin)))
             throw new InvalidOperationException("El responsable debe ser parte del personal.");
@@ -639,7 +643,7 @@ public class TournamentService
         TournamentTeam team;
         if (existing == null)
         {
-            var name = string.Join(" + ", categories.Select(c => c.Name));
+            var name = string.Join(" + ", categories.Select(c => c.Name)) + (string.IsNullOrWhiteSpace(hqName) ? "" : $" · {hqName}");
             team = new TournamentTeam
             {
                 AcademyId = academyId, TournamentId = tournamentId, Name = name.Length <= 120 ? name : name[..120],
@@ -652,6 +656,8 @@ public class TournamentService
         else
         {
             team = existing;
+            var fullName = string.Join(" + ", categories.Select(c => c.Name)) + (string.IsNullOrWhiteSpace(hqName) ? "" : $" · {hqName}");
+            if (team.Name != fullName && fullName.Length <= 120) team.Name = fullName;
             if (dto.HeadCoachId.HasValue && dto.HeadCoachId != team.HeadCoachId)
             {
                 team.HeadCoachId = dto.HeadCoachId;
@@ -711,8 +717,13 @@ public class TournamentService
         {
             ev.IsDeleted = true; ev.DeletedAt = DateTime.UtcNow; ev.IsActive = false;
         }
+        var sedes = await _db.Categories.AsNoTracking().Where(c => team.CategoryIds.Contains(c.Id)).Select(c => c.HeadquarterId).Distinct().ToListAsync();
+        Guid? sedeId = sedes.Count == 1 ? sedes[0] : null;
         foreach (var ev in events.Where(e => e.TimePending && e.StartTime.Date >= today && !e.IsDeleted))
+        {
             ev.TeacherId = team.HeadCoachId;
+            ev.HeadquarterId ??= sedeId;
+        }
 
         var number = events.Count(e => !e.IsDeleted);
         var created = 0;
@@ -721,6 +732,7 @@ public class TournamentService
             number++;
             var ev = NewMatch(team.AcademyId, team, day, day.AddHours(1));
             ev.TimePending = true;
+            ev.HeadquarterId = sedeId;
             ev.Round = $"Fecha {number}";
             ev.Location = Clean(t.MainLocation);
             ev.CoachFee = coachFeeForNew is > 0 ? coachFeeForNew : t.DefaultCoachFee;

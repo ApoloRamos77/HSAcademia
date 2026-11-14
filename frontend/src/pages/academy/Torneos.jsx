@@ -223,7 +223,7 @@ function TournamentDetail({ id, onBack }) {
       )}
       {modal?.kind === 'calls' && <MatchCallsModal match={modal.match} onClose={close} onChanged={load} />}
       {modal?.kind === 'participation' && (
-        <ParticipationModal tournament={t} categories={support.categories} staff={support.staff} onClose={close} onSaved={() => { close(); load(); }} />
+        <ParticipationModal tournament={t} categories={support.categories} headquarters={support.headquarters} staff={support.staff} onClose={close} onSaved={() => { close(); load(); }} />
       )}
 
       <ConfirmDialog
