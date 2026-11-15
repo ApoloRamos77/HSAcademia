@@ -209,6 +209,7 @@ export default function Calendario() {
       } else if (isTournamentNew) {
         // ── Nuevo evento de torneo: crea los días según su configuración ──
         if (!form.tournamentId) { toast.error('Elige el torneo'); setSaving(false); return; }
+        if (!form.headquarterId) { toast.error('Elige la sede de las categorías'); setSaving(false); return; }
         if (form.categoryIds.length === 0) { toast.error('Elige al menos una categoría'); setSaving(false); return; }
         const { data } = await api.post(`/tournaments/${form.tournamentId}/participations`, {
           categoryIds: form.categoryIds,
@@ -471,8 +472,8 @@ export default function Calendario() {
           </select>
           <select value={filterCat} onChange={e => setFilterCat(e.target.value)} className="cal-select">
             <option value="">Todas las categorías</option>
-            {categories.map(c => <option key={c.id} value={c.id}>
-              {c.name}
+            {categories.filter(c => !filterHq || c.headquarterId === filterHq).map(c => <option key={c.id} value={c.id}>
+              {c.name}{!filterHq && headquarters.length > 1 && c.headquarterName ? ` · ${c.headquarterName}` : ''}
             </option>)}
           </select>
         </div>
@@ -880,10 +881,10 @@ export default function Calendario() {
                 )}
 
                 <div className="form-group">
-                  <label>Sede</label>
+                  <label>Sede{isTournamentNew ? ' *' : ''}</label>
                   <select className="form-control" value={form.headquarterId}
-                    onChange={e => setForm({...form, headquarterId: e.target.value})}>
-                    <option value="">Sin sede específica</option>
+                    onChange={e => setForm({...form, headquarterId: e.target.value, ...(isTournamentNew ? { categoryIds: [] } : {})})}>
+                    <option value="">{isTournamentNew ? 'Elige la sede' : 'Sin sede específica'}</option>
                     {headquarters.map(h => <option key={h.id} value={h.id}>{h.name}</option>)}
                   </select>
                 </div>
@@ -918,7 +919,7 @@ export default function Calendario() {
                           if (e.target.checked) setForm({...form, categoryIds: [...form.categoryIds, c.id]});
                           else setForm({...form, categoryIds: form.categoryIds.filter(id => id !== c.id)});
                         }} />
-                        {c.name}
+                        {c.name}{!form.headquarterId && headquarters.length > 1 && c.headquarterName ? ` · ${c.headquarterName}` : ''}
                       </label>
                     ))}
                     {categories.filter(c => {

@@ -309,7 +309,7 @@ export function TeamFormModal({ tournamentId, team, categories, staff, onClose, 
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {categories.map(c => (
               <button key={c.id} type="button" onClick={() => toggleCat(c.id)}
-                className={`btn btn-sm ${form.categoryIds.includes(c.id) ? 'btn-primary' : 'btn-secondary'}`}>{c.name}</button>
+                className={`btn btn-sm ${form.categoryIds.includes(c.id) ? 'btn-primary' : 'btn-secondary'}`}>{c.name}{c.headquarterName ? ` · ${c.headquarterName}` : ''}</button>
             ))}
           </div>
           <small className="text-muted">Sirven para convocar en bloque. Luego puedes sumar refuerzos de otras categorías al plantel.</small>
@@ -828,13 +828,16 @@ export function MatchCallsModal({ match, onClose, onChanged }) {
 }
 
 // ───────────────────────── Agregar categorías (mismo flujo que el Calendario) ─────────────────────────
-export function ParticipationModal({ tournament, categories, staff, onClose, onSaved }) {
+export function ParticipationModal({ tournament, categories, headquarters = [], staff, onClose, onSaved }) {
+  const [headquarterId, setHeadquarterId] = useState(headquarters.length === 1 ? headquarters[0].id : '');
   const [categoryIds, setCategoryIds] = useState([]);
+  const visibleCategories = categories.filter(c => c.headquarterId === headquarterId && c.isActive !== false);
   const [headCoachId, setHeadCoachId] = useState('');
   const [coachFee, setCoachFee] = useState(tournament.defaultCoachFee ?? '');
   const [saving, setSaving] = useState(false);
   const toggle = id => setCategoryIds(c => (c.includes(id) ? c.filter(x => x !== id) : [...c, id]));
   const save = async () => {
+    if (!headquarterId) return toast.error('Elige la sede');
     if (categoryIds.length === 0) return toast.error('Elige al menos una categoría');
     setSaving(true);
     try {
@@ -857,13 +860,24 @@ export function ParticipationModal({ tournament, categories, staff, onClose, onS
         Se crean los días del torneo para estas categorías con hora y rival por definir. Para otra categoría con otro entrenador, agrégala aparte.
       </p>
       <div className="form-group">
+        <label>Sede *</label>
+        <select className="form-control" value={headquarterId} onChange={e => { setHeadquarterId(e.target.value); setCategoryIds([]); }}>
+          <option value="">Elige la sede</option>
+          {headquarters.map(h => <option key={h.id} value={h.id}>{h.name}</option>)}
+        </select>
+      </div>
+      <div className="form-group">
         <label>Categorías *</label>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-          {categories.map(c => (
-            <button key={c.id} type="button" onClick={() => toggle(c.id)}
-              className={`btn btn-sm ${categoryIds.includes(c.id) ? 'btn-primary' : 'btn-secondary'}`}>{c.name}</button>
-          ))}
-        </div>
+        {!headquarterId ? <small className="text-muted">Primero elige la sede.</small> : visibleCategories.length === 0 ? (
+          <small className="text-muted">Esta sede no tiene categorías activas.</small>
+        ) : (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {visibleCategories.map(c => (
+              <button key={c.id} type="button" onClick={() => toggle(c.id)}
+                className={`btn btn-sm ${categoryIds.includes(c.id) ? 'btn-primary' : 'btn-secondary'}`}>{c.name}</button>
+            ))}
+          </div>
+        )}
       </div>
       <div className="form-row-2">
         <div className="form-group">
