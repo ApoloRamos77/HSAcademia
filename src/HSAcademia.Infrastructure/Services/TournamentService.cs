@@ -59,9 +59,10 @@ public class TournamentService
             .ToDictionaryAsync(x => x.Key, x => x.Count);
         var matches = await _db.Events.AsNoTracking()
             .Where(e => e.AcademyId == academyId && e.TournamentId != null && ids.Contains(e.TournamentId.Value))
-            .Select(e => new { TournamentId = e.TournamentId!.Value, e.StartTime, e.MatchStatus })
+            .Select(e => new { TournamentId = e.TournamentId!.Value, e.StartTime, e.MatchStatus, e.TimePending })
             .ToListAsync();
         var now = AcademyClock.WallNow;
+        var today = AcademyClock.Today;
 
         return tournaments.Select(t =>
         {
@@ -70,8 +71,10 @@ public class TournamentService
             dto.TeamsCount = teams.GetValueOrDefault(t.Id);
             dto.MatchesCount = mine.Count;
             dto.MatchesPlayed = mine.Count(m => m.MatchStatus is MatchStatus.Played or MatchStatus.WalkoverWon or MatchStatus.WalkoverLost);
-            dto.NextMatchAt = mine.Where(m => m.StartTime >= now && m.MatchStatus is null or MatchStatus.Scheduled)
-                .Select(m => (DateTime?)m.StartTime).Min();
+            var next = mine.Where(m => (m.TimePending ? m.StartTime.Date >= today : m.StartTime >= now) && m.MatchStatus is null or MatchStatus.Scheduled)
+                .OrderBy(m => m.StartTime).FirstOrDefault();
+            dto.NextMatchAt = next?.StartTime;
+            dto.NextMatchTimePending = next?.TimePending ?? false;
             return dto;
         }).ToList();
     }
@@ -93,8 +96,11 @@ public class TournamentService
         detail.TeamsCount = teams.Count;
         detail.MatchesCount = detail.Matches.Count;
         detail.MatchesPlayed = detail.Matches.Count(m => m.MatchStatus is (int)MatchStatus.Played or (int)MatchStatus.WalkoverWon or (int)MatchStatus.WalkoverLost);
-        detail.NextMatchAt = detail.Matches.Where(m => m.StartTime >= AcademyClock.WallNow && m.MatchStatus == (int)MatchStatus.Scheduled)
-            .Select(m => (DateTime?)m.StartTime).Min();
+        var nextMatch = detail.Matches
+            .Where(m => (m.TimePending ? m.StartTime.Date >= AcademyClock.Today : m.StartTime >= AcademyClock.WallNow) && m.MatchStatus == (int)MatchStatus.Scheduled)
+            .OrderBy(m => m.StartTime).FirstOrDefault();
+        detail.NextMatchAt = nextMatch?.StartTime;
+        detail.NextMatchTimePending = nextMatch?.TimePending ?? false;
         return detail;
     }
 
@@ -725,21 +731,26 @@ public class TournamentService
             ev.HeadquarterId ??= sedeId;
         }
 
-        var number = events.Count(e => !e.IsDeleted);
+        // Todos los días del torneo, también los ya pasados (el torneo se puede registrar tarde;
+        // el administrador completa y toma asistencia fuera de plazo).
         var created = 0;
-        foreach (var day in schedule.Where(d => d >= today && !taken.Contains(d)))
+        foreach (var day in schedule.Where(d => !taken.Contains(d)))
         {
-            number++;
             var ev = NewMatch(team.AcademyId, team, day, day.AddHours(1));
             ev.TimePending = true;
             ev.HeadquarterId = sedeId;
-            ev.Round = $"Fecha {number}";
             ev.Location = Clean(t.MainLocation);
             ev.CoachFee = coachFeeForNew is > 0 ? coachFeeForNew : t.DefaultCoachFee;
             ev.Title = MatchTitle(team, ev);
             _db.Events.Add(ev);
+            events.Add(ev);
             created++;
         }
+        // "Fecha N" en orden cronológico (respeta fases con otro nombre, ej. "Semifinal").
+        var n = 0;
+        foreach (var ev in events.Where(e => !e.IsDeleted).OrderBy(e => e.StartTime))
+            if (string.IsNullOrWhiteSpace(ev.Round) || System.Text.RegularExpressions.Regex.IsMatch(ev.Round, @"^Fecha \d+$"))
+                ev.Round = $"Fecha {++n}";
         if (created > 0)
             _audit?.Add(team.AcademyId, "tournaments.days.create", nameof(TournamentTeam), teamId, new { team.Name, created });
         await _db.SaveChangesAsync();

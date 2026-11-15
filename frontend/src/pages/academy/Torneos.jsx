@@ -87,7 +87,7 @@ export default function Torneos() {
                 <div style={{ display: 'flex', gap: 14, fontSize: 12, borderTop: '1px solid var(--border)', paddingTop: 10, alignItems: 'center' }}>
                   <span><Users size={13} /> {t.teamsCount} grupo(s)</span>
                   <span><Trophy size={13} /> {t.matchesPlayed}/{t.matchesCount} jugados</span>
-                  {t.nextMatchAt && <span style={{ marginLeft: 'auto' }}>Próximo: {fmtDate(t.nextMatchAt)} {timeOf(t.nextMatchAt)}</span>}
+                  {t.nextMatchAt && <span style={{ marginLeft: 'auto' }}>Próximo: {fmtDate(t.nextMatchAt)} {t.nextMatchTimePending ? '· hora por definir' : timeOf(t.nextMatchAt)}</span>}
                   {!t.nextMatchAt && <ChevronRight size={16} style={{ marginLeft: 'auto', opacity: 0.6 }} />}
                 </div>
               </button>
@@ -177,7 +177,7 @@ function TournamentDetail({ id, onBack }) {
         <Stat label="Por completar (hora / rival)" value={t.matches.filter(m => m.needsDetails).length} />
         <Stat label="Alumnos" value={t.teams.reduce((n, x) => n + x.players.length, 0)} />
         <Stat label="Partidos jugados" value={`${t.matchesPlayed}/${t.matchesCount}`} />
-        <Stat label="Próximo partido" value={t.nextMatchAt ? `${fmtDate(t.nextMatchAt)} ${timeOf(t.nextMatchAt)}` : '—'} />
+        <Stat label="Próximo partido" value={t.nextMatchAt ? `${fmtDate(t.nextMatchAt)} ${t.nextMatchTimePending ? '· hora por definir' : timeOf(t.nextMatchAt)}` : '—'} />
       </div>
 
       <div className="tabs" style={{ maxWidth: 680, overflowX: 'auto' }}>
