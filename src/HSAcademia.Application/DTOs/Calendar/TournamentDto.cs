@@ -35,6 +35,8 @@ public class TournamentDto
     public int MatchesCount { get; set; }
     public int MatchesPlayed { get; set; }
     public DateTime? NextMatchAt { get; set; }
+    /// <summary>El próximo partido aún no tiene hora.</summary>
+    public bool NextMatchTimePending { get; set; }
 }
 
 public class CreateTournamentDto
