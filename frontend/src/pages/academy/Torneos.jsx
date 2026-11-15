@@ -5,10 +5,11 @@ import AppLayout from '../../components/AppLayout';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { useAuth } from '../../context/AuthContext';
 import TorneoFinanzas from './torneos/TorneoFinanzas';
+import EncounterModal, { RefereeWaiverModal } from './torneos/EncounterModal';
 import toast from 'react-hot-toast';
 import {
   Trophy, Plus, Pencil, Trash2, ArrowLeft, Users, CalendarPlus, CalendarDays, Clock, MapPin,
-  Shirt, AlertTriangle, Phone, ChevronRight, Send, UserCheck,
+  Shirt, AlertTriangle, Phone, ChevronRight, Send, UserCheck, BadgePercent,
 } from 'lucide-react';
 import {
   TournamentFormModal, TeamFormModal, RosterModal, GenerateMatchesModal, MatchFormModal, MatchCallsModal, ParticipationModal,
@@ -195,7 +196,10 @@ function TournamentDetail({ id, onBack }) {
           onMatch={team => setModal({ kind: 'match', team })} onDelete={team => setConfirm({ kind: 'team', team })} />
       )}
       {tab === 'matches' && (
-        <MatchesTab t={t} onNew={() => setModal({ kind: 'match' })} onEdit={match => setModal({ kind: 'match', match })}
+        <MatchesTab t={t} canWaive={can('collections.adjust') && !!t.refereeFee}
+          onNew={(team, defaults) => setModal({ kind: 'encounter', team, defaults })}
+          onEdit={match => setModal({ kind: t.teams.find(x => x.id === match.teamId)?.autoRoster ? 'encounter' : 'match', match })}
+          onWaive={match => setModal({ kind: 'waiver', match })}
           onCalls={match => setModal({ kind: 'calls', match })} onDelete={match => setConfirm({ kind: 'match', match })} />
       )}
       {tab === 'finance' && canFinance && <TorneoFinanzas t={t} can={can} />}
@@ -222,14 +226,19 @@ function TournamentDetail({ id, onBack }) {
         <MatchFormModal match={modal.match} team={modal.team} teams={t.teams} headquarters={support.headquarters} staff={support.staff} onClose={close} onSaved={saved} />
       )}
       {modal?.kind === 'calls' && <MatchCallsModal match={modal.match} onClose={close} onChanged={load} />}
+      {modal?.kind === 'encounter' && (
+        <EncounterModal tournament={t} match={modal.match} team={modal.team} defaults={modal.defaults} categories={support.categories}
+          headquarters={support.headquarters} staff={support.staff} onClose={close} onSaved={saved} />
+      )}
+      {modal?.kind === 'waiver' && <RefereeWaiverModal match={modal.match} onClose={close} onSaved={saved} />}
       {modal?.kind === 'participation' && (
         <ParticipationModal tournament={t} categories={support.categories} headquarters={support.headquarters} staff={support.staff} onClose={close} onSaved={() => { close(); load(); }} />
       )}
 
       <ConfirmDialog
         isOpen={!!confirm}
-        title={confirm?.kind === 'tournament' ? 'Eliminar torneo' : confirm?.kind === 'team' ? 'Quitar del torneo' : 'Eliminar fecha'}
-        message={confirm?.kind === 'tournament' ? `¿Eliminar "${t.name}"?` : confirm?.kind === 'team' ? `¿Quitar a ${confirm.team.name} del torneo?` : '¿Eliminar esta fecha?'}
+        title={confirm?.kind === 'tournament' ? 'Eliminar torneo' : confirm?.kind === 'team' ? 'Quitar del torneo' : 'Eliminar encuentro'}
+        message={confirm?.kind === 'tournament' ? `¿Eliminar "${t.name}"?` : confirm?.kind === 'team' ? `¿Quitar a ${confirm.team.name} del torneo?` : '¿Eliminar este encuentro?'}
         detail={confirm?.kind === 'match' ? 'Se quita del calendario y de la agenda de las familias.'
           : 'Se quitan los partidos por jugar que aún no tienen asistencia. Lo ya jugado queda en el historial.'}
         confirmLabel="Sí, eliminar"
@@ -319,7 +328,10 @@ function TeamsTab({ t, onNew, onEdit, onRoster, onGenerate, onMatch, onDelete })
   );
 }
 
-function MatchesTab({ t, onNew, onEdit, onCalls, onDelete }) {
+/** Día del torneo aún sin encuentros (creado automáticamente con hora por definir). */
+const isEmptyDay = m => m.timePending && m.calledCount === 0 && !m.referenceCategoryId;
+
+function MatchesTab({ t, canWaive, onNew, onEdit, onWaive, onCalls, onDelete }) {
   const [teamFilter, setTeamFilter] = useState('');
   const [when, setWhen] = useState('upcoming');
   const today = todayLima();
@@ -330,6 +342,26 @@ function MatchesTab({ t, onNew, onEdit, onCalls, onDelete }) {
     if (when === 'pending') l = l.filter(m => m.needsDetails);
     return l;
   }, [t.matches, teamFilter, when, today]);
+  // Una fecha = un día de unas categorías del torneo, con todos sus encuentros.
+  const days = useMemo(() => {
+    const map = new Map();
+    for (const m of list) {
+      const key = `${dateOf(m.startTime)}|${m.teamId || ''}`;
+      if (!map.has(key)) map.set(key, { key, date: dateOf(m.startTime), teamId: m.teamId, teamName: m.teamName, items: [] });
+      map.get(key).items.push(m);
+    }
+    for (const d of map.values()) {
+      d.items.sort((a, b) => (a.startTime < b.startTime ? -1 : 1));
+      d.round = d.items.find(m => m.round)?.round;
+      d.encounters = d.items.filter(m => !isEmptyDay(m));
+    }
+    return [...map.values()];
+  }, [list]);
+  const teamOf = id => t.teams.find(x => x.id === id);
+  const newIn = d => {
+    const ref = d.items[0];
+    onNew(teamOf(d.teamId), { date: d.date, round: d.round, location: ref.location, headquarterId: ref.headquarterId, coachFee: ref.coachFee });
+  };
 
   return (
     <>
@@ -344,8 +376,8 @@ function MatchesTab({ t, onNew, onEdit, onCalls, onDelete }) {
           <option value="past">Anteriores</option>
           <option value="all">Todos</option>
         </select>
-        <button className="btn btn-primary" style={{ marginLeft: 'auto' }} onClick={onNew} disabled={t.teams.length === 0}
-          title={t.teams.length === 0 ? 'Primero agrega categorías' : undefined}><Plus size={15} /> Fecha extra</button>
+        <button className="btn btn-primary" style={{ marginLeft: 'auto' }} onClick={() => onNew(teamFilter ? teamOf(teamFilter) : null, {})} disabled={t.teams.length === 0}
+          title={t.teams.length === 0 ? 'Primero agrega categorías' : 'Encuentro en cualquier día (fecha extra)'}><Plus size={15} /> Encuentro</button>
       </div>
       {list.length === 0 ? (
         <div className="card" style={{ padding: 24 }}>
@@ -358,20 +390,48 @@ function MatchesTab({ t, onNew, onEdit, onCalls, onDelete }) {
           <table className="table" style={{ width: '100%', fontSize: 13 }}>
             <thead>
               <tr>
-                <th>Fecha</th><th>Categorías</th><th>Rival · fase</th><th>Lugar</th><th>Responsable</th><th>Estado</th><th>Convocados</th><th style={{ width: 110 }} />
+                <th>Hora</th><th>Categoría</th><th>Rival · fase</th><th>Lugar</th><th>Responsable</th><th>Estado</th><th>Convocados</th><th style={{ width: 130 }} />
               </tr>
             </thead>
-            <tbody>
-              {list.map(m => {
+            {days.map(d => (
+            <tbody key={d.key}>
+              <tr style={{ background: 'var(--bg-subtle, rgba(14,165,233,0.06))' }}>
+                <td colSpan={8}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    <strong>{fmtDate(d.date)}</strong>
+                    {d.round && <span>{d.round}</span>}
+                    <span className="text-muted" style={{ fontSize: 12 }}>{d.teamName}</span>
+                    <span className="badge badge-muted">{d.encounters.length} encuentro(s)</span>
+                    {teamOf(d.teamId)?.autoRoster && (
+                      <button className="btn btn-secondary btn-sm" style={{ marginLeft: 'auto' }} onClick={() => newIn(d)}><Plus size={13} /> Encuentro</button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+              {d.encounters.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="text-muted" style={{ fontSize: 12 }}>Sin encuentros programados: agrégalos con “+ Encuentro”.</td>
+                  <td>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <button className="btn-icon text-danger" onClick={() => onDelete(d.items[0])} aria-label="Eliminar fecha" title="Eliminar fecha"><Trash2 size={15} /></button>
+                    </div>
+                  </td>
+                </tr>
+              )}
+              {d.encounters.map(m => {
                 const ms = labelOf(MATCH_STATUSES, m.matchStatus);
                 const score = m.goalsFor != null && m.goalsAgainst != null ? `${m.goalsFor} – ${m.goalsAgainst}` : null;
                 return (
                   <tr key={m.id}>
                     <td style={{ whiteSpace: 'nowrap' }}>
-                      <strong>{fmtDate(m.startTime)}</strong> {m.timePending ? <span style={{ color: '#d97706' }}>hora por definir</span> : timeOf(m.startTime)}
+                      {m.timePending ? <span style={{ color: '#d97706' }}>hora por definir</span> : <strong>{timeOf(m.startTime)}</strong>}
                       {m.callTime && <div className="text-muted" style={{ fontSize: 11 }}><Clock size={11} /> citación {timeOf(m.callTime)}</div>}
                     </td>
-                    <td>{m.teamName || <span className="text-muted">Sin equipo</span>}</td>
+                    <td>
+                      {m.referenceCategoryName || m.teamName || <span className="text-muted">Sin equipo</span>}
+                      {m.superiorCount > 0 && <div><span className="badge badge-warning" style={{ fontSize: 10 }} title="Convocados de una categoría mayor"><AlertTriangle size={10} /> {m.superiorCount} de cat. superior</span></div>}
+                      {m.refereeWaived && <div><span className="badge badge-muted" style={{ fontSize: 10 }} title={m.refereeWaivedNote || ''}>Arbitraje exonerado</span></div>}
+                    </td>
                     <td>{m.opponentTeam || <span style={{ color: '#d97706' }}>Por definir</span>}{m.round && <div className="text-muted" style={{ fontSize: 11 }}>{m.round}</div>}</td>
                     <td>{m.location || m.headquarterName || <span className="text-muted">—</span>}</td>
                     <td>
@@ -390,14 +450,16 @@ function MatchesTab({ t, onNew, onEdit, onCalls, onDelete }) {
                     <td>
                       <div style={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
                         <button className="btn-icon" onClick={() => onCalls(m)} aria-label="Convocatoria" title="Convocatoria"><Send size={15} /></button>
-                        <button className="btn-icon" onClick={() => onEdit(m)} aria-label="Editar partido" title="Editar, resultado o reemplazo"><Pencil size={15} /></button>
-                        <button className="btn-icon text-danger" onClick={() => onDelete(m)} aria-label="Eliminar partido"><Trash2 size={15} /></button>
+                        <button className="btn-icon" onClick={() => onEdit(m)} aria-label="Editar encuentro" title="Editar, convocados, resultado o reemplazo"><Pencil size={15} /></button>
+                        {canWaive && <button className="btn-icon" onClick={() => onWaive(m)} aria-label="Arbitraje" title={m.refereeWaived ? 'Arbitraje exonerado' : 'Exonerar arbitraje del encuentro'}><BadgePercent size={15} /></button>}
+                        <button className="btn-icon text-danger" onClick={() => onDelete(m)} aria-label="Eliminar encuentro"><Trash2 size={15} /></button>
                       </div>
                     </td>
                   </tr>
                 );
               })}
             </tbody>
+            ))}
           </table>
         </div>
       )}

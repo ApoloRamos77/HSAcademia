@@ -934,6 +934,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.DecidedAt).HasColumnName("decided_at");
             entity.Property(e => e.DecidedByName).HasColumnName("decided_by_name").HasMaxLength(150);
             entity.Property(e => e.Note).HasColumnName("note").HasMaxLength(300);
+            entity.Property(e => e.ManualWaiver).HasColumnName("manual_waiver").HasDefaultValue(false);
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
             // Un cargo por alumno, concepto y partido (EventId null en los de una sola vez).
@@ -986,6 +987,9 @@ public class AppDbContext : DbContext
             entity.Property(e => e.MatchStatus).HasColumnName("match_status").HasConversion<int?>();
             entity.Property(e => e.TimePending).HasColumnName("time_pending");
             entity.Property(e => e.CoachFee).HasColumnName("coach_fee").HasColumnType("numeric(10,2)");
+            entity.Property(e => e.ReferenceCategoryId).HasColumnName("reference_category_id");
+            entity.Property(e => e.RefereeWaived).HasColumnName("referee_waived").HasDefaultValue(false);
+            entity.Property(e => e.RefereeWaivedNote).HasColumnName("referee_waived_note").HasMaxLength(300);
             entity.HasIndex(e => e.TournamentTeamId);
             entity.Property(e => e.IsActive).HasColumnName("is_active").HasDefaultValue(true);
 

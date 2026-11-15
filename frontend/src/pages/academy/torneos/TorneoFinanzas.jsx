@@ -340,10 +340,12 @@ function ChargesModal({ fee, canAdjust, onClose, onChanged }) {
   const [rows, setRows] = useState(null);
   const load = useCallback(() => api.get(`/tournaments/fees/${fee.id}/charges`).then(r => setRows(r.data)).catch(() => setRows([])), [fee.id]);
   useEffect(() => { load(); }, [load]);
-  const decide = async (r, charge) => {
-    try { await api.post(`/tournaments/charges/${r.id}/decision`, { charge }); await load(); onChanged(); }
+  const [waiving, setWaiving] = useState(null); // { id, note }
+  const decide = async (r, charge, note) => {
+    try { await api.post(`/tournaments/charges/${r.id}/decision`, { charge, note }); setWaiving(null); await load(); onChanged(); }
     catch (e) { toast.error(errMsg(e, 'No se pudo guardar')); }
   };
+  const encounterWaived = r => (r.note || '').startsWith('Encuentro exonerado');
   return (
     <Modal title={`${fee.name} · ${feeAmountText(fee)}`} onClose={onClose} maxWidth={760}>
       {rows === null ? <p>Cargando…</p> : rows.length === 0 ? <p className="text-muted">Aún no hay cobros. Por partido se generan al tomar la lista.</p> : (
@@ -365,8 +367,16 @@ function ChargesModal({ fee, canAdjust, onClose, onChanged }) {
                         <button className="btn btn-sm btn-primary" onClick={() => decide(r, true)}>Cobrar</button>{' '}
                         <button className="btn btn-sm btn-secondary" onClick={() => decide(r, false)}>No cobrar</button>
                       </>}
-                      {canAdjust && r.status === 3 && r.eventId && r.note !== 'Deuda anulada en Cobranzas' &&
+                      {canAdjust && r.status === 3 && r.eventId && r.note !== 'Deuda anulada en Cobranzas' && !encounterWaived(r) &&
                         <button className="btn btn-sm btn-ghost" onClick={() => decide(r, true)}>Cobrar</button>}
+                      {canAdjust && r.status === 1 && r.eventId && !(r.amountPaid > 0) && (waiving?.id === r.id ? (
+                        <span style={{ display: 'inline-flex', gap: 4 }}>
+                          <input className="form-control" style={{ width: 160, padding: '2px 6px' }} autoFocus placeholder="Motivo" value={waiving.note}
+                            onChange={e => setWaiving({ id: r.id, note: e.target.value })} />
+                          <button className="btn btn-sm btn-primary" disabled={!waiving.note.trim()} onClick={() => decide(r, false, waiving.note.trim())}>Exonerar</button>
+                          <button className="btn btn-sm btn-ghost" onClick={() => setWaiving(null)}>×</button>
+                        </span>
+                      ) : <button className="btn btn-sm btn-ghost" onClick={() => setWaiving({ id: r.id, note: '' })}>Exonerar</button>)}
                     </td>
                   </tr>
                 );
@@ -375,7 +385,7 @@ function ChargesModal({ fee, canAdjust, onClose, onChanged }) {
           </table>
         </div>
       )}
-      <small className="text-muted">Para cobrar o exonerar una deuda puntual usa Cobranzas; aquí verás el cambio.</small>
+      <small className="text-muted">Por partido puedes exonerar a un alumno aquí (con motivo) o todo un encuentro desde Fechas. Lo ya pagado se gestiona en Cobranzas.</small>
     </Modal>
   );
 }

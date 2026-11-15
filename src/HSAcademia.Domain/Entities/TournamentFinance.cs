@@ -85,6 +85,8 @@ public class TournamentCharge
     public DateTime? DecidedAt { get; set; }
     public string? DecidedByName { get; set; }
     public string? Note { get; set; }
+    /// <summary>Exonerado a mano por el administrador (aunque haya jugado): la sincronización lo respeta.</summary>
+    public bool ManualWaiver { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
