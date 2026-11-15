@@ -817,6 +817,8 @@ public class CalendarService : ICalendarService
         Tournament  = e.Tournament?.Name,
         MatchStatus = e.MatchStatus.HasValue ? (int)e.MatchStatus.Value : null,
         TimePending = e.TimePending,
+        GoalsFor    = e.GoalsFor,
+        GoalsAgainst = e.GoalsAgainst,
     };
 
     /// <summary>

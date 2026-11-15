@@ -38,6 +38,8 @@ public class TournamentBillingService
     private const string AnnulledNote = "Deuda anulada en Cobranzas";
     /// <summary>Nota de los cargos de un encuentro con el arbitraje exonerado por el administrador.</summary>
     private const string EncounterWaivedPrefix = "Encuentro exonerado";
+    /// <summary>Convocado que no asistió: por defecto no se cobra; el administrador puede decidir cobrarle.</summary>
+    private const string AbsentNote = "No asistió";
 
     // =========================================================
     // CONCEPTOS
@@ -159,6 +161,8 @@ public class TournamentBillingService
         var charge = await _db.TournamentCharges.Include(c => c.Fee)
                          .FirstOrDefaultAsync(c => c.AcademyId == academyId && c.Id == chargeId)
                      ?? throw new KeyNotFoundException("Cobro no encontrado.");
+        if (charge.Status == TournamentChargeStatus.Waived && charge.Note == AnnulledNote)
+            throw new InvalidOperationException("La deuda se anuló en Cobranzas.");
         if (charge.Status is not (TournamentChargeStatus.Review or TournamentChargeStatus.Waived or TournamentChargeStatus.Charged))
             throw new InvalidOperationException("Este cobro no admite decisión.");
         if (charge.Status == TournamentChargeStatus.Waived && charge.Note?.StartsWith(EncounterWaivedPrefix) == true)
@@ -253,7 +257,7 @@ public class TournamentBillingService
         }
     }
 
-    private enum Want { Charge, Review }
+    private enum Want { Charge, Absent }
     /// <summary>EncounterWaiver: motivo cuando el administrador exoneró el arbitraje de todo el encuentro.</summary>
     private sealed record Desired(Want Want, bool Exempt, string? EncounterWaiver = null)
     {
@@ -331,7 +335,7 @@ public class TournamentBillingService
                         var present = mark != null && mark.Status is AttendanceStatus.Present or AttendanceStatus.Late;
                         var confirmed = calls.Any(c => c.EventId == ev.Id && c.StudentId == sid && c.IsConfirmed == true);
                         if (present) desired[(ev.Id, sid)] = new(Want.Charge, exempt, waivedEncounter ? ev.RefereeWaivedNote : null);
-                        else if (confirmed && !exempt && !waivedEncounter) desired[(ev.Id, sid)] = new(Want.Review, false);
+                        else if (!exempt && !waivedEncounter) desired[(ev.Id, sid)] = new(Want.Absent, false);
                     }
                 }
             }
@@ -377,8 +381,8 @@ public class TournamentBillingService
             if (has && c.Status == TournamentChargeStatus.Waived && c.Note?.StartsWith(EncounterWaivedPrefix) == true)
             {
                 // Se quitó la exoneración del encuentro: vuelve a evaluarse como nuevo.
-                c.Status = TournamentChargeStatus.Review;
-                c.Note = null; c.DecidedAt = null; c.DecidedByName = null;
+                c.Status = TournamentChargeStatus.Waived;
+                c.Note = AbsentNote; c.DecidedAt = null; c.DecidedByName = null;
                 c.UpdatedAt = now2;
             }
             if (!has)
@@ -410,25 +414,23 @@ public class TournamentBillingService
                 else if (c.Status != TournamentChargeStatus.Charged)
                 {
                     c.Status = TournamentChargeStatus.Charged; // asistió: se cobra (aunque antes se hubiera decidido no cobrar la falta)
-                    c.DecidedAt = null; c.DecidedByName = null;
+                    c.DecidedAt = null; c.DecidedByName = null; c.Note = null;
                     c.UpdatedAt = now2;
                 }
             }
-            else // Review: confirmó y no asistió
+            else // Absent: convocado que no asistió → por defecto no se cobra
             {
-                if (c.Status == TournamentChargeStatus.Charged && c.DecidedAt == null)
+                if (c.Status == TournamentChargeStatus.Charged && c.DecidedAt != null) continue; // el administrador decidió cobrarle
+                if (c.Status == TournamentChargeStatus.Waived && c.DecidedAt != null) continue; // decisión del administrador
+                if (c.Status == TournamentChargeStatus.Charged && Paid(c.PaymentRecord)) continue;
+                if (c.Status == TournamentChargeStatus.Waived && c.Note == AnnulledNote) continue;
+                if (VoidRecord(c)) result.Voided++;
+                if (c.Status != TournamentChargeStatus.Waived || c.Note != AbsentNote)
                 {
-                    if (Paid(c.PaymentRecord)) continue;
-                    if (VoidRecord(c)) result.Voided++;
-                    c.Status = TournamentChargeStatus.Review;
+                    c.Status = TournamentChargeStatus.Waived;
+                    c.Note = AbsentNote;
                     c.UpdatedAt = now2;
                 }
-                else if (c.Status == TournamentChargeStatus.Exempt)
-                {
-                    c.Status = TournamentChargeStatus.Review;
-                    c.UpdatedAt = now2;
-                }
-                // Review pendiente o ya decidido (Charged/Waived con decisión): se respeta.
             }
         }
         foreach (var ((ev, st), d) in desired)
@@ -438,8 +440,8 @@ public class TournamentBillingService
                 AcademyId = fee.AcademyId, FeeId = fee.Id, EventId = ev, StudentId = st,
                 Status = d.Exempt ? TournamentChargeStatus.Exempt
                     : d.EncounterWaived ? TournamentChargeStatus.Waived
-                    : d.Want == Want.Charge ? TournamentChargeStatus.Charged : TournamentChargeStatus.Review,
-                Note = !d.Exempt && d.EncounterWaived ? EncounterNote(d.EncounterWaiver) : null,
+                    : d.Want == Want.Charge ? TournamentChargeStatus.Charged : TournamentChargeStatus.Waived,
+                Note = !d.Exempt && d.EncounterWaived ? EncounterNote(d.EncounterWaiver) : !d.Exempt && d.Want == Want.Absent ? AbsentNote : null,
                 DecidedAt = !d.Exempt && d.EncounterWaived ? now2 : null,
             };
             _db.TournamentCharges.Add(c);
@@ -544,14 +546,19 @@ public class TournamentBillingService
         return null;
     }
 
+    /// <summary>"15/11 18:00 vs Rival A": distingue dos encuentros del mismo día.</summary>
+    private static string When(Event ev) =>
+        (ev.TimePending ? ev.StartTime.ToString("dd/MM") : ev.StartTime.ToString("dd/MM HH:mm")) +
+        (string.IsNullOrWhiteSpace(ev.OpponentTeam) ? "" : $" vs {ev.OpponentTeam}");
+
     private static string Short(TournamentFee fee, Event? ev) =>
-        ev == null ? fee.Name : $"{fee.Name} {(string.IsNullOrWhiteSpace(ev.Round) ? ev.StartTime.ToString("dd/MM") : ev.Round)}";
+        ev == null ? fee.Name : $"{fee.Name} {When(ev)}";
 
     private static string Describe(Tournament t, TournamentFee fee, Event? ev)
     {
         var d = ev == null
             ? $"{t.Name} · {fee.Name}"
-            : $"{t.Name} · {fee.Name} · {(string.IsNullOrWhiteSpace(ev.Round) ? "" : ev.Round + " ")}({ev.StartTime:dd/MM})";
+            : $"{t.Name} · {fee.Name} · {(string.IsNullOrWhiteSpace(ev.Round) ? "" : ev.Round + " · ")}{When(ev)}";
         return d.Length <= 200 ? d : d[..200];
     }
 
@@ -584,7 +591,7 @@ public class TournamentBillingService
         dto.Expenses = expenses.Sum(e => e.Amount);
         dto.Result = dto.Collected - dto.Expenses;
         dto.Projected = dto.Charged - dto.Expenses;
-        if (dto.Reviews.Count > 0) dto.Warnings.Add($"{dto.Reviews.Count} cobro(s) por revisar: confirmaron y no asistieron.");
+        if (dto.Reviews.Count > 0) dto.Warnings.Add($"{dto.Reviews.Count} cobro(s) por revisar (anteriores): confirmaron y no asistieron.");
         return dto;
     }
 

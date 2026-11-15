@@ -327,7 +327,7 @@ function FeeModal({ t, fee, onClose, onSaved }) {
         </div>
         {perMatch && (
           <div className="alert alert-warning" style={{ gridColumn: '1/-1', fontSize: 12, margin: 0 }}>
-            Se cobra a quien quede Presente o Tarde en la lista del partido. Quien confirmó y no fue queda "Por revisar" para que decidas.
+            Se cobra a quien quede Presente o Tarde en la lista del encuentro. A quien faltó no se le cobra ("No asistió"); si decides cobrarle, usa "Cobrar" en el detalle.
             Partidos postergados o suspendidos no se cobran.
           </div>
         )}

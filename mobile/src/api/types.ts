@@ -181,6 +181,8 @@ export interface MobileEvent {
   round?: string | null;
   tournament?: string | null;
   matchStatus?: number | null; // 1 Programado, 2 Jugado, 3 Postergado, 4 Suspendido, 5/6 W.O.
+  goalsFor?: number | null; // servidor desde 1.0.21
+  goalsAgainst?: number | null;
 }
 
 export interface MyCall {
@@ -220,6 +222,24 @@ export interface MyTournament {
   record: { played: number; won: number; drawn: number; lost: number; goalsFor: number; goalsAgainst: number; points: number };
   nextMatch?: string | null;
   lastResults: { date: string; round?: string | null; opponent?: string | null; goalsFor: number; goalsAgainst: number }[];
+  /** Encuentros a los que fue convocado (servidor desde 1.0.21). */
+  encounters?: MyEncounter[];
+}
+
+export interface MyEncounter {
+  eventId: string;
+  startTime: string; // ISO hora de pared
+  timePending: boolean;
+  round?: string | null;
+  opponent?: string | null;
+  category?: string | null;
+  location?: string | null;
+  matchStatus: number;
+  goalsFor?: number | null;
+  goalsAgainst?: number | null;
+  attendance?: 'present' | 'late' | 'absent' | 'excused' | null;
+  charged: number;
+  chargeLines: string[];
 }
 
 export interface Evaluation {
