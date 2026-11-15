@@ -295,27 +295,62 @@ public class TournamentComplianceService
     {
         var mine = _db.Students.Where(s => s.AcademyId == academyId && (s.GuardianId == userId || s.UserId == userId));
         if (studentId.HasValue) mine = mine.Where(s => s.Id == studentId.Value);
-        var players = await _db.TournamentPlayers.AsNoTracking()
-            .Where(p => mine.Select(s => s.Id).Contains(p.StudentId) && p.Team.Tournament.Status != TournamentStatus.Cancelled)
+        var studentIds = await mine.Select(s => s.Id).ToListAsync();
+        var roster = await _db.TournamentPlayers.AsNoTracking()
+            .Where(p => studentIds.Contains(p.StudentId) && p.Team.Tournament.Status != TournamentStatus.Cancelled)
             .Select(p => new
             {
-                p.StudentId, StudentName = p.Student.FirstName, p.TeamId, TeamName = p.Team.Name, p.DeliveredDocuments, p.ShirtNumber,
+                p.StudentId, StudentName = p.Student.FirstName, TeamId = (Guid?)p.TeamId, TeamName = p.Team.Name, p.DeliveredDocuments, p.ShirtNumber,
                 Tournament = p.Team.Tournament,
             }).ToListAsync();
+        // Convocados a algún encuentro sin estar en el plantel (por ejemplo, de otra categoría).
+        var calledRows = await _db.EventCalls.AsNoTracking()
+            .Where(c => studentIds.Contains(c.StudentId) && c.Event.TournamentId != null && c.Event.Tournament!.Status != TournamentStatus.Cancelled)
+            .Select(c => new { c.StudentId, StudentName = c.Student.FirstName, c.EventId, Tournament = c.Event.Tournament! })
+            .ToListAsync();
+        var players = roster.ToList();
+        foreach (var c in calledRows.DistinctBy(c => (c.StudentId, c.Tournament.Id)))
+            if (!players.Any(p => p.StudentId == c.StudentId && p.Tournament.Id == c.Tournament.Id))
+                players.Add(new
+                {
+                    c.StudentId, c.StudentName, TeamId = (Guid?)null, TeamName = "Convocado", DeliveredDocuments = new List<string>(), ShirtNumber = (int?)null,
+                    c.Tournament,
+                });
+        // Una tarjeta por alumno y torneo.
+        players = players.DistinctBy(p => (p.StudentId, p.Tournament.Id)).ToList();
         var cutoff = DateTime.SpecifyKind(AcademyClock.Today.AddDays(-30), DateTimeKind.Utc);
         players = players.Where(p => p.Tournament.Status != TournamentStatus.Finished || (p.Tournament.EndDate ?? cutoff) >= cutoff).ToList();
 
-        var teamIds = players.Select(p => p.TeamId).Distinct().ToList();
-        var matches = await _db.Events.AsNoTracking().Where(e => e.TournamentTeamId != null && teamIds.Contains(e.TournamentTeamId.Value)).ToListAsync();
         var tIds = players.Select(p => p.Tournament.Id).Distinct().ToList();
+        var myCalls = await _db.EventCalls.AsNoTracking()
+            .Where(c => studentIds.Contains(c.StudentId) && c.Event.TournamentId != null && tIds.Contains(c.Event.TournamentId.Value))
+            .Select(c => new { c.StudentId, c.EventId }).ToListAsync();
+        var evIds = myCalls.Select(c => c.EventId).Distinct().ToList();
+        var matches = await _db.Events.AsNoTracking().Where(e => evIds.Contains(e.Id)).ToListAsync();
+        var refIds = matches.Where(m => m.ReferenceCategoryId.HasValue).Select(m => m.ReferenceCategoryId!.Value).Distinct().ToList();
+        var refNames = await _db.Categories.AsNoTracking().Where(c => refIds.Contains(c.Id)).ToDictionaryAsync(c => c.Id, c => c.Name);
+        var teamNames = await _db.TournamentTeams.AsNoTracking().Where(t => tIds.Contains(t.TournamentId)).ToDictionaryAsync(t => t.Id, t => t.Name);
+        var hqNames = await _db.Headquarters.AsNoTracking().Where(h => h.AcademyId == academyId).ToDictionaryAsync(h => h.Id, h => h.Name);
+        var marks = await _db.Attendances.AsNoTracking()
+            .Where(a => a.EventId != null && evIds.Contains(a.EventId.Value) && studentIds.Contains(a.StudentId))
+            .Select(a => new { EventId = a.EventId!.Value, a.StudentId, a.Status }).ToListAsync();
+        var charges = await _db.TournamentCharges.AsNoTracking()
+            .Where(c => c.EventId != null && evIds.Contains(c.EventId.Value) && studentIds.Contains(c.StudentId))
+            .Select(c => new
+            {
+                EventId = c.EventId!.Value, c.StudentId, c.Status, FeeName = c.Fee.Name,
+                Amount = c.PaymentRecord != null ? c.PaymentRecord.Amount : c.Amount,
+            }).ToListAsync();
         var auths = await _db.TournamentAuthorizations.AsNoTracking().Where(a => tIds.Contains(a.TournamentId)).ToListAsync();
         var result = new List<MyTournamentDto>();
         var now = AcademyClock.WallNow;
         foreach (var p in players)
         {
-            var teamMatches = matches.Where(m => m.TournamentTeamId == p.TeamId).OrderBy(m => m.StartTime).ToList();
-            var next = teamMatches.FirstOrDefault(m => m.StartTime >= now && m.MatchStatus is null or MatchStatus.Scheduled);
-            var suspensions = await NextSuspensionsAsync(p.TeamId);
+            // Resultados y próximo partido: los encuentros a los que fue convocado el alumno.
+            var mineIds = myCalls.Where(c => c.StudentId == p.StudentId).Select(c => c.EventId).ToHashSet();
+            var teamMatches = matches.Where(m => m.TournamentId == p.Tournament.Id && mineIds.Contains(m.Id)).OrderBy(m => m.StartTime).ToList();
+            var next = teamMatches.FirstOrDefault(m => !m.TimePending && m.StartTime >= now && m.MatchStatus is null or MatchStatus.Scheduled);
+            var suspensions = p.TeamId.HasValue ? await NextSuspensionsAsync(p.TeamId.Value) : new Dictionary<Guid, string>();
             var auth = auths.FirstOrDefault(a => a.TournamentId == p.Tournament.Id && a.StudentId == p.StudentId);
             result.Add(new MyTournamentDto
             {
@@ -332,6 +367,31 @@ public class TournamentComplianceService
                     {
                         Date = m.StartTime, Round = m.Round, Opponent = m.OpponentTeam, GoalsFor = m.GoalsFor!.Value, GoalsAgainst = m.GoalsAgainst!.Value,
                     }).ToList(),
+                Encounters = teamMatches.Select(m =>
+                {
+                    var mark = marks.FirstOrDefault(a => a.EventId == m.Id && a.StudentId == p.StudentId);
+                    var mine2 = charges.Where(c => c.EventId == m.Id && c.StudentId == p.StudentId).ToList();
+                    return new MyEncounterDto
+                    {
+                        EventId = m.Id, StartTime = m.StartTime, TimePending = m.TimePending, Round = m.Round, Opponent = m.OpponentTeam,
+                        Category = m.ReferenceCategoryId.HasValue ? refNames.GetValueOrDefault(m.ReferenceCategoryId.Value)
+                            : m.TournamentTeamId.HasValue ? teamNames.GetValueOrDefault(m.TournamentTeamId.Value) : null,
+                        Location = m.Location ?? (m.HeadquarterId.HasValue ? hqNames.GetValueOrDefault(m.HeadquarterId.Value) : null),
+                        MatchStatus = (int)(m.MatchStatus ?? MatchStatus.Scheduled), GoalsFor = m.GoalsFor, GoalsAgainst = m.GoalsAgainst,
+                        Attendance = mark == null ? null : mark.Status switch
+                        {
+                            AttendanceStatus.Present => "present", AttendanceStatus.Late => "late",
+                            AttendanceStatus.Absent => "absent", _ => "excused",
+                        },
+                        Charged = mine2.Where(c => c.Status == TournamentChargeStatus.Charged).Sum(c => c.Amount),
+                        ChargeLines = mine2.Select(c => c.Status switch
+                        {
+                            TournamentChargeStatus.Charged => $"{c.FeeName} S/ {c.Amount:0.00}",
+                            TournamentChargeStatus.Exempt => $"{c.FeeName}: exonerado (beca)",
+                            _ => $"{c.FeeName}: no se cobra",
+                        }).ToList(),
+                    };
+                }).ToList(),
             });
         }
         return result.OrderBy(r => r.Status).ThenBy(r => r.Name).ToList();

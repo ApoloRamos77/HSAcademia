@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Alert, Text, View } from 'react-native';
 import { Cake, CalendarDays, Dumbbell, MapPin, Trophy } from 'lucide-react-native';
 import { api, errorMessage } from '../../api/client';
-import type { MobileEvent, MyCall, MyTournament } from '../../api/types';
+import type { MobileEvent, MyCall, MyEncounter, MyTournament } from '../../api/types';
 import { Badge, Banner, Button, Card, Empty, Loading, Row, Screen, SectionTitle } from '../../components/ui';
 import { useApi } from '../../hooks/useApi';
 import { colors, font, spacing } from '../../theme';
@@ -35,9 +35,55 @@ export function matchExtra(round?: string | null, callTime?: string | null) {
 
 const timeOfIso = (iso?: string | null) => (iso ? iso.slice(11, 16) : null);
 
+/** "Jugado 2-1" cuando hay marcador. */
+export function matchBadgeText(status?: number | null, gf?: number | null, ga?: number | null) {
+  const base = status ? MATCH_STATUS[status]?.text : undefined;
+  if (!base) return undefined;
+  return status === 2 && gf != null && ga != null ? `${base} ${gf}-${ga}` : base;
+}
+
+const ATTENDANCE: Record<string, { text: string; tone: 'success' | 'warning' | 'danger' | 'muted' }> = {
+  present: { text: 'Asistió', tone: 'success' },
+  late: { text: 'Tarde', tone: 'warning' },
+  absent: { text: 'Faltó', tone: 'danger' },
+  excused: { text: 'Justificado', tone: 'muted' },
+};
+
+function resultOf(e: MyEncounter): { text: string; tone: 'success' | 'warning' | 'danger' | 'muted' } | null {
+  if (e.matchStatus === 5) return { text: 'Ganó (W.O.)', tone: 'success' };
+  if (e.matchStatus === 6) return { text: 'Perdió (W.O.)', tone: 'danger' };
+  if (e.matchStatus === 3) return { text: 'Postergado', tone: 'warning' };
+  if (e.matchStatus === 4) return { text: 'Suspendido', tone: 'danger' };
+  if (e.goalsFor == null || e.goalsAgainst == null) return null;
+  const score = `${e.goalsFor}-${e.goalsAgainst}`;
+  if (e.goalsFor > e.goalsAgainst) return { text: `Ganó ${score}`, tone: 'success' };
+  if (e.goalsFor < e.goalsAgainst) return { text: `Perdió ${score}`, tone: 'danger' };
+  return { text: `Empató ${score}`, tone: 'muted' };
+}
+
+function EncounterRow({ e }: { e: MyEncounter }) {
+  const day = `${e.startTime.slice(8, 10)}/${e.startTime.slice(5, 7)}`;
+  const att = e.attendance ? ATTENDANCE[e.attendance] : null;
+  const res = resultOf(e);
+  return (
+    <View style={{ paddingVertical: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border, gap: 4 }}>
+      <Text style={[font.small, { fontWeight: '600' }]}>
+        {day} {e.timePending ? '· hora por definir' : timeOfIso(e.startTime)}{e.category ? ` · ${e.category}` : ''}{e.opponent ? ` vs ${e.opponent}` : ''}
+      </Text>
+      {(e.round || e.location) && <Text style={font.tiny}>{[e.round, e.location].filter(Boolean).join(' · ')}</Text>}
+      <Row style={{ flexWrap: 'wrap', gap: 6 }}>
+        {att && <Badge tone={att.tone} text={att.text} />}
+        {res && <Badge tone={res.tone} text={res.text} />}
+        {e.chargeLines.map(l => <Badge key={l} tone="muted" text={l} />)}
+      </Row>
+    </View>
+  );
+}
+
 export default function AgendaScreen() {
   const { student } = useFamily();
   const [busy, setBusy] = useState<string | null>(null);
+  const [openEncounters, setOpenEncounters] = useState<string | null>(null);
   const { data, loading, refreshing, refresh, setData } = useApi(async () => {
     if (!student) return null;
     const [events, calls, tournaments] = await Promise.all([
@@ -116,6 +162,12 @@ export default function AgendaScreen() {
                     </Text>
                   )}
                   {t.nextMatch && <Text style={font.tiny}>Próximo: {t.nextMatch}</Text>}
+                  {(t.encounters?.length ?? 0) > 0 && (
+                    <Text style={[font.small, { color: colors.primaryDark, fontWeight: '700', marginTop: spacing.xs }]}
+                      onPress={() => setOpenEncounters(o => (o === t.tournamentId ? null : t.tournamentId))}>
+                      {openEncounters === t.tournamentId ? 'Ocultar mis encuentros' : `Ver mis encuentros (${t.encounters!.length})`}
+                    </Text>
+                  )}
                 </View>
                 <Trophy color={colors.warning} size={18} />
               </Row>
@@ -130,6 +182,11 @@ export default function AgendaScreen() {
                 </View>
               )}
               {t.requiresAuthorization && t.authorized && <View style={{ marginTop: spacing.sm }}><Badge tone="success" text="Autorizado" /></View>}
+              {openEncounters === t.tournamentId && (
+                <View style={{ marginTop: spacing.sm }}>
+                  {[...(t.encounters ?? [])].reverse().map(e => <EncounterRow key={e.eventId} e={e} />)}
+                </View>
+              )}
             </Card>
           ))}
         </>
@@ -182,7 +239,7 @@ export default function AgendaScreen() {
                   {matchExtra(e.round, e.callTime) && <Text style={[font.small, { fontWeight: '600' }]}>{matchExtra(e.round, e.callTime)}</Text>}
                   {e.location && <Row style={{ marginTop: 2 }}><MapPin color={colors.textMuted} size={12} /><Text style={font.tiny}>{e.location}</Text></Row>}
                 </View>
-                {e.matchStatus && MATCH_STATUS[e.matchStatus] && <Badge tone={MATCH_STATUS[e.matchStatus].tone} text={MATCH_STATUS[e.matchStatus].text} />}
+                {e.matchStatus && MATCH_STATUS[e.matchStatus] && <Badge tone={MATCH_STATUS[e.matchStatus].tone} text={matchBadgeText(e.matchStatus, e.goalsFor, e.goalsAgainst)!} />}
               </Row>
             </Card>
           ))}

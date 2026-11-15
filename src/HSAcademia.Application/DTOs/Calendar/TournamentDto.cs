@@ -379,6 +379,28 @@ public class MyTournamentDto
     public TeamRecordDto Record { get; set; } = new();
     public string? NextMatch { get; set; }
     public List<MatchResultLineDto> LastResults { get; set; } = new();
+    /// <summary>Encuentros a los que fue convocado el alumno (app 1.0.21).</summary>
+    public List<MyEncounterDto> Encounters { get; set; } = new();
+}
+
+/// <summary>Encuentro del alumno: asistencia, resultado y lo que se le cobró.</summary>
+public class MyEncounterDto
+{
+    public Guid EventId { get; set; }
+    public DateTime StartTime { get; set; }
+    public bool TimePending { get; set; }
+    public string? Round { get; set; }
+    public string? Opponent { get; set; }
+    public string? Category { get; set; }
+    public string? Location { get; set; }
+    public int MatchStatus { get; set; }
+    public int? GoalsFor { get; set; }
+    public int? GoalsAgainst { get; set; }
+    /// <summary>"present" | "late" | "absent" | "excused" | null (lista aún no tomada).</summary>
+    public string? Attendance { get; set; }
+    /// <summary>Cobrado en este encuentro (arbitraje y otros conceptos por partido).</summary>
+    public decimal Charged { get; set; }
+    public List<string> ChargeLines { get; set; } = new();
 }
 
 public class AuthorizeTournamentDto

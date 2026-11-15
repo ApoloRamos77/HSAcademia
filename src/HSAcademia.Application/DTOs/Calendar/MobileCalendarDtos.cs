@@ -39,6 +39,9 @@ public class MobileEventDto
     public int? MatchStatus { get; set; }
     /// <summary>Fecha de torneo con hora por definir (StartTime/EndTime vienen vacíos).</summary>
     public bool TimePending { get; set; }
+    /// <summary>Marcador (nosotros – rival) cuando el partido ya se jugó.</summary>
+    public int? GoalsFor { get; set; }
+    public int? GoalsAgainst { get; set; }
 }
 
 /// <summary>
