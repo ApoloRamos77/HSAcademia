@@ -106,6 +106,17 @@ public class TournamentsController : ControllerBase
     public Task<IActionResult> RemoveCall(Guid eventId, Guid studentId) =>
         Run(async () => { await _service.RemoveCallAsync(AcademyId, eventId, studentId); return NoContent(); });
 
+    // ── Encuentros: candidatos a convocar y exoneración del arbitraje ──
+    [HttpGet("{id:guid}/encounter-candidates")]
+    [RequirePermission(Permissions.EventsManage)]
+    public Task<IActionResult> EncounterCandidates(Guid id, [FromQuery] Guid? referenceCategoryId, [FromQuery] DateTime? date, [FromQuery] Guid? eventId) =>
+        Run(async () => Ok(await _service.GetEncounterCandidatesAsync(AcademyId, id, referenceCategoryId, date, eventId)));
+
+    [HttpPut("matches/{eventId:guid}/referee-waiver")]
+    [RequirePermission(Permissions.CollectionsAdjust, AcademyWide = true)]
+    public Task<IActionResult> RefereeWaiver(Guid eventId, [FromBody] RefereeWaiverDto dto) =>
+        Run(async () => Ok(await _service.SetRefereeWaiverAsync(AcademyId, eventId, dto)));
+
     // ── Cobros a las familias (Fase B) ──
     [HttpGet("{id:guid}/finance")]
     [RequirePermission(Permissions.CollectionsView, AcademyWide = true)]

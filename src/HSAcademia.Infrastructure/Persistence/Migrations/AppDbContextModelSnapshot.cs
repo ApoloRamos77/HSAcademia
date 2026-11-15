@@ -1030,6 +1030,21 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("opponent_team");
 
+                    b.Property<bool>("RefereeWaived")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("referee_waived");
+
+                    b.Property<string>("RefereeWaivedNote")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("referee_waived_note");
+
+                    b.Property<Guid?>("ReferenceCategoryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reference_category_id");
+
                     b.Property<string>("Round")
                         .HasMaxLength(80)
                         .HasColumnType("character varying(80)")
@@ -3600,6 +3615,12 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("FeeId")
                         .HasColumnType("uuid")
                         .HasColumnName("fee_id");
+
+                    b.Property<bool>("ManualWaiver")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("manual_waiver");
 
                     b.Property<string>("Note")
                         .HasMaxLength(300)

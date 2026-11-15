@@ -7,7 +7,7 @@ import {
   dateOf, timeOf, wall, addMinutesWall, fmtDate,
 } from './torneoUtils';
 
-function Modal({ title, onClose, children, footer, maxWidth = 560 }) {
+export function Modal({ title, onClose, children, footer, maxWidth = 560 }) {
   return (
     <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal-box" style={{ maxWidth }}>

@@ -36,6 +36,8 @@ public class TournamentBillingService
     private static bool Paid(PaymentRecord? r) => r != null && (r.AmountPaid > 0.001m || r.IsPaid);
     /// <summary>Nota de los cargos cuya deuda se anuló en Cobranzas: nunca se vuelven a cobrar solos.</summary>
     private const string AnnulledNote = "Deuda anulada en Cobranzas";
+    /// <summary>Nota de los cargos de un encuentro con el arbitraje exonerado por el administrador.</summary>
+    private const string EncounterWaivedPrefix = "Encuentro exonerado";
 
     // =========================================================
     // CONCEPTOS
@@ -157,8 +159,20 @@ public class TournamentBillingService
         var charge = await _db.TournamentCharges.Include(c => c.Fee)
                          .FirstOrDefaultAsync(c => c.AcademyId == academyId && c.Id == chargeId)
                      ?? throw new KeyNotFoundException("Cobro no encontrado.");
-        if (charge.Status is not (TournamentChargeStatus.Review or TournamentChargeStatus.Waived))
-            throw new InvalidOperationException("Solo se decide sobre quienes confirmaron y no asistieron.");
+        if (charge.Status is not (TournamentChargeStatus.Review or TournamentChargeStatus.Waived or TournamentChargeStatus.Charged))
+            throw new InvalidOperationException("Este cobro no admite decisión.");
+        if (charge.Status == TournamentChargeStatus.Waived && charge.Note?.StartsWith(EncounterWaivedPrefix) == true)
+            throw new InvalidOperationException("El arbitraje de todo el encuentro está exonerado: quítalo desde el encuentro.");
+        if (charge.Status == TournamentChargeStatus.Charged)
+        {
+            if (dto.Charge) throw new InvalidOperationException("Ya está cobrado.");
+            if (string.IsNullOrWhiteSpace(dto.Note)) throw new InvalidOperationException("Indica el motivo de la exoneración.");
+            await _db.Entry(charge).Reference(c => c.PaymentRecord).LoadAsync();
+            if (Paid(charge.PaymentRecord)) throw new InvalidOperationException("Ya tiene pagos: anúlalo o devuélvelo desde Cobranzas.");
+            VoidRecord(charge);
+            charge.ManualWaiver = true; // exonerado aunque jugó: la sincronización lo respeta
+        }
+        else charge.ManualWaiver = false;
         charge.Status = dto.Charge ? TournamentChargeStatus.Charged : TournamentChargeStatus.Waived;
         charge.DecidedAt = DateTime.UtcNow;
         charge.DecidedByName = actorName;
@@ -240,7 +254,17 @@ public class TournamentBillingService
     }
 
     private enum Want { Charge, Review }
-    private sealed record Desired(Want Want, bool Exempt);
+    /// <summary>EncounterWaiver: motivo cuando el administrador exoneró el arbitraje de todo el encuentro.</summary>
+    private sealed record Desired(Want Want, bool Exempt, string? EncounterWaiver = null)
+    {
+        public bool EncounterWaived => EncounterWaiver != null;
+    }
+
+    private static string EncounterNote(string? reason)
+    {
+        var note = string.IsNullOrWhiteSpace(reason) ? EncounterWaivedPrefix : $"{EncounterWaivedPrefix}: {reason.Trim()}";
+        return note.Length <= 300 ? note : note[..300];
+    }
 
     public async Task<TournamentSyncResultDto> SyncFeeAsync(Guid feeId)
     {
@@ -262,10 +286,18 @@ public class TournamentBillingService
         {
             if (fee.Frequency == TournamentFeeFrequency.Once)
             {
+                // Equipos armados a mano: su plantel. Categorías del torneo (flujo simple): quien fue convocado a algún encuentro.
+                var manualIds = teams.Where(x => !x.AutoRoster).Select(x => x.Id).ToList();
+                var autoIds = teams.Where(x => x.AutoRoster).Select(x => x.Id).ToList();
                 var roster = await _db.TournamentPlayers.AsNoTracking()
-                    .Where(p => teamIds.Contains(p.TeamId) && p.Student.IsActive)
+                    .Where(p => manualIds.Contains(p.TeamId) && p.Student.IsActive)
                     .Select(p => new { p.StudentId, p.Student.IsScholarship, p.Student.IsGuest })
                     .ToListAsync();
+                if (autoIds.Count > 0)
+                    roster.AddRange(await _db.EventCalls.AsNoTracking()
+                        .Where(c => c.Event.TournamentTeamId != null && autoIds.Contains(c.Event.TournamentTeamId.Value) && !c.Event.IsDeleted && c.Student.IsActive)
+                        .Select(c => new { c.StudentId, c.Student.IsScholarship, c.Student.IsGuest })
+                        .ToListAsync());
                 foreach (var p in roster.DistinctBy(p => p.StudentId))
                     desired[(null, p.StudentId)] = new(Want.Charge, fee.ExemptScholarship && (p.IsScholarship || p.IsGuest));
             }
@@ -291,14 +323,15 @@ public class TournamentBillingService
                     var evMarks = marks.Where(m => m.EventId == ev.Id).ToList();
                     if (evMarks.Count == 0 && !ev.AttendanceClosed) continue; // lista aún no tomada
                     matchInfo[ev.Id] = ev;
+                    var waivedEncounter = fee.SystemKey == "referee" && ev.RefereeWaived;
                     foreach (var sid in evMarks.Select(m => m.StudentId).Concat(calls.Where(c => c.EventId == ev.Id).Select(c => c.StudentId)).Distinct())
                     {
                         var exempt = fee.ExemptScholarship && flags.GetValueOrDefault(sid);
                         var mark = evMarks.FirstOrDefault(m => m.StudentId == sid);
                         var present = mark != null && mark.Status is AttendanceStatus.Present or AttendanceStatus.Late;
                         var confirmed = calls.Any(c => c.EventId == ev.Id && c.StudentId == sid && c.IsConfirmed == true);
-                        if (present) desired[(ev.Id, sid)] = new(Want.Charge, exempt);
-                        else if (confirmed && !exempt) desired[(ev.Id, sid)] = new(Want.Review, false);
+                        if (present) desired[(ev.Id, sid)] = new(Want.Charge, exempt, waivedEncounter ? ev.RefereeWaivedNote : null);
+                        else if (confirmed && !exempt && !waivedEncounter) desired[(ev.Id, sid)] = new(Want.Review, false);
                     }
                 }
             }
@@ -321,6 +354,33 @@ public class TournamentBillingService
 
             var has = desired.TryGetValue((c.EventId, c.StudentId), out var d);
             desired.Remove((c.EventId, c.StudentId));
+            // Exonerado a mano por el administrador: se respeta mientras siga correspondiendo.
+            if (has && c.ManualWaiver && c.Status == TournamentChargeStatus.Waived) continue;
+            if (has && !d!.Exempt && d.EncounterWaived)
+            {
+                if (c.Status == TournamentChargeStatus.Charged && Paid(c.PaymentRecord))
+                {
+                    result.Warnings.Add($"{await NameAsync(c.StudentId)} ya pagó \"{fee.Name}\" de un encuentro exonerado: revisa si hay que devolver.");
+                    continue;
+                }
+                if (VoidRecord(c)) result.Voided++;
+                var note = EncounterNote(d.EncounterWaiver);
+                if (c.Status != TournamentChargeStatus.Waived || c.Note != note)
+                {
+                    c.Status = TournamentChargeStatus.Waived;
+                    c.Note = note;
+                    c.DecidedAt ??= now2;
+                    c.UpdatedAt = now2;
+                }
+                continue;
+            }
+            if (has && c.Status == TournamentChargeStatus.Waived && c.Note?.StartsWith(EncounterWaivedPrefix) == true)
+            {
+                // Se quitó la exoneración del encuentro: vuelve a evaluarse como nuevo.
+                c.Status = TournamentChargeStatus.Review;
+                c.Note = null; c.DecidedAt = null; c.DecidedByName = null;
+                c.UpdatedAt = now2;
+            }
             if (!has)
             {
                 // Ya no corresponde (salió del plantel, partido borrado o postergado, concepto inactivo…).
@@ -376,7 +436,11 @@ public class TournamentBillingService
             var c = new TournamentCharge
             {
                 AcademyId = fee.AcademyId, FeeId = fee.Id, EventId = ev, StudentId = st,
-                Status = d.Exempt ? TournamentChargeStatus.Exempt : d.Want == Want.Charge ? TournamentChargeStatus.Charged : TournamentChargeStatus.Review,
+                Status = d.Exempt ? TournamentChargeStatus.Exempt
+                    : d.EncounterWaived ? TournamentChargeStatus.Waived
+                    : d.Want == Want.Charge ? TournamentChargeStatus.Charged : TournamentChargeStatus.Review,
+                Note = !d.Exempt && d.EncounterWaived ? EncounterNote(d.EncounterWaiver) : null,
+                DecidedAt = !d.Exempt && d.EncounterWaived ? now2 : null,
             };
             _db.TournamentCharges.Add(c);
             existing.Add(c);
@@ -538,7 +602,7 @@ public class TournamentBillingService
             {
                 c.Id, c.FeeId, FeeName = c.Fee.Name, c.EventId, c.StudentId,
                 StudentName = c.Student.FirstName + " " + c.Student.LastName,
-                c.Status, c.Amount, c.DecidedByName, c.Note,
+                c.Status, c.Amount, c.DecidedByName, c.Note, c.ManualWaiver,
                 RecAmount = c.PaymentRecord != null ? c.PaymentRecord.Amount : (decimal?)null,
                 RecPaid = c.PaymentRecord != null ? c.PaymentRecord.AmountPaid : 0m,
                 RecIsPaid = c.PaymentRecord != null && c.PaymentRecord.IsPaid,
@@ -561,7 +625,7 @@ public class TournamentBillingService
                 Amount = r.RecAmount ?? r.Amount,
                 AmountPaid = r.RecPaid, IsPaid = r.RecIsPaid,
                 Confirmed = r.EventId.HasValue ? calls.FirstOrDefault(c => c.EventId == r.EventId && c.StudentId == r.StudentId)?.IsConfirmed : null,
-                DecidedByName = r.DecidedByName, Note = r.Note,
+                DecidedByName = r.DecidedByName, Note = r.Note, ManualWaiver = r.ManualWaiver,
             };
         }).ToList();
     }

@@ -35,6 +35,11 @@ public class Event
     public bool TimePending { get; set; }
     /// <summary>Honorario del entrenador por este partido (manda sobre el del equipo).</summary>
     public decimal? CoachFee { get; set; }
+    /// <summary>Encuentro de torneo: categoría de referencia (juegan ella y las menores; las mayores se resaltan).</summary>
+    public Guid? ReferenceCategoryId { get; set; }
+    /// <summary>El administrador exoneró el arbitraje de todo este encuentro.</summary>
+    public bool RefereeWaived { get; set; }
+    public string? RefereeWaivedNote { get; set; }
 
     // Si es tipo FriendlyMatch u otro
     public string? OpponentTeam { get; set; }

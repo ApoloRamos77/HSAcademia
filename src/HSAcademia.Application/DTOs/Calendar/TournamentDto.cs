@@ -161,6 +161,36 @@ public class TournamentMatchDto
     public decimal? CoachFee { get; set; }
     /// <summary>Falta la hora o el rival: no se puede tomar asistencia.</summary>
     public bool NeedsDetails { get; set; }
+    public Guid? ReferenceCategoryId { get; set; }
+    public string? ReferenceCategoryName { get; set; }
+    /// <summary>Convocados de una categoría mayor que la de referencia.</summary>
+    public int SuperiorCount { get; set; }
+    public bool RefereeWaived { get; set; }
+    public string? RefereeWaivedNote { get; set; }
+}
+
+/// <summary>Alumno que se puede convocar a un encuentro.</summary>
+public class EncounterCandidateDto
+{
+    public Guid StudentId { get; set; }
+    public string FullName { get; set; } = string.Empty;
+    public Guid CategoryId { get; set; }
+    public string? CategoryName { get; set; }
+    public Guid? HeadquarterId { get; set; }
+    public DateTime? BirthDate { get; set; }
+    /// <summary>Es de la categoría de referencia.</summary>
+    public bool SameCategory { get; set; }
+    /// <summary>Es mayor que la categoría de referencia (se resalta).</summary>
+    public bool Superior { get; set; }
+    /// <summary>Otros encuentros del mismo día en este torneo ("10:30 · Categoria 2012").</summary>
+    public List<string> OtherMatches { get; set; } = new();
+    public string? SuspendedFor { get; set; }
+}
+
+public class RefereeWaiverDto
+{
+    public bool Waived { get; set; }
+    [MaxLength(300)] public string? Note { get; set; }
 }
 
 // ─────────────────────────── Equipos y plantel ───────────────────────────
@@ -236,6 +266,10 @@ public class SaveTournamentMatchDto
     [MaxLength(1000)] public string? Description { get; set; }
     /// <summary>Honorario del responsable por este partido (null = sin honorario propio).</summary>
     [Range(0, 100000)] public decimal? CoachFee { get; set; }
+    /// <summary>Encuentro: categoría de referencia (null = conservar).</summary>
+    public Guid? ReferenceCategoryId { get; set; }
+    /// <summary>Encuentro: convocados exactos. Null = flujo anterior (convoca a todo el plantel al completar).</summary>
+    public List<Guid>? StudentIds { get; set; }
 }
 
 /// <summary>Desde el calendario: categorías que juegan el torneo, con su responsable. Crea los días del torneo.</summary>

@@ -36,6 +36,13 @@ public class TournamentService
     private Task SyncMatchChargesAsync(Guid academyId, Guid eventId) =>
         _billing == null ? Task.CompletedTask : _billing.TrySyncEventAsync(academyId, eventId);
 
+    /// <summary>Tras convocar o quitar a alguien: la inscripción depende de las convocatorias.</summary>
+    private async Task SyncCallChargesAsync(Guid academyId, Guid eventId)
+    {
+        var tournamentId = await _db.Events.AsNoTracking().Where(e => e.Id == eventId).Select(e => e.TournamentId).FirstOrDefaultAsync();
+        if (tournamentId.HasValue) await SyncChargesAsync(academyId, tournamentId.Value);
+    }
+
     private static DateTime Wall(DateTime d) => d.Kind == DateTimeKind.Utc ? d : DateTime.SpecifyKind(d, DateTimeKind.Utc);
     private static DateTime? Wall(DateTime? d) => d.HasValue ? Wall(d.Value) : null;
     private static DateTime? DateOnlyUtc(DateTime? d) => d.HasValue ? DateTime.SpecifyKind(d.Value.Date, DateTimeKind.Utc) : null;
@@ -746,15 +753,34 @@ public class TournamentService
             events.Add(ev);
             created++;
         }
-        // "Fecha N" en orden cronológico (respeta fases con otro nombre, ej. "Semifinal").
-        var n = 0;
-        foreach (var ev in events.Where(e => !e.IsDeleted).OrderBy(e => e.StartTime))
-            if (string.IsNullOrWhiteSpace(ev.Round) || System.Text.RegularExpressions.Regex.IsMatch(ev.Round, @"^Fecha \d+$"))
-                ev.Round = $"Fecha {++n}";
+        RenumberRounds(events);
         if (created > 0)
             _audit?.Add(team.AcademyId, "tournaments.days.create", nameof(TournamentTeam), teamId, new { team.Name, created });
         await _db.SaveChangesAsync();
         return created;
+    }
+
+    /// <summary>
+    /// "Fecha N" en orden cronológico, un número por día (todos los encuentros del mismo día comparten la fecha).
+    /// Respeta las fases con otro nombre (ej. "Semifinal").
+    /// </summary>
+    private static void RenumberRounds(IEnumerable<Event> events)
+    {
+        static bool Auto(Event e) => string.IsNullOrWhiteSpace(e.Round) || System.Text.RegularExpressions.Regex.IsMatch(e.Round, @"^Fecha \d+$");
+        var n = 0;
+        foreach (var day in events.Where(e => !e.IsDeleted).GroupBy(e => e.StartTime.Date).OrderBy(g => g.Key))
+        {
+            var auto = day.Where(Auto).ToList();
+            if (auto.Count == 0) continue;
+            n++;
+            foreach (var ev in auto) ev.Round = $"Fecha {n}";
+        }
+    }
+
+    private async Task RenumberTeamAsync(Guid teamId)
+    {
+        var events = await _db.Events.Where(e => e.TournamentTeamId == teamId).ToListAsync();
+        RenumberRounds(events);
     }
 
     /// <summary>Plantel automático = alumnos activos de las categorías (conserva camisetas y documentos).</summary>
@@ -798,18 +824,61 @@ public class TournamentService
                        .FirstOrDefaultAsync(x => x.AcademyId == academyId && x.Id == teamId)
                    ?? throw new KeyNotFoundException("Equipo no encontrado.");
         await ValidateMatchAsync(academyId, dto);
+        var encounter = dto.StudentIds != null;
+        if (encounter) await ValidateEncounterAsync(academyId, dto, Array.Empty<Guid>());
 
-        var ev = NewMatch(academyId, team, Wall(dto.StartTime), Wall(dto.EndTime));
+        // Encuentro en un día del torneo aún vacío: se usa ese día (no queda un "por definir" suelto).
+        Event? ev = null;
+        if (encounter)
+        {
+            var day = Wall(dto.StartTime).Date;
+            var candidates = (await _db.Events.Where(e => e.TournamentTeamId == teamId && e.TimePending).ToListAsync())
+                .Where(e => e.StartTime.Date == day).ToList();
+            foreach (var c in candidates)
+            {
+                if (await _db.EventCalls.AnyAsync(x => x.EventId == c.Id) || await _db.Attendances.AnyAsync(a => a.EventId == c.Id)) continue;
+                ev = c;
+                break;
+            }
+        }
+        var reused = ev != null;
+        if (ev == null)
+        {
+            ev = NewMatch(academyId, team, Wall(dto.StartTime), Wall(dto.EndTime));
+            _db.Events.Add(ev);
+        }
+        else
+        {
+            ev.StartTime = Wall(dto.StartTime);
+            ev.EndTime = Wall(dto.EndTime);
+            ev.UpdatedAt = DateTime.UtcNow;
+        }
+        ev.TimePending = false;
+        var keepRound = ev.Round;
         ApplyMatch(ev, team, dto);
-        _db.Events.Add(ev);
+        if (ev.Round == null && encounter)
+        {
+            // Mismo día = misma fecha del torneo.
+            var evDay = ev.StartTime.Date;
+            var evId = ev.Id;
+            ev.Round = keepRound ?? (await _db.Events.AsNoTracking()
+                .Where(e => e.TournamentTeamId == teamId && e.Id != evId && e.Round != null)
+                .Select(e => new { e.StartTime, e.Round }).ToListAsync())
+                .Where(e => e.StartTime.Date == evDay).Select(e => e.Round).FirstOrDefault();
+        }
+        ev.CoachFee = dto.CoachFee is > 0 ? Math.Round(dto.CoachFee.Value, 2) : null;
+        if (encounter) ev.ReferenceCategoryId = dto.ReferenceCategoryId;
 
-        var roster = await ActiveRosterAsync(teamId);
-        _db.EventCalls.AddRange(roster.Select(sid => NewCall(academyId, ev.Id, sid)));
-        if (IsUpcoming(ev)) await AddCallNoticesAsync(academyId, team, new() { ev }, roster);
+        var called = encounter ? dto.StudentIds!.Distinct().ToList() : await ActiveRosterAsync(teamId);
+        var newEventId = ev.Id;
+        _db.EventCalls.AddRange(called.Select(sid => NewCall(academyId, newEventId, sid)));
+        if (IsUpcoming(ev) && AttendanceWindow.PendingMatchReason(ev) == null) await AddCallNoticesAsync(academyId, team, new() { ev }, called);
 
-        _audit?.Add(academyId, "tournaments.match.create", nameof(Event), ev.Id,
-            new { team = team.Name, ev.StartTime, ev.OpponentTeam, ev.Round, called = roster.Count });
+        _audit?.Add(academyId, encounter ? "tournaments.encounter.create" : "tournaments.match.create", nameof(Event), ev.Id,
+            new { team = team.Name, ev.StartTime, ev.OpponentTeam, ev.Round, ev.ReferenceCategoryId, called = called.Count, reusedDay = reused });
         await _db.SaveChangesAsync();
+        if (team.AutoRoster) { await RenumberTeamAsync(team.Id); await _db.SaveChangesAsync(); }
+        await SyncChargesAsync(academyId, team.TournamentId);
         await SyncSuspensionsAsync(team.Id);
         return (await LoadMatchesAsync(academyId, team.TournamentId, new() { team }, ev.Id)).Single();
     }
@@ -823,6 +892,9 @@ public class TournamentService
             ? await _db.TournamentTeams.Include(t => t.Tournament).FirstOrDefaultAsync(t => t.Id == ev.TournamentTeamId.Value)
             : null;
 
+        var currentCalls = await _db.EventCalls.Where(c => c.EventId == ev.Id).ToListAsync();
+        if (dto.StudentIds != null) await ValidateEncounterAsync(academyId, dto, currentCalls.Select(c => c.StudentId));
+
         var oldStart = ev.StartTime;
         var oldTeacher = ev.TeacherId;
         var wasPending = AttendanceWindow.PendingMatchReason(ev) != null;
@@ -831,11 +903,28 @@ public class TournamentService
         ev.TimePending = false;
         ApplyMatch(ev, team, dto);
         ev.CoachFee = dto.CoachFee is > 0 ? Math.Round(dto.CoachFee.Value, 2) : null;
+        if (dto.ReferenceCategoryId.HasValue) ev.ReferenceCategoryId = dto.ReferenceCategoryId;
         ev.UpdatedAt = DateTime.UtcNow;
+        var ready = AttendanceWindow.PendingMatchReason(ev) == null && ev.MatchStatus is not (MatchStatus.Postponed or MatchStatus.Suspended);
 
+        if (dto.StudentIds != null)
+        {
+            // Encuentro: los convocados son exactamente los elegidos (la asistencia ya marcada se conserva).
+            var wanted = dto.StudentIds.Distinct().ToList();
+            var removedCalls = currentCalls.Where(c => !wanted.Contains(c.StudentId)).ToList();
+            _db.EventCalls.RemoveRange(removedCalls);
+            var fresh = wanted.Where(id => currentCalls.All(c => c.StudentId != id)).ToList();
+            _db.EventCalls.AddRange(fresh.Select(sid => NewCall(academyId, ev.Id, sid)));
+            // Se avisa recién cuando el encuentro tiene hora y rival (al completarlo, a todos los convocados).
+            var notify = wasPending ? wanted : fresh;
+            if (team != null && ready && IsUpcoming(ev) && notify.Count > 0) await AddCallNoticesAsync(academyId, team, new() { ev }, notify);
+            if (removedCalls.Count > 0 || fresh.Count > 0)
+                _audit?.Add(academyId, "tournaments.encounter.calls", nameof(Event), ev.Id,
+                    new { added = fresh, removed = removedCalls.Select(c => c.StudentId).ToList() });
+        }
         // Recién con hora y rival se convoca al plantel y se avisa a las familias.
         // (Aunque el partido ya haya empezado: la lista de asistencia son los convocados.)
-        if (team != null && wasPending && AttendanceWindow.PendingMatchReason(ev) == null && ev.MatchStatus is not (MatchStatus.Postponed or MatchStatus.Suspended))
+        else if (team != null && wasPending && ready)
         {
             var roster = await ActiveRosterAsync(team.Id);
             var already = (await _db.EventCalls.Where(c => c.EventId == ev.Id).Select(c => c.StudentId).ToListAsync()).ToHashSet();
@@ -851,9 +940,107 @@ public class TournamentService
             teacherFrom = oldTeacher != ev.TeacherId ? oldTeacher : null, teacherTo = oldTeacher != ev.TeacherId ? ev.TeacherId : null
         });
         await _db.SaveChangesAsync();
-        await SyncMatchChargesAsync(academyId, ev.Id);
+        // Convocar cambia la inscripción (una sola vez) además del arbitraje: se recalcula el torneo.
+        await SyncChargesAsync(academyId, ev.TournamentId!.Value);
         if (ev.TournamentTeamId.HasValue) await SyncSuspensionsAsync(ev.TournamentTeamId.Value);
         return (await LoadMatchesAsync(academyId, ev.TournamentId!.Value, team != null ? new() { team } : new(), ev.Id)).Single();
+    }
+
+    /// <summary>Convocados de un encuentro: alumnos activos de la academia (los ya convocados se conservan aunque se hayan retirado).</summary>
+    private async Task ValidateEncounterAsync(Guid academyId, SaveTournamentMatchDto dto, IEnumerable<Guid> alreadyCalled)
+    {
+        if (dto.ReferenceCategoryId.HasValue && !await _db.Categories.AnyAsync(c => c.AcademyId == academyId && c.Id == dto.ReferenceCategoryId))
+            throw new InvalidOperationException("Categoría de referencia no encontrada.");
+        var ids = dto.StudentIds!.Distinct().Except(alreadyCalled).ToList();
+        if (ids.Count == 0) return;
+        var ok = await _db.Students.CountAsync(s => s.AcademyId == academyId && s.IsActive && ids.Contains(s.Id));
+        if (ok != ids.Count) throw new InvalidOperationException("Algún alumno no existe o está retirado.");
+    }
+
+    // ─────────────── Encuentros: candidatos y arbitraje ───────────────
+    /// <summary>Fecha de nacimiento más antigua que admite la categoría (corte para "mayores").</summary>
+    private static DateTime? OldestBirth(DateTime? start, DateTime? end) =>
+        start.HasValue && end.HasValue ? (start < end ? start : end) : start ?? end;
+
+    /// <summary>Mayor que la categoría de referencia: nació antes de su corte (sin fecha de nacimiento, se usa su categoría).</summary>
+    private static bool IsSuperior(DateTime? birth, DateTime? ownCategoryOldest, DateTime? referenceOldest)
+    {
+        if (!referenceOldest.HasValue) return false;
+        var d = birth ?? ownCategoryOldest;
+        return d.HasValue && d.Value.Date < referenceOldest.Value.Date;
+    }
+
+    public async Task<List<EncounterCandidateDto>> GetEncounterCandidatesAsync(Guid academyId, Guid tournamentId, Guid? referenceCategoryId, DateTime? date, Guid? eventId)
+    {
+        if (!await _db.Tournaments.AnyAsync(t => t.AcademyId == academyId && t.Id == tournamentId))
+            throw new KeyNotFoundException("Torneo no encontrado.");
+        var reference = referenceCategoryId.HasValue
+            ? await _db.Categories.AsNoTracking().Where(c => c.AcademyId == academyId && c.Id == referenceCategoryId)
+                .Select(c => new { StartDateOfBirth = c.IsFree ? null : c.StartDateOfBirth, EndDateOfBirth = c.IsFree ? null : c.EndDateOfBirth }).FirstOrDefaultAsync()
+            : null;
+        var refOldest = reference != null ? OldestBirth(reference.StartDateOfBirth, reference.EndDateOfBirth) : null;
+
+        var students = await _db.Students.AsNoTracking()
+            .Where(s => s.AcademyId == academyId && s.IsActive)
+            .OrderBy(s => s.LastName).ThenBy(s => s.FirstName)
+            .Select(s => new
+            {
+                s.Id, s.FirstName, s.LastName, s.CategoryId, CategoryName = s.Category.Name, s.Category.HeadquarterId, s.DateOfBirth,
+                CatStart = s.Category.IsFree ? null : s.Category.StartDateOfBirth, CatEnd = s.Category.IsFree ? null : s.Category.EndDateOfBirth
+            })
+            .ToListAsync();
+
+        var sameDay = new List<(Guid StudentId, string Label)>();
+        if (date.HasValue)
+        {
+            var from = DateTime.SpecifyKind(date.Value.Date, DateTimeKind.Utc);
+            var to = from.AddDays(1);
+            var matches = await _db.Events.AsNoTracking()
+                .Where(e => e.AcademyId == academyId && e.TournamentId == tournamentId && e.StartTime >= from && e.StartTime < to && e.Id != eventId)
+                .Select(e => new { e.Id, e.StartTime, e.TimePending, e.OpponentTeam, Ref = e.ReferenceCategoryId })
+                .ToListAsync();
+            var refIds = matches.Where(m => m.Ref.HasValue).Select(m => m.Ref!.Value).Distinct().ToList();
+            var refNames = await _db.Categories.AsNoTracking().Where(c => refIds.Contains(c.Id)).ToDictionaryAsync(c => c.Id, c => c.Name);
+            var ids = matches.Select(m => m.Id).ToList();
+            var calls = await _db.EventCalls.AsNoTracking().Where(c => ids.Contains(c.EventId)).Select(c => new { c.EventId, c.StudentId }).ToListAsync();
+            foreach (var c in calls)
+            {
+                var m = matches.First(x => x.Id == c.EventId);
+                var label = (m.TimePending ? "hora por definir" : m.StartTime.ToString("HH:mm")) +
+                            (m.Ref.HasValue && refNames.TryGetValue(m.Ref.Value, out var rn) ? $" · {rn}" : "") +
+                            (string.IsNullOrWhiteSpace(m.OpponentTeam) ? "" : $" vs {m.OpponentTeam}");
+                sameDay.Add((c.StudentId, label));
+            }
+        }
+
+        return students.Select(s => new EncounterCandidateDto
+        {
+            StudentId = s.Id,
+            FullName = $"{s.FirstName} {s.LastName}".Trim(),
+            CategoryId = s.CategoryId,
+            CategoryName = s.CategoryName,
+            HeadquarterId = s.HeadquarterId,
+            BirthDate = s.DateOfBirth,
+            SameCategory = s.CategoryId == referenceCategoryId,
+            Superior = s.CategoryId != referenceCategoryId && IsSuperior(s.DateOfBirth, OldestBirth(s.CatStart, s.CatEnd), refOldest),
+            OtherMatches = sameDay.Where(x => x.StudentId == s.Id).Select(x => x.Label).ToList(),
+        }).ToList();
+    }
+
+    /// <summary>Exonera (o vuelve a cobrar) el arbitraje de todo un encuentro. Decisión del administrador.</summary>
+    public async Task<TournamentMatchDto> SetRefereeWaiverAsync(Guid academyId, Guid eventId, RefereeWaiverDto dto)
+    {
+        var ev = await _db.Events.FirstOrDefaultAsync(e => e.AcademyId == academyId && e.Id == eventId && e.TournamentId != null)
+                 ?? throw new KeyNotFoundException("Encuentro no encontrado.");
+        if (dto.Waived && string.IsNullOrWhiteSpace(dto.Note)) throw new InvalidOperationException("Indica el motivo de la exoneración.");
+        ev.RefereeWaived = dto.Waived;
+        ev.RefereeWaivedNote = dto.Waived ? Clean(dto.Note) : null;
+        ev.UpdatedAt = DateTime.UtcNow;
+        _audit?.Add(academyId, "tournaments.encounter.referee_waiver", nameof(Event), ev.Id, new { dto.Waived, ev.RefereeWaivedNote });
+        await _db.SaveChangesAsync();
+        await SyncMatchChargesAsync(academyId, ev.Id);
+        var teams = await _db.TournamentTeams.AsNoTracking().Where(t => t.TournamentId == ev.TournamentId).ToListAsync();
+        return (await LoadMatchesAsync(academyId, ev.TournamentId!.Value, teams, ev.Id)).Single();
     }
 
     public async Task<GenerateTournamentMatchesResultDto> GenerateMatchesAsync(Guid academyId, Guid teamId, GenerateTournamentMatchesDto dto)
@@ -1003,7 +1190,7 @@ public class TournamentService
         _audit?.Add(academyId, "tournaments.match.call.add", nameof(Event), eventId, new { studentId });
         await _db.SaveChangesAsync();
         if (_compliance != null) await _compliance.OverrideIfSuspendedAsync(eventId, studentId);
-        await SyncMatchChargesAsync(academyId, eventId);
+        await SyncCallChargesAsync(academyId, eventId);
     }
 
     /// <summary>Quita la convocatoria de un partido. Si ya tiene asistencia marcada, se conserva el registro de asistencia.</summary>
@@ -1014,7 +1201,7 @@ public class TournamentService
         _db.EventCalls.Remove(call);
         _audit?.Add(academyId, "tournaments.match.call.remove", nameof(Event), eventId, new { studentId });
         await _db.SaveChangesAsync();
-        await SyncMatchChargesAsync(academyId, eventId);
+        await SyncCallChargesAsync(academyId, eventId);
     }
 
     private async Task<int> RemoveUpcomingMatchesAsync(Guid academyId, System.Linq.Expressions.Expression<Func<Event, bool>> filter)
@@ -1045,7 +1232,8 @@ public class TournamentService
                 e.Id, e.Title, e.StartTime, e.EndTime, e.CallTime, e.Round, e.OpponentTeam, e.Location,
                 e.HeadquarterId, HeadquarterName = e.Headquarter != null ? e.Headquarter.Name : null,
                 e.TeacherId, TeacherName = e.Teacher != null ? e.Teacher.FirstName + " " + e.Teacher.LastName : null,
-                e.TournamentTeamId, e.MatchStatus, e.GoalsFor, e.GoalsAgainst, e.TimePending, e.CoachFee
+                e.TournamentTeamId, e.MatchStatus, e.GoalsFor, e.GoalsAgainst, e.TimePending, e.CoachFee,
+                e.ReferenceCategoryId, e.RefereeWaived, e.RefereeWaivedNote
             })
             .ToListAsync();
         var ids = events.Select(e => e.Id).ToList();
@@ -1054,6 +1242,13 @@ public class TournamentService
             .Select(g => new { g.Key, Total = g.Count(), Yes = g.Count(c => c.IsConfirmed == true), No = g.Count(c => c.IsConfirmed == false) })
             .ToDictionaryAsync(x => x.Key);
         var teamMap = teams.ToDictionary(t => t.Id);
+        var refIds = events.Where(e => e.ReferenceCategoryId.HasValue).Select(e => e.ReferenceCategoryId!.Value).Distinct().ToList();
+        var refs = await _db.Categories.AsNoTracking().Where(c => refIds.Contains(c.Id))
+            .Select(c => new { c.Id, c.Name, StartDateOfBirth = c.IsFree ? null : c.StartDateOfBirth, EndDateOfBirth = c.IsFree ? null : c.EndDateOfBirth }).ToDictionaryAsync(c => c.Id);
+        var withRef = events.Where(e => e.ReferenceCategoryId.HasValue).Select(e => e.Id).ToList();
+        var refCalls = await _db.EventCalls.AsNoTracking().Where(c => withRef.Contains(c.EventId))
+            .Select(c => new { c.EventId, c.Student.CategoryId, c.Student.DateOfBirth, StartDateOfBirth = c.Student.Category.IsFree ? null : c.Student.Category.StartDateOfBirth, EndDateOfBirth = c.Student.Category.IsFree ? null : c.Student.Category.EndDateOfBirth })
+            .ToListAsync();
 
         return events.Select(e =>
         {
@@ -1085,6 +1280,14 @@ public class TournamentService
                 TimePending = e.TimePending,
                 CoachFee = e.CoachFee,
                 NeedsDetails = e.TimePending || (e.TournamentTeamId != null && string.IsNullOrWhiteSpace(e.OpponentTeam)),
+                ReferenceCategoryId = e.ReferenceCategoryId,
+                ReferenceCategoryName = e.ReferenceCategoryId.HasValue ? refs.GetValueOrDefault(e.ReferenceCategoryId.Value)?.Name : null,
+                SuperiorCount = e.ReferenceCategoryId.HasValue && refs.TryGetValue(e.ReferenceCategoryId.Value, out var rc)
+                    ? refCalls.Count(x => x.EventId == e.Id && x.CategoryId != rc.Id &&
+                                          IsSuperior(x.DateOfBirth, OldestBirth(x.StartDateOfBirth, x.EndDateOfBirth), OldestBirth(rc.StartDateOfBirth, rc.EndDateOfBirth)))
+                    : 0,
+                RefereeWaived = e.RefereeWaived,
+                RefereeWaivedNote = e.RefereeWaivedNote,
             };
         }).ToList();
     }

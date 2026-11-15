@@ -61,6 +61,8 @@ public class TournamentChargeDto
     public bool? Confirmed { get; set; }
     public string? DecidedByName { get; set; }
     public string? Note { get; set; }
+    /// <summary>Exonerado a mano por el administrador aunque jugó.</summary>
+    public bool ManualWaiver { get; set; }
 }
 
 public class DecideTournamentChargeDto
