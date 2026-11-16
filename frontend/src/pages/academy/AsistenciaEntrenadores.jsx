@@ -76,7 +76,7 @@ export default function AsistenciaEntrenadores() {
   };
 
   return (
-    <AppLayout>
+    <AppLayout title="Asistencia de entrenadores">
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
         <div>
           <h2 className="page-title" style={{ display: 'flex', alignItems: 'center', gap: 10 }}><CalendarCheck size={24} /> Asistencia de Entrenadores</h2>

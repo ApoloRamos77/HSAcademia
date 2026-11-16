@@ -80,7 +80,7 @@ export default function Reportes() {
           {reports.length === 0 ? (
             <div className="empty-state"><FileSpreadsheet size={40} /><p>No tienes permisos para descargar reportes.</p></div>
           ) : (
-            <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}>
+            <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(260px, 100%), 1fr))' }}>
               {reports.map(r => (
                 <div key={r.key} className="rounded-xl border border-border p-4 flex flex-col gap-2">
                   <div className="flex items-center gap-2 font-bold text-text-primary"><r.icon size={18} className="text-primary" /> {r.title}</div>

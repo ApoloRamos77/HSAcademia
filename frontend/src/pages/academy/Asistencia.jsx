@@ -195,7 +195,7 @@ export default function Asistencia() {
   });
 
   if (loading) return (
-    <AppLayout>
+    <AppLayout title="Asistencia">
       <div style={{ textAlign:'center', padding:60 }}>
         <div className="spinner" style={{ margin:'0 auto' }}/>
       </div>
@@ -203,7 +203,7 @@ export default function Asistencia() {
   );
 
   return (
-    <AppLayout>
+    <AppLayout title="Asistencia">
       <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
 
         {/* Header */}
@@ -242,7 +242,7 @@ export default function Asistencia() {
         {/* Filters card */}
         <div className="card">
           {mode === 'date' ? (
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(min(220px, 100%), 1fr))', gap:12 }}>
               <div className="form-group" style={{ marginBottom:0 }}>
                 <label>Categoría / Equipo</label>
                 <select className="form-control" value={selectedCategory}

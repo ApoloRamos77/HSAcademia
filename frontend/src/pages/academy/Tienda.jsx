@@ -322,21 +322,21 @@ export default function Tienda() {
       <div className="fade-in">
         
         {/* Tabs Menu */}
-        <div className="flex flex-wrap gap-2 mb-6 bg-bg-surface p-1 rounded-xl w-max max-w-full overflow-x-auto">
+        <div className="tabs tabs-scroll" role="tablist">
           <button 
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab === 'dashboard' ? 'bg-primary text-white shadow-md' : 'text-text-muted hover:text-text-primary hover:bg-bg-surface'}`}
+            role="tab" aria-selected={activeTab === 'dashboard'} className={`tab-pill ${activeTab === 'dashboard' ? 'active' : ''}`}
             onClick={() => setActiveTab('dashboard')}
           >
             <BarChart3 size={16} /> Dashboard
           </button>
           <button 
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab === 'inventory' ? 'bg-primary text-white shadow-md' : 'text-text-muted hover:text-text-primary hover:bg-bg-surface'}`}
+            role="tab" aria-selected={activeTab === 'inventory'} className={`tab-pill ${activeTab === 'inventory' ? 'active' : ''}`}
             onClick={() => setActiveTab('inventory')}
           >
             <Package size={16} /> Inventario Base
           </button>
           <button 
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab === 'sales' ? 'bg-primary text-white shadow-md' : 'text-text-muted hover:text-text-primary hover:bg-bg-surface'}`}
+            role="tab" aria-selected={activeTab === 'sales'} className={`tab-pill ${activeTab === 'sales' ? 'active' : ''}`}
             onClick={() => setActiveTab('sales')}
           >
             <ShoppingCart size={16} /> Historial de Ventas
@@ -348,10 +348,10 @@ export default function Tienda() {
           <div className="fade-in">
             <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><BarChart3 className="text-primary-400" /> Resumen de Ventas</h3>
             <div className="stats-grid" style={{ marginBottom: 24 }}>
-              <div className="stat-card" style={{ borderTop: '2px solid var(--primary-light)' }}>
-                <div className="stat-value" style={{ color: 'var(--primary-light)' }}>S/. {totalRevenue.toFixed(2)}</div>
+              <div className="stat-card" style={{ borderTop: '2px solid var(--primary)' }}>
+                <div className="stat-value" style={{ color: 'var(--primary-dark)' }}>S/. {totalRevenue.toFixed(2)}</div>
                 <div className="stat-label">Ingresos Totales</div>
-                <div className="stat-icon"><DollarSign size={32} style={{ color: 'var(--primary-light)', opacity: 0.2 }}/></div>
+                <div className="stat-icon"><DollarSign size={32} style={{ color: 'var(--primary-dark)', opacity: 0.2 }}/></div>
               </div>
               <div className="stat-card" style={{ borderTop: '2px solid var(--success)' }}>
                 <div className="stat-value" style={{ color: 'var(--success)' }}>{totalItemsSold}</div>

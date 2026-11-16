@@ -38,11 +38,13 @@ export default function App() {
       <BrowserRouter>
         <SessionTimeout timeout={600000} />
         <Toaster
-          position="top-right"
+          position={typeof window !== 'undefined' && window.innerWidth < 640 ? 'top-center' : 'top-right'}
+          containerStyle={{ top: 'max(12px, env(safe-area-inset-top))' }}
           toastOptions={{
-            style: { background: '#1a1a2e', color: '#f1f5f9', border: '1px solid #2d2d50' },
-            success: { iconTheme: { primary: '#10b981', secondary: '#fff' } },
-            error: { iconTheme: { primary: '#ef4444', secondary: '#fff' } },
+            className: 'app-toast',
+            style: { background: '#FFFFFF', color: '#1E293B', border: '1px solid rgba(62,177,229,0.35)', borderRadius: 12, boxShadow: '0 10px 30px rgba(37,88,140,0.15)', fontSize: 14, fontWeight: 500, padding: '10px 14px' },
+            success: { iconTheme: { primary: '#76B858', secondary: '#fff' } },
+            error: { iconTheme: { primary: '#EF4444', secondary: '#fff' } },
           }}
         />
         <Routes>

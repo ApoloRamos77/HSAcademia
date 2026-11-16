@@ -35,9 +35,26 @@
   --shadow-glow: 0 0 25px rgba(118, 184, 88, 0.25);
   --glow-blue: 0 0 20px rgba(62,177,229,0.25);
   --sidebar-w: 268px;
+
+  /* Controles: una sola medida para campos, selectores y botones en toda la app */
+  --control-h:    40px;
+  --control-h-sm: 32px;
+  --control-radius: 10px;
+  --control-font: 14px;
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+/* El reinicio va en la capa base: así las utilidades de Tailwind (p-3, mt-4, space-y-2…)
+   que usan las pantallas sí se aplican. Antes este reinicio, sin capa, las anulaba. */
+@layer base {
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  /* Sin preflight de Tailwind los botones traían el borde y el fondo gris del navegador. */
+  button { font: inherit; color: inherit; background: transparent; border: 0; cursor: pointer; }
+  input, select, textarea { font: inherit; color: inherit; }
+  img, svg, video, canvas { max-width: 100%; }
+  img, video { height: auto; }
+}
+
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 
 body {
   font-family: 'Inter', sans-serif;
@@ -45,6 +62,7 @@ body {
   color: var(--text-primary);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* Scrollbar */
@@ -228,17 +246,20 @@ body {
 
 /* ══════════ BUTTONS ══════════ */
 .btn {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 9px 18px; border-radius: 10px; font-size: 13px;
-  font-weight: 600; cursor: pointer; border: none;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: var(--control-h);
+  padding: 0 18px; border-radius: var(--control-radius); font-size: 13px; line-height: 1.2;
+  font-weight: 600; cursor: pointer; border: 1px solid transparent;
   transition: all 0.2s; font-family: inherit; text-decoration: none;
+  white-space: nowrap; vertical-align: middle; user-select: none;
 }
+.btn:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(62,177,229,0.35); }
 .btn-primary {
   background: linear-gradient(135deg, var(--primary), var(--primary-dark));
   color: #fff;
   box-shadow: 0 4px 14px rgba(62,177,229,0.3);
 }
-.btn-primary:hover { background: linear-gradient(135deg, var(--primary-light), var(--primary)); transform: translateY(-1px); box-shadow: 0 6px 20px rgba(62,177,229,0.4); }
+.btn-primary:hover { background: linear-gradient(135deg, #52BDEB, var(--primary-dark)); transform: translateY(-1px); box-shadow: 0 6px 20px rgba(62,177,229,0.4); }
 .btn-success { background: linear-gradient(135deg, var(--accent), var(--accent-dark)); color: #fff; box-shadow: 0 4px 14px rgba(118,184,88,0.3); }
 .btn-success:hover { transform: translateY(-1px); }
 .btn-danger { background: linear-gradient(135deg, var(--danger), var(--danger-dark)); color: #fff; }
@@ -248,17 +269,20 @@ body {
   background: transparent; color: var(--text-secondary);
   border: 1px solid var(--border-strong);
 }
-.btn-ghost:hover { background: var(--bg-surface); color: var(--text-primary); border-color: var(--primary-light); }
-.btn-sm { padding: 6px 12px; font-size: 12px; border-radius: 8px; }
-.btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.btn-secondary { background: var(--bg-surface); color: var(--text-secondary); border: 1px solid var(--border); }
-.btn-secondary:hover { background: var(--border); color: var(--text-primary); }
+.btn-ghost:hover { background: var(--bg-surface); color: var(--text-primary); border-color: var(--primary); }
+.btn-outline { background: var(--bg-card); color: var(--text-secondary); border: 1px solid var(--border-strong); }
+.btn-outline:hover { background: var(--primary-light); color: var(--primary-dark); border-color: var(--primary); }
+.btn-sm { min-height: var(--control-h-sm); padding: 0 12px; font-size: 12px; border-radius: 8px; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+.btn-secondary { background: var(--bg-surface); color: var(--text-secondary); border: 1px solid var(--border-strong); }
+.btn-secondary:hover { background: var(--primary-light); color: var(--text-primary); }
 .btn-icon {
   background: none; border: none; cursor: pointer; color: var(--text-muted);
-  display: flex; align-items: center; padding: 5px; border-radius: 7px;
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 32px; min-height: 32px; padding: 5px; border-radius: 8px;
   transition: color 0.2s, background 0.2s;
 }
-.btn-icon:hover { color: var(--primary-light); background: rgba(66,176,230,0.1); }
+.btn-icon:hover { color: var(--primary-dark); background: rgba(66,176,230,0.12); }
 
 /* ══════════ BADGES ══════════ */
 .badge {
@@ -272,7 +296,7 @@ body {
 .badge-muted   { background: rgba(100,116,139,0.15); color: #94a3b8; }
 
 /* ══════════ TABLE ══════════ */
-.table-wrap { overflow-x: auto; }
+.table-wrap, .table-container { overflow-x: auto; max-width: 100%; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 thead th {
   padding: 10px 14px; text-align: left;
@@ -294,12 +318,21 @@ tbody td:first-child { color: var(--text-primary); font-weight: 500; }
   text-transform: uppercase; letter-spacing: 0.4px;
 }
 .form-control {
-  width: 100%; padding: 10px 14px; border-radius: 10px;
+  width: 100%; min-height: var(--control-h); padding: 8px 14px; border-radius: var(--control-radius);
   background: var(--bg-surface);
   border: 1px solid var(--border-strong);
-  color: var(--text-primary); font-family: inherit; font-size: 14px;
+  color: var(--text-primary); font-family: inherit; font-size: var(--control-font); line-height: 1.4;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
+/* Selectores con la misma flecha en todos los navegadores (y sin el aspecto nativo del celular) */
+select.form-control, .cal-select {
+  appearance: none; -webkit-appearance: none;
+  padding-right: 36px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748B' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 12px center; background-size: 16px;
+}
+input[type=date].form-control, input[type=time].form-control, input[type=datetime-local].form-control, input[type=month].form-control { -webkit-appearance: none; appearance: none; }
+.form-control:disabled { opacity: 0.65; cursor: not-allowed; }
 .form-control:focus {
   outline: none;
   border-color: var(--primary);
@@ -384,10 +417,22 @@ select.form-control { cursor: pointer; }
   border: none; background: none; color: var(--text-muted);
   transition: all 0.2s; font-family: inherit;
 }
-.tab-pill.active {
-  background: linear-gradient(135deg, var(--primary), var(--primary-light));
-  color: #fff; box-shadow: 0 2px 10px rgba(36,88,140,0.4);
+.tab-pill {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 36px; padding: 0 14px; white-space: nowrap;
 }
+.tab-pill:hover:not(.active) { color: var(--text-primary); background: rgba(255,255,255,0.7); }
+.tab-pill.active {
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  color: #fff; font-weight: 600; box-shadow: 0 2px 10px rgba(36,88,140,0.25);
+}
+/* Barra de pestañas que se desliza a lo ancho cuando no caben (no se parte en varias filas) */
+.tabs-scroll {
+  overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  max-width: 100%; width: max-content;
+}
+.tabs-scroll::-webkit-scrollbar { display: none; }
+.tabs-scroll .tab-pill { flex: 0 0 auto; }
 
 /* ══════════ ALERTS ══════════ */
 .alert {
@@ -431,7 +476,7 @@ select.form-control { cursor: pointer; }
 .mt-4   { margin-top: 16px; }
 .text-center { text-align: center; }
 .text-muted  { color: var(--text-muted); font-size: 13px; }
-.text-primary-light { color: var(--primary-light); }
+.text-primary-light { color: var(--primary); }
 
 .empty-state { text-align: center; padding: 48px 20px; color: var(--text-muted); }
 .empty-state svg { opacity: 0.2; margin-bottom: 12px; }
@@ -444,11 +489,12 @@ select.form-control { cursor: pointer; }
   padding: 14px 20px;
 }
 .cal-select {
-  background: var(--bg-surface); border: 1px solid var(--border-strong);
-  color: var(--text-primary); border-radius: 8px; padding: 7px 12px;
-  font-size: 13px; font-family: inherit; cursor: pointer;
+  background-color: var(--bg-surface); border: 1px solid var(--border-strong);
+  color: var(--text-primary); border-radius: var(--control-radius); padding: 0 36px 0 12px;
+  min-height: var(--control-h);
+  font-size: var(--control-font); font-family: inherit; cursor: pointer;
 }
-.cal-select:focus { outline: none; border-color: var(--primary-light); }
+.cal-select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(62,177,229,0.15); }
 .cal-container { padding: 0; overflow: hidden; }
 .cal-nav {
   display: flex; align-items: center; justify-content: space-between;
@@ -465,7 +511,7 @@ select.form-control { cursor: pointer; }
 .cal-dow-row { border-bottom: 1px solid var(--border); }
 .cal-dow {
   text-align: center; padding: 10px 4px;
-  font-size: 11px; font-weight: 600; color: var(--primary-light);
+  font-size: 11px; font-weight: 700; color: var(--primary-dark);
   text-transform: uppercase; letter-spacing: 0.5px;
 }
 .cal-cell {
@@ -481,7 +527,7 @@ select.form-control { cursor: pointer; }
 .cal-empty:hover { background: rgba(0,0,0,0.1); }
 .cal-today { background: rgba(66,176,230,0.08); }
 .cal-today .cal-day-num {
-  background: var(--primary-light); color: #fff; border-radius: 50%;
+  background: var(--primary); color: #fff; border-radius: 50%;
   width: 26px; height: 26px; display: flex; align-items: center;
   justify-content: center; font-weight: 700;
 }
@@ -589,13 +635,12 @@ select.form-control { cursor: pointer; }
   /* ── Padding de páginas reducido ── */
   .page-content { padding: 16px 14px; }
 
-  /* ── Tablas: scroll horizontal touch-friendly ── */
-  .table-wrap {
+  /* ── Tablas: scroll horizontal touch-friendly (tablet; en celular pasan a tarjetas) ── */
+  .table-wrap, .table-container {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     border-radius: var(--radius);
   }
-  table { min-width: 560px; }
 
   /* ── Stats grid: 2 columnas ── */
   .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
@@ -655,9 +700,9 @@ select.form-control { cursor: pointer; }
   .page-title { font-size: 15px; }
   .page-title::before { height: 16px; }
 
-  /* Botones más compactos */
-  .btn { font-size: 12px; padding: 8px 13px; }
-  .btn-sm { font-size: 11px; padding: 5px 10px; }
+  /* Botones: algo menos de relleno lateral, mismo alto */
+  .btn { padding: 0 14px; }
+  .btn-sm { padding: 0 10px; }
 
   /* Login card */
   .login-card { padding: 28px 20px; border-radius: 20px; }
@@ -731,4 +776,174 @@ select.form-control { cursor: pointer; }
 .access-scope .card + .card, .access-gap > * + * { margin-top: 0; }
 @media (max-width: 480px) {
   .access-scope .card-header { flex-direction: column; align-items: flex-start; }
+}
+
+/* ══════════════════════════════════════════
+   CELULAR — capa profesional común
+   Todo lo de aquí aplica a todas las pantallas, sin tocar cada una.
+   ══════════════════════════════════════════ */
+
+/* Textos largos (correos, nombres sin espacios) no empujan la pantalla a lo ancho */
+.page-content, .modal, .modal-box, .card { overflow-wrap: break-word; }
+@media (max-width: 640px) { .page-content p, .page-content li, .modal p { overflow-wrap: anywhere; } }
+.page-content { max-width: 100%; }
+
+/* Barra superior: título alineado a la izquierda junto al menú, y recortado si no cabe */
+.topbar { justify-content: flex-start; gap: 12px; min-height: 60px; }
+.page-title { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+.page-title::before { vertical-align: -3px; margin-right: 10px; }
+
+/* Pie de modal: botones a la derecha con el mismo alto */
+.modal-footer { flex-wrap: wrap; }
+
+/* En pantallas táctiles no hay "hover": se evita el salto de botones y tarjetas al tocar */
+@media (hover: none) {
+  .btn:hover, .stat-card:hover, .nav-item:hover, .day-event-card:hover { transform: none; }
+}
+
+/* Avisos (toasts) legibles y dentro de la pantalla */
+.app-toast { max-width: calc(100vw - 32px); }
+
+@media (max-width: 768px) {
+  .topbar { padding: 10px 16px; padding-top: max(10px, env(safe-area-inset-top)); }
+
+  /* Las barras de pestañas se deslizan en vez de partirse en varias filas */
+  .tabs { overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tabs .tab-pill { flex: 1 0 auto; }
+
+  /* Filas de encabezado (título + botones) se acomodan en vez de salirse */
+  .page-content .flex.justify-between,
+  .modal .flex.justify-between { flex-wrap: wrap; row-gap: 10px; }
+
+  /* Modal tipo hoja: ocupa el ancho, respeta la barra del sistema y el pie queda fijo abajo */
+  .modal, .modal-box { padding: 20px 16px; max-height: calc(100dvh - 24px); padding-bottom: max(20px, env(safe-area-inset-bottom)); }
+  .modal-footer {
+    position: sticky; bottom: calc(-1 * max(20px, env(safe-area-inset-bottom)));
+    margin-left: -16px; margin-right: -16px; margin-bottom: calc(-1 * max(20px, env(safe-area-inset-bottom)));
+    padding: 12px 16px max(12px, env(safe-area-inset-bottom));
+    background: var(--bg-card); border-top: 1px solid var(--border);
+    z-index: 2;
+  }
+  .modal-footer > .btn { flex: 1 1 0; }
+
+  .cal-day-popup { bottom: max(10px, env(safe-area-inset-bottom)); }
+}
+
+/* ── Celular (≤ 640px) ── */
+@media (max-width: 640px) {
+  :root {
+    --control-h: 44px;      /* tamaño táctil recomendado */
+    --control-h-sm: 36px;
+    --control-font: 16px;   /* 16px evita que el iPhone haga zoom al escribir */
+  }
+  .form-control, .cal-select,
+  .page-content input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=color]),
+  .page-content select, .page-content textarea,
+  .modal input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=color]),
+  .modal select, .modal textarea { font-size: 16px; }
+  .form-control.text-sm { font-size: 16px; }
+  .form-label { font-size: 11.5px; }
+
+  .btn-icon { min-width: 40px; min-height: 40px; }
+  .card-header .btn, .card-header > div { max-width: 100%; }
+
+  /* ══════════ TABLAS EN CELULAR → TARJETAS ══════════
+     Cada fila se muestra como una tarjeta y cada dato lleva el título de su columna
+     (lo pone utils/responsiveTables.js). Las matrices llevan la clase .table-grid y
+     conservan la grilla con desplazamiento lateral. */
+  table:not(.table-grid):not(.dash-table) { display: block; min-width: 0 !important; width: 100%; border: 0; }
+  table:not(.table-grid):not(.dash-table) thead { display: none; }
+  table:not(.table-grid):not(.dash-table) tbody { display: block; }
+  table:not(.table-grid):not(.dash-table) tfoot { display: block; }
+  table:not(.table-grid):not(.dash-table) tr {
+    display: block; margin: 0 0 12px; padding: 6px 14px;
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 14px; box-shadow: 0 2px 10px rgba(37,88,140,0.05);
+  }
+  table:not(.table-grid):not(.dash-table) tbody tr:hover { background: var(--bg-card); }
+  table:not(.table-grid):not(.dash-table) td {
+    display: flow-root; /* el título flota a la izquierda; el contenido fluye a la derecha */
+    padding: 10px 0 !important; min-height: 40px; line-height: 1.45;
+    border: 0 !important; border-bottom: 1px dashed var(--border) !important;
+    text-align: right !important; width: auto !important; max-width: none !important;
+    white-space: normal !important;
+  }
+  table:not(.table-grid):not(.dash-table) td:last-child { border-bottom: 0 !important; }
+  table:not(.table-grid):not(.dash-table) td::before {
+    content: attr(data-label);
+    float: left; max-width: 42%; margin: 2px 12px 0 0; line-height: 1.4;
+    text-align: left; font-size: 11px; font-weight: 700; letter-spacing: 0.4px;
+    text-transform: uppercase; color: var(--text-muted);
+  }
+  /* Bloques internos (divs, grupos de botones) quedan a la derecha del título */
+  table:not(.table-grid):not(.dash-table) td > div,
+  table:not(.table-grid):not(.dash-table) td > form { overflow: hidden; }
+  /* Sin título (o celda de grupo/mensaje): ocupa todo el ancho, alineada a la izquierda */
+  table:not(.table-grid):not(.dash-table) td[data-label=""],
+  table:not(.table-grid):not(.dash-table) td.td-full { text-align: left !important; }
+  table:not(.table-grid):not(.dash-table) td[data-label=""]::before,
+  table:not(.table-grid):not(.dash-table) td.td-full::before { display: none; }
+  /* La primera celda es el "título" de la tarjeta */
+  table:not(.table-grid):not(.dash-table) td:first-child {
+    font-size: 15px; font-weight: 600; color: var(--text-primary);
+  }
+  /* Las celdas de acciones agrupan sus botones a la derecha */
+  table:not(.table-grid):not(.dash-table) td .flex { flex-wrap: wrap; justify-content: flex-end; }
+  table:not(.table-grid):not(.dash-table) td.td-full .flex { justify-content: flex-start; }
+  table:not(.table-grid):not(.dash-table) td[data-label=""] .flex { justify-content: flex-start; }
+
+  /* Encabezado de tarjeta: los grupos de botones bajan y ocupan el ancho */
+  .card-header > .flex, .card-header > div:last-child:not(:first-child) { flex-wrap: wrap; width: 100%; }
+  .card-header > .flex > .btn, .card-header > div:last-child:not(:first-child) > .btn { flex: 1 1 auto; }
+  .table-wrap, .table-container { overflow-x: visible; border-radius: 0; }
+  .card > .table-wrap, .card > .table-container { margin-left: 0; margin-right: 0; }
+
+  /* Matrices: grilla con desplazamiento lateral */
+  .table-grid { min-width: 560px; }
+
+  /* Tablas cortas del panel: caben sin desbordar */
+  .dash-table { min-width: 0; }
+
+  /* Grupos de botones de una fila: ocupan el ancho en partes iguales */
+  .btn-row-mobile { display: grid !important; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; width: 100%; }
+  .btn-row-mobile > .btn { width: 100%; }
+}
+
+@media (max-width: 640px) {
+  /* Ficha del alumno: pestañas a todo el ancho y "Guardar" debajo */
+  .student-modal-actions { width: 100%; }
+  .student-modal-actions > .tabs { flex: 1 1 100%; }
+  .student-modal-actions > .btn { flex: 1 1 100%; }
+}
+
+@media (max-width: 640px) {
+  /* Portal de la familia: monto a la izquierda y botón a la derecha, bajo el detalle de la deuda */
+  .debt-action { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding-top: 10px; border-top: 1px dashed var(--border); }
+  .debt-action > * { margin-top: 0 !important; }
+}
+
+/* Etiquetas sueltas dentro de .form-group: mismo aspecto que .form-label en toda la app */
+.form-group > label:not([class]) {
+  display: block; font-size: 12px; font-weight: 600;
+  color: var(--text-secondary); margin-bottom: 7px;
+  text-transform: uppercase; letter-spacing: 0.4px;
+}
+
+/* Encabezado de página (título + descripción + acción principal) */
+.page-header {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  flex-wrap: wrap; gap: 12px 16px; margin-bottom: 20px;
+}
+.page-header > div:first-child { min-width: 0; flex: 1 1 260px; }
+.page-header .page-title { font-size: 20px; white-space: normal; display: flex; align-items: center; gap: 8px; }
+.page-header .page-title::before { display: none; }
+.page-subtitle { color: var(--text-muted); font-size: 13.5px; margin-top: 4px; line-height: 1.45; }
+
+@media (max-width: 640px) {
+  .page-header > .btn { width: 100%; }
+  .access-tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .access-tabs::-webkit-scrollbar { display: none; }
+  .access-tabs > * { flex: 0 0 auto; }
 }

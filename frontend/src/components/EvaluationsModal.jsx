@@ -88,7 +88,7 @@ export default function EvaluationsModal({ student, onClose }) {
                 <input type="date" className="form-control" max={todayISO()} value={form.evaluationDate} onChange={e => setForm({ ...form, evaluationDate: e.target.value })} />
               </div>
             </div>
-            <div className="grid gap-3 mb-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
+            <div className="grid gap-3 mb-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(240px, 100%), 1fr))' }}>
               {DIMENSIONS.map(([k, label, hint]) => (
                 <div key={k} className="rounded-xl border border-border p-3">
                   <div className="flex justify-between"><b className="text-sm">{label}</b><span className="text-xs text-text-muted">{SCALE[form[k]]}</span></div>

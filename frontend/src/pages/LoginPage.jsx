@@ -140,7 +140,7 @@ export default function LoginPage() {
                   onChange={e => setPassword(e.target.value)}
                   required
                 />
-                <button type="button" className="btn-icon" onClick={() => setShowPass(!showPass)}>
+                <button type="button" className="btn-eye" onClick={() => setShowPass(!showPass)}>
                   {showPass ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>

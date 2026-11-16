@@ -41,10 +41,10 @@ export default function Torneos() {
   const open = id => setParams(id ? { t: id } : {});
   const shown = tournaments.filter(t => !filter || t.status === filter);
 
-  if (selectedId) return <AppLayout><TournamentDetail id={selectedId} onBack={() => { open(null); load(); }} /></AppLayout>;
+  if (selectedId) return <AppLayout title="Torneos"><TournamentDetail id={selectedId} onBack={() => { open(null); load(); }} /></AppLayout>;
 
   return (
-    <AppLayout>
+    <AppLayout title="Torneos">
       <div className="page-header">
         <div>
           <h2 className="page-title"><Trophy size={26} /> Torneos</h2>
@@ -68,7 +68,7 @@ export default function Torneos() {
           <p className="text-muted">{tournaments.length ? 'No hay torneos con ese estado.' : 'Aún no registras torneos. Crea el primero para inscribir a tus equipos.'}</p>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(300px, 100%), 1fr))', gap: 16 }}>
           {shown.map(t => {
             const st = labelOf(STATUSES, t.status);
             return (
@@ -272,7 +272,7 @@ function TeamsTab({ t, onNew, onEdit, onRoster, onGenerate, onMatch, onDelete })
           <p className="text-muted">Agrega las categorías que juegan el torneo (o hazlo desde el Calendario con un evento de tipo Torneo). Se crean sus días con hora y rival por definir.</p>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(340px, 100%), 1fr))', gap: 16 }}>
           {t.teams.map(team => {
             const upcoming = t.matches.filter(m => m.teamId === team.id && m.matchStatus === 1 && dateOf(m.startTime) >= todayLima());
             const years = team.birthYearFrom || team.birthYearTo ? `${team.birthYearFrom || '…'}–${team.birthYearTo || '…'}` : null;

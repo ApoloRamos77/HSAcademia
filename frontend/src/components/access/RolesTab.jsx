@@ -109,7 +109,7 @@ export default function RolesTab() {
 
       {view === 'matrix' ? (
         <div className="table-wrap">
-          <table>
+          <table className="table-grid">
             <thead>
               <tr>
                 <th style={{ position: 'sticky', left: 0, zIndex: 1, minWidth: 240 }}>Permiso</th>

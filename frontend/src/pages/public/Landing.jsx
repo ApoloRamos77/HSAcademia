@@ -174,11 +174,11 @@ export default function Landing() {
             <div className="form-card">
               <h3>Envíanos un Mensaje</h3>
               <form onSubmit={e => e.preventDefault()}>
-                <div className="form-row">
+                <div className="lp-form-row">
                   <input type="text" placeholder="Nombres" required />
                   <input type="text" placeholder="Apellidos" required />
                 </div>
-                <div className="form-row">
+                <div className="lp-form-row">
                   <input type="email" placeholder="Correo Electrónico" required />
                   <input type="tel" placeholder="Celular" required />
                 </div>
