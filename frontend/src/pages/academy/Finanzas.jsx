@@ -260,36 +260,36 @@ export default function Finanzas() {
       <div className="fade-in">
 
         {/* Tabs */}
-        <div className="flex flex-wrap gap-2 mb-6 bg-bg-surface p-1 rounded-xl w-max max-w-full overflow-x-auto">
-          {tabs.dashboard && <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='dashboard'?'bg-primary text-white shadow-md':'text-text-muted hover:text-text-primary hover:bg-white'}`} onClick={()=>setActiveTab('dashboard')}>
+        <div className="tabs tabs-scroll" role="tablist">
+          {tabs.dashboard && <button role="tab" aria-selected={activeTab==='dashboard'} className={`tab-pill ${activeTab==='dashboard'?'active':''}`} onClick={()=>setActiveTab('dashboard')}>
             <BarChart3 size={16}/> Resumen P&amp;L
           </button>}
-          {tabs.debts && <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='debts'?'bg-primary text-white shadow-md':'text-text-muted hover:text-text-primary hover:bg-white'}`} onClick={()=>setActiveTab('debts')}>
+          {tabs.debts && <button role="tab" aria-selected={activeTab==='debts'} className={`tab-pill ${activeTab==='debts'?'active':''}`} onClick={()=>setActiveTab('debts')}>
             <DollarSign size={16}/> Cobranzas
           </button>}
-          {tabs.receipts && <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='receipts'?'bg-primary text-white shadow-md':'text-text-muted hover:text-text-primary hover:bg-white'}`} onClick={()=>setActiveTab('receipts')}>
+          {tabs.receipts && <button role="tab" aria-selected={activeTab==='receipts'} className={`tab-pill ${activeTab==='receipts'?'active':''}`} onClick={()=>setActiveTab('receipts')}>
             <Receipt size={16}/> Recibos
           </button>}
-          {tabs.cash && <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='cash'?'bg-primary text-white shadow-md':'text-text-muted hover:text-text-primary hover:bg-white'}`} onClick={()=>setActiveTab('cash')}>
+          {tabs.cash && <button role="tab" aria-selected={activeTab==='cash'} className={`tab-pill ${activeTab==='cash'?'active':''}`} onClick={()=>setActiveTab('cash')}>
             <Wallet size={16}/> Caja
           </button>}
-          {tabs.discounts && <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='discounts'?'bg-primary text-white shadow-md':'text-text-muted hover:text-text-primary hover:bg-white'}`} onClick={()=>setActiveTab('discounts')}>
+          {tabs.discounts && <button role="tab" aria-selected={activeTab==='discounts'} className={`tab-pill ${activeTab==='discounts'?'active':''}`} onClick={()=>setActiveTab('discounts')}>
             <Tag size={16}/> Descuentos
           </button>}
-          {tabs.proofs && <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='proofs'?'bg-primary text-white shadow-md':'text-text-muted hover:text-text-primary hover:bg-white'}`} onClick={()=>setActiveTab('proofs')}>
+          {tabs.proofs && <button role="tab" aria-selected={activeTab==='proofs'} className={`tab-pill ${activeTab==='proofs'?'active':''}`} onClick={()=>setActiveTab('proofs')}>
             <Inbox size={16}/> Comprobantes
             {pendingProofs > 0 && <span className="badge badge-danger" style={{ marginLeft: 4 }}>{pendingProofs}</span>}
           </button>}
-          {tabs.expenses && <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='expenses'?'bg-primary text-white shadow-md':'text-text-muted hover:text-text-primary hover:bg-white'}`} onClick={()=>setActiveTab('expenses')}>
+          {tabs.expenses && <button role="tab" aria-selected={activeTab==='expenses'} className={`tab-pill ${activeTab==='expenses'?'active':''}`} onClick={()=>setActiveTab('expenses')}>
             <TrendingDown size={16}/> Egresos
           </button>}
-          {tabs.petty && <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='petty'?'bg-primary text-white shadow-md':'text-text-muted hover:text-text-primary hover:bg-white'}`} onClick={()=>setActiveTab('petty')}>
+          {tabs.petty && <button role="tab" aria-selected={activeTab==='petty'} className={`tab-pill ${activeTab==='petty'?'active':''}`} onClick={()=>setActiveTab('petty')}>
             <Archive size={16}/> Caja Chica
           </button>}
-          {tabs.staff && <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='staff'?'bg-primary text-white shadow-md':'text-text-muted hover:text-text-primary hover:bg-white'}`} onClick={()=>setActiveTab('staff')}>
+          {tabs.staff && <button role="tab" aria-selected={activeTab==='staff'} className={`tab-pill ${activeTab==='staff'?'active':''}`} onClick={()=>setActiveTab('staff')}>
             <Users size={16}/> Nómina
           </button>}
-          {tabs.config && <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${activeTab==='config'?'bg-primary text-white shadow-md':'text-text-muted hover:text-text-primary hover:bg-white'}`} onClick={()=>setActiveTab('config')}>
+          {tabs.config && <button role="tab" aria-selected={activeTab==='config'} className={`tab-pill ${activeTab==='config'?'active':''}`} onClick={()=>setActiveTab('config')}>
             <Settings size={16}/> Configuración
           </button>}
         </div>
@@ -316,10 +316,10 @@ export default function Finanzas() {
                 <div className="stat-label">Pendientes por vencer en curso</div>
                 <div className="stat-icon"><Calendar size={32} style={{ color: 'var(--warning)', opacity: 0.2 }}/></div>
               </div>
-              <div className="stat-card" style={{ borderTop: '2px solid var(--primary-light)' }}>
-                <div className="stat-value" style={{ color: 'var(--primary-light)' }}>S/. {totalPending.toFixed(2)}</div>
+              <div className="stat-card" style={{ borderTop: '2px solid var(--primary)' }}>
+                <div className="stat-value" style={{ color: 'var(--primary-dark)' }}>S/. {totalPending.toFixed(2)}</div>
                 <div className="stat-label">Total por Cobrar</div>
-                <div className="stat-icon"><DollarSign size={32} style={{ color: 'var(--primary-light)', opacity: 0.2 }}/></div>
+                <div className="stat-icon"><DollarSign size={32} style={{ color: 'var(--primary-dark)', opacity: 0.2 }}/></div>
               </div>
             </div>
 

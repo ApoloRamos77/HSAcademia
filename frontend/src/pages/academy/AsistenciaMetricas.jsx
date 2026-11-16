@@ -56,7 +56,7 @@ export default function AsistenciaMetricas() {
   };
 
   return (
-    <AppLayout>
+    <AppLayout title="Métricas de asistencia">
       <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
 
         {/* Header */}

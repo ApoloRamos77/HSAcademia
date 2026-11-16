@@ -192,7 +192,7 @@ export default function StudentDashboard() {
         ) : !studentId ? (
           <div className="card empty-state"><User size={40} /><p>No hay alumnos vinculados a tu cuenta. Comunícate con la academia.</p></div>
         ) : (
-          <div className="grid gap-5" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
+          <div className="grid gap-5" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(320px, 100%), 1fr))' }}>
             {/* Estado de cuenta */}
             <Section title="Estado de cuenta" icon={CreditCard}>
               {overdue.length > 0 && (
@@ -212,7 +212,7 @@ export default function StudentDashboard() {
                         <div className="text-xs text-text-muted flex items-center gap-1 mt-1"><Clock size={12} /> Vence: {longDate(d.dueDate)}</div>
                         <span className={`badge mt-2 ${d.status === 'Vencido' ? 'badge-danger' : 'badge-warning'}`}>{d.status}</span>
                       </div>
-                      <div className="text-right">
+                      <div className="text-right debt-action">
                         <div className="font-bold text-lg text-text-primary">{money(d.amountPending)}</div>
                         {pendingProofDebtIds.has(d.id) ? (
                           <span className="badge badge-warning mt-2">Comprobante en validación</span>

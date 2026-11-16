@@ -118,7 +118,7 @@ export default function RegisterPage() {
             {loading ? <span className="spinner" /> : 'Enviar Solicitud de Registro'}
           </button>
           <p className="text-muted text-center" style={{ marginTop: 12 }}>
-            ¿Ya tiene cuenta? <a href="/login" style={{ color: 'var(--primary-light)', textDecoration: 'none' }}>Iniciar sesión</a>
+            ¿Ya tiene cuenta? <a href="/login" style={{ color: 'var(--primary-dark)', textDecoration: 'none' }}>Iniciar sesión</a>
           </p>
         </form>
       </div>

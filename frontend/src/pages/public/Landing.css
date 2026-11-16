@@ -463,7 +463,7 @@ section {
   font-weight: 800;
 }
 
-.form-row {
+.lp-form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
@@ -525,5 +525,5 @@ section {
 @media (max-width: 768px) {
   .hero-title { font-size: 2.5rem; }
   .hero-buttons { flex-direction: column; }
-  .form-row { grid-template-columns: 1fr; }
+  .lp-form-row { grid-template-columns: 1fr; }
 }

@@ -428,7 +428,7 @@ export default function Calendario() {
 
   // ─────────── RENDER ───────────
   return (
-    <AppLayout>
+    <AppLayout title="Calendario">
       <div className="calendar-page">
 
         {/* ── Header ── */}

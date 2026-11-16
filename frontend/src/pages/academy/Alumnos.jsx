@@ -592,7 +592,7 @@ export default function Alumnos() {
             <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '700px' }}>
               <div className="flex justify-between items-center mb-6 border-b border-border pb-4">
                 <h3 className="modal-title m-0 text-lg font-bold">{!canEdit ? 'Detalles del Alumno' : (editingId ? 'Editar Alumno' : 'Registrar Nuevo Alumno')}</h3>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3 flex-wrap student-modal-actions">
                   {/* Pestañas (Tabs) con estilo elegante */}
                   <div className="tabs m-0">
                     <button type="button" onClick={() => setCurrentStep(1)} className={`tab-pill ${currentStep === 1 ? 'active' : ''}`}>1. Alumno</button>
@@ -601,7 +601,7 @@ export default function Alumnos() {
                   </div>
                   {/* Botón Guardar Principal */}
                   {canEdit && (
-                    <button type="button" onClick={handleSave} className="btn btn-success px-6" style={{ height: '44px', borderRadius: '10px' }}>
+                    <button type="button" onClick={handleSave} className="btn btn-success px-6">
                       <FileText size={16} /> Guardar
                     </button>
                   )}
