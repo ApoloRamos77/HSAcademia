@@ -947,3 +947,91 @@ select.form-control { cursor: pointer; }
   .access-tabs::-webkit-scrollbar { display: none; }
   .access-tabs > * { flex: 0 0 auto; }
 }
+
+/* ══════════ COBRO (CheckoutModal) ══════════ */
+.co-search { position: relative; }
+.co-results {
+  position: absolute; z-index: 40; left: 0; right: 0; top: calc(100% + 6px);
+  background: var(--bg-card); border: 1px solid var(--border-strong); border-radius: 12px;
+  box-shadow: 0 18px 40px rgba(15, 40, 70, 0.18), 0 2px 6px rgba(15, 40, 70, 0.08);
+  max-height: min(320px, 55vh); overflow-y: auto; padding: 6px;
+}
+.co-results-empty { padding: 14px 12px; font-size: 13px; color: var(--text-muted); }
+.co-result {
+  width: 100%; display: flex; align-items: center; gap: 12px; text-align: left;
+  padding: 9px 10px; border: 0; border-radius: 8px; background: transparent; cursor: pointer;
+  font-family: inherit; color: var(--text-primary);
+}
+.co-result.is-active { background: var(--primary-light); }
+.co-avatar {
+  flex: 0 0 34px; height: 34px; border-radius: 50%; display: grid; place-items: center;
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark)); color: #fff;
+  font-size: 12px; font-weight: 700; letter-spacing: 0.3px;
+}
+.co-result-main { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.3; }
+.co-result-main b { font-size: 14px; font-weight: 600; }
+.co-result-main small { font-size: 12px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.co-section-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin: 4px 0 10px; }
+.co-months { margin-bottom: 12px; }
+.co-count {
+  display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px;
+  border-radius: 999px; font-size: 11px; font-weight: 700; background: rgba(36,88,140,0.1);
+}
+.tab-pill.active .co-count { background: rgba(255,255,255,0.25); }
+
+.co-debts { display: flex; flex-direction: column; gap: 10px; }
+.co-debt {
+  border: 1px solid var(--border); border-radius: 14px; background: var(--bg-card);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.co-debt.is-on { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(62,177,229,0.12); }
+.co-debt.has-error { border-color: var(--danger); box-shadow: 0 0 0 3px rgba(239,68,68,0.12); }
+.co-debt-head { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; cursor: pointer; margin: 0; }
+.co-check { flex: 0 0 20px; width: 20px; height: 20px; margin-top: 2px; accent-color: var(--primary-dark); cursor: pointer; }
+.co-debt-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.co-debt-title { font-size: 14.5px; font-weight: 600; color: var(--text-primary); }
+.co-debt-meta { font-size: 12.5px; color: var(--text-muted); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.co-debt-amounts { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; text-align: right; white-space: nowrap; }
+.co-debt-pending { font-size: 15px; font-weight: 700; color: var(--danger); }
+.co-debt-charge { font-size: 12px; color: var(--text-muted); }
+.co-debt-charge b { color: var(--accent-dark); font-size: 13px; }
+.co-debt-body { padding: 0 16px 14px 48px; display: flex; flex-direction: column; gap: 12px; }
+.co-debt-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+.co-seg { display: inline-flex; padding: 3px; gap: 3px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 10px; }
+.co-seg button {
+  min-height: calc(var(--control-h) - 8px); padding: 0 14px; border: 0; border-radius: 8px; background: transparent;
+  font: inherit; font-size: 13px; font-weight: 600; color: var(--text-secondary); cursor: pointer;
+}
+.co-seg button.active { background: var(--bg-card); color: var(--primary-dark); box-shadow: 0 1px 4px rgba(15,40,70,0.15); }
+.co-seg button.active.is-warning { background: var(--warning); color: #1f1300; }
+.co-inline-field { display: inline-flex; align-items: center; gap: 8px; margin: 0; font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+.co-inline-field .form-control { width: 110px; }
+
+.co-reg { padding: 12px; border-radius: 12px; background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.35); display: flex; flex-direction: column; gap: 10px; }
+.co-reg-title { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: #B45309; }
+.co-reg .form-label { margin-bottom: -4px; }
+.co-presets { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.co-chip {
+  padding: 5px 10px; border-radius: 999px; border: 1px solid var(--border-strong); background: var(--bg-card);
+  font: inherit; font-size: 12px; color: var(--text-secondary); cursor: pointer;
+}
+.co-chip:hover, .co-chip.active { border-color: var(--primary-dark); color: var(--primary-dark); background: var(--primary-light); }
+.co-note-count { margin-left: auto; font-size: 11.5px; color: var(--text-muted); }
+.co-note-count.ok { color: var(--accent-dark); font-weight: 600; }
+.form-control.is-invalid { border-color: var(--danger); box-shadow: 0 0 0 3px rgba(239,68,68,0.12); }
+.co-error { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: var(--danger); }
+
+@media (max-width: 640px) {
+  .co-debt-head { padding: 12px; gap: 10px; }
+  .co-debt-body { padding: 0 12px 12px; }
+  .co-debt-controls { align-items: stretch; }
+  .co-seg { width: 100%; }
+  .co-seg button { flex: 1; min-height: 38px; }
+  .co-inline-field { flex: 1 1 140px; justify-content: space-between; }
+  .co-inline-field .form-control { width: 120px; }
+  .co-note-count { margin-left: 0; width: 100%; }
+  .co-section-head > div:last-child { width: 100%; }
+  .co-section-head > div:last-child .btn { flex: 1; }
+}
