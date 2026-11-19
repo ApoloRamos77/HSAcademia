@@ -25,6 +25,7 @@ import MyCashPanel from '../../components/finances/MyCashPanel';
 import ReceiptProfileCard from '../../components/finances/ReceiptProfileCard';
 import SessionLiquidationCard from '../../components/finances/SessionLiquidationCard';
 import { useAuth } from '../../context/AuthContext';
+import { conceptOf, conceptRank, prorationLabel } from '../../utils/debtConcepts';
 
 const PAYMENT_METHODS = [
   { value: 'Cash', label: '💵 Efectivo' },
@@ -82,6 +83,7 @@ export default function Finanzas() {
   const [debts, setDebts] = useState([]);
   const [search, setSearch] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
+  const [filterConcept, setFilterConcept] = useState('');
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
 
@@ -239,13 +241,15 @@ export default function Finanzas() {
   };
 
   const availableCategories = Array.from(new Set(debts.map(d => d.categoryName).filter(Boolean))).sort();
+  const availableConcepts = Array.from(new Set(debts.map(conceptOf))).sort((a, b) => conceptRank(a) - conceptRank(b) || a.localeCompare(b));
 
   const filtered = debts.filter(d => {
     const matchSearch = d.studentName?.toLowerCase().includes(search.toLowerCase()) || 
                         d.categoryName?.toLowerCase().includes(search.toLowerCase()) ||
                         d.description?.toLowerCase().includes(search.toLowerCase());
     const matchCat = filterCategory ? d.categoryName === filterCategory : true;
-    return matchSearch && matchCat;
+    const matchConcept = filterConcept ? conceptOf(d) === filterConcept : true;
+    return matchSearch && matchCat && matchConcept;
   });
 
   const overdueDebts   = debts.filter(d => !d.isPaid && d.status === 'Vencido');
@@ -352,17 +356,26 @@ export default function Finanzas() {
                       {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
                     </select>
                     <select
-                      className="form-control text-sm py-1.5 w-auto max-w-[150px]"
+                      className="form-control text-sm py-1.5 w-auto max-w-[200px]"
                       value={filterCategory}
                       onChange={e => setFilterCategory(e.target.value)}
                     >
                       <option value="">Categorías (Todas)</option>
                       {availableCategories.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
+                    <select
+                      className="form-control text-sm py-1.5 w-auto max-w-[170px]"
+                      value={filterConcept}
+                      onChange={e => setFilterConcept(e.target.value)}
+                      aria-label="Filtrar por concepto"
+                    >
+                      <option value="">Conceptos (Todos)</option>
+                      {availableConcepts.map(c => <option key={c} value={c}>{c} ({debts.filter(d => conceptOf(d) === c).length})</option>)}
+                    </select>
                   </div>
                 </div>
 
-                <div className="relative w-full md:w-auto flex-1 max-w-sm">
+                <div className="relative w-full md:w-auto flex-1 min-w-[240px] max-w-sm">
                   <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted"/>
                   <input type="text" placeholder="Buscar alumno, concepto..." className="form-control pl-9 py-1.5 text-sm w-full"
                     value={search} onChange={e=>setSearch(e.target.value)}/>
@@ -429,11 +442,7 @@ export default function Finanzas() {
                                 </div>
                                 {d.regularizedAt && <div className="text-xs text-warning mt-0.5" title={d.regularizationNote || ''}>Regularizado {d.lateFeeAmount ? `con mora S/. ${Number(d.lateFeeAmount).toFixed(2)}` : 'sin mora'}{d.regularizedByName ? ` · ${d.regularizedByName}` : ''}: {d.regularizationNote}</div>}
                                 {d.discountDetail && <div className="text-xs text-success mt-0.5">{d.discountDetail} (-S/. {Number(d.discountAmount).toFixed(2)})</div>}
-                                {d.isProrated && (
-                                  <div className="text-xs text-warning/80 mt-0.5">
-                                    Desde día {d.proratedStartDate ? new Date(d.proratedStartDate).toLocaleDateString('es-PE', { timeZone: 'UTC', day: 'numeric' }) : '?'} — {d.proratedDaysCharged}/{d.proratedTotalDays} sesiones
-                                  </div>
-                                )}
+                                {d.isProrated && <div className="text-xs text-warning/80 mt-0.5">{prorationLabel(d)}</div>}
                               </td>
                               <td className="text-sm">{new Date(d.dueDate).toLocaleDateString('es-PE', { timeZone: 'UTC' })}</td>
                               <td className="font-bold">S/. {d.amount.toFixed(2)}</td>
@@ -442,7 +451,7 @@ export default function Finanzas() {
                                 S/. {d.amountPending.toFixed(2)}
                               </td>
                               <td className="text-right">
-                                <div className="flex items-center justify-end gap-1">
+                                <div className="flex items-center justify-end gap-1 flex-nowrap [&>*]:shrink-0">
                                   {!d.isPaid && (
                                     monthClosed ? (
                                       <span className="flex items-center gap-1 text-xs text-text-muted px-2" title="Mes contable cerrado">

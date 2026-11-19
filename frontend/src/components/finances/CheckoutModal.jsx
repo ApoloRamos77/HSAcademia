@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import api from '../../api/axios';
 import { useAuth } from '../../context/AuthContext';
 import { printReceipt } from '../../utils/pdfGenerator';
+import { conceptOf, conceptRank } from '../../utils/debtConcepts';
 
 const METHODS = [
   { value: 'Cash', label: '💵 Efectivo' },
@@ -71,6 +72,7 @@ export default function CheckoutModal({ open, onClose, onDone, initialStudentId,
   const previewSeq = useRef(0);
   const [lateFeeDefault, setLateFeeDefault] = useState(0);
   const [monthFilter, setMonthFilter] = useState(''); // '' = todos los meses
+  const [conceptFilter, setConceptFilter] = useState(''); // '' = todos los conceptos
   const [searchOpen, setSearchOpen] = useState(false);
   const [activeIdx, setActiveIdx] = useState(0);
   const [showErrors, setShowErrors] = useState(false);
@@ -78,7 +80,7 @@ export default function CheckoutModal({ open, onClose, onDone, initialStudentId,
   useEffect(() => {
     if (!open) return;
     setFamilies([]); setDebtSel({}); setLines([]); setSearch(''); setPromotionId('');
-    setMonthFilter(''); setShowErrors(false); setSearchOpen(false);
+    setMonthFilter(''); setConceptFilter(''); setShowErrors(false); setSearchOpen(false);
     setPreview(null); setPreviewError(null);
     setRequestId(newKey());
     setPayer({ name: '', document: '' });
@@ -132,8 +134,16 @@ export default function CheckoutModal({ open, onClose, onDone, initialStudentId,
     return [...map.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([key, count]) => ({ key, count }));
   }, [allDebts]);
   const month = months.some(m => m.key === monthFilter) ? monthFilter : '';
-  const visibleDebts = useMemo(() => allDebts.filter(d => !month || monthKey(d) === month), [allDebts, month]);
-  const hiddenSelected = allDebts.filter(d => debtSel[d.id]?.on && month && monthKey(d) !== month).length;
+  const concepts = useMemo(() => {
+    const map = new Map();
+    allDebts.forEach(d => map.set(conceptOf(d), (map.get(conceptOf(d)) || 0) + 1));
+    return [...map.entries()].sort(([a], [b]) => conceptRank(a) - conceptRank(b) || a.localeCompare(b)).map(([key, count]) => ({ key, count }));
+  }, [allDebts]);
+  const concept = concepts.some(c => c.key === conceptFilter) ? conceptFilter : '';
+  const inView = (d) => (!month || monthKey(d) === month) && (!concept || conceptOf(d) === concept);
+  const visibleDebts = useMemo(() => allDebts.filter(d => (!month || monthKey(d) === month) && (!concept || conceptOf(d) === concept)), [allDebts, month, concept]);
+  const hiddenSelected = allDebts.filter(d => debtSel[d.id]?.on && !inView(d)).length;
+  const filterLabel = [month && monthLabel(month), concept].filter(Boolean).join(' · ');
 
   const setDebt = (id, patch) => setDebtSel(p => ({ ...p, [id]: { ...p[id], ...patch } }));
   // Al marcar una deuda vencida se prepara la decisión de mora (la sugerida por la academia).
@@ -359,9 +369,18 @@ export default function CheckoutModal({ open, onClose, onDone, initialStudentId,
                       ))}
                     </div>
                   )}
-                  {hiddenSelected > 0 && (
-                    <p className="text-xs text-text-muted mb-2">{hiddenSelected} deuda(s) marcada(s) de otros meses no entran en este cobro mientras el filtro esté en {monthLabel(month)}.</p>
+                  {concepts.length > 1 && (
+                    <div className="co-concepts" role="group" aria-label="Filtrar por concepto">
+                      <button type="button" className={`co-chip${!concept ? ' active' : ''}`} aria-pressed={!concept} onClick={() => setConceptFilter('')}>Todos los conceptos</button>
+                      {concepts.map(c => (
+                        <button type="button" key={c.key} className={`co-chip${concept === c.key ? ' active' : ''}`} aria-pressed={concept === c.key} onClick={() => setConceptFilter(c.key)}>{c.key} · {c.count}</button>
+                      ))}
+                    </div>
                   )}
+                  {hiddenSelected > 0 && (
+                    <p className="text-xs text-text-muted mb-2">{hiddenSelected} deuda(s) marcada(s) fuera del filtro no entran en este cobro mientras veas {filterLabel}.</p>
+                  )}
+                  {visibleDebts.length === 0 && <p className="text-sm text-text-muted mb-2">No hay deudas con este filtro.</p>}
 
                   <div className="co-debts">
                     {visibleDebts.map(d => {

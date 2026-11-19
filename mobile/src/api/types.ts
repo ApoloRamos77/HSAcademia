@@ -126,6 +126,8 @@ export interface Debt {
   regularizedByName?: string | null;
   regularizationNote?: string | null;
   lateFeeAmount?: number | null;
+  /** Concepto para filtrar (Mensualidad, Paquete, Sesiones, Arbitraje…). Versiones anteriores del servidor no lo envían. */
+  concept?: string;
   installments: { id: string; amountPaid: number; paidAt: string; method: string; receiptNumber?: string | null }[];
 }
 

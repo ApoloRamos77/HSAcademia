@@ -1035,3 +1035,5 @@ select.form-control { cursor: pointer; }
   .co-section-head > div:last-child { width: 100%; }
   .co-section-head > div:last-child .btn { flex: 1; }
 }
+.co-concepts { display: flex; flex-wrap: wrap; gap: 6px; margin: -4px 0 12px; }
+.co-concepts .co-chip.active { font-weight: 600; }
