@@ -36,6 +36,7 @@
   --color-background: var(--bg-dark);
   --color-bg-surface: var(--bg-surface);
   --color-card: var(--bg-card);
+  --color-bg-card: var(--bg-card);
   --color-border: var(--border);
 
   /* Texto */

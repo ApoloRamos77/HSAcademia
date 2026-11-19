@@ -23,6 +23,20 @@ let partKey = 0;
 const MAX_PARTS = 4;
 const newPart = (method) => ({ key: ++partKey, method, amount: '', operationNumber: '' });
 
+// Mes de una deuda por su fecha de vencimiento (se toma el texto para no correr la zona horaria).
+const MONTH_NAMES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+const monthKey = (d) => String(d.dueDate || '').slice(0, 7);
+const monthLabel = (key) => { const [y, m] = key.split('-').map(Number); return m ? `${MONTH_NAMES[m - 1]} ${y}` : 'Sin fecha'; };
+const shortDate = (iso) => { const [y, m, d] = String(iso || '').slice(0, 10).split('-'); return d ? `${d}/${m}/${y}` : ''; };
+// Observación de una deuda vencida: mínimo que exige el servidor.
+const MIN_NOTE = 5;
+const NOTE_PRESETS = {
+  fee: ['Pagó fuera de fecha sin aviso', 'Pagó fuera de fecha'],
+  none: ['Se exonera la mora', 'Avisó con anticipación', 'Retraso atribuible a la academia'],
+};
+const noteLength = (sel) => (sel?.reg?.note || '').trim().length;
+const initials = (s) => `${(s.firstName || '')[0] || ''}${(s.lastName || '')[0] || ''}`.toUpperCase();
+
 /**
  * Cobro con varios ítems en UN comprobante: mensualidades de todos los hermanos (mismo apoderado),
  * productos de tienda y abonos parciales, con un medio de pago o repartido entre varios (pago mixto).
@@ -56,10 +70,15 @@ export default function CheckoutModal({ open, onClose, onDone, initialStudentId,
   const [requestId, setRequestId] = useState('');
   const previewSeq = useRef(0);
   const [lateFeeDefault, setLateFeeDefault] = useState(0);
+  const [monthFilter, setMonthFilter] = useState(''); // '' = todos los meses
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [activeIdx, setActiveIdx] = useState(0);
+  const [showErrors, setShowErrors] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setFamilies([]); setDebtSel({}); setLines([]); setSearch(''); setPromotionId('');
+    setMonthFilter(''); setShowErrors(false); setSearchOpen(false);
     setPreview(null); setPreviewError(null);
     setRequestId(newKey());
     setPayer({ name: '', document: '' });
@@ -91,7 +110,7 @@ export default function CheckoutModal({ open, onClose, onDone, initialStudentId,
         });
         return next;
       });
-      setSearch('');
+      setSearch(''); setSearchOpen(false);
     } catch (err) {
       toast.error(err.response?.data?.message || 'No se pudo cargar la cuenta del alumno.');
     }
@@ -99,12 +118,41 @@ export default function CheckoutModal({ open, onClose, onDone, initialStudentId,
 
   const allDebts = useMemo(() => families.flatMap(f => f.pendingDebts), [families]);
   const familyStudents = useMemo(() => families.flatMap(f => f.students), [families]);
-  const matches = search.trim().length >= 2
-    ? students.filter(s => `${s.firstName} ${s.lastName} ${s.documentNumber || ''} ${s.guardianName || ''}`
-        .toLowerCase().includes(search.trim().toLowerCase())).slice(0, 8)
+  const searchTerm = search.trim().toLowerCase();
+  const matches = searchTerm.length >= 2
+    ? students.filter(s => `${s.firstName} ${s.lastName} ${s.lastName} ${s.firstName} ${s.documentNumber || ''} ${s.guardianName || ''}`
+        .toLowerCase().includes(searchTerm)).slice(0, 8)
     : [];
+  const inCharge = (studentId) => familyStudents.some(s => s.studentId === studentId);
+
+  // Filtro por mes: solo se cobran las deudas marcadas del mes que se ve.
+  const months = useMemo(() => {
+    const map = new Map();
+    allDebts.forEach(d => map.set(monthKey(d), (map.get(monthKey(d)) || 0) + 1));
+    return [...map.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([key, count]) => ({ key, count }));
+  }, [allDebts]);
+  const month = months.some(m => m.key === monthFilter) ? monthFilter : '';
+  const visibleDebts = useMemo(() => allDebts.filter(d => !month || monthKey(d) === month), [allDebts, month]);
+  const hiddenSelected = allDebts.filter(d => debtSel[d.id]?.on && month && monthKey(d) !== month).length;
 
   const setDebt = (id, patch) => setDebtSel(p => ({ ...p, [id]: { ...p[id], ...patch } }));
+  // Al marcar una deuda vencida se prepara la decisión de mora (la sugerida por la academia).
+  const regFor = (d, sel) => (d.requiresRegularization && !sel?.reg
+    ? { reg: { charge: lateFeeDefault > 0, amount: lateFeeDefault > 0 ? lateFeeDefault.toFixed(2) : '', note: '' } } : {});
+  const toggleDebt = (d, on) => setDebt(d.id, { on, ...regFor(d, debtSel[d.id]) });
+  const markVisible = (on) => setDebtSel(p => {
+    const next = { ...p };
+    visibleDebts.forEach(d => { next[d.id] = { ...next[d.id], on, ...regFor(d, next[d.id]) }; });
+    return next;
+  });
+  const selectedVisible = visibleDebts.filter(d => debtSel[d.id]?.on).length;
+  const regProblem = (d) => {
+    const sel = debtSel[d.id];
+    if (!d.requiresRegularization || !sel?.on) return null;
+    if (sel.reg?.charge && !(num(sel.reg?.amount) > 0)) return 'Indica el monto de la mora.';
+    if (noteLength(sel) < MIN_NOTE) return `Escribe una observación de al menos ${MIN_NOTE} caracteres (o elige una sugerida).`;
+    return null;
+  };
   const addLine = () => setLines(p => [...p, { key: ++lineKey, productId: '', studentId: familyStudents[0]?.studentId || '', quantity: 1, discount: '', isGift: false }]);
   const setLine = (key, patch) => setLines(p => p.map(l => l.key === key ? { ...l, ...patch } : l));
 
@@ -119,7 +167,7 @@ export default function CheckoutModal({ open, onClose, onDone, initialStudentId,
     voucherUrl: pay.voucherUrl || null,
     notes: pay.notes.trim() || null,
     channel: 'web',
-    debts: allDebts.filter(d => debtSel[d.id]?.on).map(d => ({
+    debts: visibleDebts.filter(d => debtSel[d.id]?.on).map(d => ({
       paymentRecordId: d.id,
       amount: debtSel[d.id].partial ? num(debtSel[d.id].amount) : null, // vacío = cancelar completa
       discount: num(debtSel[d.id].discount),
@@ -133,7 +181,7 @@ export default function CheckoutModal({ open, onClose, onDone, initialStudentId,
       productId: l.productId, studentId: l.studentId || null,
       quantity: Math.max(1, parseInt(l.quantity, 10) || 1), discount: l.isGift ? 0 : num(l.discount), isGift: l.isGift,
     })),
-  }), [families, payer, promotionId, pay, allDebts, debtSel, lines]);
+  }), [families, payer, promotionId, pay, visibleDebts, debtSel, lines]);
 
   const itemCount = body.debts.length + body.products.length;
 
@@ -185,8 +233,14 @@ export default function CheckoutModal({ open, onClose, onDone, initialStudentId,
     e.preventDefault();
     if (itemCount === 0) { toast.error('Agrega al menos una deuda o un producto.'); return; }
     if (previewError) { toast.error(previewError); return; }
-    const missing = allDebts.find(d => d.requiresRegularization && debtSel[d.id]?.on && ((debtSel[d.id].reg?.note || '').trim().length < 5 || (debtSel[d.id].reg?.charge && !(num(debtSel[d.id].reg?.amount) > 0))));
-    if (missing) { toast.error(`${missing.description} (${missing.studentName}) venció: indica la mora (o sin mora) y la observación.`); return; }
+    // Solo se revisan las deudas marcadas del mes visible (las mismas que se cobran).
+    const missing = visibleDebts.find(d => regProblem(d));
+    if (missing) {
+      setShowErrors(true);
+      toast.error(`${missing.description} · ${missing.studentName}: ${regProblem(missing)}`);
+      document.getElementById(`debt-${missing.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
     if (mixed) {
       if (parts.some(p => cents(p.amount) <= 0)) { toast.error('Indica el monto de cada medio de pago.'); return; }
       if (remainingCents !== 0) { toast.error('Los montos deben sumar exactamente el total.'); return; }
@@ -225,21 +279,39 @@ export default function CheckoutModal({ open, onClose, onDone, initialStudentId,
           {/* Buscar alumno / familia */}
           <div className="form-group relative">
             <label className="form-label">{families.length ? 'Agregar otro alumno (otra familia)' : 'Alumno'}</label>
-            <div className="relative">
+            <div className="co-search">
               <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
-              <input className="form-control pl-9" placeholder="Nombre, DNI o apoderado…" value={search} onChange={e => setSearch(e.target.value)} />
+              <input className="form-control pl-9" placeholder="Nombre, DNI o apoderado…" value={search} autoComplete="off"
+                role="combobox" aria-expanded={searchOpen && searchTerm.length >= 2} aria-controls="co-results"
+                onChange={e => { setSearch(e.target.value); setSearchOpen(true); setActiveIdx(0); }}
+                onFocus={() => setSearchOpen(true)}
+                onBlur={() => setSearchOpen(false)}
+                onKeyDown={e => {
+                  if (e.key === 'Escape') { setSearchOpen(false); return; }
+                  if (!matches.length) return;
+                  if (e.key === 'ArrowDown') { e.preventDefault(); setActiveIdx(i => (i + 1) % matches.length); }
+                  if (e.key === 'ArrowUp') { e.preventDefault(); setActiveIdx(i => (i - 1 + matches.length) % matches.length); }
+                  if (e.key === 'Enter') { e.preventDefault(); addFamily(matches[Math.min(activeIdx, matches.length - 1)].id); }
+                }} />
+              {searchOpen && searchTerm.length >= 2 && (
+                <div id="co-results" className="co-results" role="listbox">
+                  {matches.length === 0 ? (
+                    <div className="co-results-empty">No hay alumnos que coincidan con “{search.trim()}”.</div>
+                  ) : matches.map((s, i) => (
+                    <button type="button" key={s.id} role="option" aria-selected={i === activeIdx}
+                      className={`co-result${i === activeIdx ? ' is-active' : ''}`}
+                      onMouseDown={e => e.preventDefault()} onMouseEnter={() => setActiveIdx(i)} onClick={() => addFamily(s.id)}>
+                      <span className="co-avatar">{initials(s)}</span>
+                      <span className="co-result-main">
+                        <b>{s.lastName}, {s.firstName}</b>
+                        <small>{[s.categoryName, s.guardianName && `Apoderado: ${s.guardianName}`].filter(Boolean).join(' · ')}</small>
+                      </span>
+                      {inCharge(s.id) && <span className="badge badge-info text-xs">En el cobro</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-            {matches.length > 0 && (
-              <div className="absolute z-10 left-0 right-0 mt-1 bg-bg-card border border-border rounded-lg shadow-lg max-h-64 overflow-auto">
-                {matches.map(s => (
-                  <button type="button" key={s.id} onClick={() => addFamily(s.id)}
-                    className="w-full text-left px-3 py-2 hover:bg-bg-surface text-sm flex justify-between gap-2">
-                    <span><b>{s.lastName}, {s.firstName}</b> <span className="text-text-muted">· {s.categoryName}</span></span>
-                    <span className="text-text-muted text-xs">{s.guardianName}</span>
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
 
           {families.length > 0 && (
@@ -256,74 +328,126 @@ export default function CheckoutModal({ open, onClose, onDone, initialStudentId,
               </div>
 
               {/* Deudas */}
-              <div className="flex items-center gap-2 mb-2 mt-1">
-                <Users size={15} className="text-primary" />
-                <span className="font-bold text-sm">Deudas pendientes</span>
-                <span className="text-xs text-text-muted">{familyStudents.map(s => s.name).join(' · ')}</span>
+              <div className="co-section-head">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Users size={15} className="text-primary shrink-0" />
+                  <span className="font-bold text-sm">Deudas pendientes</span>
+                  <span className="text-xs text-text-muted truncate">{familyStudents.map(s => s.name).join(' · ')}</span>
+                </div>
+                {canDebts && visibleDebts.length > 1 && (
+                  <div className="flex gap-1">
+                    <button type="button" className="btn btn-ghost btn-sm" disabled={selectedVisible === visibleDebts.length} onClick={() => markVisible(true)}>Marcar todas</button>
+                    <button type="button" className="btn btn-ghost btn-sm" disabled={selectedVisible === 0} onClick={() => markVisible(false)}>Quitar todas</button>
+                  </div>
+                )}
               </div>
               {allDebts.length === 0 ? (
                 <div className="text-sm text-success bg-success/10 rounded p-3 mb-3 flex items-center gap-2"><CheckCircle size={15} /> La familia no tiene deudas pendientes.</div>
               ) : !canDebts ? (
                 <div className="text-sm text-text-muted bg-bg-surface rounded p-3 mb-3">No tienes permiso para cobrar mensualidades.</div>
               ) : (
-                <div className="table-container mb-3">
-                  <table className="table">
-                    <thead><tr><th></th><th>Alumno</th><th>Concepto</th><th>Pendiente</th><th style={{ width: 150 }}>Pago</th><th style={{ width: 100 }}>Desc. caja</th><th className="text-right">A cobrar</th></tr></thead>
-                    <tbody>
-                      {allDebts.map(d => {
-                        const sel = debtSel[d.id] || {};
-                        const pv = sel.on ? previewOf(d.id) : null;
-                        return (
-                          <tr key={d.id} className={sel.on ? 'bg-primary/5' : ''}>
-                            <td><input type="checkbox" checked={!!sel.on} onChange={e => setDebt(d.id, {
-                              on: e.target.checked,
-                              ...(d.requiresRegularization && !sel.reg ? { reg: { charge: lateFeeDefault > 0, amount: lateFeeDefault > 0 ? lateFeeDefault.toFixed(2) : '', note: '' } } : {}),
-                            })} /></td>
-                            <td className="text-sm font-medium">{d.studentName}</td>
-                            <td className="text-sm">
-                              {d.description}
-                              {d.requiresRegularization && !sel.on && <div className="text-xs text-danger">Venció: al cobrarla decide si aplica mora.</div>}
-                              {d.requiresRegularization && sel.on && (
-                                <div className="mt-2 p-2 rounded border border-warning/40 bg-warning/10 flex flex-col gap-2">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="text-xs font-bold text-warning">Pago fuera de fecha:</span>
-                                    <button type="button" className={`btn btn-sm ${sel.reg?.charge ? 'btn-warning' : 'btn-ghost'}`}
-                                      onClick={() => setDebt(d.id, { reg: { ...sel.reg, charge: true, amount: sel.reg?.amount || (lateFeeDefault ? lateFeeDefault.toFixed(2) : '') } })}>Cobrar mora</button>
-                                    <button type="button" className={`btn btn-sm ${sel.reg && !sel.reg.charge ? 'btn-primary' : 'btn-ghost'}`}
-                                      onClick={() => setDebt(d.id, { reg: { ...sel.reg, charge: false } })}>Sin mora</button>
-                                    {sel.reg?.charge && <input type="number" step="0.01" min="0.01" className="form-control py-1 text-sm w-28" placeholder="Mora S/."
-                                      value={sel.reg?.amount || ''} onChange={e => setDebt(d.id, { reg: { ...sel.reg, amount: e.target.value } })} />}
+                <div className="mb-3">
+                  {months.length > 1 && (
+                    <div className="tabs tabs-scroll co-months" role="tablist" aria-label="Filtrar por mes">
+                      <button type="button" role="tab" aria-selected={!month} className={`tab-pill${!month ? ' active' : ''}`} onClick={() => setMonthFilter('')}>
+                        Todos los meses <span className="co-count">{allDebts.length}</span>
+                      </button>
+                      {months.map(m => (
+                        <button type="button" role="tab" key={m.key} aria-selected={month === m.key} className={`tab-pill${month === m.key ? ' active' : ''}`} onClick={() => setMonthFilter(m.key)}>
+                          {monthLabel(m.key)} <span className="co-count">{m.count}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {hiddenSelected > 0 && (
+                    <p className="text-xs text-text-muted mb-2">{hiddenSelected} deuda(s) marcada(s) de otros meses no entran en este cobro mientras el filtro esté en {monthLabel(month)}.</p>
+                  )}
+
+                  <div className="co-debts">
+                    {visibleDebts.map(d => {
+                      const sel = debtSel[d.id] || {};
+                      const pv = sel.on ? previewOf(d.id) : null;
+                      const problem = showErrors ? regProblem(d) : null;
+                      const len = noteLength(sel);
+                      return (
+                        <div key={d.id} id={`debt-${d.id}`} className={`co-debt${sel.on ? ' is-on' : ''}${problem ? ' has-error' : ''}`}>
+                          <label className="co-debt-head">
+                            <input type="checkbox" className="co-check" checked={!!sel.on} onChange={e => toggleDebt(d, e.target.checked)} />
+                            <span className="co-debt-info">
+                              <span className="co-debt-title">{d.description}</span>
+                              <span className="co-debt-meta">
+                                {d.studentName} · vence {shortDate(d.dueDate)}
+                                {d.status === 'Vencido' ? <span className="badge badge-danger text-xs">Vencido {d.daysOverdue}d</span> : <span className="badge badge-warning text-xs">En curso</span>}
+                              </span>
+                              {d.discountDetail && <span className="text-xs text-success">{d.discountDetail}</span>}
+                              {pv?.discountLabel && <span className="text-xs text-warning flex items-center gap-1"><Tag size={11} /> {pv.discountLabel}: -{money(pv.discount)}</span>}
+                              {d.requiresRegularization && !sel.on && <span className="text-xs text-danger">Vencida: al marcarla decides si aplica mora.</span>}
+                            </span>
+                            <span className="co-debt-amounts">
+                              <span className="co-debt-pending">{money(d.amountPending)}</span>
+                              <span className="co-debt-charge">{sel.on ? <>A cobrar <b>{pv ? money(pv.total) : '…'}</b></> : 'No se cobra'}</span>
+                            </span>
+                          </label>
+
+                          {sel.on && (
+                            <div className="co-debt-body">
+                              <div className="co-debt-controls">
+                                <div className="co-seg" role="group" aria-label="Tipo de pago">
+                                  <button type="button" className={!sel.partial ? 'active' : ''} onClick={() => setDebt(d.id, { partial: false, amount: '' })}>Completa</button>
+                                  <button type="button" className={sel.partial ? 'active' : ''} onClick={() => setDebt(d.id, { partial: true, amount: '' })}>Abono parcial</button>
+                                </div>
+                                {sel.partial && (
+                                  <label className="co-inline-field">
+                                    <span>Abono S/.</span>
+                                    <input type="number" step="0.01" min="0.01" max={d.amountPending} className="form-control font-bold" placeholder="0.00"
+                                      value={sel.amount} onChange={e => setDebt(d.id, { amount: e.target.value })} />
+                                  </label>
+                                )}
+                                <label className="co-inline-field">
+                                  <span>Desc. caja S/.</span>
+                                  <input type="number" step="0.01" min="0" className="form-control" placeholder="0.00"
+                                    value={sel.discount} onChange={e => setDebt(d.id, { discount: e.target.value })} />
+                                </label>
+                              </div>
+
+                              {d.requiresRegularization && (
+                                <div className="co-reg">
+                                  <div className="co-reg-title"><AlertTriangle size={14} /> Pago fuera de fecha{d.daysOverdue ? ` (${d.daysOverdue} días)` : ''}: ¿se cobra mora?</div>
+                                  <div className="co-debt-controls">
+                                    <div className="co-seg" role="group" aria-label="Mora">
+                                      <button type="button" className={sel.reg?.charge ? 'active is-warning' : ''}
+                                        onClick={() => setDebt(d.id, { reg: { ...sel.reg, charge: true, amount: sel.reg?.amount || (lateFeeDefault ? lateFeeDefault.toFixed(2) : '') } })}>Cobrar mora</button>
+                                      <button type="button" className={sel.reg && !sel.reg.charge ? 'active' : ''}
+                                        onClick={() => setDebt(d.id, { reg: { ...sel.reg, charge: false } })}>Sin mora</button>
+                                    </div>
+                                    {sel.reg?.charge && (
+                                      <label className="co-inline-field">
+                                        <span>Mora S/.</span>
+                                        <input type="number" step="0.01" min="0.01" className="form-control" placeholder="0.00"
+                                          value={sel.reg?.amount || ''} onChange={e => setDebt(d.id, { reg: { ...sel.reg, amount: e.target.value } })} />
+                                      </label>
+                                    )}
                                   </div>
-                                  <input className="form-control py-1 text-sm" placeholder="Observación obligatoria (ej. pagó tarde sin aviso / se exonera por viaje)" maxLength={500}
+                                  <label className="form-label mb-1" htmlFor={`note-${d.id}`}>Observación *</label>
+                                  <input id={`note-${d.id}`} className={`form-control${problem && len < MIN_NOTE ? ' is-invalid' : ''}`} maxLength={500}
+                                    placeholder={sel.reg?.charge ? 'Ej. Pagó fuera de fecha sin aviso' : 'Ej. Se exonera por viaje'}
                                     value={sel.reg?.note || ''} onChange={e => setDebt(d.id, { reg: { ...sel.reg, note: e.target.value } })} />
+                                  <div className="co-presets">
+                                    {NOTE_PRESETS[sel.reg?.charge ? 'fee' : 'none'].map(t => (
+                                      <button type="button" key={t} className={`co-chip${(sel.reg?.note || '') === t ? ' active' : ''}`} onClick={() => setDebt(d.id, { reg: { ...sel.reg, note: t } })}>{t}</button>
+                                    ))}
+                                    <span className={`co-note-count${len >= MIN_NOTE ? ' ok' : ''}`}>{len >= MIN_NOTE ? '✓ Observación lista' : `Mínimo ${MIN_NOTE} caracteres (${len}/${MIN_NOTE})`}</span>
+                                  </div>
+                                  {problem && <div className="co-error"><AlertTriangle size={13} /> {problem}</div>}
                                 </div>
                               )}
-                              {d.status === 'Vencido' && <span className="ml-2 badge badge-danger text-xs">Vencido {d.daysOverdue}d</span>}
-                              {d.discountDetail && <div className="text-xs text-success">{d.discountDetail}</div>}
-                              {pv?.discountLabel && <div className="text-xs text-warning flex items-center gap-1"><Tag size={11} /> {pv.discountLabel}: -{money(pv.discount)}</div>}
-                            </td>
-                            <td className="text-sm font-bold text-danger">{money(d.amountPending)}</td>
-                            <td>
-                              {sel.partial ? (
-                                <div className="flex items-center gap-1">
-                                  <input type="number" step="0.01" min="0.01" className="form-control py-1 text-sm font-bold" placeholder="Abono"
-                                    value={sel.amount} onChange={e => setDebt(d.id, { amount: e.target.value })} disabled={!sel.on} />
-                                  <button type="button" className="btn btn-sm btn-ghost text-xs" title="Cancelar completa" onClick={() => setDebt(d.id, { partial: false, amount: '' })}>✕</button>
-                                </div>
-                              ) : (
-                                <button type="button" className="btn btn-sm btn-ghost text-xs" disabled={!sel.on}
-                                  onClick={() => setDebt(d.id, { partial: true, amount: '' })}>Completa · abono parcial</button>
-                              )}
-                            </td>
-                            <td><input type="number" step="0.01" min="0" className="form-control py-1 text-sm" disabled={!sel.on} placeholder="0.00"
-                              value={sel.discount} onChange={e => setDebt(d.id, { discount: e.target.value })} /></td>
-                            <td className="text-right font-bold">{sel.on ? (pv ? money(pv.total) : '…') : '—'}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                  <p className="text-xs text-text-muted mt-1">Pronto pago y promociones se aplican al cancelar la mensualidad completa (no en abonos parciales) y no se acumulan: se aplica el mayor.</p>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-text-muted mt-2">Pronto pago y promociones se aplican al cancelar la mensualidad completa (no en abonos parciales) y no se acumulan: se aplica el mayor.</p>
                 </div>
               )}
             </>

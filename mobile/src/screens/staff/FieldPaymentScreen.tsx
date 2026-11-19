@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, Share, Switch, Text, View } from 'react-native';
-import { Banknote, ShieldAlert, CheckCircle2, Minus, Plus, Receipt as ReceiptIcon, Share2, ShoppingBag, Tag, Trash2, Users, Wallet } from 'lucide-react-native';
+import { Banknote, ShieldAlert, CheckCircle2, Minus, Plus, Receipt as ReceiptIcon, Share2, ShoppingBag, Square, SquareCheck, Tag, Trash2, Users, Wallet } from 'lucide-react-native';
 import { api, errorMessage } from '../../api/client';
 import type { Debt, DiscountRule, FamilyAccount, Product, Receipt, StudentSummary } from '../../api/types';
 import { useAuth } from '../../auth/AuthContext';
@@ -31,6 +31,17 @@ type DebtSel = { on: boolean; partial: boolean; amount: string; reg?: Reg };
 /** Decisión de mora por defecto: se propone la mora sugerida de la academia. */
 const makeReg = (fee: number): Reg => ({ charge: fee > 0, amount: fee > 0 ? fee.toFixed(2) : '', note: '' });
 type Line = { key: number; product: Product; studentId: string | null; quantity: number; isGift: boolean };
+
+// Mes de la deuda según su vencimiento (se toma el texto para no correr la zona horaria).
+const MONTH_NAMES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+const monthKey = (d: Debt) => String(d.dueDate ?? '').slice(0, 7);
+const monthLabel = (key: string) => { const [y, m] = key.split('-').map(Number); return m ? `${MONTH_NAMES[m - 1]} ${y}` : 'Sin fecha'; };
+/** Mínimo de la observación que exige el servidor para una deuda vencida. */
+const MIN_NOTE = 5;
+const NOTE_PRESETS = {
+  fee: ['Pagó fuera de fecha sin aviso', 'Pagó fuera de fecha'],
+  none: ['Se exonera la mora', 'Avisó con anticipación', 'Retraso atribuible a la academia'],
+};
 
 /**
  * Cobro en campo con UN solo recibo para toda la familia: mensualidades de los hermanos (mismo apoderado),
@@ -91,7 +102,17 @@ export default function FieldPaymentScreen({ route, navigation }: any) {
   const debts = useMemo(() => data?.family.pendingDebts ?? [], [data]);
   const newReg = () => makeReg(data?.lateFee ?? 0);
   const family = data?.family.students ?? [];
-  const chosen = debts.filter(d => sel[d.id]?.on);
+  // Filtro por mes: solo se cobran las deudas marcadas del mes que se ve.
+  const [monthFilter, setMonthFilter] = useState('all');
+  const months = useMemo(() => {
+    const map = new Map<string, number>();
+    debts.forEach(d => map.set(monthKey(d), (map.get(monthKey(d)) ?? 0) + 1));
+    return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
+  }, [debts]);
+  const month = months.some(([k]) => k === monthFilter) ? monthFilter : 'all';
+  const visible = month === 'all' ? debts : debts.filter(d => monthKey(d) === month);
+  const hiddenSelected = month === 'all' ? 0 : debts.filter(d => sel[d.id]?.on && monthKey(d) !== month).length;
+  const chosen = visible.filter(d => sel[d.id]?.on);
   const itemCount = chosen.length + lines.length;
   const needsOperation = !mixed && method !== 'Cash';
   // Pago mixto: lo que falta repartir, en céntimos para no arrastrar errores de redondeo.
@@ -147,6 +168,11 @@ export default function FieldPaymentScreen({ route, navigation }: any) {
   const lineOf = (debtId: string) => preview?.lines.find(l => l.paymentRecordId === debtId);
   const toggle = (d: Debt) => setSel(p => ({ ...p, [d.id]: { ...p[d.id], on: !p[d.id]?.on, reg: p[d.id]?.reg ?? (d.requiresRegularization ? newReg() : undefined) } }));
   const setReg = (d: Debt, patch: Partial<Reg>) => setSel(p => ({ ...p, [d.id]: { ...p[d.id], reg: { ...(p[d.id]?.reg ?? newReg()), ...patch } } }));
+  const markVisible = (on: boolean) => setSel(p => {
+    const next = { ...p };
+    visible.forEach(d => { next[d.id] = { ...next[d.id], on, reg: next[d.id]?.reg ?? (d.requiresRegularization ? newReg() : undefined) }; });
+    return next;
+  });
   const setPartial = (d: Debt, partial: boolean) => setSel(p => ({ ...p, [d.id]: { ...p[d.id], partial, amount: '' } }));
   const setAmount = (d: Debt, v: string) => setSel(p => ({ ...p, [d.id]: { ...p[d.id], amount: v.replace(',', '.') } }));
   const addProduct = (product: Product) => {
@@ -165,7 +191,7 @@ export default function FieldPaymentScreen({ route, navigation }: any) {
     for (const d of chosen) {
       if (d.requiresRegularization) {
         const r = sel[d.id].reg;
-        if (!r || r.note.trim().length < 5) return `${d.description} (${d.studentName}) venció: escribe la observación de la regularización.`;
+        if (!r || r.note.trim().length < MIN_NOTE) return `${d.description} (${d.studentName}): escribe una observación de al menos ${MIN_NOTE} caracteres o elige una sugerida.`;
         if (r.charge && num(r.amount) <= 0) return `${d.description} (${d.studentName}): indica el monto de la mora.`;
       }
       if (!sel[d.id].partial) continue;
@@ -282,17 +308,35 @@ export default function FieldPaymentScreen({ route, navigation }: any) {
       {canDebts && (
         <>
           <SectionTitle title="Deudas" />
+          {debts.length > 0 && months.length > 1 && (
+            <Chips options={[{ value: 'all', label: `Todos los meses (${debts.length})` }, ...months.map(([k, n]) => ({ value: k, label: `${monthLabel(k)} (${n})` }))]}
+              value={month} onChange={setMonthFilter} />
+          )}
+          {visible.length > 1 && (
+            <Row style={{ justifyContent: 'space-between' }}>
+              <Text style={font.small}>{chosen.length} de {visible.length} marcada(s)</Text>
+              <Row>
+                <Button compact variant="ghost" title="Marcar todas" disabled={chosen.length === visible.length} onPress={() => markVisible(true)} />
+                <Button compact variant="ghost" title="Quitar todas" disabled={chosen.length === 0} onPress={() => markVisible(false)} />
+              </Row>
+            </Row>
+          )}
+          {hiddenSelected > 0 && (
+            <Text style={font.tiny}>{hiddenSelected} deuda(s) marcada(s) de otros meses no entran en este cobro mientras veas {monthLabel(month)}.</Text>
+          )}
           {debts.length === 0 ? (
             <Empty icon={<CheckCircle2 color={colors.success} />} text="La familia está al día." />
-          ) : debts.map(d => {
+          ) : visible.map(d => {
             const s = sel[d.id];
             const on = !!s?.on;
             const pv = on ? lineOf(d.id) : undefined;
+            const noteLen = (s?.reg?.note ?? '').trim().length;
             return (
               <Pressable key={d.id} onPress={() => toggle(d)} accessibilityRole="checkbox" accessibilityState={{ checked: on }}
                 style={[{ backgroundColor: colors.card, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md },
                   on && { borderColor: colors.primaryDark, borderWidth: 2 }]}>
-                <Row style={{ justifyContent: 'space-between' }}>
+                <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  {on ? <SquareCheck color={colors.primaryDark} size={24} /> : <Square color={colors.textMuted} size={24} />}
                   <View style={{ flex: 1 }}>
                     <Text style={font.h3}>{d.studentName}</Text>
                     <Text style={font.small}>{d.description} · vence {shortDay(d.dueDate)}</Text>
@@ -315,7 +359,17 @@ export default function FieldPaymentScreen({ route, navigation }: any) {
                     {s.reg?.charge && <Input label="Mora (S/)" value={s.reg.amount} onChangeText={v => setReg(d, { amount: v.replace(',', '.') })} keyboardType="decimal-pad"
                       hint="Se cobra en este mismo recibo como ítem aparte." />}
                     <Input label="Observación *" value={s.reg?.note ?? ''} onChangeText={v => setReg(d, { note: v })} maxLength={500}
-                      placeholder={s.reg?.charge ? 'Ej. Pagó fuera de fecha sin aviso' : 'Ej. Se exonera por enfermedad'} />
+                      placeholder={s.reg?.charge ? 'Ej. Pagó fuera de fecha sin aviso' : 'Ej. Se exonera por enfermedad'}
+                      hint={noteLen >= MIN_NOTE ? '✓ Observación lista' : `Mínimo ${MIN_NOTE} caracteres (${noteLen}/${MIN_NOTE}) o elige una:`} />
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs }}>
+                      {NOTE_PRESETS[s.reg?.charge ? 'fee' : 'none'].map(t => (
+                        <Pressable key={t} onPress={() => setReg(d, { note: t })} hitSlop={4}
+                          style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: radius.pill, borderWidth: 1,
+                            borderColor: s.reg?.note === t ? colors.primaryDark : colors.border, backgroundColor: s.reg?.note === t ? colors.primaryLight : colors.card }}>
+                          <Text style={[font.tiny, { color: colors.primaryDark, fontWeight: '600' }]}>{t}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
                   </View>
                 )}
                 {on && (
