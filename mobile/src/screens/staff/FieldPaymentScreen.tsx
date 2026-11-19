@@ -36,6 +36,11 @@ type Line = { key: number; product: Product; studentId: string | null; quantity:
 const MONTH_NAMES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 const monthKey = (d: Debt) => String(d.dueDate ?? '').slice(0, 7);
 const monthLabel = (key: string) => { const [y, m] = key.split('-').map(Number); return m ? `${MONTH_NAMES[m - 1]} ${y}` : 'Sin fecha'; };
+const TYPE_CONCEPT: Record<number, string> = { 1: 'Mensualidad', 2: 'Productos', 3: 'Matrícula', 4: 'Otros', 5: 'Mora', 6: 'Sesiones', 7: 'Torneo' };
+const CONCEPT_ORDER = ['Mensualidad', 'Paquete', 'Sesiones', 'Mora', 'Matrícula', 'Productos'];
+/** Concepto de la deuda: lo manda el servidor; con uno anterior se deduce del tipo. */
+const conceptOf = (d: Debt) => d.concept || (d.type === 1 && /^paquete/i.test(d.description) ? 'Paquete' : TYPE_CONCEPT[d.type ?? 4] ?? 'Otros');
+const conceptRank = (c: string) => { const i = CONCEPT_ORDER.indexOf(c); return i === -1 ? (c === 'Otros' ? 99 : 50) : i; };
 /** Mínimo de la observación que exige el servidor para una deuda vencida. */
 const MIN_NOTE = 5;
 const NOTE_PRESETS = {
@@ -110,8 +115,17 @@ export default function FieldPaymentScreen({ route, navigation }: any) {
     return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
   }, [debts]);
   const month = months.some(([k]) => k === monthFilter) ? monthFilter : 'all';
-  const visible = month === 'all' ? debts : debts.filter(d => monthKey(d) === month);
-  const hiddenSelected = month === 'all' ? 0 : debts.filter(d => sel[d.id]?.on && monthKey(d) !== month).length;
+  const [conceptFilter, setConceptFilter] = useState('all');
+  const concepts = useMemo(() => {
+    const map = new Map<string, number>();
+    debts.forEach(d => map.set(conceptOf(d), (map.get(conceptOf(d)) ?? 0) + 1));
+    return [...map.entries()].sort(([a], [b]) => conceptRank(a) - conceptRank(b) || a.localeCompare(b));
+  }, [debts]);
+  const concept = concepts.some(([k]) => k === conceptFilter) ? conceptFilter : 'all';
+  const inView = (d: Debt) => (month === 'all' || monthKey(d) === month) && (concept === 'all' || conceptOf(d) === concept);
+  const visible = debts.filter(inView);
+  const hiddenSelected = debts.filter(d => sel[d.id]?.on && !inView(d)).length;
+  const filterLabel = [month !== 'all' ? monthLabel(month) : '', concept !== 'all' ? concept : ''].filter(Boolean).join(' · ');
   const chosen = visible.filter(d => sel[d.id]?.on);
   const itemCount = chosen.length + lines.length;
   const needsOperation = !mixed && method !== 'Cash';
@@ -312,6 +326,10 @@ export default function FieldPaymentScreen({ route, navigation }: any) {
             <Chips options={[{ value: 'all', label: `Todos los meses (${debts.length})` }, ...months.map(([k, n]) => ({ value: k, label: `${monthLabel(k)} (${n})` }))]}
               value={month} onChange={setMonthFilter} />
           )}
+          {debts.length > 0 && concepts.length > 1 && (
+            <Chips options={[{ value: 'all', label: 'Todos los conceptos' }, ...concepts.map(([k, n]) => ({ value: k, label: `${k} (${n})` }))]}
+              value={concept} onChange={setConceptFilter} />
+          )}
           {visible.length > 1 && (
             <Row style={{ justifyContent: 'space-between' }}>
               <Text style={font.small}>{chosen.length} de {visible.length} marcada(s)</Text>
@@ -322,10 +340,12 @@ export default function FieldPaymentScreen({ route, navigation }: any) {
             </Row>
           )}
           {hiddenSelected > 0 && (
-            <Text style={font.tiny}>{hiddenSelected} deuda(s) marcada(s) de otros meses no entran en este cobro mientras veas {monthLabel(month)}.</Text>
+            <Text style={font.tiny}>{hiddenSelected} deuda(s) marcada(s) fuera del filtro no entran en este cobro mientras veas {filterLabel}.</Text>
           )}
           {debts.length === 0 ? (
             <Empty icon={<CheckCircle2 color={colors.success} />} text="La familia está al día." />
+          ) : visible.length === 0 ? (
+            <Text style={font.small}>No hay deudas con este filtro.</Text>
           ) : visible.map(d => {
             const s = sel[d.id];
             const on = !!s?.on;

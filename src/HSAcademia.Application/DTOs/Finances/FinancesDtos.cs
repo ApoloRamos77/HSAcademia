@@ -77,6 +77,12 @@ public class PaymentRecordDto
     public int? ProratedTotalDays { get; set; }
     public int? ProratedDaysCharged { get; set; }
 
+    /// <summary>Concepto para filtrar: Mensualidad, Paquete, Sesiones, Mora, Productos, Matrícula, Otros o el nombre del cobro de torneo (Arbitraje, Inscripción…).</summary>
+    public string Concept { get; set; } = "";
+    /// <summary>Estado del alumno: un retirado puede tener el mes del retiro prorrateado.</summary>
+    public bool StudentIsActive { get; set; } = true;
+    public DateTime? StudentWithdrawalDate { get; set; }
+
     // Exclusion
     public string ExclusionType { get; set; } = "None";
     public string? ExclusionNote { get; set; }

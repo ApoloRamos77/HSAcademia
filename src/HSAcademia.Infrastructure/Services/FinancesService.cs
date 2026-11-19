@@ -220,6 +220,185 @@ public class FinancesService
         return (DiscountService.SiblingRuleFor(rules, student, pos, new DateTime(year, month, 1)), pos);
     }
 
+    /// <summary>Mensualidad (o paquete) que corresponde a un alumno en un mes, ya con prorrateo y beneficios.</summary>
+    private sealed record MonthlyCharge(
+        string Description, decimal Amount, decimal Discount, string? Detail,
+        bool IsProrated, DateTime? ProratedStart, int? TotalUnits, int? ChargedUnits);
+
+    /// <summary>
+    /// Calcula la mensualidad de un alumno para un mes. Devuelve <c>NotOwed = true</c> cuando el alumno se
+    /// retiró ese mes sin asistir ninguna vez (no se cobra), y <c>Charge = null</c> cuando no hay nada que
+    /// generar (aún no empezaba a pagar o no tiene tarifa).
+    /// </summary>
+    private async Task<(MonthlyCharge? Charge, bool NotOwed)> ComputeMonthlyChargeAsync(
+        Guid academyId, Student student, int year, int month, DiscountRule? siblingRule, int? position)
+    {
+        var daysInMonth = DateTime.DaysInMonth(year, month);
+        var targetRef   = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Utc);
+        var effStart    = (student.PaymentStartDate ?? student.EnrollmentDate).ToUniversalTime();
+        if (targetRef < new DateTime(effStart.Year, effStart.Month, 1, 0, 0, 0, DateTimeKind.Utc)) return (null, false);
+
+        var isPackage  = student.BillingPlan == StudentBillingPlan.Package;
+        var fullAmount = isPackage ? student.Category!.PackagePrice!.Value : student.PreferentialFee ?? student.Category?.MonthlyFee ?? 0m;
+        if (fullAmount <= 0) return (null, false);
+        var description = isPackage
+            ? $"Paquete {student.Category!.PackageSessions} sesiones {new DateTime(year, month, 1).ToString("MMMM yyyy", Culture.Es)}"
+            : Culture.MonthlyFeeDescription(year, month);
+
+        DateTime? startForProration = effStart.Year == year && effStart.Month == month && effStart.Day > 1 ? effStart : null;
+        DateTime? endForProration = !student.IsActive && student.WithdrawalDate is { } w && w.Year == year && w.Month == month ? w : null;
+
+        // Mes del retiro: solo se cobra si asistió al menos una vez (Presente o Tarde) antes de retirarse.
+        if (endForProration.HasValue && !await AttendedBetweenAsync(academyId, student.Id, startForProration ?? targetRef, endForProration.Value))
+            return (null, true);
+
+        decimal charged = fullAmount;
+        bool isProrated = false;
+        DateTime? proratedStart = null;
+        int? totalUnits = null, chargedUnits = null;
+        if (startForProration.HasValue || endForProration.HasValue)
+        {
+            var (total, activeCount) = await GetSessionCountsAsync(academyId, student.CategoryId, year, month, startForProration, endForProration);
+            isProrated = true;
+            if (total > 0)
+            {
+                charged       = Math.Round(fullAmount * activeCount / total, 2);
+                proratedStart = startForProration ?? targetRef;
+                totalUnits    = total;
+                chargedUnits  = activeCount;
+            }
+            else
+            {
+                int startDay  = startForProration?.Day ?? 1;
+                int endDay    = endForProration?.Day ?? daysInMonth;
+                int days      = Math.Max(0, endDay - startDay + 1);
+                charged       = Math.Round(fullAmount * days / daysInMonth, 2);
+                proratedStart = new DateTime(year, month, startDay, 0, 0, 0, DateTimeKind.Utc);
+                totalUnits    = daysInMonth;
+                chargedUnits  = days;
+            }
+        }
+
+        var (amount, discount, detail) = ApplyAllBenefits(student, charged, siblingRule, position);
+        return (new MonthlyCharge(description, amount, discount, detail, isProrated, proratedStart, totalUnits, chargedUnits), false);
+    }
+
+    /// <summary>¿El alumno tiene asistencia Presente o Tarde entre dos fechas (inclusive)?</summary>
+    private Task<bool> AttendedBetweenAsync(Guid academyId, Guid studentId, DateTime from, DateTime to)
+    {
+        var start = from.Date;
+        var end   = to.Date.AddDays(1);
+        return _context.Attendances.AnyAsync(a => a.AcademyId == academyId && a.StudentId == studentId
+            && a.Date >= start && a.Date < end
+            && (a.Status == AttendanceStatus.Present || a.Status == AttendanceStatus.Late));
+    }
+
+    /// <summary>
+    /// Ajusta las deudas pendientes de UN alumno tras editarlo (retiro, beca, invitado), sin esperar al motor:
+    /// <list type="bullet">
+    /// <item>Mes del retiro sin asistencia → la mensualidad pendiente se anula; con asistencia → se prorratea hasta el retiro.</item>
+    /// <item>Meses posteriores al retiro → se anulan.</item>
+    /// <item>Beca 100 % o invitado → se exoneran mensualidades y sesiones pendientes desde el mes actual
+    /// (los meses anteriores se conservan: ya se debían).</item>
+    /// </list>
+    /// Nunca toca deudas pagadas, con abonos ni de meses cerrados. Es idempotente.
+    /// </summary>
+    public async Task<int> ReconcileStudentBillingAsync(Guid academyId, Guid studentId)
+    {
+        var student = await _context.Students.Include(s => s.Category)
+            .FirstOrDefaultAsync(s => s.Id == studentId && s.AcademyId == academyId);
+        if (student == null) return 0;
+
+        var now = AcademyClock.Now;
+        var currentMonth = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        DateTime? withdrawalMonth = !student.IsActive && student.WithdrawalDate is { } w
+            ? new DateTime(w.Year, w.Month, 1, 0, 0, 0, DateTimeKind.Utc) : null;
+        var from = withdrawalMonth.HasValue && withdrawalMonth.Value < currentMonth ? withdrawalMonth.Value : currentMonth;
+        var fullBenefit = student.IsGuest || student.IsScholarship;
+
+        var pending = (await _context.PaymentRecords
+                .Include(p => p.Installments)
+                .Where(p => p.AcademyId == academyId && p.StudentId == studentId && !p.IsPaid
+                         && (p.Type == PaymentType.MonthlyFee || p.Type == PaymentType.Sessions))
+                .ToListAsync())
+            .Where(p => !p.Installments.Any())
+            .Where(p => { var (y, m) = PeriodOf(p); return new DateTime(y, m, 1, 0, 0, 0, DateTimeKind.Utc) >= from; })
+            .ToList();
+
+        var changes = new List<object>();
+        foreach (var record in pending)
+        {
+            var (y, m) = PeriodOf(record);
+            if (await _periods.IsClosedAsync(academyId, y, m)) continue;
+            var period = new DateTime(y, m, 1, 0, 0, 0, DateTimeKind.Utc);
+
+            // Después del mes del retiro no se debe nada.
+            if (withdrawalMonth.HasValue && period > withdrawalMonth.Value)
+            {
+                Void(record, "retirado");
+                continue;
+            }
+
+            if (record.Type == PaymentType.Sessions)
+            {
+                if (fullBenefit && period >= currentMonth) Exonerate(record);
+                continue;
+            }
+
+            // Mensualidad o paquete: se recalcula con la misma regla del motor.
+            if (student.BillingPlan == StudentBillingPlan.PerSession) continue;
+            if (student.BillingPlan == StudentBillingPlan.Package && !SessionBillingService.HasPackage(student.Category)) continue;
+            DiscountRule? rule = null;
+            int? position = null;
+            if (student.BillingPlan != StudentBillingPlan.Package) (rule, position) = await SiblingRuleForAsync(academyId, student, y, m);
+            var (charge, notOwed) = await ComputeMonthlyChargeAsync(academyId, student, y, m, rule, position);
+            if (notOwed) { Void(record, "retiro sin asistencia"); continue; }
+            if (charge == null) continue;
+            // Desde el mes actual se aplica la beca/invitado; un mes anterior solo cambia si es el del retiro.
+            if (period < currentMonth && period != withdrawalMonth) continue;
+            if (record.Amount == charge.Amount && record.DiscountAmount == charge.Discount && record.IsProrated == charge.IsProrated
+                && record.ProratedDaysCharged == charge.ChargedUnits) continue;
+
+            var before = new { record.Amount, record.DiscountAmount };
+            record.Description         = charge.Description;
+            record.Amount              = charge.Amount;
+            record.DiscountAmount      = charge.Discount;
+            record.DiscountDetail      = charge.Detail;
+            record.IsProrated          = charge.IsProrated;
+            record.ProratedStartDate   = charge.ProratedStart;
+            record.ProratedTotalDays   = charge.TotalUnits;
+            record.ProratedDaysCharged = charge.ChargedUnits;
+            record.IsPaid              = charge.Amount == 0m;
+            record.PaidDate            = charge.Amount == 0m ? DateTime.UtcNow : null;
+            record.UpdatedAt           = DateTime.UtcNow;
+            if (_referrals != null && charge.Amount > 0) await _referrals.ReapplyAsync(record);
+            changes.Add(new { record.Id, record.Description, before, after = new { record.Amount, record.DiscountAmount } });
+        }
+
+        if (changes.Count == 0) return 0;
+        _audit.Add(academyId, "finances.debts.reconcile-student", nameof(Student), studentId,
+            new { reason = new { student.IsActive, student.WithdrawalDate, student.IsScholarship, student.IsGuest }, changes });
+        await _context.SaveChangesAsync();
+        return changes.Count;
+
+        void Void(PaymentRecord r, string why)
+        {
+            r.IsDeleted = true;
+            r.DeletedAt = DateTime.UtcNow;
+            changes.Add(new { r.Id, r.Description, voided = why, r.Amount });
+        }
+        void Exonerate(PaymentRecord r)
+        {
+            changes.Add(new { r.Id, r.Description, exonerated = student.IsGuest ? "Invitado" : "Beca 100%", r.Amount });
+            r.DiscountAmount += r.Amount;
+            r.DiscountDetail = string.Join(" · ", new[] { r.DiscountDetail, student.IsGuest ? "Invitado" : "Beca 100%" }.Where(x => !string.IsNullOrWhiteSpace(x)));
+            r.Amount = 0m;
+            r.IsPaid = true;
+            r.PaidDate = DateTime.UtcNow;
+            r.UpdatedAt = DateTime.UtcNow;
+        }
+    }
+
     // ─────────────────────────────────────────────────────────────
     // Motor de Generación de Deudas (prorrateo por sesiones)
     // ─────────────────────────────────────────────────────────────
@@ -318,67 +497,36 @@ public class FinancesService
         // ── STEP 2: Generate / replace for the target month ───────────────
         foreach (var student in students)
         {
-            var effStart = (student.PaymentStartDate ?? student.EnrollmentDate).ToUniversalTime();
-            var effStartMonth = new DateTime(effStart.Year, effStart.Month, 1, 0, 0, 0, DateTimeKind.Utc);
-
-            if (targetRef < effStartMonth) continue;
-
             existingByStudent.TryGetValue(student.Id, out var existingDebt);
 
             // Pagado completamente → nunca sobrescribir
             if (existingDebt != null && existingDebt.IsPaid) continue;
 
-            var isPackage = student.BillingPlan == StudentBillingPlan.Package;
-            var fullAmount = isPackage ? student.Category!.PackagePrice!.Value : student.PreferentialFee ?? student.Category?.MonthlyFee ?? 0m;
-            if (fullAmount <= 0) continue;
-            var recordDescription = isPackage ? $"Paquete {student.Category!.PackageSessions} sesiones {new DateTime(year, month, 1).ToString("MMMM yyyy", Culture.Es)}" : description;
-
-            // ── Calcular monto nuevo (con prorrateo si aplica) ────────
-            DateTime? startForProration = null;
-            if (effStart.Year == year && effStart.Month == month && effStart.Day > 1)
-                startForProration = effStart;
-
-            DateTime? endForProration = (!student.IsActive && student.WithdrawalDate.HasValue &&
-                                          student.WithdrawalDate.Value.Year == year &&
-                                          student.WithdrawalDate.Value.Month == month)
-                ? student.WithdrawalDate.Value
-                : null;
-
-            bool isProrated = false;
-            decimal chargedAmount = fullAmount;
-            DateTime? proratedStart = null;
-            int? totalSessions = null, sessionsCharged = null;
-
-            if (startForProration.HasValue || endForProration.HasValue)
-            {
-                var (total, activeCount) = await GetSessionCountsAsync(
-                    academyId, student.CategoryId, year, month, startForProration, endForProration);
-
-                if (total > 0)
-                {
-                    chargedAmount   = Math.Round(fullAmount * activeCount / total, 2);
-                    isProrated      = true;
-                    proratedStart   = startForProration ?? targetRef;
-                    totalSessions   = total;
-                    sessionsCharged = activeCount;
-                }
-                else
-                {
-                    int startDay    = startForProration?.Day ?? 1;
-                    int endDay      = endForProration?.Day ?? daysInMonth;
-                    int charged     = Math.Max(0, endDay - startDay + 1);
-                    chargedAmount   = Math.Round(fullAmount * charged / daysInMonth, 2);
-                    isProrated      = true;
-                    proratedStart   = new DateTime(year, month, startDay, 0, 0, 0, DateTimeKind.Utc);
-                    totalSessions   = daysInMonth;
-                    sessionsCharged = charged;
-                }
-            }
-
             int? position = siblingPositions.TryGetValue(student.Id, out var pos) ? pos : null;
-            var siblingRule = position.HasValue && !isPackage ? DiscountService.SiblingRuleFor(siblingRules, student, position.Value, periodDate) : null;
-            var (amountToCharge, discountAmount, discountDetail) = ApplyAllBenefits(student, chargedAmount, siblingRule, position);
-            chargedAmount = amountToCharge;
+            var siblingRule = position.HasValue && student.BillingPlan != StudentBillingPlan.Package
+                ? DiscountService.SiblingRuleFor(siblingRules, student, position.Value, periodDate) : null;
+            var (charge, notOwed) = await ComputeMonthlyChargeAsync(academyId, student, year, month, siblingRule, position);
+            if (notOwed)
+            {
+                // Se retiró ese mes sin asistir ninguna vez: no se cobra (lo abonado nunca se borra).
+                if (existingDebt != null && !existingDebt.Installments.Any())
+                {
+                    existingDebt.IsDeleted = true;
+                    existingDebt.DeletedAt = DateTime.UtcNow;
+                    cleanedCount++;
+                }
+                continue;
+            }
+            if (charge == null) continue;
+
+            var recordDescription = charge.Description;
+            var chargedAmount     = charge.Amount;
+            var discountAmount    = charge.Discount;
+            var discountDetail    = charge.Detail;
+            var isProrated        = charge.IsProrated;
+            var proratedStart     = charge.ProratedStart;
+            var totalSessions     = charge.TotalUnits;
+            var sessionsCharged   = charge.ChargedUnits;
 
             bool hasPartialPayments = existingDebt != null && existingDebt.Installments.Any();
 
@@ -546,7 +694,7 @@ public class FinancesService
             query = WhereInMonth(query, year.Value, month.Value);
 
         var debts = await query.OrderBy(p => p.DueDate).ToListAsync();
-        return debts.Select(MapToDto).ToList();
+        return await FillConceptsAsync(_context, debts.Select(MapToDto).ToList());
     }
 
     public async Task<List<PaymentRecordDto>> GetAllDebtsAsync(Guid academyId, int? year = null, int? month = null)
@@ -563,7 +711,7 @@ public class FinancesService
             query = WhereInMonth(query, year.Value, month.Value);
 
         var debts = await query.OrderByDescending(p => p.DueDate).ToListAsync();
-        return debts.Select(MapToDto).ToList();
+        return await FillConceptsAsync(_context, debts.Select(MapToDto).ToList());
     }
 
     public async Task<List<PaymentRecordDto>> GetMyDebtsAsync(Guid academyId, Guid guardianUserId)
@@ -575,7 +723,7 @@ public class FinancesService
                        (p.Student.GuardianId == guardianUserId || p.Student.UserId == guardianUserId))
             .OrderBy(p => p.DueDate)
             .ToListAsync();
-        return debts.Select(MapToDto).ToList();
+        return await FillConceptsAsync(_context, debts.Select(MapToDto).ToList());
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -946,6 +1094,34 @@ public class FinancesService
     // ─────────────────────────────────────────────────────────────
     // Mapper
     // ─────────────────────────────────────────────────────────────
+    /// <summary>Concepto legible de una deuda (los torneos se completan con el nombre del cobro en FillConceptsAsync).</summary>
+    internal static string ConceptOf(PaymentRecord p) => p.Type switch
+    {
+        PaymentType.MonthlyFee      => p.Description.StartsWith("Paquete", StringComparison.OrdinalIgnoreCase) ? "Paquete" : "Mensualidad",
+        PaymentType.Sessions        => "Sesiones",
+        PaymentType.LateFee         => "Mora",
+        PaymentType.ProductSale     => "Productos",
+        PaymentType.RegistrationFee => "Matrícula",
+        PaymentType.Tournament      => "Torneo",
+        _                           => "Otros",
+    };
+
+    /// <summary>Pone en los cobros de torneo el nombre de su concepto (Arbitraje, Inscripción, Cancha…).</summary>
+    internal static async Task<List<PaymentRecordDto>> FillConceptsAsync(AppDbContext db, List<PaymentRecordDto> list)
+    {
+        var ids = list.Where(d => d.Type == (int)PaymentType.Tournament).Select(d => d.Id).ToList();
+        if (ids.Count == 0) return list;
+        var names = await db.TournamentCharges
+            .Where(c => c.PaymentRecordId != null && ids.Contains(c.PaymentRecordId.Value))
+            .Select(c => new { Id = c.PaymentRecordId!.Value, c.Fee.Name })
+            .ToListAsync();
+        var byId = names.GroupBy(n => n.Id).ToDictionary(g => g.Key, g => g.First().Name);
+        foreach (var d in list)
+            if (byId.TryGetValue(d.Id, out var name) && !string.IsNullOrWhiteSpace(name))
+                d.Concept = char.ToUpper(name.Trim()[0]) + name.Trim()[1..];
+        return list;
+    }
+
     internal static PaymentRecordDto MapToDto(PaymentRecord p)
     {
         var today = AcademyClock.Today;
@@ -988,6 +1164,9 @@ public class FinancesService
             ProratedStartDate    = p.ProratedStartDate,
             ProratedTotalDays    = p.ProratedTotalDays,
             ProratedDaysCharged  = p.ProratedDaysCharged,
+            Concept       = ConceptOf(p),
+            StudentIsActive = p.Student.IsActive,
+            StudentWithdrawalDate = p.Student.WithdrawalDate,
             ExclusionType = p.ExclusionType.ToString(),
             ExclusionNote = p.ExclusionNote,
             Installments  = p.Installments.OrderBy(i => i.PaidAt).Select(i => new PaymentInstallmentDto

@@ -6,6 +6,7 @@ using HSAcademia.Application.DTOs.Student;
 using HSAcademia.Infrastructure.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 
 namespace HSAcademia.API.Controllers;
 
@@ -15,10 +16,14 @@ namespace HSAcademia.API.Controllers;
 public class StudentController : ControllerBase
 {
     private readonly StudentService _studentService;
+    private readonly FinancesService _finances;
+    private readonly ILogger<StudentController> _logger;
 
-    public StudentController(StudentService studentService)
+    public StudentController(StudentService studentService, FinancesService finances, ILogger<StudentController> logger)
     {
         _studentService = studentService;
+        _finances = finances;
+        _logger = logger;
     }
 
     /// <summary>Listado de alumnos. Lo usan los módulos Alumnos, Apoderados, Tienda y Finanzas.</summary>
@@ -63,8 +68,12 @@ public class StudentController : ControllerBase
         try
         {
             var canFinance = await PermissionChecker.HasAsync(HttpContext, Permissions.StudentsBilling);
-            return Ok(await _studentService.UpdateStudentAsync(academyId, id, dto, canFinance,
-                await PermissionChecker.HasAsync(HttpContext, Permissions.StudentsMedical)));
+            var updated = await _studentService.UpdateStudentAsync(academyId, id, dto, canFinance,
+                await PermissionChecker.HasAsync(HttpContext, Permissions.StudentsMedical));
+            // Retiro, beca o invitado: sus deudas pendientes se ajustan en el acto (no esperan al motor).
+            try { await _finances.ReconcileStudentBillingAsync(academyId, id); }
+            catch (Exception ex) { _logger.LogWarning(ex, "No se pudieron ajustar las deudas del alumno {StudentId}", id); }
+            return Ok(updated);
         }
         catch (Exception ex)
         {

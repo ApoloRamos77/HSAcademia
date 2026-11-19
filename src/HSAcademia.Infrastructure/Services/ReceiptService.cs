@@ -145,7 +145,7 @@ public class ReceiptService
             .ToListAsync();
 
         var (payer, document, guardianId) = ReceiptRecorder.PayerOf(student);
-        var mapped = debts.Select(FinancesService.MapToDto).ToList();
+        var mapped = await FinancesService.FillConceptsAsync(_db, debts.Select(FinancesService.MapToDto).ToList());
         return new FamilyAccountDto
         {
             GuardianId = guardianId,
