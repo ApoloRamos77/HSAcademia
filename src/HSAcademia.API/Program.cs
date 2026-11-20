@@ -330,7 +330,10 @@ if (swaggerEnabled)
     });
 }
 
-// Archivos subidos (vouchers). URLs con GUID aleatorio, sin listado de directorio.
+// CORS antes de los archivos subidos: la web lee fotos de alumnos para el carné PDF (otro dominio).
+app.UseCors("AllowFrontend");
+
+// Archivos subidos (vouchers, fotos de alumnos). URLs con GUID aleatorio, sin listado de directorio.
 var uploads = app.Services.GetRequiredService<UploadStorage>();
 app.UseStaticFiles(new StaticFileOptions
 {
@@ -339,7 +342,6 @@ app.UseStaticFiles(new StaticFileOptions
     OnPrepareResponse = ctx => ctx.Context.Response.Headers["X-Content-Type-Options"] = "nosniff"
 });
 
-app.UseCors("AllowFrontend");
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();

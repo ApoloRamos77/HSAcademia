@@ -163,7 +163,7 @@ export default function PaymentProofsTab({ onChanged }) {
                         <div className="flex gap-2 items-center flex-wrap">
                           <button type="button" className={`btn btn-sm ${reg.charge ? 'btn-warning' : 'btn-ghost'}`} onClick={() => setReg({ ...reg, charge: true })}>Cobrar mora</button>
                           <button type="button" className={`btn btn-sm ${!reg.charge ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setReg({ ...reg, charge: false })}>Sin mora</button>
-                          {reg.charge && <input type="number" step="0.01" min="0.01" className="form-control py-1 text-sm w-28" placeholder="Mora S/." value={reg.amount} onChange={e => setReg({ ...reg, amount: e.target.value })} />}
+                          {reg.charge && <input type="number" step="0.01" min="0.01" className="form-control py-1 text-sm w-28" placeholder="Mora S/" value={reg.amount} onChange={e => setReg({ ...reg, amount: e.target.value })} />}
                         </div>
                         <input className="form-control text-sm" maxLength={500} placeholder="Observación obligatoria" value={reg.note} onChange={e => setReg({ ...reg, note: e.target.value })} />
                         {reg.charge && <small className="text-xs text-text-muted">La mora queda como deuda pendiente de la familia.</small>}

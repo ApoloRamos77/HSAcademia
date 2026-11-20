@@ -227,7 +227,7 @@ export default function ExpensesTab() {
           </div>
           <p className="text-red-400 font-medium mb-1">Egresos Totales (Mes)</p>
           <h2 className="text-4xl font-bold text-text-primary tracking-tight">
-            S/. {totalExpenses.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            S/ {totalExpenses.toLocaleString('en-US', { minimumFractionDigits: 2 })}
           </h2>
           <p className="text-xs text-text-muted mt-2 flex items-center gap-1">
             <Calendar size={12} /> {MONTHS[selectedMonth - 1]} de {selectedYear}
@@ -303,7 +303,7 @@ export default function ExpensesTab() {
                     </td>
                     <td className="p-4 text-right">
                       <span className="text-text-primary font-bold bg-bg-surface px-3 py-1.5 rounded-lg border border-border">
-                        S/. {e.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        S/ {e.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                       </span>
                     </td>
                     <td className="p-4 text-center">
@@ -342,7 +342,7 @@ export default function ExpensesTab() {
                                   <span className="font-bold text-text-primary">{p.name}</span>
                                   <span className="text-xs text-text-muted ml-2">({p.quantity} unid.)</span>
                                 </div>
-                                <span className="font-medium text-warning">S/. {p.unitCost?.toFixed(2) || '0.00'} c/u</span>
+                                <span className="font-medium text-warning">S/ {p.unitCost?.toFixed(2) || '0.00'} c/u</span>
                               </div>
                             ))}
                           </div>
@@ -434,10 +434,10 @@ export default function ExpensesTab() {
                         <div key={i} className="flex justify-between items-center bg-card/60 p-2 rounded border border-border/50 text-sm">
                           <div>
                             <span className="font-bold text-text-primary">{p.name}</span>
-                            <span className="text-xs text-text-muted ml-2">({p.quantity} x S/. {p.unitCost.toFixed(2)})</span>
+                            <span className="text-xs text-text-muted ml-2">({p.quantity} x S/ {p.unitCost.toFixed(2)})</span>
                           </div>
                           <div className="flex items-center gap-3">
-                            {p.forSale && <span className="text-success font-medium">P.V: S/. {p.salePrice.toFixed(2)}</span>}
+                            {p.forSale && <span className="text-success font-medium">P.V: S/ {p.salePrice.toFixed(2)}</span>}
                             <button type="button" onClick={() => handleRemoveProduct(i)} className="text-danger"><X size={14}/></button>
                           </div>
                         </div>
@@ -473,7 +473,7 @@ export default function ExpensesTab() {
                                   <div className="font-bold">{p.name}</div>
                                   <div className="text-xs text-text-muted flex justify-between mt-0.5">
                                     <span>Stock: {p.stock}</span>
-                                    <span>Venta: S/. {p.price.toFixed(2)}</span>
+                                    <span>Venta: S/ {p.price.toFixed(2)}</span>
                                   </div>
                                 </button>
                               ))
@@ -519,7 +519,7 @@ export default function ExpensesTab() {
               
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">Monto Total Pagado (S/.) *</label>
+                  <label className="form-label">Monto Total Pagado (S/) *</label>
                   <input 
                     type="number" step="0.01" required min="0.01"
                     value={formData.amount}

@@ -8,7 +8,7 @@ import CheckoutModal from './CheckoutModal';
 
 const METHOD = { Cash: 'Efectivo', BankTransfer: 'Transferencia', Yape: 'Yape', Plin: 'Plin', Card: 'Tarjeta', Mixed: 'Mixto', Other: 'Otro' };
 const CHANNEL = { web: 'Caja', app: 'App', tienda: 'Tienda', comprobante: 'Comprobante', historico: 'Histórico (antes de los comprobantes)' };
-const money = (n) => `S/. ${(Number(n) || 0).toFixed(2)}`;
+const money = (n) => `S/ ${(Number(n) || 0).toFixed(2)}`;
 const isoDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 /** Historial de comprobantes: reimpresión, búsqueda por número (incluye recibos antiguos) y anulación completa. */

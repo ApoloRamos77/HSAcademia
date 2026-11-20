@@ -7,7 +7,8 @@ import { useAuth } from '../../auth/AuthContext';
 import { Badge, Banner, Button, Card, Divider, Loading, Row, Screen, SectionTitle, Stat } from '../../components/ui';
 import { useApi } from '../../hooks/useApi';
 import { colors, font, spacing } from '../../theme';
-import { money, shortDay } from '../../utils/format';
+import { money, sedeLabel, shortDay } from '../../utils/format';
+import { StudentAvatar } from '../../components/StudentPhoto';
 
 const digits = (s?: string | null) => (s ?? '').replace(/\D/g, '');
 const waNumber = (s?: string | null) => { const d = digits(s); return d.length === 9 ? `51${d}` : d; };
@@ -46,12 +47,15 @@ export default function StudentDetailScreen({ route, navigation }: any) {
 
   return (
     <Screen refreshing={refreshing} onRefresh={refresh}>
-      <View>
-        <Text style={font.h2}>{student.firstName} {student.lastName}</Text>
-        <Text style={font.small}>{student.categoryName} · {student.age} años · Sede {student.headquarterName}</Text>
-        {student.documentNumber ? <Text style={font.tiny}>DNI {student.documentNumber}</Text> : null}
-        {!student.isActive && <View style={{ marginTop: 6 }}><Badge tone="muted" text="Retirado" /></View>}
-      </View>
+      <Row style={{ gap: spacing.md, alignItems: 'center' }}>
+        <StudentAvatar photoUrl={student.photoUrl} name={`${student.firstName} ${student.lastName}`} size={72} />
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={font.h2}>{student.firstName} {student.lastName}</Text>
+          <Text style={font.small}>{[student.categoryName, student.dateOfBirth ? `${student.age} años` : null, sedeLabel(student.headquarterName)].filter(Boolean).join(' · ')}</Text>
+          {student.documentNumber ? <Text style={font.tiny}>DNI {student.documentNumber}</Text> : null}
+          {!student.isActive && <View style={{ marginTop: 6 }}><Badge tone="muted" text="Retirado" /></View>}
+        </View>
+      </Row>
 
       <Row>
         {can('students.edit') && (

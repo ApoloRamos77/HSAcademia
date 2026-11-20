@@ -43,6 +43,8 @@ public class Student
     public decimal? ScholarshipPercentage { get; set; }
     public DateTime? PaymentStartDate { get; set; }
     public DateTime? WithdrawalDate { get; set; }
+    /// <summary>Foto del alumno ("/uploads/students/<guid>.jpg"). Nombre aleatorio; nunca se muestra en páginas públicas.</summary>
+    public string? PhotoUrl { get; set; }
 
     // Navigation for One-to-One
     public virtual StudentMedicalRecord? MedicalRecord { get; set; }

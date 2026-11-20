@@ -12,6 +12,8 @@ public class StudentDto
     public string? DocumentNumber { get; set; }
     public DateTime? DateOfBirth { get; set; }
     public int Age { get; set; }
+    /// <summary>Foto del alumno (ruta relativa a la API) o null.</summary>
+    public string? PhotoUrl { get; set; }
     
     public Guid HeadquarterId { get; set; }
     public string HeadquarterName { get; set; } = string.Empty;
@@ -117,6 +119,7 @@ public class MobileStudentProfileDto
     public DateTime? DateOfBirth { get; set; }
     public int Age { get; set; }
     public DateTime EnrollmentDate { get; set; }
+    public string? PhotoUrl { get; set; }
 
     // Academy
     public string CategoryName { get; set; } = string.Empty;

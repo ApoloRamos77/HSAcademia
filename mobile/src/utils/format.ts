@@ -136,3 +136,6 @@ export function ageFrom(isoDate: string): number {
 
 /** Solo dígitos (para celulares). */
 export const digitsOnly = (s?: string | null) => (s ?? '').replace(/\D/g, '');
+
+/** "Sede Central" ya dice sede: evita "Sede Sede Central". */
+export const sedeLabel = (name?: string | null) => (!name ? '' : /^sede\b/i.test(name) ? name : `Sede ${name}`);

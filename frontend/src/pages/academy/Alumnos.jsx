@@ -10,6 +10,11 @@ import { Star } from 'lucide-react';
 import { Apple, Activity as ActivityIcon } from 'lucide-react';
 import { todayISO } from '../../utils/dates';
 import { StudentSelect } from '../../components/finances/ReferralsPanel';
+import { StudentAvatar, StudentPhotoPicker, uploadStudentPhoto } from '../../components/students/StudentPhoto';
+
+/** "12 años · DNI 7012…" sin mostrar "0 años" ni "N/A" cuando faltan datos. */
+const ageAndDoc = a => [a.dateOfBirth ? `${a.age} años` : 'Edad sin registrar', a.documentNumber ? `DNI ${a.documentNumber}` : null]
+  .filter(Boolean).join(' · ');
 
 export default function Alumnos() {
   const { user, can, isAdmin } = useAuth();
@@ -47,6 +52,13 @@ export default function Alumnos() {
   const [filterStatus, setFilterStatus] = useState(''); // '' | 'active' | 'inactive'
   const [showFilters, setShowFilters] = useState(false);
   const [printingCards, setPrintingCards] = useState(false);
+  // Foto: la actual del alumno en edición y el cambio pendiente ({ blob, preview } | { remove: true } | null).
+  const [editingPhotoUrl, setEditingPhotoUrl] = useState(null);
+  const [photoChange, setPhotoChange] = useState(null);
+  const changePhoto = next => {
+    if (photoChange?.preview) URL.revokeObjectURL(photoChange.preview);
+    setPhotoChange(next);
+  };
 
   const initialForm = {
     firstName: '', lastName: '', email: '', phone: '', dateOfBirth: '', documentNumber: '', headquarterId: '', categoryId: '',
@@ -251,6 +263,10 @@ export default function Alumnos() {
     try {
       const payload = {
         ...formData,
+        // Fechas vacías van como null: "" no es una fecha válida para la API (antes fallaba editar sin nacimiento).
+        dateOfBirth: formData.dateOfBirth || null,
+        email: formData.email?.trim() || null,
+        documentNumber: formData.documentNumber?.trim() || null,
         paymentStartDate: formData.paymentStartDate !== '' ? formData.paymentStartDate : null,
         withdrawalDate: formData.withdrawalDate !== '' ? formData.withdrawalDate : null,
         preferentialFee: formData.preferentialFee !== '' && formData.preferentialFee !== null ? parseFloat(formData.preferentialFee) : null,
@@ -265,13 +281,26 @@ export default function Alumnos() {
         }
       };
 
+      // La foto se sube después de guardar la ficha: si falla, el alumno queda guardado y se avisa.
+      const savePhoto = async studentId => {
+        if (!photoChange || !studentId) return;
+        try {
+          if (photoChange.blob) await uploadStudentPhoto(api, studentId, photoChange.blob);
+          else if (photoChange.remove) await api.delete(`/students/${studentId}/photo`);
+        } catch (e) {
+          toast.error(`El alumno se guardó, pero la foto no: ${e.response?.data?.message || 'revisa tu conexión'}.`, { duration: 6000 });
+        }
+      };
+
       if (editingId) {
         const res = await api.put(`/students/${editingId}`, payload);
         if (res.data?.generatedCredentials?.length) setGeneratedCredentials(res.data.generatedCredentials);
+        await savePhoto(editingId);
         toast.success('Alumno actualizado correctamente');
       } else {
         const res = await api.post('/students', payload);
         if (res.data?.generatedCredentials?.length) setGeneratedCredentials(res.data.generatedCredentials);
+        await savePhoto(res.data?.id);
         toast.success('Alumno registrado correctamente');
         if (formData.referredBy && res.data?.id) {
           try {
@@ -287,11 +316,82 @@ export default function Alumnos() {
       setFormData(initialForm);
       setCurrentStep(1);
       setEditingId(null);
+      changePhoto(null);
       fetchData();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Error al registrar alumno.');
     }
   };
+
+  const openEdit = async (alumno) => {
+    try {
+      const recRes = can('students.medical') ? await api.get(`/students/${alumno.id}/medical-record`) : { data: {} };
+      setFormData({
+        firstName: alumno.firstName,
+        lastName: alumno.lastName,
+        email: alumno.email || '',
+        phone: alumno.phone || '',
+        documentNumber: alumno.documentNumber || '',
+        dateOfBirth: alumno.dateOfBirth ? alumno.dateOfBirth.split('T')[0] : '',
+        headquarterId: alumno.headquarterId,
+        categoryId: alumno.categoryId,
+        enrollmentDate: alumno.enrollmentDate ? alumno.enrollmentDate.split('T')[0] : '',
+        paymentStartDate: alumno.paymentStartDate ? alumno.paymentStartDate.split('T')[0] : '',
+        withdrawalDate: alumno.withdrawalDate ? alumno.withdrawalDate.split('T')[0] : '',
+        preferentialFee: alumno.preferentialFee || '',
+        billingPlan: alumno.billingPlan || 'Monthly',
+        preferentialSessionFee: alumno.preferentialSessionFee ?? '',
+        isGuest: alumno.isGuest || false,
+        isScholarship: alumno.isScholarship || false,
+        scholarshipPercentage: alumno.scholarshipPercentage || '',
+        isActive: alumno.isActive,
+        guardianFirstName: alumno.guardianName.split(' ')[0] || '',
+        guardianLastName: alumno.guardianName.split(' ').slice(1).join(' ') || '',
+        guardianPhone: alumno.guardianPhone || '',
+        guardianEmail: alumno.guardianEmail || '',
+        medicalRecord: {
+          allergies: recRes.data.allergies || '',
+          medicalConditions: recRes.data.medicalConditions || '',
+          emergencyContactName: recRes.data.emergencyContactName || '',
+          emergencyContactPhone: recRes.data.emergencyContactPhone || '',
+          weightKg: recRes.data.weightKg || '',
+          heightCm: recRes.data.heightCm || '',
+          bmi: recRes.data.bmi || '',
+          nutritionPlan: recRes.data.nutritionPlan || ''
+        }
+      });
+      setEditingId(alumno.id);
+      setEditingPhotoUrl(alumno.photoUrl || null);
+      changePhoto(null);
+      setCurrentStep(1);
+      setShowModal(true);
+    } catch(e) { toast.error("Error al cargar datos"); }
+  };
+
+  const closeStudentModal = () => { setShowModal(false); changePhoto(null); };
+
+  const rowActions = alumno => (
+    <>
+      {can('students.payments', 'collections.view') && (
+        <button className="btn btn-ghost btn-sm text-primary" onClick={() => openFinancialModal(alumno)} title="Finanzas" aria-label="Finanzas">
+          <FileText size={15} />
+        </button>
+      )}
+      {can('students.medical') && (
+        <button className="btn btn-ghost btn-sm text-success" onClick={() => openNutritionModal(alumno)} title="Nutrición" aria-label="Nutrición">
+          <Apple size={15} />
+        </button>
+      )}
+      {can('students.evaluate') && (
+        <button className="btn btn-ghost btn-sm text-primary" onClick={() => setEvalStudent(alumno)} title="Evaluación deportiva" aria-label="Evaluación deportiva">
+          <Star size={15} />
+        </button>
+      )}
+      <button className="btn btn-ghost btn-sm text-warning" onClick={() => openEdit(alumno)} title={canEdit ? 'Editar Alumno' : 'Ver Alumno'} aria-label={canEdit ? 'Editar Alumno' : 'Ver Alumno'}>
+        {canEdit ? <Users size={15} /> : <Search size={15} />}
+      </button>
+    </>
+  );
 
   const openNutritionModal = async (alumno) => {
     setNutritionStudent(alumno);
@@ -383,7 +483,7 @@ export default function Alumnos() {
                 <QrCode size={16} /> {printingCards ? 'Generando…' : 'Imprimir carnés'}
               </button>
               {canEdit && (
-                <button onClick={() => { setFormData(initialForm); setEditingId(null); setCurrentStep(1); setShowModal(true); }} className="btn btn-primary flex items-center gap-2">
+                <button onClick={() => { setFormData(initialForm); setEditingId(null); setEditingPhotoUrl(null); changePhoto(null); setCurrentStep(1); setShowModal(true); }} className="btn btn-primary flex items-center gap-2">
                   <PlusCircle size={16} /> Registrar Alumno
                 </button>
               )}
@@ -464,7 +564,25 @@ export default function Alumnos() {
             </div>
           </div>
 
-          <div className="table-container">
+          {/* Celular: tarjeta compacta (foto, nombre, categoría y estado); tocarla abre la ficha */}
+          <div className="student-list-mobile">
+            {currentAlumnos.map(alumno => (
+              <div key={alumno.id} className="student-row">
+                <button type="button" className="student-row-main" onClick={() => openEdit(alumno)} aria-label={`${canEdit ? 'Editar' : 'Ver'} a ${alumno.firstName} ${alumno.lastName}`}>
+                  <StudentAvatar photoUrl={alumno.photoUrl} firstName={alumno.firstName} lastName={alumno.lastName} size={44} />
+                  <span className="min-w-0 flex-1 text-left">
+                    <span className="student-row-name">{alumno.firstName} {alumno.lastName}</span>
+                    <span className="student-row-meta">{alumno.categoryName} · {alumno.headquarterName}</span>
+                    <span className="student-row-meta">{ageAndDoc(alumno)}{alumno.guardianName ? ` · ${alumno.guardianName}` : ''}</span>
+                  </span>
+                  <span className={`badge ${alumno.isActive ? 'badge-success' : 'badge-danger'} shrink-0`}>{alumno.isActive ? 'Activo' : 'Inactivo'}</span>
+                </button>
+                <div className="student-row-actions">{rowActions(alumno)}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="table-container student-table-desktop">
             <table className="table">
               <thead>
                 <tr>
@@ -479,12 +597,17 @@ export default function Alumnos() {
                 {currentAlumnos.map(alumno => (
                   <tr key={alumno.id}>
                     <td>
-                      <div className="font-bold text-primary-100">{alumno.firstName} {alumno.lastName}</div>
-                      <div className="text-xs text-text-muted mt-1">{alumno.age} años | DNI: {alumno.documentNumber || 'N/A'}</div>
+                      <div className="flex items-center gap-3">
+                        <StudentAvatar photoUrl={alumno.photoUrl} firstName={alumno.firstName} lastName={alumno.lastName} size={40} />
+                        <div className="min-w-0">
+                          <div className="font-bold text-primary-100">{alumno.firstName} {alumno.lastName}</div>
+                          <div className="text-xs text-text-muted mt-1">{ageAndDoc(alumno)}</div>
+                        </div>
+                      </div>
                     </td>
                     <td>
-                      <div className="text-sm"><UserPlus size={12} className="inline mr-1 text-warning"/> {alumno.guardianName}</div>
-                      <div className="text-xs text-text-muted mt-1">{alumno.guardianPhone || 'Sin teléfono'}</div>
+                      <div className="text-sm"><UserPlus size={12} className="inline mr-1 text-warning"/> {alumno.guardianName || 'Sin apoderado'}</div>
+                      <div className="text-xs text-text-muted mt-1">{alumno.guardianPhone || alumno.phone || 'Sin teléfono'}</div>
                     </td>
                     <td>
                       <div className="text-sm"><MapPin size={12} className="inline mr-1 text-primary-400"/> {alumno.headquarterName}</div>
@@ -496,67 +619,7 @@ export default function Alumnos() {
                       </span>
                     </td>
                     <td className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        {can('students.payments', 'collections.view') && (
-                          <button className="btn btn-ghost btn-sm text-primary" onClick={() => openFinancialModal(alumno)} title="Finanzas">
-                            <FileText size={15} />
-                          </button>
-                        )}
-                        {can('students.medical') && (
-                          <button className="btn btn-ghost btn-sm text-success" onClick={() => openNutritionModal(alumno)} title="Nutrición">
-                            <Apple size={15} />
-                          </button>
-                        )}
-                        {can('students.evaluate') && (
-                          <button className="btn btn-ghost btn-sm text-primary" onClick={() => setEvalStudent(alumno)} title="Evaluación deportiva" aria-label="Evaluación deportiva">
-                            <Star size={15} />
-                          </button>
-                        )}
-                        <button className="btn btn-ghost btn-sm text-warning" onClick={async () => {
-                            try {
-                              const recRes = can('students.medical') ? await api.get(`/students/${alumno.id}/medical-record`) : { data: {} };
-                              setFormData({
-                                firstName: alumno.firstName,
-                                lastName: alumno.lastName,
-                                email: alumno.email || '',
-                                phone: alumno.phone || '',
-                                documentNumber: alumno.documentNumber || '',
-                                dateOfBirth: alumno.dateOfBirth ? alumno.dateOfBirth.split('T')[0] : '',
-                                headquarterId: alumno.headquarterId,
-                                categoryId: alumno.categoryId,
-                                enrollmentDate: alumno.enrollmentDate ? alumno.enrollmentDate.split('T')[0] : '',
-                                paymentStartDate: alumno.paymentStartDate ? alumno.paymentStartDate.split('T')[0] : '',
-                                withdrawalDate: alumno.withdrawalDate ? alumno.withdrawalDate.split('T')[0] : '',
-                                preferentialFee: alumno.preferentialFee || '',
-                                billingPlan: alumno.billingPlan || 'Monthly',
-                                preferentialSessionFee: alumno.preferentialSessionFee ?? '',
-                                isGuest: alumno.isGuest || false,
-                                isScholarship: alumno.isScholarship || false,
-                                scholarshipPercentage: alumno.scholarshipPercentage || '',
-                                isActive: alumno.isActive,
-                                guardianFirstName: alumno.guardianName.split(' ')[0] || '',
-                                guardianLastName: alumno.guardianName.split(' ').slice(1).join(' ') || '',
-                                guardianPhone: alumno.guardianPhone || '',
-                                guardianEmail: alumno.guardianEmail || '',
-                                medicalRecord: {
-                                  allergies: recRes.data.allergies || '',
-                                  medicalConditions: recRes.data.medicalConditions || '',
-                                  emergencyContactName: recRes.data.emergencyContactName || '',
-                                  emergencyContactPhone: recRes.data.emergencyContactPhone || '',
-                                  weightKg: recRes.data.weightKg || '',
-                                  heightCm: recRes.data.heightCm || '',
-                                  bmi: recRes.data.bmi || '',
-                                  nutritionPlan: recRes.data.nutritionPlan || ''
-                                }
-                              });
-                              setEditingId(alumno.id);
-                              setCurrentStep(1);
-                              setShowModal(true);
-                            } catch(e) { toast.error("Error al cargar datos"); }
-                        }} title={canEdit ? "Editar Alumno" : "Ver Alumno"}>
-                          {canEdit ? <Users size={15} /> : <Search size={15} />}
-                        </button>
-                      </div>
+                      <div className="flex items-center justify-end gap-1">{rowActions(alumno)}</div>
                     </td>
                   </tr>
                 ))}
@@ -588,7 +651,7 @@ export default function Alumnos() {
         </div>
 
         {showModal && (
-          <div className="modal-overlay" onClick={() => setShowModal(false)}>
+          <div className="modal-overlay" onClick={closeStudentModal}>
             <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '700px' }}>
               <div className="flex justify-between items-center mb-6 border-b border-border pb-4">
                 <h3 className="modal-title m-0 text-lg font-bold">{!canEdit ? 'Detalles del Alumno' : (editingId ? 'Editar Alumno' : 'Registrar Nuevo Alumno')}</h3>
@@ -599,12 +662,6 @@ export default function Alumnos() {
                     <button type="button" onClick={() => setCurrentStep(2)} className={`tab-pill ${currentStep === 2 ? 'active' : ''}`}>2. Apoderado</button>
                     {(!editingId || canSeeMedical) && <button type="button" onClick={() => setCurrentStep(3)} className={`tab-pill ${currentStep === 3 ? 'active' : ''}`}>3. Ficha Médica</button>}
                   </div>
-                  {/* Botón Guardar Principal */}
-                  {canEdit && (
-                    <button type="button" onClick={handleSave} className="btn btn-success px-6">
-                      <FileText size={16} /> Guardar
-                    </button>
-                  )}
                 </div>
               </div>
               
@@ -632,6 +689,8 @@ export default function Alumnos() {
                         </div>
                       )}
                     </div>
+                    <StudentPhotoPicker photoUrl={editingPhotoUrl} pending={photoChange} firstName={formData.firstName} lastName={formData.lastName}
+                      disabled={!canEdit} onChange={changePhoto} onError={msg => toast.error(msg)} />
                     <div className="form-row">
                       <div className="form-group">
                         <label className="form-label">Nombres *</label>
@@ -905,17 +964,20 @@ export default function Alumnos() {
                 )}
                 </fieldset>
                 
-                <div className="modal-footer mt-6 flex justify-between items-center border-t border-border pt-5">
-                  <button type="button" onClick={() => setShowModal(false)} className="btn btn-ghost text-danger hover:bg-danger/10 border-transparent hover:border-danger/20 rounded-xl px-5 py-2 font-medium transition-all">Cancelar</button>
-                  
-                  <div className="flex gap-3">
-                    {currentStep > 1 && (
-                      <button type="button" onClick={() => setCurrentStep(currentStep - 1)} className="btn bg-white border border-border text-text-secondary hover:border-primary-light hover:text-primary-dark transition-all rounded-xl px-6 py-2 shadow-sm font-medium">Atrás</button>
-                    )}
-                    {currentStep < ((!editingId || canSeeMedical) ? 3 : 2) && (
-                      <button type="button" onClick={() => setCurrentStep(currentStep + 1)} className="btn bg-primary-light/40 border border-primary-light/50 text-primary-dark hover:bg-primary-light hover:text-primary-dark transition-all rounded-xl px-6 py-2 shadow-sm font-bold">Siguiente Pestaña</button>
-                    )}
-                  </div>
+                {/* Pie fijo: Guardar siempre a mano (se puede guardar desde cualquier pestaña) */}
+                <div className="modal-footer student-modal-footer border-t border-border">
+                  <button type="button" onClick={closeStudentModal} className="btn btn-ghost">{canEdit ? 'Cancelar' : 'Cerrar'}</button>
+                  {currentStep > 1 && (
+                    <button type="button" onClick={() => setCurrentStep(currentStep - 1)} className="btn btn-outline">Atrás</button>
+                  )}
+                  {currentStep < ((!editingId || canSeeMedical) ? 3 : 2) && (
+                    <button type="button" onClick={() => setCurrentStep(currentStep + 1)} className="btn btn-outline">Siguiente</button>
+                  )}
+                  {canEdit && (
+                    <button type="submit" className="btn btn-success student-modal-save">
+                      <FileText size={16} /> Guardar
+                    </button>
+                  )}
                 </div>
               </form>
             </div>
@@ -1069,9 +1131,9 @@ export default function Alumnos() {
                             <tr key={d.id}>
                               <td className="font-medium text-primary-100">{d.description}</td>
                               <td>{new Date(d.dueDate).toLocaleDateString()}</td>
-                              <td className="font-bold">S/. {d.amount.toFixed(2)}</td>
-                              <td className="text-success">S/. {d.amountPaid.toFixed(2)}</td>
-                              <td className="text-danger font-bold">S/. {d.amountPending.toFixed(2)}</td>
+                              <td className="font-bold">S/ {d.amount.toFixed(2)}</td>
+                              <td className="text-success">S/ {d.amountPaid.toFixed(2)}</td>
+                              <td className="text-danger font-bold">S/ {d.amountPending.toFixed(2)}</td>
                               <td>
                                 <span className={`badge ${d.isPaid ? 'badge-success' : 'badge-danger'}`}>
                                   {d.isPaid ? 'Pagado' : 'Pendiente'}
@@ -1109,10 +1171,10 @@ export default function Alumnos() {
                               <td className="font-medium text-primary-100">{s.productName}</td>
                               <td>{new Date(s.saleDate).toLocaleDateString()}</td>
                               <td>{s.quantity}</td>
-                              <td className="font-bold text-teal-400">S/. {s.totalPrice.toFixed(2)}</td>
+                              <td className="font-bold text-teal-400">S/ {s.totalPrice.toFixed(2)}</td>
                               <td>
                                 {s.isGift ? <span className="badge badge-warning">Obsequio</span> : 
-                                 s.discountAmount > 0 ? <span className="text-warning text-xs">Desc: S/. {s.discountAmount.toFixed(2)}</span> : 
+                                 s.discountAmount > 0 ? <span className="text-warning text-xs">Desc: S/ {s.discountAmount.toFixed(2)}</span> : 
                                  <span className="badge badge-success">Pagado</span>}
                               </td>
                             </tr>

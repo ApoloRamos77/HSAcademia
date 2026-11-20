@@ -633,7 +633,7 @@ public class AttendanceService : IAttendanceService
         StudentId    = s.Id,
         FirstName    = s.FirstName,
         LastName     = s.LastName,
-        AvatarUrl    = null,
+        AvatarUrl    = s.PhotoUrl,
         AttendanceId = att?.Id,
         Status       = att?.Status,
         Notes        = att?.Notes,

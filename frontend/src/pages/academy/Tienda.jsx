@@ -349,7 +349,7 @@ export default function Tienda() {
             <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><BarChart3 className="text-primary-400" /> Resumen de Ventas</h3>
             <div className="stats-grid" style={{ marginBottom: 24 }}>
               <div className="stat-card" style={{ borderTop: '2px solid var(--primary)' }}>
-                <div className="stat-value" style={{ color: 'var(--primary-dark)' }}>S/. {totalRevenue.toFixed(2)}</div>
+                <div className="stat-value" style={{ color: 'var(--primary-dark)' }}>S/ {totalRevenue.toFixed(2)}</div>
                 <div className="stat-label">Ingresos Totales</div>
                 <div className="stat-icon"><DollarSign size={32} style={{ color: 'var(--primary-dark)', opacity: 0.2 }}/></div>
               </div>
@@ -445,12 +445,12 @@ export default function Tienda() {
                           {p.stock} unid.
                         </span>
                       </td>
-                      <td className="text-warning">S/. {(p.costPrice || 0).toFixed(2)}</td>
-                      <td className="font-bold text-success">S/. {p.price.toFixed(2)}</td>
+                      <td className="text-warning">S/ {(p.costPrice || 0).toFixed(2)}</td>
+                      <td className="font-bold text-success">S/ {p.price.toFixed(2)}</td>
                       <td>
                         {p.costPrice > 0 ? (
                           <span className={`text-sm ${(p.price - p.costPrice) > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                            S/. {(p.price - p.costPrice).toFixed(2)} ({p.price > 0 ? (((p.price - p.costPrice) / p.price) * 100).toFixed(0) : 0}%)
+                            S/ {(p.price - p.costPrice).toFixed(2)} ({p.price > 0 ? (((p.price - p.costPrice) / p.price) * 100).toFixed(0) : 0}%)
                           </span>
                         ) : <span className="text-text-muted">-</span>}
                       </td>
@@ -550,7 +550,7 @@ export default function Tienda() {
                       <td>
                         <div className="font-medium text-primary-100">{s.productName}</div>
                         <div className="text-xs text-text-muted">
-                          P.U: S/. {s.unitPrice.toFixed(2)} {s.discountAmount > 0 && !s.isGift && <span className="text-warning ml-1">(Desc: S/. {s.discountAmount.toFixed(2)})</span>}
+                          P.U: S/ {s.unitPrice.toFixed(2)} {s.discountAmount > 0 && !s.isGift && <span className="text-warning ml-1">(Desc: S/ {s.discountAmount.toFixed(2)})</span>}
                         </div>
                         {s.notes && <div className="text-xs text-text-muted italic mt-1">{s.notes}</div>}
                       </td>
@@ -560,7 +560,7 @@ export default function Tienda() {
                         {s.isGift ? (
                           <span className="badge badge-warning text-xs">🎁 Obsequio</span>
                         ) : (
-                          <span className="font-bold text-success">S/. {s.totalPrice.toFixed(2)}</span>
+                          <span className="font-bold text-success">S/ {s.totalPrice.toFixed(2)}</span>
                         )}
                       </td>
                       <td className="text-right">
@@ -617,16 +617,16 @@ export default function Tienda() {
                 </div>
                 <div className="form-row">
                   <div className="form-group">
-                    <label className="form-label">Costo de Compra (S/.)</label>
+                    <label className="form-label">Costo de Compra (S/)</label>
                     <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted font-bold">S/.</span>
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted font-bold">S/</span>
                       <input required type="number" step="0.01" min="0" className="form-control pl-12 text-warning font-bold" value={productForm.costPrice} onChange={e => setProductForm({...productForm, costPrice: e.target.value})} placeholder="0.00" />
                     </div>
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Precio de Venta (S/.) *</label>
+                    <label className="form-label">Precio de Venta (S/) *</label>
                     <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted font-bold">S/.</span>
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted font-bold">S/</span>
                       <input required type="number" step="0.01" min="0" className="form-control pl-12 text-success font-bold" value={productForm.price} onChange={e => setProductForm({...productForm, price: e.target.value})} />
                     </div>
                   </div>
@@ -655,7 +655,7 @@ export default function Tienda() {
                   <select required className="form-control" value={saleForm.productId} onChange={e => setSaleForm({...saleForm, productId: e.target.value})}>
                     <option value="">-- Seleccione un Producto --</option>
                     {products.filter(p => p.stock > 0 && p.price > 0).map(p => (
-                      <option key={p.id} value={p.id}>{p.name} (Stock: {p.stock} | Precio: S/. {p.price.toFixed(2)})</option>
+                      <option key={p.id} value={p.id}>{p.name} (Stock: {p.stock} | Precio: S/ {p.price.toFixed(2)})</option>
                     ))}
                   </select>
                 </div>
@@ -696,7 +696,7 @@ export default function Tienda() {
                       >
                         <option value="">-- No vincular --</option>
                         {pendingDebts.filter(d => d.studentId === saleForm.studentId).map(d => (
-                          <option key={d.id} value={d.id}>{d.description} (Pendiente: S/. {(d.amount - d.amountPaid).toFixed(2)})</option>
+                          <option key={d.id} value={d.id}>{d.description} (Pendiente: S/ {(d.amount - d.amountPaid).toFixed(2)})</option>
                         ))}
                       </select>
                     </div>
@@ -753,7 +753,7 @@ export default function Tienda() {
                     <input required type="number" min="1" max={selectedProductForSale?.stock || 1} className="form-control" value={saleForm.quantity} onChange={e => setSaleForm({...saleForm, quantity: e.target.value})} />
                   </div>
                   <div className="form-group mb-0">
-                    <label className="form-label">Desc. (S/.)</label>
+                    <label className="form-label">Desc. (S/)</label>
                     <input type="number" step="0.01" min="0" className="form-control" value={saleForm.customDiscount} onChange={e => setSaleForm({...saleForm, customDiscount: e.target.value})} disabled={saleForm.isGift} placeholder="0.00" />
                   </div>
                 </div>
@@ -764,17 +764,17 @@ export default function Tienda() {
                     <div className="text-right">
                       {!saleForm.isGift && (
                         <div className={`text-2xl font-bold text-success`}>
-                          S/. {Math.max(0, ((parseFloat(selectedProductForSale?.price || 0) * parseInt(saleForm.quantity || 0)) - (parseFloat(saleForm.customDiscount) || 0)) + (parseFloat(saleForm.monthlyAmountPaid) || 0)).toFixed(2)}
+                          S/ {Math.max(0, ((parseFloat(selectedProductForSale?.price || 0) * parseInt(saleForm.quantity || 0)) - (parseFloat(saleForm.customDiscount) || 0)) + (parseFloat(saleForm.monthlyAmountPaid) || 0)).toFixed(2)}
                         </div>
                       )}
                       {saleForm.isGift && (
                         <div className="text-2xl font-bold text-success">
-                          S/. {(parseFloat(saleForm.monthlyAmountPaid) || 0).toFixed(2)}
+                          S/ {(parseFloat(saleForm.monthlyAmountPaid) || 0).toFixed(2)}
                         </div>
                       )}
                       {saleForm.paymentRecordId && (
                         <div className="text-xs text-text-muted mt-1">
-                          (Producto: S/. {saleForm.isGift ? '0.00' : Math.max(0, (parseFloat(selectedProductForSale?.price || 0) * parseInt(saleForm.quantity || 0)) - (parseFloat(saleForm.customDiscount) || 0)).toFixed(2)} + Mensualidad: S/. {(parseFloat(saleForm.monthlyAmountPaid) || 0).toFixed(2)})
+                          (Producto: S/ {saleForm.isGift ? '0.00' : Math.max(0, (parseFloat(selectedProductForSale?.price || 0) * parseInt(saleForm.quantity || 0)) - (parseFloat(saleForm.customDiscount) || 0)).toFixed(2)} + Mensualidad: S/ {(parseFloat(saleForm.monthlyAmountPaid) || 0).toFixed(2)})
                         </div>
                       )}
                     </div>

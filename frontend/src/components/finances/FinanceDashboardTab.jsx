@@ -47,7 +47,7 @@ const CustomTooltip = ({ active, payload, label }) => {
         <p style={{ color: '#a0aec0', marginBottom: 8, fontWeight: 600 }}>{label}</p>
         {payload.map((entry, i) => (
           <p key={i} style={{ color: entry.color, margin: '2px 0' }}>
-            {entry.name}: <strong>S/. {Number(entry.value).toFixed(2)}</strong>
+            {entry.name}: <strong>S/ {Number(entry.value).toFixed(2)}</strong>
           </p>
         ))}
       </div>
@@ -265,11 +265,11 @@ export default function FinanceDashboardTab() {
               style={{ borderTop: '2px solid #84cc16' }}
             >
               <div className="stat-label">Mensualidades</div>
-              <div className="stat-value text-3xl font-bold" style={{ color: '#84cc16' }}>S/. {summary.totalIncome.toFixed(2)}</div>
+              <div className="stat-value text-3xl font-bold" style={{ color: '#84cc16' }}>S/ {summary.totalIncome.toFixed(2)}</div>
               <div className="text-sm text-text-muted mt-1">Cobrado en {MONTHS[month-1]} (incluye abonos y deudas anteriores)</div>
               {summary.totalBilled != null && (
                 <div className="text-xs text-text-secondary mt-1">
-                  Facturado del mes: <b>S/. {summary.totalBilled.toFixed(2)}</b> · Pendiente: <b className={summary.totalPending > 0 ? 'text-danger' : ''}>S/. {summary.totalPending.toFixed(2)}</b>
+                  Facturado del mes: <b>S/ {summary.totalBilled.toFixed(2)}</b> · Pendiente: <b className={summary.totalPending > 0 ? 'text-danger' : ''}>S/ {summary.totalPending.toFixed(2)}</b>
                 </div>
               )}
               <div className="stat-icon" style={{ color: '#84cc16' }}><TrendingUp size={32}/></div>
@@ -281,7 +281,7 @@ export default function FinanceDashboardTab() {
               style={{ borderTop: '2px solid #84cc16' }}
             >
               <div className="stat-label">Ventas Tienda</div>
-              <div className="stat-value text-3xl font-bold" style={{ color: '#84cc16' }}>S/. {(summary.totalStoreRevenue || 0).toFixed(2)}</div>
+              <div className="stat-value text-3xl font-bold" style={{ color: '#84cc16' }}>S/ {(summary.totalStoreRevenue || 0).toFixed(2)}</div>
               <div className="text-sm text-text-muted mt-1">Ingresos extra</div>
               <div className="stat-icon" style={{ color: '#84cc16' }}><DollarSign size={32}/></div>
             </div>
@@ -292,7 +292,7 @@ export default function FinanceDashboardTab() {
               style={{ borderTop: '2px solid #f97316' }}
             >
               <div className="stat-label">Egresos</div>
-              <div className="stat-value text-3xl font-bold" style={{ color: '#f97316' }}>S/. {summary.totalExpenses.toFixed(2)}</div>
+              <div className="stat-value text-3xl font-bold" style={{ color: '#f97316' }}>S/ {summary.totalExpenses.toFixed(2)}</div>
               <div className="text-sm text-text-muted mt-1">Gastos del período</div>
               <div className="stat-icon" style={{ color: '#f97316' }}><TrendingDown size={32}/></div>
             </div>
@@ -303,7 +303,7 @@ export default function FinanceDashboardTab() {
               style={{ borderTop: '2px solid #f97316' }}
             >
               <div className="stat-label">Nómina</div>
-              <div className="stat-value text-3xl font-bold" style={{ color: '#f97316' }}>S/. {summary.totalStaffPayments.toFixed(2)}</div>
+              <div className="stat-value text-3xl font-bold" style={{ color: '#f97316' }}>S/ {summary.totalStaffPayments.toFixed(2)}</div>
               <div className="text-sm text-text-muted mt-1">Pagos confirmados</div>
               <div className="stat-icon" style={{ color: '#f97316' }}><Users size={32}/></div>
             </div>
@@ -316,14 +316,14 @@ export default function FinanceDashboardTab() {
               style={{ borderTop: '2px solid #ef4444' }}
             >
               <div className="stat-label">Pérdidas y Descuentos</div>
-              <div className="stat-value text-3xl font-bold" style={{ color: '#ef4444' }}>S/. {((summary.totalDiscounts || 0) + (summary.totalGiftCost || 0)).toFixed(2)}</div>
-              <div className="text-sm text-text-muted mt-1">Becas: S/. {(summary.totalDiscounts || 0).toFixed(2)}</div>
+              <div className="stat-value text-3xl font-bold" style={{ color: '#ef4444' }}>S/ {((summary.totalDiscounts || 0) + (summary.totalGiftCost || 0)).toFixed(2)}</div>
+              <div className="text-sm text-text-muted mt-1">Becas: S/ {(summary.totalDiscounts || 0).toFixed(2)}</div>
               <div className="stat-icon" style={{ color: '#ef4444' }}><ArrowDownRight size={32}/></div>
             </div>
 
             <div className="stat-card">
               <div className="stat-label">Balance Neto</div>
-              <div className={`stat-value text-3xl font-bold ${isProfit ? 'text-primary-400' : 'text-danger'}`}>S/. {summary.netBalance.toFixed(2)}</div>
+              <div className={`stat-value text-3xl font-bold ${isProfit ? 'text-primary-400' : 'text-danger'}`}>S/ {summary.netBalance.toFixed(2)}</div>
               <div className={`text-sm mt-1 font-semibold ${isProfit ? 'text-success' : 'text-danger'}`}>{isProfit ? `Margen: ${profitMargin}%` : 'Déficit'}</div>
               <div className={`stat-icon ${isProfit ? 'text-primary-400' : 'text-danger'}`}>{isProfit ? <ArrowUpRight size={32}/> : <TrendingDown size={32}/>}</div>
             </div>
@@ -352,7 +352,7 @@ export default function FinanceDashboardTab() {
                 <div>
                   <div className="flex justify-between text-sm mb-2">
                     <span className="text-text-secondary">Meta de Ingresos</span>
-                    <span className="font-bold text-success">S/. {goal.currentIncome.toFixed(2)} / S/. {goal.targetIncome.toFixed(2)}</span>
+                    <span className="font-bold text-success">S/ {goal.currentIncome.toFixed(2)} / S/ {goal.targetIncome.toFixed(2)}</span>
                   </div>
                   <div className="w-full bg-bg-dark rounded-full h-3 overflow-hidden">
                     <div className="h-3 rounded-full bg-success transition-all" style={{ width: `${goal.incomeProgress}%` }}/>
@@ -363,7 +363,7 @@ export default function FinanceDashboardTab() {
                 <div>
                   <div className="flex justify-between text-sm mb-2">
                     <span className="text-text-secondary">Meta de Rentabilidad (Neta)</span>
-                    <span className="font-bold text-primary-400">S/. {goal.currentProfit.toFixed(2)} / S/. {goal.targetProfit.toFixed(2)}</span>
+                    <span className="font-bold text-primary-400">S/ {goal.currentProfit.toFixed(2)} / S/ {goal.targetProfit.toFixed(2)}</span>
                   </div>
                   <div className="w-full bg-bg-dark rounded-full h-3 overflow-hidden">
                     <div className="h-3 rounded-full bg-primary-500 transition-all" style={{ width: `${goal.profitProgress}%` }}/>
@@ -450,7 +450,7 @@ export default function FinanceDashboardTab() {
                           <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]}/>
                         ))}
                       </Pie>
-                      <Tooltip formatter={(val) => `S/. ${val.toFixed(2)}`}
+                      <Tooltip formatter={(val) => `S/ ${val.toFixed(2)}`}
                         contentStyle={{ background: 'rgba(15,15,35,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10 }}
                         labelStyle={{ color: '#a0aec0' }} itemStyle={{ color: '#fff' }}/>
                     </PieChart>
@@ -463,7 +463,7 @@ export default function FinanceDashboardTab() {
                             style={{ background: PIE_COLORS[i % PIE_COLORS.length] }}/>
                           <span className="text-text-secondary">{item.name}</span>
                         </div>
-                        <span className="text-text-primary font-semibold">S/. {item.value.toFixed(2)}</span>
+                        <span className="text-text-primary font-semibold">S/ {item.value.toFixed(2)}</span>
                       </div>
                     ))}
                   </div>
@@ -557,14 +557,14 @@ export default function FinanceDashboardTab() {
 
             {summary && (
               <div className="bg-bg-dark rounded-xl p-4 mb-4 text-sm border border-border/50 space-y-2">
-                <div className="flex justify-between"><span className="text-text-secondary">Mensualidades:</span> <span className="text-success font-bold">S/. {summary.totalIncome.toFixed(2)}</span></div>
-                <div className="flex justify-between"><span className="text-text-secondary">Tienda:</span> <span className="text-teal-400 font-bold">S/. {(summary.totalStoreRevenue || 0).toFixed(2)}</span></div>
-                <div className="flex justify-between"><span className="text-text-secondary">Egresos:</span> <span className="text-danger font-bold">S/. {summary.totalExpenses.toFixed(2)}</span></div>
-                <div className="flex justify-between"><span className="text-text-secondary">Nómina:</span> <span className="text-warning font-bold">S/. {summary.totalStaffPayments.toFixed(2)}</span></div>
-                <div className="flex justify-between"><span className="text-text-secondary">Becas/Exon/Obsequios:</span> <span className="text-orange-400 font-bold">- S/. {((summary.totalDiscounts || 0) + (summary.totalGiftCost || 0)).toFixed(2)}</span></div>
+                <div className="flex justify-between"><span className="text-text-secondary">Mensualidades:</span> <span className="text-success font-bold">S/ {summary.totalIncome.toFixed(2)}</span></div>
+                <div className="flex justify-between"><span className="text-text-secondary">Tienda:</span> <span className="text-teal-400 font-bold">S/ {(summary.totalStoreRevenue || 0).toFixed(2)}</span></div>
+                <div className="flex justify-between"><span className="text-text-secondary">Egresos:</span> <span className="text-danger font-bold">S/ {summary.totalExpenses.toFixed(2)}</span></div>
+                <div className="flex justify-between"><span className="text-text-secondary">Nómina:</span> <span className="text-warning font-bold">S/ {summary.totalStaffPayments.toFixed(2)}</span></div>
+                <div className="flex justify-between"><span className="text-text-secondary">Becas/Exon/Obsequios:</span> <span className="text-orange-400 font-bold">- S/ {((summary.totalDiscounts || 0) + (summary.totalGiftCost || 0)).toFixed(2)}</span></div>
                 <div className="flex justify-between pt-2 border-t border-border/50 mt-1">
                   <span className="text-text-main font-semibold">Rentabilidad Neta:</span>
-                  <span className={`font-bold ${summary.netBalance >= 0 ? 'text-primary-400' : 'text-danger'}`}>S/. {summary.netBalance.toFixed(2)}</span>
+                  <span className={`font-bold ${summary.netBalance >= 0 ? 'text-primary-400' : 'text-danger'}`}>S/ {summary.netBalance.toFixed(2)}</span>
                 </div>
               </div>
             )}
@@ -632,7 +632,7 @@ export default function FinanceDashboardTab() {
                           <>
                             <td>{item.studentName}</td>
                             <td>{item.description}</td>
-                            <td className="text-success font-bold">S/. {item.amountPaid.toFixed(2)}</td>
+                            <td className="text-success font-bold">S/ {item.amountPaid.toFixed(2)}</td>
                           </>
                         )}
                         {detailModal.type === 'store' && (
@@ -640,7 +640,7 @@ export default function FinanceDashboardTab() {
                             <td>{new Date(item.saleDate).toLocaleDateString()}</td>
                             <td>{item.productName}</td>
                             <td>{item.quantity}</td>
-                            <td className="text-teal-400 font-bold">S/. {(item.totalPrice || 0).toFixed(2)}</td>
+                            <td className="text-teal-400 font-bold">S/ {(item.totalPrice || 0).toFixed(2)}</td>
                           </>
                         )}
                         {detailModal.type === 'expenses' && (
@@ -651,13 +651,13 @@ export default function FinanceDashboardTab() {
                               <div className="font-medium">{item.description}</div>
                               {item.supplier && <div className="text-xs text-text-muted">{item.supplier}</div>}
                             </td>
-                            <td className="font-bold" style={{ color: '#f97316' }}>S/. {item.amount.toFixed(2)}</td>
+                            <td className="font-bold" style={{ color: '#f97316' }}>S/ {item.amount.toFixed(2)}</td>
                           </>
                         )}
                         {detailModal.type === 'staff' && (
                           <>
                             <td>{item.staffName}</td>
-                            <td className="text-warning font-bold">S/. {item.totalPaid.toFixed(2)}</td>
+                            <td className="text-warning font-bold">S/ {item.totalPaid.toFixed(2)}</td>
                             <td>
                               <span className={`badge ${item.status === 'Paid' ? 'badge-success' : 'badge-warning'}`}>
                                 {item.status === 'Paid' ? 'Pagado' : 'Pendiente'}
@@ -670,7 +670,7 @@ export default function FinanceDashboardTab() {
                             <td>{item.studentName}</td>
                             <td>{item.description}</td>
                             <td>{new Date(item.dueDate).toLocaleDateString('es-PE', { month: 'long', year: 'numeric' })}</td>
-                            <td className="font-bold text-red-400">S/. {item.discountAmount.toFixed(2)}</td>
+                            <td className="font-bold text-red-400">S/ {item.discountAmount.toFixed(2)}</td>
                           </>
                         )}
                       </tr>

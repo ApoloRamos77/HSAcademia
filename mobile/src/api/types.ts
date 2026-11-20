@@ -69,6 +69,8 @@ export interface StudentSummary {
   isGuest?: boolean;
   isScholarship?: boolean;
   scholarshipPercentage?: number | null;
+  /** Foto del alumno (ruta relativa a la API). Servidor 1.0.24+. */
+  photoUrl?: string | null;
 }
 
 export interface Headquarter { id: string; name: string; address?: string | null; isActive: boolean }
@@ -308,6 +310,8 @@ export interface RosterStudent {
   studentId: string;
   firstName: string;
   lastName: string;
+  /** Foto del alumno (servidor 1.0.24+). */
+  avatarUrl?: string | null;
   attendanceId?: string | null;
   status?: AttendanceCode | null;
   notes?: string | null;

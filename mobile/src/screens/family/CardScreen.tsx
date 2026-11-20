@@ -5,6 +5,8 @@ import { useAuth } from '../../auth/AuthContext';
 import { Banner, Empty, Screen } from '../../components/ui';
 import { colors, font, radius, shadow, spacing } from '../../theme';
 import { useFamily } from './FamilyContext';
+import { StudentAvatar } from '../../components/StudentPhoto';
+import { sedeLabel } from '../../utils/format';
 import StudentPicker from './StudentPicker';
 
 /**
@@ -32,8 +34,9 @@ export default function CardScreen() {
           </View>
         </View>
         <View style={styles.body}>
+          {!!student.photoUrl && <StudentAvatar photoUrl={student.photoUrl} name={`${student.firstName} ${student.lastName}`} size={96} />}
           <Text style={styles.name}>{student.firstName} {student.lastName}</Text>
-          <Text style={font.body}>{student.categoryName} · Sede {student.headquarterName}</Text>
+          <Text style={font.body}>{[student.categoryName, sedeLabel(student.headquarterName)].filter(Boolean).join(' · ')}</Text>
           {student.documentNumber ? <Text style={font.small}>DNI {student.documentNumber}</Text> : null}
           <View style={styles.qr} accessible accessibilityLabel={`Código QR de asistencia de ${student.firstName}`}>
             <QRCode value={buildStudentQr(student.id, session?.academyId)} size={220} color={colors.text} backgroundColor={colors.white} />

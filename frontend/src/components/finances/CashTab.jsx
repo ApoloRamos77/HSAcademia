@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import api from '../../api/axios';
 
 const METHOD = { Cash: 'Efectivo', BankTransfer: 'Transferencia', Yape: 'Yape', Plin: 'Plin', Card: 'Tarjeta', Mixed: 'Mixto', Other: 'Otro' };
-const money = (n) => `S/. ${(Number(n) || 0).toFixed(2)}`;
+const money = (n) => `S/ ${(Number(n) || 0).toFixed(2)}`;
 const isoDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const when = (d) => d ? `${new Date(d).toLocaleDateString('es-PE')} ${new Date(d).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })}` : '';
 

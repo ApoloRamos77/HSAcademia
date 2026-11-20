@@ -81,6 +81,37 @@ public class StudentController : ControllerBase
         }
     }
 
+    /// <summary>Sube o reemplaza la foto del alumno (JPG, PNG o WEBP, máximo 3 MB).</summary>
+    [HttpPost("{id}/photo")]
+    [RequirePermission(Permissions.StudentsEdit)]
+    [RequireScope(ScopeTarget.Student, "id")]
+    [RequestSizeLimit(UploadStorage.MaxPhotoBytes + 64 * 1024)]
+    public async Task<IActionResult> UploadPhoto(Guid id, Microsoft.AspNetCore.Http.IFormFile file, [FromServices] UploadStorage storage)
+    {
+        var academyId = User.GetAcademyId();
+        if (academyId == Guid.Empty) return Unauthorized();
+        var (url, error) = await storage.SaveStudentPhotoAsync(file);
+        if (error != null) return BadRequest(new { message = error });
+        var (found, previous) = await _studentService.SetPhotoAsync(academyId, id, url);
+        if (!found) { storage.DeleteStudentPhoto(url); return NotFound(new { message = "Alumno no encontrado." }); }
+        storage.DeleteStudentPhoto(previous);
+        return Ok(new { photoUrl = url });
+    }
+
+    /// <summary>Quita la foto del alumno.</summary>
+    [HttpDelete("{id}/photo")]
+    [RequirePermission(Permissions.StudentsEdit)]
+    [RequireScope(ScopeTarget.Student, "id")]
+    public async Task<IActionResult> DeletePhoto(Guid id, [FromServices] UploadStorage storage)
+    {
+        var academyId = User.GetAcademyId();
+        if (academyId == Guid.Empty) return Unauthorized();
+        var (found, previous) = await _studentService.SetPhotoAsync(academyId, id, null);
+        if (!found) return NotFound(new { message = "Alumno no encontrado." });
+        storage.DeleteStudentPhoto(previous);
+        return Ok(new { photoUrl = (string?)null });
+    }
+
     [HttpGet("{id}/medical-record")]
     [RequirePermission(Permissions.StudentsMedical)]
     [RequireScope(ScopeTarget.Student, "id")]
