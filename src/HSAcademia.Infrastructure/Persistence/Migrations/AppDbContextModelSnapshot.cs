@@ -57,6 +57,11 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("approved_at");
 
+                    b.Property<string>("BirthdayMessage")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("birthday_message");
+
                     b.Property<string>("City")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
@@ -109,6 +114,30 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
                         .HasColumnName("name");
+
+                    b.Property<bool>("NotifyBirthdayEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("notify_birthday_enabled");
+
+                    b.Property<int>("NotifyBirthdayHour")
+                        .HasColumnType("integer")
+                        .HasColumnName("notify_birthday_hour");
+
+                    b.Property<bool>("NotifyBirthdayStaff")
+                        .HasColumnType("boolean")
+                        .HasColumnName("notify_birthday_staff");
+
+                    b.Property<bool>("NotifyMatchEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("notify_match_enabled");
+
+                    b.Property<int>("NotifyMatchHoursBefore")
+                        .HasColumnType("integer")
+                        .HasColumnName("notify_match_hours_before");
+
+                    b.Property<int>("NotifyMatchNoTimeHour")
+                        .HasColumnType("integer")
+                        .HasColumnName("notify_match_no_time_hour");
 
                     b.Property<string>("ReceiptAddress")
                         .HasMaxLength(200)
@@ -2898,6 +2927,69 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.ToTable("staff_attendances", (string)null);
                 });
 
+            modelBuilder.Entity("HSAcademia.Domain.Entities.StaffNotice", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AcademyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("academy_id");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("body");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("DedupeKey")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("dedupe_key");
+
+                    b.Property<Guid?>("EventId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("event_id");
+
+                    b.Property<DateTime?>("PushedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("pushed_at");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("title");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("integer")
+                        .HasColumnName("type");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("IX_staff_notices_pending_push")
+                        .HasFilter("pushed_at IS NULL");
+
+                    b.HasIndex("DedupeKey")
+                        .IsUnique()
+                        .HasFilter("dedupe_key IS NOT NULL");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("staff_notices", (string)null);
+                });
+
             modelBuilder.Entity("HSAcademia.Domain.Entities.StaffPayment", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4808,6 +4900,17 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                     b.Navigation("Academy");
 
                     b.Navigation("Staff");
+                });
+
+            modelBuilder.Entity("HSAcademia.Domain.Entities.StaffNotice", b =>
+                {
+                    b.HasOne("HSAcademia.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("HSAcademia.Domain.Entities.StaffPayment", b =>

@@ -5,7 +5,11 @@ public enum FamilyNoticeType
     Arrival = 1,
     PaymentProof = 2,
     EventCall = 3,
-    PaymentReminder = 4
+    PaymentReminder = 4,
+    /// <summary>Recordatorio de un encuentro (horas antes, o el mismo día si aún no tiene hora).</summary>
+    MatchReminder = 5,
+    /// <summary>Saludo de cumpleaños de la academia.</summary>
+    Birthday = 6
 }
 
 /// <summary>Aviso para la familia de un alumno, visible en su app (ej. "Tomás llegó").</summary>

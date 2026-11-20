@@ -261,6 +261,40 @@ public class AcademyConfigurationService
             .ToListAsync();
     }
 
+    public async Task<NotificationSettingsDto> GetNotificationSettingsAsync(Guid academyId)
+    {
+        var a = await _context.Academies.AsNoTracking().FirstOrDefaultAsync(x => x.AcademyId == academyId)
+            ?? throw new KeyNotFoundException("Academia no encontrada.");
+        return ToSettings(a);
+    }
+
+    public async Task<NotificationSettingsDto> UpdateNotificationSettingsAsync(Guid academyId, NotificationSettingsDto dto)
+    {
+        var a = await _context.Academies.FirstOrDefaultAsync(x => x.AcademyId == academyId)
+            ?? throw new KeyNotFoundException("Academia no encontrada.");
+        var message = dto.BirthdayMessage?.Trim();
+        if (message?.Length > 300) throw new Exception("El saludo admite hasta 300 caracteres.");
+        var before = ToSettings(a);
+        a.NotifyMatchEnabled = dto.MatchEnabled;
+        a.NotifyMatchHoursBefore = Math.Clamp(dto.MatchHoursBefore, 1, 24);
+        a.NotifyMatchNoTimeHour = Math.Clamp(dto.MatchNoTimeHour, 5, 20);
+        a.NotifyBirthdayEnabled = dto.BirthdayEnabled;
+        a.NotifyBirthdayHour = Math.Clamp(dto.BirthdayHour, 5, 20);
+        a.NotifyBirthdayStaff = dto.BirthdayStaff;
+        a.BirthdayMessage = string.IsNullOrEmpty(message) ? null : message;
+        a.UpdatedAt = DateTime.UtcNow;
+        _audit.Add(academyId, "academy.notification_settings", nameof(Academy), a.Id, new { before, after = ToSettings(a) });
+        await _context.SaveChangesAsync();
+        return ToSettings(a);
+    }
+
+    private static NotificationSettingsDto ToSettings(Academy a) => new()
+    {
+        MatchEnabled = a.NotifyMatchEnabled, MatchHoursBefore = a.NotifyMatchHoursBefore, MatchNoTimeHour = a.NotifyMatchNoTimeHour,
+        BirthdayEnabled = a.NotifyBirthdayEnabled, BirthdayHour = a.NotifyBirthdayHour, BirthdayStaff = a.NotifyBirthdayStaff,
+        BirthdayMessage = a.BirthdayMessage, DefaultBirthdayMessage = ScheduledNoticeService.DefaultBirthdayMessage,
+    };
+
     public async Task<ReceiptProfileDto> GetReceiptProfileAsync(Guid academyId)
     {
         var academy = await _context.Academies.AsNoTracking().FirstOrDefaultAsync(a => a.AcademyId == academyId)

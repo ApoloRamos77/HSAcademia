@@ -168,6 +168,8 @@ export default function StudentDashboard() {
   const [evaluations, setEvaluations] = useState([]);
   const [sports, setSports] = useState(null);
   const [news, setNews] = useState([]);
+  // Cumpleaños de hoy en su categoría (solo nombres; el saludo llega por notificación).
+  const [birthdays, setBirthdays] = useState([]);
   const [loading, setLoading] = useState(true);
   const [proofDebt, setProofDebt] = useState(null);
 
@@ -191,6 +193,7 @@ export default function StudentDashboard() {
       api.get(`/attendance/my-history?studentId=${studentId}&months=3`).then(r => setHistory(r.data)),
       api.get(`/mobile/students/${studentId}/evaluations`).then(r => setEvaluations(r.data)),
       api.get(`/mobile/students/${studentId}/sports-summary`).then(r => setSports(r.data)),
+      api.get(`/mobile/students/${studentId}/birthdays-today`).then(r => setBirthdays(r.data)).catch(() => setBirthdays([])),
     ]).finally(() => setLoading(false));
   }, [studentId]);
 
@@ -253,6 +256,19 @@ export default function StudentDashboard() {
           <div className="card empty-state"><User size={40} /><p>No hay alumnos vinculados a tu cuenta. Comunícate con la academia.</p></div>
         ) : (
           <div className="grid gap-5" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(320px, 100%), 1fr))' }}>
+            {birthdays.length > 0 && (
+              <div className="card birthday-card" style={{ gridColumn: '1 / -1' }}>
+                <span className="birthday-emoji" aria-hidden="true">🎉</span>
+                <div>
+                  {birthdays.some(b => b.isSelf) && <div className="font-bold text-primary-dark">¡Feliz cumpleaños, {birthdays.find(b => b.isSelf).name.split(' ')[0]}! Toda la academia te saluda.</div>}
+                  {birthdays.some(b => !b.isSelf) && (
+                    <div className="text-sm text-text-secondary">
+                      Hoy {birthdays.filter(b => !b.isSelf).length === 1 ? 'cumple' : 'cumplen'} en su categoría: <b>{birthdays.filter(b => !b.isSelf).map(b => b.name).join(', ')}</b>. {birthdays.filter(b => !b.isSelf).length === 1 ? '¡Salúdalo' : '¡Salúdalos'} en el entrenamiento!
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
             {/* Estado de cuenta */}
             <Section title="Estado de cuenta" icon={CreditCard}>
               {overdue.length > 0 && (

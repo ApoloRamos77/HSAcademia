@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import AppLayout from '../../components/AppLayout';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import api from '../../api/axios';
+import NotificationSettings from '../../components/NotificationSettings';
 
 const dateFmt = new Intl.DateTimeFormat('es-PE', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 const emptyForm = { title: '', content: '', isPinned: false };
@@ -13,7 +14,7 @@ const emptyForm = { title: '', content: '', isPinned: false };
  * Comunicados de la academia: los ven alumnos y apoderados en la app móvil y en su portal.
  */
 export default function Comunicados() {
-  const { can } = useAuth();
+  const { can, isAdmin } = useAuth();
   const canPublish = can('announcements.publish');
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -63,6 +64,7 @@ export default function Comunicados() {
   return (
     <AppLayout title="Comunicados">
       <div className="fade-in flex flex-col gap-5">
+        {isAdmin && <NotificationSettings />}
         <div className="card">
           <div className="card-header">
             <div>

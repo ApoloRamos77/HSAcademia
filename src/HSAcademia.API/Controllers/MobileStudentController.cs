@@ -5,6 +5,7 @@ using HSAcademia.API.Authorization;
 using HSAcademia.Infrastructure.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace HSAcademia.API.Controllers;
 
@@ -83,6 +84,35 @@ public class MobileStudentController : ControllerBase
             return NotFound(new { message = "No se encontró el perfil del alumno." });
 
         return Ok(profile);
+    }
+
+    /// <summary>
+    /// GET /api/mobile/students/{studentId}/birthdays-today — compañeros de su categoría que cumplen hoy (y él mismo).
+    /// Solo nombre: sin fecha de nacimiento ni edad de otros menores.
+    /// </summary>
+    [HttpGet("{studentId:guid}/birthdays-today")]
+    public async Task<IActionResult> GetBirthdaysToday(Guid studentId, [FromServices] AccessControlService access, [FromServices] HSAcademia.Infrastructure.Persistence.AppDbContext db)
+    {
+        var academyId = GetAcademyId();
+        if (!await access.UserOwnsStudentAsync(academyId, GetUserId(), studentId))
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = "No tienes acceso a la información de este alumno." });
+        var categoryId = await db.Students.AsNoTracking().Where(s => s.Id == studentId).Select(s => s.CategoryId).FirstOrDefaultAsync();
+        var today = AcademyClock.Today;
+        var mates = (await db.Students.AsNoTracking()
+                .Where(s => s.AcademyId == academyId && s.CategoryId == categoryId && s.IsActive && !s.IsDeleted && s.DateOfBirth != null)
+                .Select(s => new { s.Id, s.FirstName, s.LastName, s.DateOfBirth, s.PhotoUrl })
+                .ToListAsync())
+            .Where(s => ScheduledNoticeService.IsBirthday(s.DateOfBirth!.Value, today))
+            .Select(s => new
+            {
+                studentId = s.Id,
+                name = $"{s.FirstName} {(string.IsNullOrWhiteSpace(s.LastName) ? "" : s.LastName.Trim()[0] + ".")}".Trim(),
+                isSelf = s.Id == studentId,
+                photoUrl = s.PhotoUrl,
+            })
+            .OrderByDescending(s => s.isSelf).ThenBy(s => s.name)
+            .ToList();
+        return Ok(mates);
     }
 
     /// <summary>GET /api/mobile/students/my-students — Returns all students linked to the guardian.</summary>

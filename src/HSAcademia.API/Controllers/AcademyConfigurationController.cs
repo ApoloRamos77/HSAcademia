@@ -164,6 +164,28 @@ public class AcademyConfigurationController : ControllerBase
     }
 
     // Encabezado de los recibos: todo el personal lo lee para imprimir; solo el administrador lo cambia.
+    /// <summary>Avisos automáticos: recordatorio de encuentros y cumpleaños (solo el administrador).</summary>
+    [HttpGet("notification-settings")]
+    [Authorize(Roles = "AcademyAdmin")]
+    public async Task<IActionResult> GetNotificationSettings()
+    {
+        var academyId = GetAcademyId();
+        if (academyId == Guid.Empty) return Unauthorized();
+        try { return Ok(await _service.GetNotificationSettingsAsync(academyId)); }
+        catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
+    }
+
+    [HttpPut("notification-settings")]
+    [Authorize(Roles = "AcademyAdmin")]
+    public async Task<IActionResult> UpdateNotificationSettings([FromBody] NotificationSettingsDto dto)
+    {
+        var academyId = GetAcademyId();
+        if (academyId == Guid.Empty) return Unauthorized();
+        try { return Ok(await _service.UpdateNotificationSettingsAsync(academyId, dto)); }
+        catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
+        catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
+    }
+
     [HttpGet("receipt-profile")]
     public async Task<IActionResult> GetReceiptProfile()
     {

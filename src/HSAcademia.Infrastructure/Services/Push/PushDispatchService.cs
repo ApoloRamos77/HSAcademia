@@ -31,6 +31,7 @@ public class PushDispatchService
     public async Task DispatchPendingAsync(CancellationToken cancellationToken)
     {
         await DispatchNoticesAsync(cancellationToken);
+        await DispatchStaffNoticesAsync(cancellationToken);
         await DispatchAnnouncementsAsync(cancellationToken);
     }
 
@@ -57,6 +58,33 @@ public class PushDispatchService
                     .ToListAsync(cancellationToken);
                 await SendAsync(tokens, new PushMessage(TypeOf(notice.Type), notice.Title, Shorten(notice.Body),
                     new Dictionary<string, string> { ["type"] = TypeOf(notice.Type), ["studentId"] = notice.StudentId.ToString() }), cancellationToken);
+            }
+
+            notice.PushedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    /// <summary>Avisos al personal (recordatorio de encuentro, cumpleaños de alumnos): a los celulares de esa persona.</summary>
+    private async Task DispatchStaffNoticesAsync(CancellationToken cancellationToken)
+    {
+        var notices = await _db.StaffNotices
+            .Where(n => n.PushedAt == null)
+            .OrderBy(n => n.CreatedAt)
+            .Take(BatchSize)
+            .ToListAsync(cancellationToken);
+
+        foreach (var notice in notices)
+        {
+            if (DateTime.UtcNow - notice.CreatedAt <= MaxAge)
+            {
+                var tokens = await _db.DeviceTokens.AsNoTracking()
+                    .Where(d => d.UserId == notice.UserId && d.User.Status == UserStatus.Active)
+                    .Select(d => d.Token)
+                    .ToListAsync(cancellationToken);
+                var type = notice.Type == StaffNoticeType.Birthday ? "birthday" : "match";
+                await SendAsync(tokens, new PushMessage(type, notice.Title, Shorten(notice.Body),
+                    new Dictionary<string, string> { ["type"] = type }), cancellationToken);
             }
 
             notice.PushedAt = DateTime.UtcNow;
@@ -108,6 +136,8 @@ public class PushDispatchService
         FamilyNoticeType.PaymentProof => "proof",
         FamilyNoticeType.EventCall => "call",
         FamilyNoticeType.PaymentReminder => "payment",
+        FamilyNoticeType.MatchReminder => "match",
+        FamilyNoticeType.Birthday => "birthday",
         _ => "notice"
     };
 

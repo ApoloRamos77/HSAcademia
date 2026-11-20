@@ -75,6 +75,8 @@ builder.Services.AddHostedService<HSAcademia.API.Workers.AttendanceAutoCloseWork
 builder.Services.AddHostedService<HSAcademia.API.Workers.PushDispatchWorker>();
 builder.Services.AddScoped<HSAcademia.Infrastructure.Services.PaymentReminderService>();
 builder.Services.AddHostedService<HSAcademia.API.Workers.PaymentReminderWorker>();
+builder.Services.AddScoped<HSAcademia.Infrastructure.Services.ScheduledNoticeService>();
+builder.Services.AddHostedService<HSAcademia.API.Workers.ScheduledNoticeWorker>();
 builder.Services.AddHostedService<HSAcademia.API.Workers.SessionLiquidationWorker>();
 builder.Services.AddScoped<HSAcademia.Infrastructure.Services.Push.PushDispatchService>();
 builder.Services.AddSingleton<HSAcademia.Infrastructure.Services.Push.IPushSender>(sp =>

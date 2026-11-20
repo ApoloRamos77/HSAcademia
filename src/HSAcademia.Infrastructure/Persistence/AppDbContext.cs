@@ -48,6 +48,7 @@ public class AppDbContext : DbContext
     public DbSet<ReceiptLine> ReceiptLines => Set<ReceiptLine>();
     public DbSet<ReceiptPayment> ReceiptPayments => Set<ReceiptPayment>();
     public DbSet<FamilyNotice> FamilyNotices => Set<FamilyNotice>();
+    public DbSet<StaffNotice> StaffNotices => Set<StaffNotice>();
     public DbSet<DiscountRule> DiscountRules => Set<DiscountRule>();
     public DbSet<ReferralCampaign> ReferralCampaigns => Set<ReferralCampaign>();
     public DbSet<Referral> Referrals => Set<Referral>();
@@ -88,6 +89,13 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Address).HasColumnName("address").HasMaxLength(500);
             entity.Property(e => e.ReceiptAddress).HasColumnName("receipt_address").HasMaxLength(200);
             entity.Property(e => e.ReceiptPhone).HasColumnName("receipt_phone").HasMaxLength(50);
+            entity.Property(e => e.NotifyMatchEnabled).HasColumnName("notify_match_enabled");
+            entity.Property(e => e.NotifyMatchHoursBefore).HasColumnName("notify_match_hours_before");
+            entity.Property(e => e.NotifyMatchNoTimeHour).HasColumnName("notify_match_no_time_hour");
+            entity.Property(e => e.NotifyBirthdayEnabled).HasColumnName("notify_birthday_enabled");
+            entity.Property(e => e.NotifyBirthdayHour).HasColumnName("notify_birthday_hour");
+            entity.Property(e => e.NotifyBirthdayStaff).HasColumnName("notify_birthday_staff");
+            entity.Property(e => e.BirthdayMessage).HasColumnName("birthday_message").HasMaxLength(300);
             entity.Property(e => e.City).HasColumnName("city").HasMaxLength(100);
             entity.Property(e => e.Country).HasColumnName("country").HasMaxLength(100);
             entity.Property(e => e.Website).HasColumnName("website").HasMaxLength(300);
@@ -1546,6 +1554,25 @@ public class AppDbContext : DbContext
             entity.HasIndex(e => e.Token).IsUnique();
             entity.HasIndex(e => e.UserId);
             entity.HasIndex(e => e.AcademyId);
+            entity.HasOne(e => e.User).WithMany().HasForeignKey(e => e.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<StaffNotice>(entity =>
+        {
+            entity.ToTable("staff_notices");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.AcademyId).HasColumnName("academy_id").IsRequired();
+            entity.Property(e => e.UserId).HasColumnName("user_id").IsRequired();
+            entity.Property(e => e.Type).HasColumnName("type").HasConversion<int>();
+            entity.Property(e => e.EventId).HasColumnName("event_id");
+            entity.Property(e => e.Title).HasColumnName("title").HasMaxLength(150).IsRequired();
+            entity.Property(e => e.Body).HasColumnName("body").HasMaxLength(300).IsRequired();
+            entity.Property(e => e.DedupeKey).HasColumnName("dedupe_key").HasMaxLength(80);
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.Property(e => e.PushedAt).HasColumnName("pushed_at");
+            entity.HasIndex(e => e.DedupeKey).IsUnique().HasFilter("dedupe_key IS NOT NULL");
+            entity.HasIndex(e => e.CreatedAt).HasDatabaseName("IX_staff_notices_pending_push").HasFilter("pushed_at IS NULL");
             entity.HasOne(e => e.User).WithMany().HasForeignKey(e => e.UserId).OnDelete(DeleteBehavior.Cascade);
         });
 
