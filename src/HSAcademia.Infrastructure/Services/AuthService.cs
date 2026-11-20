@@ -139,6 +139,7 @@ public class AuthService
             UserId = user.Id,
             Email = user.Email,
             FullName = $"{user.FirstName} {user.LastName}",
+            AvatarUrl = user.AvatarUrl,
             Role = user.Role.ToString(),
             AcademyId = user.AcademyId,
             AcademyName = user.Academy?.Name,

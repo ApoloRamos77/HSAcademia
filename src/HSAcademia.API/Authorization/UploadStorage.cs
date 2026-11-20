@@ -50,7 +50,12 @@ public sealed class UploadStorage
     /// Guarda la foto de un alumno con nombre aleatorio (no adivinable). Las apps la reducen antes de subirla;
     /// aquí solo se valida tamaño, extensión y firma real de imagen.
     /// </summary>
-    public async Task<(string? Url, string? Error)> SaveStudentPhotoAsync(IFormFile? file)
+    public Task<(string? Url, string? Error)> SaveStudentPhotoAsync(IFormFile? file) => SavePhotoAsync(file, "students");
+
+    /// <summary>Foto del personal (entrenadores, coordinadores, administrativos): mismas reglas que la del alumno.</summary>
+    public Task<(string? Url, string? Error)> SaveStaffPhotoAsync(IFormFile? file) => SavePhotoAsync(file, "staff");
+
+    private async Task<(string? Url, string? Error)> SavePhotoAsync(IFormFile? file, string kind)
     {
         if (file == null || file.Length == 0) return (null, "No se proporcionó ninguna foto.");
         if (file.Length > MaxPhotoBytes) return (null, "La foto supera el tamaño máximo de 3 MB.");
@@ -59,21 +64,25 @@ public sealed class UploadStorage
         if (!AllowedPhotoExtensions.Contains(ext)) return (null, "Formato no permitido. Usa JPG, PNG o WEBP.");
         if (!await HasValidSignatureAsync(file, ext)) return (null, "El archivo no es una imagen válida.");
 
-        var folder = Path.Combine(RootPath, "students");
+        var folder = Path.Combine(RootPath, kind);
         Directory.CreateDirectory(folder);
         var fileName = $"{Guid.NewGuid():N}{ext}";
         await using (var stream = new FileStream(Path.Combine(folder, fileName), FileMode.CreateNew))
             await file.CopyToAsync(stream);
-        return ($"/uploads/students/{fileName}", null);
+        return ($"/uploads/{kind}/{fileName}", null);
     }
 
-    /// <summary>Borra una foto de alumno anterior. Solo acepta rutas de la carpeta de fotos (nunca otra cosa).</summary>
-    public void DeleteStudentPhoto(string? url)
+    /// <summary>Borra una foto anterior. Solo acepta rutas de las carpetas de fotos (nunca otra cosa).</summary>
+    public void DeleteStudentPhoto(string? url) => DeletePhoto(url, "students");
+    public void DeleteStaffPhoto(string? url) => DeletePhoto(url, "staff");
+
+    private void DeletePhoto(string? url, string kind)
     {
-        if (string.IsNullOrWhiteSpace(url) || !url.StartsWith("/uploads/students/", StringComparison.Ordinal)) return;
+        var prefix = $"/uploads/{kind}/";
+        if (string.IsNullOrWhiteSpace(url) || !url.StartsWith(prefix, StringComparison.Ordinal)) return;
         var name = Path.GetFileName(url);
-        if (name != url["/uploads/students/".Length..]) return;
-        try { File.Delete(Path.Combine(RootPath, "students", name)); } catch { /* si no existe, no importa */ }
+        if (name != url[prefix.Length..]) return;
+        try { File.Delete(Path.Combine(RootPath, kind, name)); } catch { /* si no existe, no importa */ }
     }
 
     /// <summary>Verifica los "magic bytes" para no confiar solo en la extensión.</summary>

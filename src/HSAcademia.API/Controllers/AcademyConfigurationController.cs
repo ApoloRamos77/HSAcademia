@@ -215,6 +215,35 @@ public class AcademyConfigurationController : ControllerBase
         catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
     }
 
+    /// <summary>El administrador sube o reemplaza la foto de un miembro del personal (JPG, PNG o WEBP, máx. 3 MB).</summary>
+    [HttpPost("users/{id}/photo")]
+    [Authorize(Roles = "AcademyAdmin")]
+    [RequestSizeLimit(UploadStorage.MaxPhotoBytes + 64 * 1024)]
+    public async Task<IActionResult> UploadUserPhoto(Guid id, Microsoft.AspNetCore.Http.IFormFile file, [FromServices] UploadStorage storage)
+    {
+        var academyId = GetAcademyId();
+        if (academyId == Guid.Empty) return Unauthorized();
+        var (url, error) = await storage.SaveStaffPhotoAsync(file);
+        if (error != null) return BadRequest(new { message = error });
+        var (found, previous) = await _service.SetStaffPhotoAsync(academyId, id, url, User.GetUserId());
+        if (!found) { storage.DeleteStaffPhoto(url); return NotFound(new { message = "Personal no encontrado." }); }
+        storage.DeleteStaffPhoto(previous);
+        return Ok(new { avatarUrl = url });
+    }
+
+    /// <summary>El administrador quita la foto de un miembro del personal.</summary>
+    [HttpDelete("users/{id}/photo")]
+    [Authorize(Roles = "AcademyAdmin")]
+    public async Task<IActionResult> DeleteUserPhoto(Guid id, [FromServices] UploadStorage storage)
+    {
+        var academyId = GetAcademyId();
+        if (academyId == Guid.Empty) return Unauthorized();
+        var (found, previous) = await _service.SetStaffPhotoAsync(academyId, id, null, User.GetUserId());
+        if (!found) return NotFound(new { message = "Personal no encontrado." });
+        storage.DeleteStaffPhoto(previous);
+        return Ok(new { avatarUrl = (string?)null });
+    }
+
     [HttpPut("users/{id}/employment")]
     [RequirePermission(Permissions.FinancesStaffPayments, AcademyWide = true)]
     public async Task<IActionResult> UpdateEmployment(Guid id, [FromBody] UpdateEmploymentDto dto)

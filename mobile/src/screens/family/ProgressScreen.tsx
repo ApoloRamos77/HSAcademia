@@ -1,24 +1,33 @@
 import React from 'react';
-import { Text, View } from 'react-native';
-import { CalendarCheck, Star, Trophy } from 'lucide-react-native';
+import { Pressable, Text, View } from 'react-native';
+import { CalendarCheck, ChevronRight, Star, Trophy } from 'lucide-react-native';
 import { api } from '../../api/client';
 import type { AttendanceMonth, Evaluation, SportsSummary } from '../../api/types';
-import { Badge, Card, Divider, Empty, Loading, Row, Screen, SectionTitle, Stat } from '../../components/ui';
+import { Badge, Card, Empty, Loading, Row, Screen, SectionTitle, Stat } from '../../components/ui';
 import { useApi } from '../../hooks/useApi';
 import { colors, font, radius, spacing } from '../../theme';
 import { longDay, shortDay } from '../../utils/format';
 import { useFamily } from './FamilyContext';
 import StudentPicker from './StudentPicker';
-
-const ATT: Record<string, { label: string; tone: 'success' | 'warning' | 'info' | 'danger' | 'muted' }> = {
-  Presente: { label: 'Asistió', tone: 'success' },
-  Tardanza: { label: 'Tardanza', tone: 'warning' },
-  Justificado: { label: 'Justificado', tone: 'info' },
-  Ausente: { label: 'Faltó', tone: 'danger' },
-};
+import { ATT, MatchRow, capitalize } from './HistoryScreens';
 const DIMENSIONS: [keyof Evaluation, string][] = [['technical', 'Técnica'], ['tactical', 'Táctica'], ['physical', 'Física'], ['attitude', 'Actitud']];
 
-export default function ProgressScreen() {
+/** Enlace "Ver historial…" al pie de una tarjeta. */
+function MoreLink({ label, onPress }: { label: string; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" hitSlop={6}
+      style={({ pressed }) => [{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: spacing.md, marginTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border, minHeight: 44 }, pressed && { opacity: 0.7 }]}>
+      <Text style={{ color: colors.primaryDark, fontWeight: '700' }}>{label}</Text>
+      <ChevronRight color={colors.primaryDark} size={18} />
+    </Pressable>
+  );
+}
+
+/**
+ * Progreso: solo lo último (asistencia, evaluación y partido) para que cargue rápido.
+ * El historial completo se abre en otra pantalla.
+ */
+export default function ProgressScreen({ navigation }: any) {
   const { student } = useFamily();
   const { data, loading, refreshing, refresh } = useApi(async () => {
     if (!student) return null;
@@ -55,18 +64,15 @@ export default function ProgressScreen() {
         <Card><Empty icon={<CalendarCheck color={colors.textMuted} />} text="Aún no hay registros de asistencia." /></Card>
       ) : (
         <Card>
-          {records.slice(0, 8).map((r, i) => (
-            <View key={`${r.date}-${i}`}>
-              {i > 0 && <Divider />}
-              <Row style={{ justifyContent: 'space-between' }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[font.body, { textTransform: 'capitalize' }]}>{longDay(r.date)}</Text>
-                  {r.notes ? <Text style={font.tiny} numberOfLines={1}>{r.notes}</Text> : null}
-                </View>
-                <Badge tone={ATT[r.status]?.tone ?? 'muted'} text={ATT[r.status]?.label ?? r.status} />
-              </Row>
+          <Text style={font.small}>Último registro</Text>
+          <Row style={{ justifyContent: 'space-between', marginTop: 4 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={[font.body, { color: colors.text, fontWeight: '600' }]}>{capitalize(longDay(records[0].date))}</Text>
+              {records[0].notes ? <Text style={font.tiny} numberOfLines={1}>{records[0].notes}</Text> : null}
             </View>
-          ))}
+            <Badge tone={ATT[records[0].status]?.tone ?? 'muted'} text={ATT[records[0].status]?.label ?? records[0].status} />
+          </Row>
+          <MoreLink label="Ver historial de asistencia" onPress={() => navigation.navigate('AttendanceHistory')} />
         </Card>
       )}
 
@@ -120,20 +126,13 @@ export default function ProgressScreen() {
             <Stat label="Goles" value={String(sports.goals)} />
             <Stat label="Asistencias" value={String(sports.assists)} />
           </View>
-          <Card>
-            {sports.recentMatches.slice(0, 5).map((m, i) => (
-              <View key={m.eventId}>
-                {i > 0 && <Divider />}
-                <Row style={{ justifyContent: 'space-between' }}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[font.body, { color: colors.text, fontWeight: '600' }]}>{m.title}{m.opponent ? ` vs. ${m.opponent}` : ''}</Text>
-                    <Text style={font.tiny}>{m.minutes}′ · {m.goals} gol(es) · {m.assists} asist.{m.rating ? ` · nota ${m.rating}` : ''}</Text>
-                  </View>
-                  {m.score && <Badge tone="muted" text={m.score} />}
-                </Row>
-              </View>
-            ))}
-          </Card>
+          {sports.recentMatches[0] && (
+            <Card>
+              <Text style={font.small}>Último partido</Text>
+              <View style={{ marginTop: 4 }}><MatchRow m={sports.recentMatches[0]} /></View>
+              <MoreLink label="Ver todos los partidos" onPress={() => navigation.navigate('MatchesHistory')} />
+            </Card>
+          )}
         </>
       )}
     </Screen>

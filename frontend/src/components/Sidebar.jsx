@@ -1,5 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { StudentAvatar } from './students/StudentPhoto';
 import { FINANCE_ACCESS, STORE_ACCESS, REPORTS_ACCESS } from '../utils/permissions';
 import {
   LayoutDashboard, Building2, Users, ClipboardList, LogOut,
@@ -204,7 +205,9 @@ export default function Sidebar({ isOpen, onClose }) {
       <div className="sidebar-footer">
         <div className="user-info">
           <NavLink to="/mi-perfil" onClick={onClose} title="Mi perfil" style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, color: 'inherit', textDecoration: 'none' }}>
-          <div className="avatar">{initials}</div>
+          {user?.avatarUrl
+            ? <StudentAvatar photoUrl={user.avatarUrl} firstName={user.fullName} size={36} />
+            : <div className="avatar">{initials}</div>}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className="user-name" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {user?.fullName}

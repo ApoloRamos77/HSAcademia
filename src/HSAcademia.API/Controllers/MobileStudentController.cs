@@ -113,11 +113,11 @@ public class MobileStudentController : ControllerBase
     /// <summary>GET /api/mobile/students/{studentId}/sports-summary — partidos, minutos, goles y asistencias.</summary>
     [HttpGet("{studentId:guid}/sports-summary")]
     public async Task<IActionResult> GetSportsSummary(Guid studentId,
-        [FromServices] AccessControlService access, [FromServices] SportsService sports)
+        [FromServices] AccessControlService access, [FromServices] SportsService sports, [FromQuery] int? take = null)
     {
         var academyId = GetAcademyId();
         if (!await access.UserOwnsStudentAsync(academyId, GetUserId(), studentId))
             return StatusCode(StatusCodes.Status403Forbidden, new { message = "No tienes acceso a la información de este alumno." });
-        return Ok(await sports.GetStudentSummaryAsync(academyId, studentId));
+        return Ok(await sports.GetStudentSummaryAsync(academyId, studentId, take ?? 10));
     }
 }

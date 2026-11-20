@@ -401,7 +401,8 @@ public class SportsService
         return await GetMatchResultAsync(academyId, eventId);
     }
 
-    public async Task<StudentSportsSummaryDto> GetStudentSummaryAsync(Guid academyId, Guid studentId)
+    /// <param name="take">Partidos recientes a devolver (10 por defecto; "Ver todos los partidos" de la app pide más, máx. 100).</param>
+    public async Task<StudentSportsSummaryDto> GetStudentSummaryAsync(Guid academyId, Guid studentId, int take = 10)
     {
         var lines = await _db.MatchPlayerStats.AsNoTracking()
             .Where(s => s.AcademyId == academyId && s.StudentId == studentId)
@@ -424,7 +425,7 @@ public class SportsService
             YellowCards = lines.Sum(l => l.YellowCards),
             RedCards = lines.Sum(l => l.RedCards),
             AverageRating = rated.Count > 0 ? Math.Round((decimal)rated.Average(l => l.Rating!.Value), 1) : null,
-            RecentMatches = lines.Take(10).Select(l => new StudentMatchLineDto
+            RecentMatches = lines.Take(Math.Clamp(take, 1, 100)).Select(l => new StudentMatchLineDto
             {
                 EventId = l.EventId,
                 Date = l.StartTime,

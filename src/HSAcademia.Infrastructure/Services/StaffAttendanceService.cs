@@ -62,6 +62,9 @@ public class StaffAttendanceService
         var names = await NamesAsync(academyId, events.Where(e => e.TeacherId.HasValue).Select(e => e.TeacherId!.Value)
             .Concat(marks.Values.Select(m => m.StaffId))
             .Concat(marks.Values.Where(m => m.SubstituteStaffId.HasValue).Select(m => m.SubstituteStaffId!.Value)));
+        var avatarIds = names.Keys.ToList();
+        var avatars = await _db.Users.AsNoTracking().Where(u => avatarIds.Contains(u.Id) && u.AvatarUrl != null)
+            .ToDictionaryAsync(u => u.Id, u => u.AvatarUrl);
 
         return events.Select(ev =>
         {
@@ -80,6 +83,7 @@ public class StaffAttendanceService
                 HeadquarterName = ev.Headquarter?.Name ?? "-",
                 StaffId = staffId,
                 StaffName = staffId.HasValue ? names.GetValueOrDefault(staffId.Value) : null,
+                StaffAvatarUrl = staffId.HasValue ? avatars.GetValueOrDefault(staffId.Value) : null,
                 Status = mark?.Status,
                 SubstituteStaffId = mark?.SubstituteStaffId,
                 SubstituteName = mark?.SubstituteStaffId is Guid sub ? names.GetValueOrDefault(sub) : null,

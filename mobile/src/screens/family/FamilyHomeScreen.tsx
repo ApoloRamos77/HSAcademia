@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Camera, Bell, CalendarDays, CheckCircle2, CreditCard, Megaphone, Pin, QrCode, Trophy, ChevronRight, UserCircle2 } from 'lucide-react-native';
 import { api } from '../../api/client';
-import type { Announcement, AttendanceMonth, Debt, FamilyNotice, MyCall } from '../../api/types';
+import type { Announcement, AttendanceMonth, Debt, FamilyNotice, MyCall, MyEncounter, MyTournament } from '../../api/types';
+import { ATT, capitalize } from './HistoryScreens';
+import { longDay } from '../../utils/format';
 import { useAuth } from '../../auth/AuthContext';
 import { Badge, Banner, Card, Empty, Loading, Row, Screen, SectionTitle } from '../../components/ui';
 import { useApi } from '../../hooks/useApi';
@@ -60,16 +62,17 @@ export default function FamilyHomeScreen({ navigation }: any) {
 
   const { data, loading, refreshing, refresh } = useApi(async () => {
     if (!student) return null;
-    const [debts, calls, history, news, next, notices] = await Promise.all([
+    const [debts, calls, history, news, next, notices, tournaments] = await Promise.all([
       api.get<Debt[]>('/finances/my-debts').then(r => r.data),
       api.get<MyCall[]>('/calendar/mobile/my-calls').then(r => r.data).catch(() => [] as MyCall[]),
-      api.get<AttendanceMonth[]>('/attendance/my-history', { params: { studentId: student.id, months: 1 } }).then(r => r.data).catch(() => []),
+      api.get<AttendanceMonth[]>('/attendance/my-history', { params: { studentId: student.id, months: 2 } }).then(r => r.data).catch(() => []),
       api.get<Announcement[]>('/announcement').then(r => r.data).catch(() => [] as Announcement[]),
       api.get<NextEvent>('/calendar/mobile/next', { params: { categoryId: student.categoryId, studentId: student.id } }).then(r => (r.status === 204 ? null : r.data)).catch(() => null),
       api.get<FamilyNotice[]>('/notices/mine').then(r => r.data).catch(() => [] as FamilyNotice[]),
+      api.get<MyTournament[]>('/tournaments/mobile/mine', { params: { studentId: student.id } }).then(r => r.data).catch(() => [] as MyTournament[]),
     ]);
     if (notices.some(n => !n.isRead)) api.post('/notices/mine/read').catch(() => {});
-    return { debts, calls, history, news, next, notices };
+    return { debts, calls, history, news, next, notices, tournaments };
   }, [student?.id]);
 
   if (loadingFamily || (loading && !data)) return <Loading text="Cargando…" />;
@@ -83,6 +86,15 @@ export default function FamilyHomeScreen({ navigation }: any) {
   const toRegularize = pending.filter(d => d.requiresRegularization);
   const callsToAnswer = (data?.calls ?? []).filter(c => c.studentId === student.id && c.isConfirmed === null);
   const month = data?.history?.[0];
+  // Lo último: el registro de asistencia más reciente y el último encuentro ya jugado o con asistencia.
+  const encounterDays = new Set((data?.tournaments ?? []).flatMap(t => (t.encounters ?? []).map(e => e.startTime.slice(0, 10))));
+  const lastAttendance = (data?.history ?? []).flatMap(m => m.records)
+    .filter(r => r.status !== 'Pendiente' && !encounterDays.has(r.date.slice(0, 10)))
+    .sort((a, b) => b.date.localeCompare(a.date))[0];
+  const lastEncounter = (data?.tournaments ?? []).filter(t => t.studentId === student.id)
+    .flatMap(t => (t.encounters ?? []).map(e => ({ ...e, tournament: t.name })))
+    .filter(e => e.goalsFor != null || e.attendance != null)
+    .sort((a, b) => b.startTime.localeCompare(a.startTime))[0] as (MyEncounter & { tournament: string }) | undefined;
   const attended = month ? month.present : 0;
   const counted = month ? month.present + month.absent : 0;
   const rate = counted ? Math.round((100 * attended) / counted) : null;
@@ -155,6 +167,41 @@ export default function FamilyHomeScreen({ navigation }: any) {
           </View>
         ) : <Text style={[font.small, { marginTop: spacing.sm }]}>No hay actividades programadas.</Text>}
       </Card>
+
+      {/* Lo último: entrenamiento y encuentro (el historial está en Progreso) */}
+      {(lastAttendance || lastEncounter) && (
+        <Card onPress={() => navigation.navigate('Progreso')}>
+          <Row style={{ justifyContent: 'space-between' }}>
+            <Row><CheckCircle2 color={colors.primaryDark} /><Text style={font.h3}>Lo último</Text></Row>
+            <ChevronRight color={colors.textMuted} size={18} />
+          </Row>
+          {lastAttendance && (
+            <Row style={{ justifyContent: 'space-between', marginTop: spacing.sm }}>
+              <View style={{ flex: 1 }}>
+                <Text style={font.small}>Último entrenamiento</Text>
+                <Text style={[font.body, { color: colors.text, fontWeight: '600' }]}>{capitalize(longDay(lastAttendance.date))}</Text>
+              </View>
+              <Badge tone={ATT[lastAttendance.status]?.tone ?? 'muted'} text={ATT[lastAttendance.status]?.label ?? lastAttendance.status} />
+            </Row>
+          )}
+          {lastEncounter && (
+            <Row style={{ justifyContent: 'space-between', marginTop: spacing.sm }}>
+              <View style={{ flex: 1 }}>
+                <Text style={font.small}>Último encuentro · {lastEncounter.tournament}</Text>
+                <Text style={[font.body, { color: colors.text, fontWeight: '600' }]}>
+                  {[lastEncounter.round, lastEncounter.opponent ? `vs ${lastEncounter.opponent}` : null].filter(Boolean).join(' ') || 'Encuentro'}
+                </Text>
+              </View>
+              {lastEncounter.goalsFor != null && lastEncounter.goalsAgainst != null ? (
+                <Badge tone={lastEncounter.goalsFor > lastEncounter.goalsAgainst ? 'success' : lastEncounter.goalsFor < lastEncounter.goalsAgainst ? 'danger' : 'info'}
+                  text={`${lastEncounter.goalsFor > lastEncounter.goalsAgainst ? 'Ganó' : lastEncounter.goalsFor < lastEncounter.goalsAgainst ? 'Perdió' : 'Empató'} ${lastEncounter.goalsFor}-${lastEncounter.goalsAgainst}`} />
+              ) : lastEncounter.attendance ? (
+                <Badge tone={lastEncounter.attendance === 'absent' ? 'danger' : 'success'} text={lastEncounter.attendance === 'absent' ? 'Faltó' : 'Asistió'} />
+              ) : null}
+            </Row>
+          )}
+        </Card>
+      )}
 
       {/* Accesos rápidos */}
       <View style={styles.grid}>

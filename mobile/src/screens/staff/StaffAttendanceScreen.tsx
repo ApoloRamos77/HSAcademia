@@ -8,6 +8,7 @@ import { useApi } from '../../hooks/useApi';
 import { fetchStaffDay, isOfflineError, readStaffDay, saveStaffMark, staffQueueKey, usePendingAttendance, type QueuedRecord } from '../../offline/attendanceOffline';
 import { colors, font, radius, spacing } from '../../theme';
 import { clockTime, longDay, todayISO } from '../../utils/format';
+import { StudentAvatar } from '../../components/StudentPhoto';
 
 const OPTIONS: { code: AttendanceCode; short: string; label: string; bg: string; fg: string }[] = [
   { code: 1, short: 'P', label: 'Presente', bg: colors.successBg, fg: colors.success },
@@ -81,9 +82,12 @@ export default function StaffAttendanceScreen() {
               {queued && !queued.error && <Badge tone="info" text="Por enviar" />}
             </Row>
             <Text style={font.small}>{s.categoryName} · {s.headquarterName}</Text>
-            <Text style={[font.body, { color: colors.text, marginTop: spacing.xs }]}>
-              {s.staffName ?? trainers.find(t => t.id === mark.staffId)?.name ?? 'Sin entrenador asignado'}
-            </Text>
+            <Row style={{ marginTop: spacing.xs, gap: spacing.sm }}>
+              {!!s.staffName && <StudentAvatar photoUrl={s.staffAvatarUrl} name={s.staffName} size={36} />}
+              <Text style={[font.body, { color: colors.text, flex: 1 }]}>
+                {s.staffName ?? trainers.find(t => t.id === mark.staffId)?.name ?? 'Sin entrenador asignado'}
+              </Text>
+            </Row>
 
             {blocked ? (
               <Row style={{ marginTop: spacing.sm }}><Lock color={colors.textMuted} size={16} /><Text style={[font.small, { flex: 1 }]}>{s.blockedReason}</Text></Row>

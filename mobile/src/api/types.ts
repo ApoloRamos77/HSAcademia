@@ -15,6 +15,8 @@ export interface LoginResponse {
   userId: string;
   email: string;
   fullName: string;
+  /** Foto del usuario del personal (servidor 1.0.26+). */
+  avatarUrl?: string | null;
   role: Role;
   academyId?: string | null;
   academyName?: string | null;
@@ -331,7 +333,7 @@ export interface AbsenceStreak { studentId: string; name: string; category: stri
 
 export interface StaffSession {
   eventId: string; title: string; date: string; startTime: string; categoryName: string; headquarterName: string;
-  staffId?: string | null; staffName?: string | null; status?: AttendanceCode | null;
+  staffId?: string | null; staffName?: string | null; staffAvatarUrl?: string | null; status?: AttendanceCode | null;
   substituteStaffId?: string | null; substituteName?: string | null;
   markedByName?: string | null; markedAt?: string | null; blockedReason?: string | null;
 }
