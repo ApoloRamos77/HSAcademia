@@ -1,6 +1,6 @@
-import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Bell, CalendarDays, CheckCircle2, CreditCard, Megaphone, Pin, QrCode, Trophy, ChevronRight, UserCircle2 } from 'lucide-react-native';
+import React, { useState } from 'react';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Camera, Bell, CalendarDays, CheckCircle2, CreditCard, Megaphone, Pin, QrCode, Trophy, ChevronRight, UserCircle2 } from 'lucide-react-native';
 import { api } from '../../api/client';
 import type { Announcement, AttendanceMonth, Debt, FamilyNotice, MyCall } from '../../api/types';
 import { useAuth } from '../../auth/AuthContext';
@@ -8,7 +8,9 @@ import { Badge, Banner, Card, Empty, Loading, Row, Screen, SectionTitle } from '
 import { useApi } from '../../hooks/useApi';
 import { colors, font, radius, spacing } from '../../theme';
 import { clockTime, firstName, greeting, instantDate, money, sedeLabel } from '../../utils/format';
-import { StudentAvatar } from '../../components/StudentPhoto';
+import { StudentAvatar, pickStudentPhoto, removeStudentPhoto, uploadStudentPhoto } from '../../components/StudentPhoto';
+import { errorMessage } from '../../api/client';
+import ExpandableText from '../../components/ExpandableText';
 import { useFamily } from './FamilyContext';
 import StudentPicker from './StudentPicker';
 
@@ -16,7 +18,45 @@ interface NextEvent { title: string; date: string; location: string; type: strin
 
 export default function FamilyHomeScreen({ navigation }: any) {
   const { session } = useAuth();
-  const { student, loading: loadingFamily } = useFamily();
+  const { student, loading: loadingFamily, reload: reloadFamily } = useFamily();
+  const [photoBusy, setPhotoBusy] = useState(false);
+
+  // El apoderado pone o cambia la foto de su hijo: cámara o galería (reducida a 600 px antes de subir).
+  const run = async (task: () => Promise<unknown>, done: string) => {
+    setPhotoBusy(true);
+    try {
+      await task();
+      await reloadFamily();
+      Alert.alert('Foto', done);
+    } catch (e) {
+      Alert.alert('Foto', errorMessage(e, 'No se pudo guardar la foto. Inténtalo de nuevo con mejor señal.'));
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+  const choose = async (source: 'camera' | 'library') => {
+    if (!student) return;
+    try {
+      const asset = await pickStudentPhoto(source);
+      if (asset?.uri) await run(() => uploadStudentPhoto(student.id, asset, true), 'Foto actualizada.');
+    } catch (e: any) {
+      Alert.alert('Foto', e?.message ?? 'No se pudo obtener la foto.');
+    }
+  };
+  const changePhoto = () => {
+    if (!student || photoBusy) return;
+    const title = `Foto de ${student.firstName}`;
+    // Android muestra como máximo 3 botones: con foto, "Quitar" reemplaza a "Cancelar" (se cierra tocando fuera).
+    Alert.alert(title, 'Se verá en su carné y en la lista del entrenador.', student.photoUrl ? [
+      { text: 'Quitar', style: 'destructive', onPress: () => run(() => removeStudentPhoto(student.id, true), 'Foto quitada.') },
+      { text: 'Galería', onPress: () => choose('library') },
+      { text: 'Tomar foto', onPress: () => choose('camera') },
+    ] : [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Galería', onPress: () => choose('library') },
+      { text: 'Tomar foto', onPress: () => choose('camera') },
+    ], { cancelable: true });
+  };
 
   const { data, loading, refreshing, refresh } = useApi(async () => {
     if (!student) return null;
@@ -50,7 +90,13 @@ export default function FamilyHomeScreen({ navigation }: any) {
   return (
     <Screen refreshing={refreshing} onRefresh={refresh}>
       <Row style={{ gap: spacing.md, alignItems: 'center' }}>
-        <StudentAvatar photoUrl={student.photoUrl} name={`${student.firstName} ${student.lastName}`} size={52} />
+        <Pressable onPress={changePhoto} disabled={photoBusy} hitSlop={6} accessibilityRole="button"
+          accessibilityLabel={student.photoUrl ? `Cambiar la foto de ${student.firstName}` : `Agregar una foto de ${student.firstName}`}>
+          <StudentAvatar photoUrl={student.photoUrl} name={`${student.firstName} ${student.lastName}`} size={56} />
+          <View style={styles.photoBadge}>
+            {photoBusy ? <ActivityIndicator size="small" color={colors.white} /> : <Camera color={colors.white} size={13} />}
+          </View>
+        </Pressable>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={font.h1}>{greeting()}, {firstName(session?.fullName)}</Text>
           <Text style={font.small}>{[`${student.firstName} ${student.lastName}`, student.categoryName, sedeLabel(student.headquarterName)].filter(Boolean).join(' · ')}</Text>
@@ -130,7 +176,7 @@ export default function FamilyHomeScreen({ navigation }: any) {
             {n.isPinned && <Pin color={colors.primaryDark} size={16} />}
             <Text style={[font.h3, { flex: 1 }]}>{n.title}</Text>
           </Row>
-          <Text style={[font.body, { marginTop: 4 }]} numberOfLines={4}>{n.content}</Text>
+          <View style={{ marginTop: 4 }}><ExpandableText text={n.content} lines={3} style={font.body} /></View>
           <Text style={[font.tiny, { marginTop: 6 }]}>{instantDate(n.datePosted)}</Text>
         </Card>
       ))}
@@ -150,6 +196,7 @@ function Quick({ icon, label, extra, onPress }: { icon: React.ReactNode; label: 
 }
 
 const styles = StyleSheet.create({
+  photoBadge: { position: 'absolute', right: -2, bottom: -2, width: 24, height: 24, borderRadius: radius.pill, backgroundColor: colors.primaryDark, borderWidth: 2, borderColor: colors.card, alignItems: 'center', justifyContent: 'center' },
   big: { fontSize: 28, fontWeight: '700', color: colors.text, marginTop: spacing.sm },
   cardDanger: { borderColor: colors.danger, borderLeftWidth: 4 },
   cardOk: { borderColor: colors.successBg },

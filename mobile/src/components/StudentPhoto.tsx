@@ -43,16 +43,19 @@ export async function pickStudentPhoto(source: 'camera' | 'library'): Promise<As
   return res.assets?.[0] ?? null;
 }
 
+/** Ruta de la foto: el personal usa /students; el apoderado (o el propio alumno) /mobile/students. */
+const photoPath = (studentId: string, family?: boolean) => `${family ? '/mobile/students' : '/students'}/${studentId}/photo`;
+
 /** Sube la foto del alumno y devuelve la ruta nueva. */
-export async function uploadStudentPhoto(studentId: string, photo: Asset): Promise<string> {
+export async function uploadStudentPhoto(studentId: string, photo: Asset, family = false): Promise<string> {
   const form = new FormData();
   form.append('file', { uri: photo.uri, type: photo.type ?? 'image/jpeg', name: photo.fileName ?? 'foto.jpg' } as any);
-  const res = await api.post<{ photoUrl: string }>(`/students/${studentId}/photo`, form,
+  const res = await api.post<{ photoUrl: string }>(photoPath(studentId, family), form,
     { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 60000 });
   return res.data.photoUrl;
 }
 
-export const removeStudentPhoto = (studentId: string) => api.delete(`/students/${studentId}/photo`);
+export const removeStudentPhoto = (studentId: string, family = false) => api.delete(photoPath(studentId, family));
 
 const styles = StyleSheet.create({
   base: { backgroundColor: colors.primaryLight },

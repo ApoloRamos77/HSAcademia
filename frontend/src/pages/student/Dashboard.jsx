@@ -1,16 +1,17 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  User, Calendar, CreditCard, Clock, AlertTriangle, CheckCircle, Upload, X, Megaphone, Pin, Star, Trophy, Inbox,
+  User, Calendar, CreditCard, Clock, AlertTriangle, CheckCircle, Upload, X, Megaphone, Pin, Star, Trophy, Inbox, Camera,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import AppLayout from '../../components/AppLayout';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../api/axios';
 import { todayISO } from '../../utils/dates';
-import { StudentAvatar } from '../../components/students/StudentPhoto';
+import { StudentAvatar, shrinkPhoto } from '../../components/students/StudentPhoto';
+import ExpandableText from '../../components/ExpandableText';
 
 /** "Sede Central" ya dice sede: no repetir "Sede Sede Central". */
-const sedeLabel = name => (!name ? '' : /^sede/i.test(name) ? name : `Sede ${name}`);
+const sedeLabel = name => (!name ? '' : /^sede\b/i.test(name) ? name : `Sede ${name}`);
 
 const money = v => `S/ ${Number(v || 0).toFixed(2)}`;
 const longDate = s => {
@@ -125,6 +126,41 @@ function ProofModal({ debt, onClose, onSent }) {
 export default function StudentDashboard() {
   const { user } = useAuth();
   const [students, setStudents] = useState([]);
+  // Foto del hijo: el apoderado la sube desde aquí (se reduce antes de subir, igual que en el registro del club).
+  const photoInput = useRef(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const setPhotoOf = (id, photoUrl) => setStudents(list => list.map(s => (s.id === id ? { ...s, photoUrl } : s)));
+  const uploadPhoto = async e => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !studentId) return;
+    if (!file.type.startsWith('image/')) { toast.error('Elige una imagen (JPG, PNG o WEBP).'); return; }
+    setPhotoBusy(true);
+    try {
+      const form = new FormData();
+      form.append('file', await shrinkPhoto(file), 'foto.jpg');
+      const r = await api.post(`/mobile/students/${studentId}/photo`, form, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setPhotoOf(studentId, r.data.photoUrl);
+      toast.success('Foto actualizada.');
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.message || 'No se pudo subir la foto.');
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+  const removePhoto = async () => {
+    if (!studentId || !window.confirm('¿Quitar la foto?')) return;
+    setPhotoBusy(true);
+    try {
+      await api.delete(`/mobile/students/${studentId}/photo`);
+      setPhotoOf(studentId, null);
+      toast.success('Foto quitada.');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'No se pudo quitar la foto.');
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
   const [studentId, setStudentId] = useState(null);
   const [allDebts, setAllDebts] = useState([]);
   const [proofs, setProofs] = useState([]);
@@ -174,12 +210,29 @@ export default function StudentDashboard() {
       <div className="fade-in flex flex-col gap-5" style={{ maxWidth: 1100, margin: '0 auto', paddingBottom: 40 }}>
         <div className="card flex flex-col md:flex-row justify-between md:items-center gap-4">
           <div className="flex items-center gap-3 min-w-0">
-            {student && <StudentAvatar photoUrl={student.photoUrl} firstName={student.firstName} lastName={student.lastName} size={56} />}
+            {student && (
+              <button type="button" className="family-photo-btn" onClick={() => photoInput.current?.click()} disabled={photoBusy}
+                aria-label={student.photoUrl ? `Cambiar la foto de ${student.firstName}` : `Agregar una foto de ${student.firstName}`}>
+                <StudentAvatar photoUrl={student.photoUrl} firstName={student.firstName} lastName={student.lastName} size={56} />
+                <span className="family-photo-badge" aria-hidden="true"><Camera size={13} /></span>
+              </button>
+            )}
+            <input ref={photoInput} type="file" accept="image/*" className="hidden" onChange={uploadPhoto} aria-label="Elegir foto del alumno" />
             <div className="min-w-0">
               <h1 className="text-2xl font-bold text-primary-dark flex items-center gap-2 m-0">{!student && <User className="text-primary" size={26} />} ¡Hola, {user?.fullName?.split(' ')[0]}!</h1>
               <p className="text-sm text-text-secondary mt-1 mb-0">
                 {student ? [`${student.firstName} ${student.lastName}`, student.categoryName, sedeLabel(student.headquarterName)].filter(Boolean).join(' · ') : 'Consulta pagos, asistencia y avances deportivos.'}
               </p>
+              {student && (
+                <div className="flex flex-wrap gap-x-4 mt-1">
+                  <button type="button" className="expandable-toggle" onClick={() => photoInput.current?.click()} disabled={photoBusy}>
+                    {photoBusy ? 'Subiendo…' : student.photoUrl ? 'Cambiar foto' : 'Agregar foto'}
+                  </button>
+                  {student.photoUrl && !photoBusy && (
+                    <button type="button" className="expandable-toggle" style={{ color: 'var(--danger)' }} onClick={removePhoto}>Quitar foto</button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
           {students.length > 1 && (
@@ -328,7 +381,7 @@ export default function StudentDashboard() {
               ) : news.map(n => (
                 <div key={n.id} className="border-b border-border pb-3 mb-3">
                   <div className="font-bold text-text-primary flex items-center gap-2">{n.isPinned && <Pin size={14} className="text-primary" />}{n.title}</div>
-                  <p className="text-sm text-text-secondary mt-1 mb-0" style={{ whiteSpace: 'pre-wrap' }}>{n.content}</p>
+                  <ExpandableText text={n.content} lines={3} className="text-sm text-text-secondary mt-1 mb-0" />
                   <div className="text-xs text-text-muted mt-1">{new Date(n.datePosted).toLocaleDateString('es-PE', { day: 'numeric', month: 'long' })}</div>
                 </div>
               ))}
