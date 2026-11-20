@@ -3,7 +3,7 @@ import { Wallet, Send, X, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../api/axios';
 
-const money = (n) => `S/. ${(Number(n) || 0).toFixed(2)}`;
+const money = (n) => `S/ ${(Number(n) || 0).toFixed(2)}`;
 
 /** "Mi caja": lo que cobré y aún no rindo, con el botón para rendir. Se oculta si no hay nada pendiente. */
 export default function MyCashPanel({ refreshKey, onChanged }) {

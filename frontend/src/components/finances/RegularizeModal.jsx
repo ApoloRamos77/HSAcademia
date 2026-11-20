@@ -3,7 +3,7 @@ import { X, ShieldAlert } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../api/axios';
 
-const money = (n) => `S/. ${(Number(n) || 0).toFixed(2)}`;
+const money = (n) => `S/ ${(Number(n) || 0).toFixed(2)}`;
 
 /**
  * Regularizar una mensualidad vencida (política: se paga del 1 al día de vencimiento).
@@ -63,7 +63,7 @@ export default function RegularizeModal({ debt, onClose, onDone }) {
           </div>
           {charge && (
             <div className="form-group">
-              <label className="form-label">Monto de la mora (S/.)</label>
+              <label className="form-label">Monto de la mora (S/)</label>
               <input className="form-control" type="number" step="0.01" min="0.01" value={amount} onChange={e => setAmount(e.target.value)} />
               <span className="text-xs text-text-muted">Se crea una deuda aparte "Mora · {debt.description}" que se cobra junto con la mensualidad.</span>
             </div>

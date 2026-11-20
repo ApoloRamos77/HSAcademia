@@ -15,7 +15,7 @@ const METHODS = [
   { value: 'Other', label: '🔹 Otro' },
 ];
 const DIGITAL = ['Yape', 'Plin', 'BankTransfer'];
-const money = (n) => `S/. ${(Number(n) || 0).toFixed(2)}`;
+const money = (n) => `S/ ${(Number(n) || 0).toFixed(2)}`;
 const num = (v) => { const n = parseFloat(String(v).replace(',', '.')); return Number.isFinite(n) ? n : 0; };
 const cents = (v) => Math.round(num(v) * 100);
 const newKey = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
@@ -417,13 +417,13 @@ export default function CheckoutModal({ open, onClose, onDone, initialStudentId,
                                 </div>
                                 {sel.partial && (
                                   <label className="co-inline-field">
-                                    <span>Abono S/.</span>
+                                    <span>Abono S/</span>
                                     <input type="number" step="0.01" min="0.01" max={d.amountPending} className="form-control font-bold" placeholder="0.00"
                                       value={sel.amount} onChange={e => setDebt(d.id, { amount: e.target.value })} />
                                   </label>
                                 )}
                                 <label className="co-inline-field">
-                                  <span>Desc. caja S/.</span>
+                                  <span>Desc. caja S/</span>
                                   <input type="number" step="0.01" min="0" className="form-control" placeholder="0.00"
                                     value={sel.discount} onChange={e => setDebt(d.id, { discount: e.target.value })} />
                                 </label>
@@ -441,7 +441,7 @@ export default function CheckoutModal({ open, onClose, onDone, initialStudentId,
                                     </div>
                                     {sel.reg?.charge && (
                                       <label className="co-inline-field">
-                                        <span>Mora S/.</span>
+                                        <span>Mora S/</span>
                                         <input type="number" step="0.01" min="0.01" className="form-control" placeholder="0.00"
                                           value={sel.reg?.amount || ''} onChange={e => setDebt(d.id, { reg: { ...sel.reg, amount: e.target.value } })} />
                                       </label>

@@ -301,7 +301,8 @@ public class FinancesService
     /// <item>Beca 100 % o invitado → se exoneran mensualidades y sesiones pendientes desde el mes actual
     /// (los meses anteriores se conservan: ya se debían).</item>
     /// </list>
-    /// Nunca toca deudas pagadas, con abonos ni de meses cerrados. Es idempotente.
+    /// Nunca toca deudas pagadas ni de meses cerrados. Con abonos, la deuda baja como mínimo hasta lo ya abonado
+    /// (no se devuelve dinero) y el saldo restante se exonera o recalcula. Es idempotente.
     /// </summary>
     public async Task<int> ReconcileStudentBillingAsync(Guid academyId, Guid studentId)
     {
@@ -321,7 +322,6 @@ public class FinancesService
                 .Where(p => p.AcademyId == academyId && p.StudentId == studentId && !p.IsPaid
                          && (p.Type == PaymentType.MonthlyFee || p.Type == PaymentType.Sessions))
                 .ToListAsync())
-            .Where(p => !p.Installments.Any())
             .Where(p => { var (y, m) = PeriodOf(p); return new DateTime(y, m, 1, 0, 0, 0, DateTimeKind.Utc) >= from; })
             .ToList();
 
@@ -335,7 +335,8 @@ public class FinancesService
             // Después del mes del retiro no se debe nada.
             if (withdrawalMonth.HasValue && period > withdrawalMonth.Value)
             {
-                Void(record, "retirado");
+                if (record.AmountPaid > 0) CloseAtPaid(record, "Retirado");
+                else Void(record, "retirado");
                 continue;
             }
 
@@ -352,26 +353,35 @@ public class FinancesService
             int? position = null;
             if (student.BillingPlan != StudentBillingPlan.Package) (rule, position) = await SiblingRuleForAsync(academyId, student, y, m);
             var (charge, notOwed) = await ComputeMonthlyChargeAsync(academyId, student, y, m, rule, position);
-            if (notOwed) { Void(record, "retiro sin asistencia"); continue; }
+            if (notOwed)
+            {
+                if (record.AmountPaid > 0) CloseAtPaid(record, "Retiro sin asistencia");
+                else Void(record, "retiro sin asistencia");
+                continue;
+            }
             if (charge == null) continue;
             // Desde el mes actual se aplica la beca/invitado; un mes anterior solo cambia si es el del retiro.
             if (period < currentMonth && period != withdrawalMonth) continue;
-            if (record.Amount == charge.Amount && record.DiscountAmount == charge.Discount && record.IsProrated == charge.IsProrated
-                && record.ProratedDaysCharged == charge.ChargedUnits) continue;
+            // Con abonos no se baja de lo ya abonado (no se devuelve dinero).
+            var newAmount   = Math.Max(charge.Amount, record.AmountPaid);
+            var newDiscount = Math.Max(0m, charge.Discount - (newAmount - charge.Amount));
+            if (record.Amount + record.ReferralDiscount == newAmount && record.DiscountAmount - record.ReferralDiscount == newDiscount
+                && record.IsProrated == charge.IsProrated && record.ProratedDaysCharged == charge.ChargedUnits) continue;
 
             var before = new { record.Amount, record.DiscountAmount };
             record.Description         = charge.Description;
-            record.Amount              = charge.Amount;
-            record.DiscountAmount      = charge.Discount;
+            record.Amount              = newAmount;
+            record.DiscountAmount      = newDiscount;
             record.DiscountDetail      = charge.Detail;
             record.IsProrated          = charge.IsProrated;
             record.ProratedStartDate   = charge.ProratedStart;
             record.ProratedTotalDays   = charge.TotalUnits;
             record.ProratedDaysCharged = charge.ChargedUnits;
-            record.IsPaid              = charge.Amount == 0m;
-            record.PaidDate            = charge.Amount == 0m ? DateTime.UtcNow : null;
+            // Lo de referidos se vuelve a aplicar sobre el monto nuevo (si ya no cabe, se libera para otra deuda).
+            if (_referrals != null) await _referrals.ReapplyAsync(record);
+            record.IsPaid              = record.AmountPaid >= record.Amount - 0.009m;
+            record.PaidDate            = record.IsPaid ? (record.PaidDate ?? DateTime.UtcNow) : null;
             record.UpdatedAt           = DateTime.UtcNow;
-            if (_referrals != null && charge.Amount > 0) await _referrals.ReapplyAsync(record);
             changes.Add(new { record.Id, record.Description, before, after = new { record.Amount, record.DiscountAmount } });
         }
 
@@ -387,14 +397,19 @@ public class FinancesService
             r.DeletedAt = DateTime.UtcNow;
             changes.Add(new { r.Id, r.Description, voided = why, r.Amount });
         }
-        void Exonerate(PaymentRecord r)
+        void Exonerate(PaymentRecord r) => CloseAtPaid(r, student.IsGuest ? "Invitado" : "Beca 100%");
+
+        // Exonera el saldo: la deuda queda en lo ya abonado (0 si no hay abonos) y se da por pagada.
+        void CloseAtPaid(PaymentRecord r, string why)
         {
-            changes.Add(new { r.Id, r.Description, exonerated = student.IsGuest ? "Invitado" : "Beca 100%", r.Amount });
-            r.DiscountAmount += r.Amount;
-            r.DiscountDetail = string.Join(" · ", new[] { r.DiscountDetail, student.IsGuest ? "Invitado" : "Beca 100%" }.Where(x => !string.IsNullOrWhiteSpace(x)));
-            r.Amount = 0m;
+            var remainder = Math.Max(0m, r.Amount - r.AmountPaid);
+            changes.Add(new { r.Id, r.Description, exonerated = why, r.Amount, r.AmountPaid, remainder });
+            r.DiscountAmount += remainder;
+            var detail = string.Join(" · ", new[] { r.DiscountDetail, why }.Where(x => !string.IsNullOrWhiteSpace(x)));
+            r.DiscountDetail = detail.Length > 200 ? detail[..200] : detail;
+            r.Amount = r.AmountPaid;
             r.IsPaid = true;
-            r.PaidDate = DateTime.UtcNow;
+            r.PaidDate ??= DateTime.UtcNow;
             r.UpdatedAt = DateTime.UtcNow;
         }
     }

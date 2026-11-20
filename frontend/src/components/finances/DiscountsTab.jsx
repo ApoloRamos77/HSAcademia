@@ -82,7 +82,7 @@ export default function DiscountsTab() {
                   <tr key={r.id} className={!r.isActive ? 'opacity-60' : ''}>
                     <td className="font-medium">{r.name}{r.description && <div className="text-xs text-text-muted">{r.description}</div>}</td>
                     <td className="text-sm"><span className="flex items-center gap-1"><K.icon size={13} /> {K.label}</span></td>
-                    <td className="font-bold">{r.valueType === 'Percent' ? `${r.value}%` : `S/. ${Number(r.value).toFixed(2)}`}</td>
+                    <td className="font-bold">{r.valueType === 'Percent' ? `${r.value}%` : `S/ ${Number(r.value).toFixed(2)}`}</td>
                     <td className="text-xs">
                       {r.kind === 'Sibling' && `Desde el ${r.fromSiblingNumber}.º hijo`}
                       {r.kind === 'EarlyPayment' && (r.daysBeforeDue ? `Pagando ${r.daysBeforeDue} día(s) antes del vencimiento` : 'Pagando hasta el día del vencimiento')}
@@ -138,7 +138,7 @@ export default function DiscountsTab() {
                   <label className="form-label">Valor *</label>
                   <div className="flex gap-2">
                     <select className="form-control" style={{ maxWidth: 90 }} value={form.valueType} onChange={e => setForm({ ...form, valueType: e.target.value })}>
-                      <option value="Percent">%</option><option value="Amount">S/.</option>
+                      <option value="Percent">%</option><option value="Amount">S/</option>
                     </select>
                     <input className="form-control" required type="number" step="0.01" min="0.01" value={form.value} onChange={e => setForm({ ...form, value: e.target.value })} />
                   </div>

@@ -69,7 +69,8 @@ public class StudentService
             PreferentialSessionFee = s.PreferentialSessionFee,
             IsGuest = s.IsGuest,
             IsScholarship = s.IsScholarship,
-            ScholarshipPercentage = s.ScholarshipPercentage
+            ScholarshipPercentage = s.ScholarshipPercentage,
+            PhotoUrl = s.PhotoUrl
         }).ToList();
     }
 
@@ -434,6 +435,7 @@ public class StudentService
             DateOfBirth     = student.DateOfBirth,
             Age             = age,
             EnrollmentDate  = student.EnrollmentDate,
+            PhotoUrl        = student.PhotoUrl,
             CategoryName    = student.Category?.Name ?? "-",
             HeadquarterName = student.Headquarter?.Name ?? "-",
             GuardianName    = $"{student.Guardian?.FirstName} {student.Guardian?.LastName}".Trim(),
@@ -451,6 +453,18 @@ public class StudentService
             EmergencyContactPhone  = student.MedicalRecord?.EmergencyContactPhone,
         };
     }
+    /// <summary>Cambia (o quita, con null) la foto del alumno. Devuelve la ruta anterior para borrar el archivo.</summary>
+    public async Task<(bool Found, string? Previous)> SetPhotoAsync(Guid academyId, Guid id, string? photoUrl)
+    {
+        var student = await _context.Students.FirstOrDefaultAsync(s => s.Id == id && s.AcademyId == academyId && !s.IsDeleted);
+        if (student == null) return (false, null);
+        var previous = student.PhotoUrl;
+        student.PhotoUrl = photoUrl;
+        student.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+        return (true, previous);
+    }
+
     public async Task<StudentDto> UpdateStudentAsync(Guid academyId, Guid id, CreateStudentDto dto, bool canEditFinancials = true, bool canEditMedical = true)
     {
         var student = await _context.Students
@@ -673,7 +687,8 @@ public class StudentService
             PreferentialSessionFee = s.PreferentialSessionFee,
             IsGuest = s.IsGuest,
             IsScholarship = s.IsScholarship,
-            ScholarshipPercentage = s.ScholarshipPercentage
+            ScholarshipPercentage = s.ScholarshipPercentage,
+            PhotoUrl = s.PhotoUrl
         }).ToList();
     }
 

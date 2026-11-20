@@ -309,20 +309,20 @@ export default function Finanzas() {
               </div>
             )}
             {/* Stats */}
-            <div className="stats-grid" style={{ marginBottom: 24 }}>
+            <div className="stats-grid stats-strip" style={{ marginBottom: 24 }}>
               <div className="stat-card" style={{ borderTop: '2px solid var(--danger)' }}>
                 <div className="stat-value" style={{ color: 'var(--danger)' }}>{overdueDebts.length}</div>
-                <div className="stat-label">Registros vencidos en mora</div>
+                <div className="stat-label">Vencidos (en mora)</div>
                 <div className="stat-icon"><AlertTriangle size={32} style={{ color: 'var(--danger)', opacity: 0.2 }}/></div>
               </div>
               <div className="stat-card" style={{ borderTop: '2px solid var(--warning)' }}>
                 <div className="stat-value" style={{ color: 'var(--warning)' }}>{inCourseDebts.length}</div>
-                <div className="stat-label">Pendientes por vencer en curso</div>
+                <div className="stat-label">Por vencer</div>
                 <div className="stat-icon"><Calendar size={32} style={{ color: 'var(--warning)', opacity: 0.2 }}/></div>
               </div>
               <div className="stat-card" style={{ borderTop: '2px solid var(--primary)' }}>
-                <div className="stat-value" style={{ color: 'var(--primary-dark)' }}>S/. {totalPending.toFixed(2)}</div>
-                <div className="stat-label">Total por Cobrar</div>
+                <div className="stat-value" style={{ color: 'var(--primary-dark)' }}>S/ {totalPending.toFixed(2)}</div>
+                <div className="stat-label">Total por cobrar</div>
                 <div className="stat-icon"><DollarSign size={32} style={{ color: 'var(--primary-dark)', opacity: 0.2 }}/></div>
               </div>
             </div>
@@ -340,7 +340,7 @@ export default function Finanzas() {
                     {showAll ? 'Ver Pendientes' : 'Ver Todos'}
                   </button>
                   
-                  <div className="flex flex-wrap items-center gap-2 ml-0 md:ml-2 md:border-l border-border/50 md:pl-3">
+                  <div className="cobranza-filters flex flex-wrap items-center gap-2 ml-0 md:ml-2 md:border-l border-border/50 md:pl-3">
                     <select
                       className="form-control text-sm py-1.5 w-auto"
                       value={filterMonth}
@@ -375,7 +375,7 @@ export default function Finanzas() {
                   </div>
                 </div>
 
-                <div className="relative w-full md:w-auto flex-1 min-w-[240px] max-w-sm">
+                <div className="relative w-full md:w-auto flex-1 md:min-w-[240px] max-w-sm">
                   <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted"/>
                   <input type="text" placeholder="Buscar alumno, concepto..." className="form-control pl-9 py-1.5 text-sm w-full"
                     value={search} onChange={e=>setSearch(e.target.value)}/>
@@ -410,10 +410,11 @@ export default function Finanzas() {
                         <tr className="bg-primary/10 border-t-2 border-primary/20">
                           <td colSpan={7} className="font-bold text-primary-100 p-3">
                             <Users size={15} className="inline mr-2 mb-1"/>
-                            Resumen de Deuda Total: {group.studentName}
+                            {group.studentName}
+                            <span className="ml-2 text-xs font-normal text-text-muted">{group.items.length} {group.items.length === 1 ? 'deuda' : 'deudas'}</span>
                           </td>
                           <td className="font-bold text-danger p-3 text-lg">
-                            S/. {group.totalPending.toFixed(2)}
+                            S/ {group.totalPending.toFixed(2)}
                           </td>
                           <td className="text-right">
                             {!monthClosed && group.totalPending > 0 && (
@@ -430,25 +431,25 @@ export default function Finanzas() {
                             <tr className={`${d.status==='Vencido'&&!d.isPaid?'bg-danger/5':''} cursor-pointer`}>
                               <td>{statusBadge(d)}</td>
                               <td className="font-medium text-text-primary pl-6">
-                                ↳ {d.categoryName ? d.categoryName : 'Concepto individual'}
+                                {d.studentName}
                                 {d.isProrated && <span className="ml-1 text-xs text-warning bg-warning/10 px-1 rounded">Prorr.</span>}
                                 {d.exclusionType !== 'None' && <span className="ml-1 text-xs text-success bg-success/10 px-1 rounded">Exon.</span>}
                               </td>
-                              <td className="text-sm">{d.categoryName}</td>
+                              <td className="text-sm">{d.categoryName || <span className="text-text-muted">Sin categoría</span>}</td>
                               <td>
                                 <div className="flex items-center gap-1">
                                   <FileText size={13} className="text-primary-400"/>
                                   <span className="text-sm">{d.description}</span>
                                 </div>
-                                {d.regularizedAt && <div className="text-xs text-warning mt-0.5" title={d.regularizationNote || ''}>Regularizado {d.lateFeeAmount ? `con mora S/. ${Number(d.lateFeeAmount).toFixed(2)}` : 'sin mora'}{d.regularizedByName ? ` · ${d.regularizedByName}` : ''}: {d.regularizationNote}</div>}
-                                {d.discountDetail && <div className="text-xs text-success mt-0.5">{d.discountDetail} (-S/. {Number(d.discountAmount).toFixed(2)})</div>}
+                                {d.regularizedAt && <div className="text-xs text-warning mt-0.5" title={d.regularizationNote || ''}>Regularizado {d.lateFeeAmount ? `con mora S/ ${Number(d.lateFeeAmount).toFixed(2)}` : 'sin mora'}{d.regularizedByName ? ` · ${d.regularizedByName}` : ''}: {d.regularizationNote}</div>}
+                                {d.discountDetail && <div className="text-xs text-success mt-0.5">{d.discountDetail} (-S/ {Number(d.discountAmount).toFixed(2)})</div>}
                                 {d.isProrated && <div className="text-xs text-warning/80 mt-0.5">{prorationLabel(d)}</div>}
                               </td>
                               <td className="text-sm">{new Date(d.dueDate).toLocaleDateString('es-PE', { timeZone: 'UTC' })}</td>
-                              <td className="font-bold">S/. {d.amount.toFixed(2)}</td>
-                              <td className="text-success font-medium">S/. {d.amountPaid.toFixed(2)}</td>
+                              <td className="font-bold">S/ {d.amount.toFixed(2)}</td>
+                              <td className="text-success font-medium">S/ {d.amountPaid.toFixed(2)}</td>
                               <td className={`font-bold ${d.amountPending > 0 ? 'text-danger' : 'text-success'}`}>
-                                S/. {d.amountPending.toFixed(2)}
+                                S/ {d.amountPending.toFixed(2)}
                               </td>
                               <td className="text-right">
                                 <div className="flex items-center justify-end gap-1 flex-nowrap [&>*]:shrink-0">
@@ -511,7 +512,7 @@ export default function Finanzas() {
                                   <div className="flex flex-col gap-1">
                                     {d.installments.map(i => (
                                       <div key={i.id} className="flex items-center gap-3 text-sm bg-bg-surface rounded p-2">
-                                        <span className="text-success font-bold">S/. {i.amountPaid.toFixed(2)}</span>
+                                        <span className="text-success font-bold">S/ {i.amountPaid.toFixed(2)}</span>
                                         <span className="text-text-muted">{new Date(i.paidAt).toLocaleDateString('es-PE')} {new Date(i.paidAt).toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'})}</span>
                                         <span className="badge badge-primary text-xs">{i.method === 'Mixed' ? 'Mixto' : PAYMENT_METHODS.find(m=>m.value===i.method)?.label || i.method}</span>
                                         {i.operationNumber && <span className="text-text-muted text-xs">Op: {i.operationNumber}</span>}
@@ -559,7 +560,7 @@ export default function Finanzas() {
                   </select>
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Mora sugerida (S/.)</label>
+                  <label className="form-label">Mora sugerida (S/)</label>
                   <p className="text-sm text-text-muted mb-2">Pasado el día de vencimiento, la mensualidad queda "por regularizar": la familia debe acercarse a administración, que decide cobrar esta mora (puede cambiar el monto) o exonerarla, siempre con una observación.</p>
                   <input type="number" step="0.01" min="0" className="form-control" value={config.lateFeeAmount ?? 0} onChange={e=>setConfig({...config,lateFeeAmount:e.target.value === '' ? 0 : parseFloat(e.target.value)})}/>
                 </div>
@@ -657,7 +658,7 @@ export default function Finanzas() {
             </div>
             <div className="bg-bg-dark p-3 rounded border border-border mb-4 text-sm">
               <p className="font-bold text-text-primary">{selected.studentName} — {selected.description}</p>
-              <p className="text-text-muted">Monto actual: <b className="text-text-primary">S/. {selected.amount.toFixed(2)}</b></p>
+              <p className="text-text-muted">Monto actual: <b className="text-text-primary">S/ {selected.amount.toFixed(2)}</b></p>
             </div>
             <form onSubmit={handleRecalc}>
               <div className="form-group">
@@ -693,7 +694,7 @@ export default function Finanzas() {
               <h3 className="modal-title m-0 flex items-center gap-2"><Ban size={18}/> Exonerar Cobro</h3>
               <button onClick={()=>setModal(null)} className="btn btn-ghost btn-sm"><X size={16}/></button>
             </div>
-            <p className="text-sm text-text-secondary mb-4">Marcar este cobro como exonerado reduce el monto a S/. 0.00 y lo marca como pagado. Esta acción indica que el período no se debe cobrar.</p>
+            <p className="text-sm text-text-secondary mb-4">Marcar este cobro como exonerado reduce el monto a S/ 0.00 y lo marca como pagado. Esta acción indica que el período no se debe cobrar.</p>
             <form onSubmit={handleExclude}>
               <div className="form-group">
                 <label className="form-label">Motivo de Exoneración *</label>

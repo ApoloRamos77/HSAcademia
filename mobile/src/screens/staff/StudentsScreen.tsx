@@ -7,7 +7,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { Badge, Button, Chips, Empty, Input, Loading, Row } from '../../components/ui';
 import { useApi } from '../../hooks/useApi';
 import { colors, font, radius, spacing } from '../../theme';
-import { initials } from '../../utils/format';
+import { StudentAvatar } from '../../components/StudentPhoto';
 
 /**
  * Alumnos del entrenador (el backend ya filtra por sus categorías asignadas).
@@ -61,10 +61,10 @@ export default function StudentsScreen({ navigation }: any) {
           text={term ? 'Sin resultados.' : showWithdrawn ? 'No hay alumnos retirados.' : 'No tienes alumnos asignados.'} />}
         renderItem={({ item }) => (
           <Pressable onPress={() => navigation.navigate('StudentDetail', { student: item })} style={({ pressed }) => [styles.row, pressed && { opacity: 0.8 }]}>
-            <View style={styles.avatar}><Text style={styles.avatarText}>{initials(`${item.firstName} ${item.lastName}`)}</Text></View>
+            <StudentAvatar photoUrl={item.photoUrl} name={`${item.firstName} ${item.lastName}`} size={44} />
             <View style={{ flex: 1 }}>
               <Row><Text style={[font.h3, { flexShrink: 1 }]}>{item.lastName}, {item.firstName}</Text>{!item.isActive && <Badge text="Retirado" />}</Row>
-              <Text style={font.small}>{item.categoryName} · {item.age} años · {item.headquarterName}</Text>
+              <Text style={font.small}>{[item.categoryName, item.dateOfBirth ? `${item.age} años` : null, item.headquarterName].filter(Boolean).join(' · ')}</Text>
             </View>
             <ChevronRight color={colors.textMuted} />
           </Pressable>
@@ -76,6 +76,4 @@ export default function StudentsScreen({ navigation }: any) {
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.card, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },
-  avatar: { width: 42, height: 42, borderRadius: radius.pill, backgroundColor: colors.primaryLight, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { color: colors.primaryDark, fontWeight: '700' },
 });

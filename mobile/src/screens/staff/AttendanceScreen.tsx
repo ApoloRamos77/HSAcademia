@@ -9,7 +9,8 @@ import { Banner, Button, Chips, Empty, Input, Loading, Row, useBottomInset } fro
 import { enqueue, fetchRoster, isOfflineError, pendingFor, readRoster, saveAndSend, saveRoster, type QueuedRecord } from '../../offline/attendanceOffline';
 import { chargeSession as sendCharge, discardCharge, newChargeId, usePendingCharges, type ChargeMethod } from '../../offline/sessionCharges';
 import { colors, font, radius, spacing } from '../../theme';
-import { clockTime, initials, markingBlock, money, shortDay } from '../../utils/format';
+import { clockTime, markingBlock, money, shortDay } from '../../utils/format';
+import { StudentAvatar } from '../../components/StudentPhoto';
 
 const CHARGE_METHODS: { value: ChargeMethod; label: string }[] = [
   { value: 'Cash', label: 'Efectivo' },
@@ -298,7 +299,7 @@ export default function AttendanceScreen({ route, navigation }: any) {
         renderItem={({ item }) => (
           <View style={styles.row}>
             <Row style={{ gap: spacing.sm, alignItems: 'flex-start' }}>
-              <View style={styles.avatar}><Text style={styles.avatarText} maxFontSizeMultiplier={1.2}>{initials(`${item.firstName} ${item.lastName}`)}</Text></View>
+              <StudentAvatar photoUrl={item.avatarUrl} name={`${item.firstName} ${item.lastName}`} size={48} />
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={styles.lastName}>{item.lastName}</Text>
                 <Text style={styles.firstName}>{item.firstName}</Text>
@@ -395,8 +396,6 @@ const styles = StyleSheet.create({
   payTagText: { fontSize: 12, fontWeight: '700', color: colors.warning },
   backdrop: { flex: 1, backgroundColor: 'rgba(15,23,42,0.45)', justifyContent: 'flex-end' },
   sheet: { backgroundColor: colors.card, padding: spacing.lg, gap: spacing.xs, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg },
-  avatar: { width: 36, height: 36, borderRadius: radius.pill, backgroundColor: colors.primaryLight, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { color: colors.primaryDark, fontWeight: '700' },
   opt: { flex: 1, minWidth: 0, minHeight: 48, paddingVertical: 4, paddingHorizontal: 2, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.card },
   optText: { fontWeight: '700', fontSize: 16, color: colors.textMuted },
   optLabel: { fontSize: 11, color: colors.textMuted },

@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, Share, Switch, Text, View } from 'react-native';
-import { CheckCircle2, KeyRound, Share2, Sparkles, UserPlus } from 'lucide-react-native';
+import { Camera, CheckCircle2, ImageIcon, KeyRound, Share2, Sparkles, Trash2, UserPlus } from 'lucide-react-native';
+import type { Asset } from 'react-native-image-picker';
 import { api, errorMessage } from '../../api/client';
 import type { Category, GeneratedCredential, Headquarter, MedicalRecord, StudentSummary, BillingPlan } from '../../api/types';
 import { useAuth } from '../../auth/AuthContext';
 import { Banner, Button, Card, Chips, Input, Loading, Row, Screen, SectionTitle } from '../../components/ui';
+import { StudentAvatar, pickStudentPhoto, removeStudentPhoto, uploadStudentPhoto } from '../../components/StudentPhoto';
 import { colors, font, radius, spacing } from '../../theme';
 import { ageFrom, digitsOnly, maskDate, money, parseDmy, toDmy, todayISO } from '../../utils/format';
 
@@ -51,6 +53,17 @@ export default function StudentFormScreen({ route, navigation }: any) {
   const [error, setError] = useState<string | null>(null);
   const [credentials, setCredentials] = useState<GeneratedCredential[] | null>(null);
   const savedName = useRef('');
+  // Foto: cambio pendiente (se sube al guardar). null = sin cambios.
+  const [photo, setPhoto] = useState<{ asset: Asset } | { remove: true } | null>(null);
+  const currentPhoto = photo ? ('asset' in photo ? photo.asset.uri : null) : editing?.photoUrl;
+  const choosePhoto = async (source: 'camera' | 'library') => {
+    try {
+      const asset = await pickStudentPhoto(source);
+      if (asset?.uri) setPhoto({ asset });
+    } catch (e: any) {
+      Alert.alert('Foto', e?.message ?? 'No se pudo obtener la foto.');
+    }
+  };
 
   const [f, setF] = useState<Form>({
     firstName: editing?.firstName ?? '', lastName: editing?.lastName ?? '', documentNumber: editing?.documentNumber ?? '',
@@ -186,6 +199,16 @@ export default function StudentFormScreen({ route, navigation }: any) {
         ? await api.put(`/students/${editing.id}`, payload)
         : await api.post('/students', payload);
       savedName.current = `${payload.firstName} ${payload.lastName}`;
+      // La foto va después de la ficha: si falla, el alumno ya quedó guardado y se avisa.
+      const studentId = editing?.id ?? data?.id;
+      if (photo && studentId) {
+        try {
+          if ('asset' in photo) await uploadStudentPhoto(studentId, photo.asset);
+          else await removeStudentPhoto(studentId);
+        } catch (pe) {
+          Alert.alert('Foto no guardada', errorMessage(pe, 'El alumno se guardó, pero la foto no. Inténtalo de nuevo con mejor señal.'));
+        }
+      }
       if (data?.generatedCredentials?.length) {
         setCredentials(data.generatedCredentials);
       } else {
@@ -211,6 +234,19 @@ export default function StudentFormScreen({ route, navigation }: any) {
     <Screen>
       <SectionTitle title="Alumno" />
       <Card>
+        <Row style={{ gap: spacing.md, marginBottom: spacing.md, alignItems: 'center' }}>
+          <StudentAvatar photoUrl={currentPhoto} name={`${f.firstName} ${f.lastName}`.trim() || '?'} size={76} />
+          <View style={{ flex: 1, gap: spacing.sm }}>
+            <Button compact variant="secondary" title={currentPhoto ? 'Tomar otra foto' : 'Tomar foto'} icon={<Camera color={colors.primaryDark} size={16} />} onPress={() => choosePhoto('camera')} />
+            <Row style={{ gap: spacing.sm }}>
+              <Button compact variant="ghost" title="Galería" icon={<ImageIcon color={colors.primaryDark} size={16} />} onPress={() => choosePhoto('library')} style={{ flex: 1 }} />
+              {!!currentPhoto && (
+                <Button compact variant="ghost" title="Quitar" icon={<Trash2 color={colors.danger} size={16} />} style={{ flex: 1 }}
+                  onPress={() => setPhoto(editing?.photoUrl ? { remove: true } : null)} />
+              )}
+            </Row>
+          </View>
+        </Row>
         <Input label="Nombres *" value={f.firstName} onChangeText={v => set('firstName', v)} autoCapitalize="words" maxLength={100} />
         <Input label="Apellidos *" value={f.lastName} onChangeText={v => set('lastName', v)} autoCapitalize="words" maxLength={100} />
         <Row style={{ alignItems: 'flex-start' }}>

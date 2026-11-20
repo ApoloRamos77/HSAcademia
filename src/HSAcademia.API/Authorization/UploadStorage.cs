@@ -43,6 +43,39 @@ public sealed class UploadStorage
         return ($"/uploads/vouchers/{fileName}", null);
     }
 
+    public const long MaxPhotoBytes = 3 * 1024 * 1024;
+    private static readonly HashSet<string> AllowedPhotoExtensions = new() { ".jpg", ".jpeg", ".png", ".webp" };
+
+    /// <summary>
+    /// Guarda la foto de un alumno con nombre aleatorio (no adivinable). Las apps la reducen antes de subirla;
+    /// aquí solo se valida tamaño, extensión y firma real de imagen.
+    /// </summary>
+    public async Task<(string? Url, string? Error)> SaveStudentPhotoAsync(IFormFile? file)
+    {
+        if (file == null || file.Length == 0) return (null, "No se proporcionó ninguna foto.");
+        if (file.Length > MaxPhotoBytes) return (null, "La foto supera el tamaño máximo de 3 MB.");
+
+        var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+        if (!AllowedPhotoExtensions.Contains(ext)) return (null, "Formato no permitido. Usa JPG, PNG o WEBP.");
+        if (!await HasValidSignatureAsync(file, ext)) return (null, "El archivo no es una imagen válida.");
+
+        var folder = Path.Combine(RootPath, "students");
+        Directory.CreateDirectory(folder);
+        var fileName = $"{Guid.NewGuid():N}{ext}";
+        await using (var stream = new FileStream(Path.Combine(folder, fileName), FileMode.CreateNew))
+            await file.CopyToAsync(stream);
+        return ($"/uploads/students/{fileName}", null);
+    }
+
+    /// <summary>Borra una foto de alumno anterior. Solo acepta rutas de la carpeta de fotos (nunca otra cosa).</summary>
+    public void DeleteStudentPhoto(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url) || !url.StartsWith("/uploads/students/", StringComparison.Ordinal)) return;
+        var name = Path.GetFileName(url);
+        if (name != url["/uploads/students/".Length..]) return;
+        try { File.Delete(Path.Combine(RootPath, "students", name)); } catch { /* si no existe, no importa */ }
+    }
+
     /// <summary>Verifica los "magic bytes" para no confiar solo en la extensión.</summary>
     private static async Task<bool> HasValidSignatureAsync(IFormFile file, string ext)
     {

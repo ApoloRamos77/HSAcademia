@@ -7,7 +7,8 @@ import { useAuth } from '../../auth/AuthContext';
 import { Badge, Banner, Card, Empty, Loading, Row, Screen, SectionTitle } from '../../components/ui';
 import { useApi } from '../../hooks/useApi';
 import { colors, font, radius, spacing } from '../../theme';
-import { clockTime, firstName, greeting, instantDate, money } from '../../utils/format';
+import { clockTime, firstName, greeting, instantDate, money, sedeLabel } from '../../utils/format';
+import { StudentAvatar } from '../../components/StudentPhoto';
 import { useFamily } from './FamilyContext';
 import StudentPicker from './StudentPicker';
 
@@ -48,10 +49,13 @@ export default function FamilyHomeScreen({ navigation }: any) {
 
   return (
     <Screen refreshing={refreshing} onRefresh={refresh}>
-      <View>
-        <Text style={font.h1}>{greeting()}, {firstName(session?.fullName)}</Text>
-        <Text style={font.small}>{student.firstName} {student.lastName} · {student.categoryName} · Sede {student.headquarterName}</Text>
-      </View>
+      <Row style={{ gap: spacing.md, alignItems: 'center' }}>
+        <StudentAvatar photoUrl={student.photoUrl} name={`${student.firstName} ${student.lastName}`} size={52} />
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={font.h1}>{greeting()}, {firstName(session?.fullName)}</Text>
+          <Text style={font.small}>{[`${student.firstName} ${student.lastName}`, student.categoryName, sedeLabel(student.headquarterName)].filter(Boolean).join(' · ')}</Text>
+        </View>
+      </Row>
       <StudentPicker />
 
       {/* Avisos de llegada */}

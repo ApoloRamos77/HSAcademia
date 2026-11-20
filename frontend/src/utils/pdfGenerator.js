@@ -33,11 +33,11 @@ export const generateReceiptPDF = (data) => {
     tableData = data.items.map(item => [
       item.quantity || 1, 
       item.description || "Descripción no disponible", 
-      `S/. ${parseFloat(item.total).toFixed(2)}`
+      `S/ ${parseFloat(item.total).toFixed(2)}`
     ]);
   } else {
     tableData = [
-      [data.quantity || 1, data.description || "Descripción no disponible", `S/. ${parseFloat(data.total).toFixed(2)}`]
+      [data.quantity || 1, data.description || "Descripción no disponible", `S/ ${parseFloat(data.total).toFixed(2)}`]
     ];
   }
   
@@ -177,7 +177,7 @@ export const generateReceiptPDF = (data) => {
   doc.setFont("helvetica", "bold");
   doc.setTextColor(0, 0, 0);
   doc.setFontSize(10);
-  doc.text(`TOTAL: S/. ${parseFloat(data.total).toFixed(2)}`, 77.5, finalY + 36.5, { align: "center" });
+  doc.text(`TOTAL: S/ ${parseFloat(data.total).toFixed(2)}`, 77.5, finalY + 36.5, { align: "center" });
 
   // Comprobante anulado: sello visible en todas las copias
   if (data.voided) {

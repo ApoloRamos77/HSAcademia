@@ -7,6 +7,10 @@ import AppLayout from '../../components/AppLayout';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../api/axios';
 import { todayISO } from '../../utils/dates';
+import { StudentAvatar } from '../../components/students/StudentPhoto';
+
+/** "Sede Central" ya dice sede: no repetir "Sede Sede Central". */
+const sedeLabel = name => (!name ? '' : /^sede/i.test(name) ? name : `Sede ${name}`);
 
 const money = v => `S/ ${Number(v || 0).toFixed(2)}`;
 const longDate = s => {
@@ -169,11 +173,14 @@ export default function StudentDashboard() {
     <AppLayout title="Portal de la familia">
       <div className="fade-in flex flex-col gap-5" style={{ maxWidth: 1100, margin: '0 auto', paddingBottom: 40 }}>
         <div className="card flex flex-col md:flex-row justify-between md:items-center gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-primary-dark flex items-center gap-2 m-0"><User className="text-primary" size={26} /> ¡Hola, {user?.fullName?.split(' ')[0]}!</h1>
-            <p className="text-sm text-text-secondary mt-1 mb-0">
-              {student ? `${student.firstName} ${student.lastName} · ${student.categoryName} · Sede ${student.headquarterName}` : 'Consulta pagos, asistencia y avances deportivos.'}
-            </p>
+          <div className="flex items-center gap-3 min-w-0">
+            {student && <StudentAvatar photoUrl={student.photoUrl} firstName={student.firstName} lastName={student.lastName} size={56} />}
+            <div className="min-w-0">
+              <h1 className="text-2xl font-bold text-primary-dark flex items-center gap-2 m-0">{!student && <User className="text-primary" size={26} />} ¡Hola, {user?.fullName?.split(' ')[0]}!</h1>
+              <p className="text-sm text-text-secondary mt-1 mb-0">
+                {student ? [`${student.firstName} ${student.lastName}`, student.categoryName, sedeLabel(student.headquarterName)].filter(Boolean).join(' · ') : 'Consulta pagos, asistencia y avances deportivos.'}
+              </p>
+            </div>
           </div>
           {students.length > 1 && (
             <div className="flex flex-wrap gap-2" role="tablist" aria-label="Alumno">
@@ -256,7 +263,7 @@ export default function StudentDashboard() {
                 <ul className="flex flex-col gap-2" style={{ listStyle: 'none', margin: 0, padding: 0 }}>
                   {records.slice(0, 8).map((r, i) => (
                     <li key={`${r.date}-${i}`} className="flex justify-between items-center border-b border-border pb-2">
-                      <span className="text-sm capitalize">{longDate(r.date)}<span className="block text-xs text-text-muted normal-case">{r.notes}</span></span>
+                      <span className="text-sm first-letter:uppercase">{longDate(r.date)}<span className="block text-xs text-text-muted normal-case">{r.notes}</span></span>
                       <span className={`badge ${ATT[r.status]?.cls || 'badge-muted'}`}>{ATT[r.status]?.label || r.status}</span>
                     </li>
                   ))}
