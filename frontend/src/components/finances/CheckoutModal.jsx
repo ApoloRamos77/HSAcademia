@@ -37,6 +37,10 @@ const NOTE_PRESETS = {
   none: ['Se exonera la mora', 'Avisó con anticipación', 'Retraso atribuible a la academia'],
 };
 const noteLength = (sel) => (sel?.reg?.note || '').trim().length;
+// Descuento y exoneración al cobrar: motivo obligatorio (sale en el recibo y en la auditoría).
+const MIN_REASON = 3;
+const ADJUST_REASONS = ['2.º encuentro del día', 'Hermanos', 'Apoyo económico', 'Decisión del coordinador'];
+const round2 = (v) => Math.round(v * 100) / 100;
 const initials = (s) => `${(s.firstName || '')[0] || ''}${(s.lastName || '')[0] || ''}`.toUpperCase();
 
 /**
@@ -50,6 +54,8 @@ export default function CheckoutModal({ open, onClose, onDone, initialStudentId,
   const perms = user?.permissions || [];
   const canDebts = isAdmin || perms.includes('collections.collect');
   const canProducts = canDebts || perms.includes('store.sell');
+  // Descontar o exonerar al cobrar exige el permiso de ajustar deudas (el servidor también lo valida).
+  const canAdjust = isAdmin || perms.includes('collections.adjust');
 
   const [students, setStudents] = useState([]);
   const [products, setProducts] = useState([]);
@@ -111,7 +117,7 @@ export default function CheckoutModal({ open, onClose, onDone, initialStudentId,
         data.pendingDebts.forEach(d => {
           if (next[d.id]) return;
           const on = preselect && preselect.length ? preselect.includes(d.id) : d.studentId === studentId;
-          next[d.id] = { on, partial: false, amount: '', discount: '' };
+          next[d.id] = { on, partial: false, amount: '', discount: '', adj: 'none', unit: 'soles', reason: '' };
         });
         return next;
       });
@@ -159,8 +165,30 @@ export default function CheckoutModal({ open, onClose, onDone, initialStudentId,
     return next;
   });
   const selectedVisible = visibleDebts.filter(d => debtSel[d.id]?.on).length;
+  // Monto del descuento manual de una deuda (en S/ o % del saldo).
+  const discountOf = (d, sel) => {
+    if (sel?.adj !== 'discount') return 0;
+    const v = num(sel.discount);
+    if (!(v > 0)) return 0;
+    return sel.unit === 'pct' ? round2(d.amountPending * Math.min(v, 100) / 100) : v;
+  };
+  const adjustProblem = (d) => {
+    const sel = debtSel[d.id];
+    if (!sel?.on || !sel.adj || sel.adj === 'none') return null;
+    if (sel.adj === 'discount') {
+      const v = num(sel.discount);
+      if (!(v > 0)) return 'Indica el descuento.';
+      if (sel.unit === 'pct' && v > 100) return 'El descuento no puede pasar del 100 %.';
+      if (discountOf(d, sel) > d.amountPending + 0.001) return 'El descuento no puede ser mayor que el saldo.';
+    }
+    if ((sel.reason || '').trim().length < MIN_REASON) return sel.adj === 'waive' ? 'Indica el motivo de la exoneración.' : 'Indica el motivo del descuento.';
+    return null;
+  };
   const regProblem = (d) => {
     const sel = debtSel[d.id];
+    const adj = adjustProblem(d);
+    if (adj) return adj;
+    if (sel?.adj === 'waive') return null; // se exonera: no hay mora que decidir
     if (!d.requiresRegularization || !sel?.on) return null;
     if (sel.reg?.charge && !(num(sel.reg?.amount) > 0)) return 'Indica el monto de la mora.';
     if (noteLength(sel) < MIN_NOTE) return `Escribe una observación de al menos ${MIN_NOTE} caracteres (o elige una sugerida).`;
@@ -180,10 +208,11 @@ export default function CheckoutModal({ open, onClose, onDone, initialStudentId,
     voucherUrl: pay.voucherUrl || null,
     notes: pay.notes.trim() || null,
     channel: 'web',
-    debts: visibleDebts.filter(d => debtSel[d.id]?.on).map(d => ({
+    debts: visibleDebts.filter(d => debtSel[d.id]?.on && debtSel[d.id]?.adj !== 'waive').map(d => ({
       paymentRecordId: d.id,
       amount: debtSel[d.id].partial ? num(debtSel[d.id].amount) : null, // vacío = cancelar completa
-      discount: num(debtSel[d.id].discount),
+      discount: discountOf(d, debtSel[d.id]),
+      discountReason: debtSel[d.id].adj === 'discount' ? (debtSel[d.id].reason || '').trim() || null : null,
       regularization: d.requiresRegularization ? {
         chargeLateFee: !!debtSel[d.id].reg?.charge,
         lateFeeAmount: debtSel[d.id].reg?.charge ? num(debtSel[d.id].reg?.amount) : null,
@@ -197,6 +226,8 @@ export default function CheckoutModal({ open, onClose, onDone, initialStudentId,
   }), [families, payer, promotionId, pay, visibleDebts, debtSel, lines]);
 
   const itemCount = body.debts.length + body.products.length;
+  // Deudas que se exoneran en este cobro (no van al recibo).
+  const waived = visibleDebts.filter(d => debtSel[d.id]?.on && debtSel[d.id]?.adj === 'waive');
 
   // Vista previa calculada por el servidor (con espera para no consultar en cada tecla).
   useEffect(() => {
@@ -244,8 +275,8 @@ export default function CheckoutModal({ open, onClose, onDone, initialStudentId,
 
   const submit = async (e) => {
     e.preventDefault();
-    if (itemCount === 0) { toast.error('Agrega al menos una deuda o un producto.'); return; }
-    if (previewError) { toast.error(previewError); return; }
+    if (itemCount === 0 && waived.length === 0) { toast.error('Agrega al menos una deuda o un producto.'); return; }
+    if (itemCount > 0 && previewError) { toast.error(previewError); return; }
     // Solo se revisan las deudas marcadas del mes visible (las mismas que se cobran).
     const missing = visibleDebts.find(d => regProblem(d));
     if (missing) {
@@ -267,12 +298,29 @@ export default function CheckoutModal({ open, onClose, onDone, initialStudentId,
       voucherUrl: p.key === firstDigitalKey ? pay.voucherUrl || null : null,
     })) : null;
     setSaving(true);
+    // 1) Exoneraciones (con su motivo). Quedan registradas aunque luego falle el cobro.
+    for (const d of waived) {
+      try {
+        await api.post('/finances/debts/exclude', { paymentRecordId: d.id, exclusionType: 'OtherExclusion', exclusionNote: `Exonerado al cobrar: ${(debtSel[d.id].reason || '').trim()}` });
+      } catch (err) {
+        setSaving(false);
+        toast.error(`No se pudo exonerar ${d.description}: ${err.response?.data?.message || 'error'}`);
+        return;
+      }
+    }
+    if (itemCount === 0) {
+      setSaving(false);
+      toast.success(waived.length === 1 ? 'Deuda exonerada.' : `${waived.length} deudas exoneradas.`);
+      onDone?.(null);
+      onClose();
+      return;
+    }
     try {
       const { data } = await api.post('/receipts', { ...body, payments, clientRequestId: requestId });
       // onDone se avisa al cerrar el aviso del recibo: hay pantallas (Asistencia) que cierran el cobro en onDone.
       setIssued(data);
     } catch (err) {
-      toast.error(err.response?.data?.message || 'No se pudo registrar el cobro.');
+      toast.error((waived.length ? 'Las exoneraciones quedaron registradas, pero el cobro no: ' : '') + (err.response?.data?.message || 'No se pudo registrar el cobro.'));
     } finally { setSaving(false); }
   };
 
@@ -415,7 +463,7 @@ export default function CheckoutModal({ open, onClose, onDone, initialStudentId,
 
                           {sel.on && (
                             <div className="co-debt-body">
-                              <div className="co-debt-controls">
+                              <div className="co-debt-controls" hidden={sel.adj === 'waive'}>
                                 <div className="co-seg" role="group" aria-label="Tipo de pago">
                                   <button type="button" className={!sel.partial ? 'active' : ''} onClick={() => setDebt(d.id, { partial: false, amount: '' })}>Completa</button>
                                   <button type="button" className={sel.partial ? 'active' : ''} onClick={() => setDebt(d.id, { partial: true, amount: '' })}>Abono parcial</button>
@@ -427,12 +475,48 @@ export default function CheckoutModal({ open, onClose, onDone, initialStudentId,
                                       value={sel.amount} onChange={e => setDebt(d.id, { amount: e.target.value })} />
                                   </label>
                                 )}
-                                <label className="co-inline-field">
-                                  <span>Desc. caja S/</span>
-                                  <input type="number" step="0.01" min="0" className="form-control" placeholder="0.00"
-                                    value={sel.discount} onChange={e => setDebt(d.id, { discount: e.target.value })} />
-                                </label>
                               </div>
+
+                              {canAdjust && (
+                                <div className={`co-adjust${sel.adj === 'waive' ? ' is-waive' : sel.adj === 'discount' ? ' is-discount' : ''}`}>
+                                  <div className="co-debt-controls">
+                                    <span className="co-adjust-label">Ajuste</span>
+                                    <div className="co-seg" role="group" aria-label="Ajuste de la deuda">
+                                      <button type="button" className={!sel.adj || sel.adj === 'none' ? 'active' : ''} onClick={() => setDebt(d.id, { adj: 'none' })}>Ninguno</button>
+                                      <button type="button" className={sel.adj === 'discount' ? 'active' : ''} onClick={() => setDebt(d.id, { adj: 'discount' })}>Descuento</button>
+                                      <button type="button" className={sel.adj === 'waive' ? 'active is-warning' : ''} onClick={() => setDebt(d.id, { adj: 'waive', partial: false, amount: '' })}>Exonerar</button>
+                                    </div>
+                                  </div>
+                                  {sel.adj === 'discount' && (
+                                    <div className="co-debt-controls">
+                                      <label className="co-inline-field">
+                                        <span>Descuento</span>
+                                        <input type="number" step="0.01" min="0" className="form-control" placeholder="0" aria-label="Valor del descuento"
+                                          value={sel.discount} onChange={e => setDebt(d.id, { discount: e.target.value })} />
+                                      </label>
+                                      <div className="co-seg" role="group" aria-label="Tipo de descuento">
+                                        <button type="button" className={sel.unit !== 'pct' ? 'active' : ''} onClick={() => setDebt(d.id, { unit: 'soles' })}>S/</button>
+                                        <button type="button" className={sel.unit === 'pct' ? 'active' : ''} onClick={() => setDebt(d.id, { unit: 'pct' })}>%</button>
+                                      </div>
+                                      {sel.unit === 'pct' && discountOf(d, sel) > 0 && <span className="text-xs text-success">= -{money(discountOf(d, sel))}</span>}
+                                    </div>
+                                  )}
+                                  {sel.adj === 'waive' && (
+                                    <p className="text-xs m-0" style={{ color: '#B45309' }}>Se exonera el saldo de {money(d.amountPending)}: no se cobra ni sale en el recibo.</p>
+                                  )}
+                                  {sel.adj && sel.adj !== 'none' && (
+                                    <>
+                                      <div className="co-concepts" role="group" aria-label="Motivos sugeridos">
+                                        {ADJUST_REASONS.map(r => (
+                                          <button type="button" key={r} className={`co-chip${sel.reason === r ? ' active' : ''}`} aria-pressed={sel.reason === r} onClick={() => setDebt(d.id, { reason: r })}>{r}</button>
+                                        ))}
+                                      </div>
+                                      <input className="form-control" maxLength={120} placeholder={sel.adj === 'waive' ? 'Motivo de la exoneración *' : 'Motivo del descuento *'}
+                                        aria-label="Motivo" value={sel.reason || ''} onChange={e => setDebt(d.id, { reason: e.target.value })} />
+                                    </>
+                                  )}
+                                </div>
+                              )}
 
                               {d.requiresRegularization && (
                                 <div className="co-reg">
@@ -587,9 +671,15 @@ export default function CheckoutModal({ open, onClose, onDone, initialStudentId,
 
           <div className="modal-footer mt-4 flex justify-end gap-2">
             <button type="button" onClick={onClose} className="btn btn-ghost text-danger">Cancelar</button>
-            <button type="submit" disabled={saving || itemCount === 0 || !preview || previewing || !!previewError || (mixed && remainingCents !== 0)} className="btn btn-success flex items-center gap-2">
-              <CheckCircle size={15} /> {saving ? 'Registrando…' : `Cobrar ${money(preview?.total)} y emitir recibo`}
-            </button>
+            {itemCount === 0 && waived.length > 0 ? (
+              <button type="submit" disabled={saving} className="btn btn-warning flex items-center gap-2">
+                <CheckCircle size={15} /> {saving ? 'Registrando…' : `Exonerar ${waived.length === 1 ? 'la deuda' : `${waived.length} deudas`}`}
+              </button>
+            ) : (
+              <button type="submit" disabled={saving || itemCount === 0 || !preview || previewing || !!previewError || (mixed && remainingCents !== 0)} className="btn btn-success flex items-center gap-2">
+                <CheckCircle size={15} /> {saving ? 'Registrando…' : `Cobrar ${money(preview?.total)} y emitir recibo${waived.length ? ` · exonerar ${waived.length}` : ''}`}
+              </button>
+            )}
           </div>
         </form>
       </div>

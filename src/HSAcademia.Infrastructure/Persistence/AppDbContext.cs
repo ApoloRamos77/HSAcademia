@@ -737,6 +737,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Level).HasColumnName("level").HasConversion<int>();
             entity.Property(e => e.InscriptionFee).HasColumnName("inscription_fee").HasColumnType("numeric(10,2)");
             entity.Property(e => e.RefereeFee).HasColumnName("referee_fee").HasColumnType("numeric(10,2)");
+            entity.Property(e => e.RefereeSameDayDiscountPercent).HasColumnName("referee_same_day_discount_percent").HasColumnType("numeric(5,2)");
             entity.Property(e => e.DefaultCoachFee).HasColumnName("default_coach_fee").HasColumnType("numeric(10,2)");
             entity.Property(e => e.RedCardSuspensionMatches).HasColumnName("red_card_suspension_matches");
             entity.Property(e => e.RequiresAuthorization).HasColumnName("requires_authorization");
@@ -906,6 +907,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Amount).HasColumnName("amount").HasColumnType("numeric(10,2)").IsRequired();
             entity.Property(e => e.DueDate).HasColumnName("due_date");
             entity.Property(e => e.ExemptScholarship).HasColumnName("exempt_scholarship");
+            entity.Property(e => e.SameDayDiscountPercent).HasColumnName("same_day_discount_percent").HasColumnType("numeric(5,2)");
             entity.Property(e => e.IsActive).HasColumnName("is_active");
             entity.Property(e => e.Notes).HasColumnName("notes").HasMaxLength(500);
             entity.Property(e => e.SystemKey).HasColumnName("system_key").HasMaxLength(20);

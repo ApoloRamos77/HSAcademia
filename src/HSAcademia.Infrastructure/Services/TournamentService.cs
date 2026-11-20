@@ -169,6 +169,8 @@ public class TournamentService
         if (dto.Level.HasValue) t.Level = (TournamentLevel)dto.Level.Value;
         if (dto.InscriptionFee.HasValue) t.InscriptionFee = dto.InscriptionFee > 0 ? Math.Round(dto.InscriptionFee.Value, 2) : null;
         if (dto.RefereeFee.HasValue) t.RefereeFee = dto.RefereeFee > 0 ? Math.Round(dto.RefereeFee.Value, 2) : null;
+        if (dto.RefereeSameDayDiscountPercent.HasValue)
+            t.RefereeSameDayDiscountPercent = dto.RefereeSameDayDiscountPercent > 0 ? Math.Round(Math.Min(dto.RefereeSameDayDiscountPercent.Value, 100m), 2) : null;
         if (dto.DefaultCoachFee.HasValue) t.DefaultCoachFee = dto.DefaultCoachFee > 0 ? Math.Round(dto.DefaultCoachFee.Value, 2) : null;
         // Clientes anteriores no mandan las fechas: se conservan.
         var touchesSchedule = isNew || dto.ScheduleMode.HasValue || dto.StartDate.HasValue || dto.EndDate.HasValue || dto.PlayDays != null;
@@ -230,6 +232,7 @@ public class TournamentService
         Level = (int)t.Level,
         InscriptionFee = t.InscriptionFee,
         RefereeFee = t.RefereeFee,
+        RefereeSameDayDiscountPercent = t.RefereeSameDayDiscountPercent,
         DefaultCoachFee = t.DefaultCoachFee,
         StartDate = t.StartDate,
         EndDate = t.EndDate,

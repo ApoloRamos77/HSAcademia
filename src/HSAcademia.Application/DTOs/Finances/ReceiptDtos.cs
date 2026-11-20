@@ -53,8 +53,11 @@ public class CheckoutDebtItemDto
     /// Un abono parcial no recibe descuentos automáticos (pronto pago / promoción).
     /// </summary>
     public decimal? Amount { get; set; }
-    /// <summary>Descuento manual adicional en caja (rebaja el importe de la deuda).</summary>
+    /// <summary>Descuento manual adicional en caja (rebaja el importe de la deuda). Requiere el permiso de ajustar deudas.</summary>
     public decimal Discount { get; set; }
+    /// <summary>Motivo del descuento manual (sale en el recibo y en la deuda). Ej.: "2.º encuentro del día", "Hermanos".</summary>
+    [System.ComponentModel.DataAnnotations.MaxLength(120)]
+    public string? DiscountReason { get; set; }
     /// <summary>
     /// Mensualidad vencida sin regularizar: decisión obligatoria (con o sin mora + observación).
     /// Si se cobra mora, entra en el mismo recibo como un ítem aparte.

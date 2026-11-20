@@ -70,6 +70,8 @@ public class Tournament
     public decimal? InscriptionFee { get; set; }
     /// <summary>Arbitraje por alumno en cada partido al que asiste. Null = no se cobra.</summary>
     public decimal? RefereeFee { get; set; }
+    /// <summary>% de descuento del arbitraje desde el 2.º encuentro del mismo día (100 = exonerado). Null = sin descuento.</summary>
+    public decimal? RefereeSameDayDiscountPercent { get; set; }
     /// <summary>Honorario sugerido del entrenador por fecha (se puede cambiar en cada día).</summary>
     public decimal? DefaultCoachFee { get; set; }
     /// <summary>Fecha de inicio (solo fecha). Null en torneos migrados sin partidos.</summary>

@@ -40,6 +40,7 @@ public class TournamentBillingService
     private const string EncounterWaivedPrefix = "Encuentro exonerado";
     /// <summary>Convocado que no asistió: por defecto no se cobra; el administrador puede decidir cobrarle.</summary>
     private const string AbsentNote = "No asistió";
+    public const string SameDayNote = "2.º encuentro o más del mismo día (exonerado)";
 
     // =========================================================
     // CONCEPTOS
@@ -112,6 +113,9 @@ public class TournamentBillingService
         fee.ExemptScholarship = dto.ExemptScholarship;
         fee.IsActive = dto.IsActive;
         fee.Notes = Clean(dto.Notes);
+        if (dto.SameDayDiscountPercent.HasValue)
+            fee.SameDayDiscountPercent = fee.Frequency == TournamentFeeFrequency.PerMatch && dto.SameDayDiscountPercent > 0
+                ? Math.Round(Math.Min(dto.SameDayDiscountPercent.Value, 100m), 2) : null;
     }
 
     /// <summary>Inscripción y arbitraje de la ficha del torneo: se mantienen como conceptos automáticos.</summary>
@@ -121,7 +125,7 @@ public class TournamentBillingService
         if (t == null) return;
         var fees = await _db.TournamentFees.Where(f => f.TournamentId == tournamentId && f.SystemKey != null).ToListAsync();
         var changed = new List<Guid>();
-        void Upsert(string key, string name, TournamentFeeFrequency freq, decimal? amount)
+        void Upsert(string key, string name, TournamentFeeFrequency freq, decimal? amount, decimal? sameDay = null)
         {
             var fee = fees.FirstOrDefault(f => f.SystemKey == key);
             var active = amount is > 0 && !t.IsDeleted;
@@ -132,22 +136,24 @@ public class TournamentBillingService
                 {
                     AcademyId = t.AcademyId, TournamentId = t.Id, SystemKey = key, Name = name, Frequency = freq,
                     AmountMode = TournamentFeeAmountMode.PerPlayer, Amount = amount!.Value, ExemptScholarship = true, IsActive = true,
+                    SameDayDiscountPercent = sameDay,
                 };
                 _db.TournamentFees.Add(fee);
                 changed.Add(fee.Id);
                 return;
             }
             var newAmount = active ? amount!.Value : fee.Amount;
-            if (fee.IsActive != active || fee.Amount != newAmount)
+            if (fee.IsActive != active || fee.Amount != newAmount || fee.SameDayDiscountPercent != sameDay)
             {
                 fee.IsActive = active;
                 fee.Amount = newAmount;
+                fee.SameDayDiscountPercent = sameDay;
                 fee.UpdatedAt = DateTime.UtcNow;
                 changed.Add(fee.Id);
             }
         }
         Upsert("inscription", "Inscripción", TournamentFeeFrequency.Once, t.InscriptionFee);
-        Upsert("referee", "Arbitraje", TournamentFeeFrequency.PerMatch, t.RefereeFee);
+        Upsert("referee", "Arbitraje", TournamentFeeFrequency.PerMatch, t.RefereeFee, t.RefereeSameDayDiscountPercent);
         if (changed.Count == 0) return;
         await _db.SaveChangesAsync();
         foreach (var id in changed) await TrySyncFeeAsync(id);
@@ -411,6 +417,10 @@ public class TournamentBillingService
                 {
                     // Anulada en Cobranzas: se respeta.
                 }
+                else if (c.Status == TournamentChargeStatus.Waived && c.Note == SameDayNote)
+                {
+                    // Exonerado por ser 2.º encuentro o más del día: lo decide la regla más abajo.
+                }
                 else if (c.Status != TournamentChargeStatus.Charged)
                 {
                     c.Status = TournamentChargeStatus.Charged; // asistió: se cobra (aunque antes se hubiera decidido no cobrar la falta)
@@ -450,6 +460,42 @@ public class TournamentBillingService
 
         // ── Montos y deudas ──
         var live = existing.Where(c => _db.Entry(c).State != EntityState.Deleted && _db.Entry(c).State != EntityState.Detached).ToList();
+
+        // Regla del torneo: desde el 2.º encuentro del mismo día de un alumno, % de descuento (100 = se exonera).
+        var sameDayPct = fee.Frequency == TournamentFeeFrequency.PerMatch ? Math.Clamp(fee.SameDayDiscountPercent ?? 0m, 0m, 100m) : 0m;
+        var dayRank = new Dictionary<Guid, int>();
+        var pool = live.Where(c => c.EventId != null && (c.Status == TournamentChargeStatus.Charged
+            || (c.Status == TournamentChargeStatus.Waived && c.Note == SameDayNote))).ToList();
+        if (pool.Count > 0)
+        {
+            var poolEvents = pool.Select(c => c.EventId!.Value).Distinct().ToList();
+            var starts = await _db.Events.IgnoreQueryFilters().AsNoTracking().Where(e => poolEvents.Contains(e.Id))
+                .ToDictionaryAsync(e => e.Id, e => e.StartTime);
+            foreach (var g in pool.GroupBy(c => (c.StudentId, starts.GetValueOrDefault(c.EventId!.Value).Date)))
+            {
+                var i = 0;
+                foreach (var c in g.OrderBy(c => starts.GetValueOrDefault(c.EventId!.Value)).ThenBy(c => c.EventId)) dayRank[c.Id] = ++i;
+            }
+            foreach (var c in pool)
+            {
+                var waive = sameDayPct >= 100m && dayRank.GetValueOrDefault(c.Id, 1) >= 2;
+                if (waive && c.Status == TournamentChargeStatus.Charged)
+                {
+                    if (Paid(c.PaymentRecord) || c.DecidedAt != null) continue; // ya pagó o el administrador decidió cobrarle
+                    if (VoidRecord(c)) result.Voided++;
+                    c.Status = TournamentChargeStatus.Waived;
+                    c.Note = SameDayNote;
+                    c.UpdatedAt = now2;
+                }
+                else if (!waive && c.Status == TournamentChargeStatus.Waived && c.Note == SameDayNote)
+                {
+                    // Dejó de ser el 2.º del día (se quitó un encuentro o cambió la regla): vuelve a cobrarse.
+                    c.Status = TournamentChargeStatus.Charged;
+                    c.Note = null;
+                    c.UpdatedAt = now2;
+                }
+            }
+        }
         result.Review = live.Count(c => c.Status == TournamentChargeStatus.Review);
         var newByStudent = new Dictionary<Guid, List<string>>();
         foreach (var group in live.Where(c => c.Status == TournamentChargeStatus.Charged).GroupBy(c => c.EventId))
@@ -463,6 +509,11 @@ public class TournamentBillingService
 
             foreach (var c in group)
             {
+                // Desde el 2.º encuentro del día: descuento parcial de la regla del torneo.
+                var rank = dayRank.GetValueOrDefault(c.Id, 1);
+                var ruleDiscount = rank >= 2 && sameDayPct is > 0m and < 100m ? Math.Round(amount * sameDayPct / 100m, 2) : 0m;
+                var finalAmount = amount - ruleDiscount;
+                var ruleDetail = ruleDiscount > 0 ? $"{rank}.º encuentro del día -{sameDayPct:0.##}%" : null;
                 if (c.PaymentRecord == null)
                 {
                     var due = await DueDateAsync(fee, ev, result);
@@ -472,7 +523,9 @@ public class TournamentBillingService
                         AcademyId = fee.AcademyId,
                         StudentId = c.StudentId,
                         Description = description,
-                        Amount = amount,
+                        Amount = finalAmount,
+                        DiscountAmount = ruleDiscount,
+                        DiscountDetail = ruleDetail,
                         DueDate = due.Value,
                         PeriodYear = due.Value.Year,
                         PeriodMonth = due.Value.Month,
@@ -481,18 +534,20 @@ public class TournamentBillingService
                     _db.PaymentRecords.Add(rec);
                     c.PaymentRecord = rec;
                     c.PaymentRecordId = rec.Id;
-                    c.Amount = amount;
+                    c.Amount = finalAmount;
                     c.UpdatedAt = now2;
                     result.Created++;
-                    (newByStudent.TryGetValue(c.StudentId, out var l) ? l : newByStudent[c.StudentId] = new()).Add($"{Short(fee, ev)} S/ {amount:0.00}");
+                    (newByStudent.TryGetValue(c.StudentId, out var l) ? l : newByStudent[c.StudentId] = new()).Add($"{Short(fee, ev)} S/ {finalAmount:0.00}");
                 }
                 else if (!Paid(c.PaymentRecord) && c.PaymentRecord.ExclusionType == ExclusionType.None &&
-                         (c.PaymentRecord.Amount != amount || c.PaymentRecord.Description != description))
+                         (c.PaymentRecord.Amount != finalAmount || c.PaymentRecord.Description != description || c.PaymentRecord.DiscountAmount != ruleDiscount))
                 {
-                    c.PaymentRecord.Amount = amount;
+                    c.PaymentRecord.Amount = finalAmount;
+                    c.PaymentRecord.DiscountAmount = ruleDiscount;
+                    c.PaymentRecord.DiscountDetail = ruleDetail;
                     c.PaymentRecord.Description = description;
                     c.PaymentRecord.UpdatedAt = now2;
-                    c.Amount = amount;
+                    c.Amount = finalAmount;
                     c.UpdatedAt = now2;
                     result.Updated++;
                 }
@@ -662,6 +717,7 @@ public class TournamentBillingService
                 Id = x.f.Id, TournamentId = x.f.TournamentId, TeamId = x.f.TeamId, TeamName = x.TeamName,
                 Name = x.f.Name, Frequency = (int)x.f.Frequency, AmountMode = (int)x.f.AmountMode, Amount = x.f.Amount,
                 DueDate = x.f.DueDate, ExemptScholarship = x.f.ExemptScholarship, IsActive = x.f.IsActive, Notes = x.f.Notes, SystemKey = x.f.SystemKey,
+                SameDayDiscountPercent = x.f.SameDayDiscountPercent,
                 Charged = charged.Sum(s => s.Amount),
                 Collected = charged.Sum(s => s.Paid),
                 Pending = charged.Sum(s => Math.Max(0, s.Amount - s.Paid)),

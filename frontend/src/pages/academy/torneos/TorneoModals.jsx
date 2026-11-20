@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { X, Search, Trash2, Plus, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../../api/axios';
+import SameDayDiscount from './SameDayDiscount';
 import {
   FORMATS, SCHEDULE_MODES, LEGACY_SCHEDULE, MODALITIES, LEVELS, STATUSES, MATCH_STATUSES, DAYS, errMsg,
   dateOf, timeOf, wall, addMinutesWall, fmtDate,
@@ -47,6 +48,7 @@ export function TournamentFormModal({ tournament, onClose, onSaved }) {
     level: tournament?.level ?? 1,
     inscriptionFee: tournament?.inscriptionFee ?? '',
     refereeFee: tournament?.refereeFee ?? '',
+    refereeSameDayDiscountPercent: tournament?.refereeSameDayDiscountPercent ?? 0,
     defaultCoachFee: tournament?.defaultCoachFee ?? '',
     scheduleMode: tournament?.scheduleMode ?? 2,
     status: tournament?.status ?? 1,
@@ -86,6 +88,7 @@ export function TournamentFormModal({ tournament, onClose, onSaved }) {
       playDays: [1, 4].includes(form.scheduleMode) ? [] : form.playDays,
       inscriptionFee: money(form.inscriptionFee),
       refereeFee: money(form.refereeFee),
+      refereeSameDayDiscountPercent: Number(form.refereeSameDayDiscountPercent) || 0,
       defaultCoachFee: money(form.defaultCoachFee),
     };
     setSaving(true);
@@ -186,6 +189,9 @@ export function TournamentFormModal({ tournament, onClose, onSaved }) {
           <input type="number" min={0} step="0.50" className="form-control" value={form.refereeFee} onChange={e => set({ refereeFee: e.target.value })} placeholder="Vacío = no se cobra" />
           <small className="text-muted">Por alumno, en cada fecha a la que asiste.</small>
         </div>
+        {Number(form.refereeFee) > 0 && (
+          <SameDayDiscount value={form.refereeSameDayDiscountPercent} onChange={v => set({ refereeSameDayDiscountPercent: v })} />
+        )}
         <div className="form-group">
           <label>Honorario del entrenador por fecha (S/)</label>
           <input type="number" min={0} step="0.50" className="form-control" value={form.defaultCoachFee} onChange={e => set({ defaultCoachFee: e.target.value })} placeholder="Sugerido; se cambia por día" />
