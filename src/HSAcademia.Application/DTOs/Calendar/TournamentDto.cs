@@ -18,6 +18,7 @@ public class TournamentDto
     public int Level { get; set; }
     public decimal? InscriptionFee { get; set; }
     public decimal? RefereeFee { get; set; }
+    public decimal? RefereeSameDayDiscountPercent { get; set; }
     public decimal? DefaultCoachFee { get; set; }
     public DateTime? StartDate { get; set; }
     public DateTime? EndDate { get; set; }
@@ -59,6 +60,8 @@ public class CreateTournamentDto
     /// <summary>Por alumno; 0 = no se cobra; null = conservar.</summary>
     [Range(0, 100000)] public decimal? InscriptionFee { get; set; }
     [Range(0, 100000)] public decimal? RefereeFee { get; set; }
+    /// <summary>% de descuento del arbitraje desde el 2.º encuentro del mismo día (100 = exonerar, 0 = sin descuento). Null = conservar.</summary>
+    [Range(0, 100)] public decimal? RefereeSameDayDiscountPercent { get; set; }
     [Range(0, 100000)] public decimal? DefaultCoachFee { get; set; }
     [Range(1, 4)] public int? Status { get; set; }
     public DateTime? StartDate { get; set; }

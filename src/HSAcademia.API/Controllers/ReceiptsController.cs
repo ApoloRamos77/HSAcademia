@@ -29,11 +29,20 @@ public class ReceiptsController : ControllerBase
     public Task<IActionResult> Family(Guid studentId) =>
         Run(academyId => _receipts.GetFamilyAccountAsync(academyId, studentId));
 
+/// <summary>Un descuento manual sobre una deuda exige el permiso de ajustar deudas (exonerar, recalcular).</summary>
+    private async Task<IActionResult?> DiscountDeniedAsync(CheckoutDto dto)
+    {
+        if (dto?.Debts == null || !dto.Debts.Any(d => d.Discount > 0)) return null;
+        if (await PermissionChecker.HasAsync(HttpContext, Permissions.CollectionsAdjust)) return null;
+        return StatusCode(403, new { message = "No tienes permiso para dar descuentos: pídeselo a quien puede ajustar deudas." });
+    }
+
     /// <summary>Registra el cobro y emite un solo comprobante con todos los ítems.</summary>
     [HttpPost]
     [RequirePermission(Permissions.CollectionsCollect, Permissions.StoreSell)]
     public async Task<IActionResult> Checkout([FromBody] CheckoutDto dto)
     {
+        if (await DiscountDeniedAsync(dto) is { } denied) return denied;
         var canDebts = await PermissionChecker.HasAsync(HttpContext, Permissions.CollectionsCollect);
         var canProducts = canDebts || await PermissionChecker.HasAsync(HttpContext, Permissions.StoreSell);
         return await Run(academyId => _receipts.CheckoutAsync(academyId, dto, canDebts, canProducts));
@@ -44,6 +53,7 @@ public class ReceiptsController : ControllerBase
     [RequirePermission(Permissions.CollectionsCollect, Permissions.StoreSell)]
     public async Task<IActionResult> Preview([FromBody] CheckoutDto dto)
     {
+        if (await DiscountDeniedAsync(dto) is { } denied) return denied;
         var canDebts = await PermissionChecker.HasAsync(HttpContext, Permissions.CollectionsCollect);
         var canProducts = canDebts || await PermissionChecker.HasAsync(HttpContext, Permissions.StoreSell);
         return await Run(academyId => _receipts.PreviewAsync(academyId, dto, canDebts, canProducts));

@@ -16,6 +16,8 @@ public class SaveTournamentFeeDto
     public bool ExemptScholarship { get; set; } = true;
     public bool IsActive { get; set; } = true;
     [MaxLength(500)] public string? Notes { get; set; }
+    /// <summary>Solo por partido: % de descuento desde el 2.º encuentro del mismo día (100 = exonerar). Null = conservar.</summary>
+    [Range(0, 100)] public decimal? SameDayDiscountPercent { get; set; }
 }
 
 public class TournamentFeeDto
@@ -34,6 +36,7 @@ public class TournamentFeeDto
     public string? Notes { get; set; }
     /// <summary>Concepto automático de la ficha ("inscription" / "referee").</summary>
     public string? SystemKey { get; set; }
+    public decimal? SameDayDiscountPercent { get; set; }
 
     public decimal Charged { get; set; }
     public decimal Collected { get; set; }

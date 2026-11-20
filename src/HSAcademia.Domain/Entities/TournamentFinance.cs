@@ -53,6 +53,11 @@ public class TournamentFee
     public string? Notes { get; set; }
     /// <summary>Concepto mantenido desde la ficha del torneo ("inscription" o "referee"); null = creado a mano.</summary>
     public string? SystemKey { get; set; }
+    /// <summary>
+    /// Solo por partido: % de descuento desde el 2.º encuentro del mismo día de un alumno (100 = se exonera).
+    /// Null o 0 = sin descuento. El cajero igual puede aplicar otro descuento o exonerar al cobrar.
+    /// </summary>
+    public decimal? SameDayDiscountPercent { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

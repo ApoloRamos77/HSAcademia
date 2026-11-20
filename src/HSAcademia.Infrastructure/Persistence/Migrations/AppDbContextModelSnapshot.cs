@@ -3474,6 +3474,10 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasColumnType("numeric(10,2)")
                         .HasColumnName("referee_fee");
 
+                    b.Property<decimal?>("RefereeSameDayDiscountPercent")
+                        .HasColumnType("numeric(5,2)")
+                        .HasColumnName("referee_same_day_discount_percent");
+
                     b.Property<string>("RequiredDocuments")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -3728,6 +3732,10 @@ namespace HSAcademia.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)")
                         .HasColumnName("notes");
+
+                    b.Property<decimal?>("SameDayDiscountPercent")
+                        .HasColumnType("numeric(5,2)")
+                        .HasColumnName("same_day_discount_percent");
 
                     b.Property<string>("SystemKey")
                         .HasMaxLength(20)

@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import { Plus, Pencil, Trash2, RefreshCw, X, AlertTriangle, Eye, Check, Ban } from 'lucide-react';
 import api from '../../../api/axios';
 import ConfirmDialog from '../../../components/ConfirmDialog';
+import SameDayDiscount from './SameDayDiscount';
 import { errMsg, fmtDate, timeOf, dateOf, todayLima } from './torneoUtils';
 
 const money = v => `S/ ${Number(v || 0).toFixed(2)}`;
@@ -237,7 +238,7 @@ function FeeModal({ t, fee, onClose, onSaved }) {
   const [form, setForm] = useState(() => ({
     name: fee?.name || '', teamId: fee?.teamId || '', frequency: fee?.frequency || 2, amountMode: fee?.amountMode || 1,
     amount: fee?.amount ?? '', dueDate: dateOf(fee?.dueDate) || '', exemptScholarship: fee?.exemptScholarship ?? true,
-    isActive: fee?.isActive ?? true, notes: fee?.notes || '',
+    isActive: fee?.isActive ?? true, notes: fee?.notes || '', sameDayDiscountPercent: fee?.sameDayDiscountPercent ?? 0,
   }));
   const [saving, setSaving] = useState(false);
   const set = patch => setForm(f => ({ ...f, ...patch }));
@@ -246,7 +247,8 @@ function FeeModal({ t, fee, onClose, onSaved }) {
   const save = async () => {
     if (!form.name.trim()) return toast.error('Ponle un nombre al concepto');
     if (!(Number(form.amount) > 0)) return toast.error('Indica el monto');
-    const body = { ...form, teamId: form.teamId || null, amount: Number(form.amount), dueDate: form.frequency === 1 && form.dueDate ? form.dueDate : null };
+    const body = { ...form, teamId: form.teamId || null, amount: Number(form.amount), dueDate: form.frequency === 1 && form.dueDate ? form.dueDate : null,
+      sameDayDiscountPercent: form.frequency === 2 ? Number(form.sameDayDiscountPercent) || 0 : 0 };
     setSaving(true);
     try {
       const { data } = fee ? await api.put(`/tournaments/fees/${fee.id}`, body) : await api.post(`/tournaments/${t.id}/fees`, body);
@@ -310,6 +312,7 @@ function FeeModal({ t, fee, onClose, onSaved }) {
             <input type="date" className="form-control" value={form.dueDate} onChange={e => set({ dueDate: e.target.value })} />
           </div>
         )}
+        {perMatch && <SameDayDiscount id="fee-same-day" value={form.sameDayDiscountPercent} onChange={v => set({ sameDayDiscountPercent: v })} />}
         <div className="form-group" style={{ gridColumn: '1/-1' }}>
           <small className="text-muted">{example}{form.amountMode === 2 ? ' El reparto se recalcula si cambia quién paga (lo ya pagado no se toca).' : ''}</small>
         </div>

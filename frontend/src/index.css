@@ -1103,3 +1103,10 @@ select.form-control { cursor: pointer; }
 /* Aviso "¿Imprimir el recibo ahora?" */
 .receipt-prompt-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
 @media (max-width: 640px) { .receipt-prompt-actions > .btn { flex: 1 1 0; } }
+
+/* Nuevo cobro: ajuste por deuda (descuento con motivo / exonerar) */
+.co-adjust { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: 12px; border: 1px dashed var(--border); }
+.co-adjust.is-discount { border-color: rgba(16,185,129,0.45); background: rgba(16,185,129,0.06); }
+.co-adjust.is-waive { border-color: rgba(245,158,11,0.5); background: rgba(245,158,11,0.08); }
+.co-adjust-label { font-size: 12px; font-weight: 700; color: var(--text-secondary); }
+.co-adjust .co-concepts { margin: 0; }

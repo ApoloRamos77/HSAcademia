@@ -518,7 +518,9 @@ public class ReceiptService
                 RuleDiscount = bestValue,
                 ManualDiscount = item.Discount,
                 Amount = amount,
-                Label = JoinLabels(best?.Label, item.Discount > 0 ? $"Descuento en caja S/ {item.Discount:0.00}" : null),
+                Label = JoinLabels(best?.Label, item.Discount > 0
+                    ? (string.IsNullOrWhiteSpace(item.DiscountReason) ? $"Descuento en caja S/ {item.Discount:0.00}" : $"Descuento: {item.DiscountReason.Trim()}")
+                    : null),
                 Regularization = regularization,
                 LateFee = lateFee
             });
