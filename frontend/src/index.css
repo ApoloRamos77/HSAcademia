@@ -1128,3 +1128,28 @@ select.form-control { cursor: pointer; }
   background: var(--danger); color: #fff; font-size: 11px; font-weight: 700;
   display: inline-flex; align-items: center; justify-content: center;
 }
+
+/* Botón-tarjeta con título y descripción (¿Cómo se juega?): el texto baja de línea en lugar de encimarse */
+.btn.choice-btn {
+  height: auto !important; min-height: var(--control-h, 40px); white-space: normal; line-height: 1.3;
+  flex-direction: column; align-items: flex-start; justify-content: flex-start; text-align: left; gap: 2px; padding: 10px 12px;
+}
+.btn.choice-btn > * { white-space: normal; overflow-wrap: anywhere; }
+
+/* Torneos → Cobros y gastos: Del torneo / Por encuentro */
+.tfin-toolbar { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-bottom: 12px; }
+.tfin-block { padding: 16px; margin-bottom: 16px; }
+.tfin-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.tfin-sub { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--text-secondary); }
+.tfin-title { margin: 14px 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--text-muted); }
+.tfin-title-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tfin-encounters { display: flex; flex-direction: column; gap: 10px; }
+.tfin-encounter { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; display: grid; grid-template-columns: 1fr auto; gap: 6px 16px; }
+.tfin-enc-title { grid-column: 1 / -1; font-size: 14px; }
+.tfin-enc-lines { display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: var(--text-secondary); }
+.tfin-enc-stats { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; align-items: center; }
+.tfin-enc-actions { grid-column: 1 / -1; display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+@media (max-width: 640px) {
+  .tfin-encounter { grid-template-columns: 1fr; }
+  .tfin-enc-actions > .btn { flex: 1 1 0; }
+}

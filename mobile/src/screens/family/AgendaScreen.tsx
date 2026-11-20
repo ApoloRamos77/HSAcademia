@@ -171,6 +171,15 @@ export default function AgendaScreen() {
                 </View>
                 <Trophy color={colors.warning} size={18} />
               </Row>
+              {(t.tournamentChargeLines?.length ?? 0) > 0 && (
+                <View style={{ marginTop: spacing.sm }}>
+                  <Text style={[font.small, { fontWeight: '700' }]}>Cobros del torneo</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+                    {t.tournamentChargeLines!.map(l => <Badge key={l} tone={/pendiente|pagó S/.test(l) ? 'warning' : 'muted'} text={l} />)}
+                  </View>
+                  <Text style={[font.tiny, { marginTop: 2 }]}>Los cobros de cada encuentro están en "Ver mis encuentros".</Text>
+                </View>
+              )}
               {t.suspendedFor && <View style={{ marginTop: spacing.sm }}><Banner tone="danger" text={`Suspendido · ${t.suspendedFor}`} /></View>}
               {t.missingDocuments.length > 0 && (
                 <View style={{ marginTop: spacing.sm }}><Banner tone="warning" text={`Falta entregar: ${t.missingDocuments.join(', ')}`} /></View>

@@ -121,93 +121,88 @@ export default function TorneoFinanzas({ t, can }) {
         </div>
       )}
 
-      <div className="card" style={{ padding: 16, marginBottom: 16 }}>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
-          <h4 style={{ margin: 0 }}>Cobros a las familias</h4>
-          {canGenerate && (
-            <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-              <button className="btn btn-secondary btn-sm" onClick={sync} disabled={busy === 'sync'} title="Vuelve a revisar planteles y asistencia">
-                <RefreshCw size={14} /> Recalcular
-              </button>
-              <button className="btn btn-primary btn-sm" onClick={() => setModal({ kind: 'fee' })}><Plus size={14} /> Nuevo concepto</button>
-            </div>
-          )}
+      {/* Acciones generales */}
+      {(canGenerate || canExpenses) && (
+        <div className="tfin-toolbar">
+          {canGenerate && <button className="btn btn-secondary btn-sm" onClick={sync} disabled={busy === 'sync'} title="Vuelve a revisar planteles y asistencia"><RefreshCw size={14} /> Recalcular</button>}
+          {canGenerate && <button className="btn btn-primary btn-sm" onClick={() => setModal({ kind: 'fee' })}><Plus size={14} /> Nuevo concepto</button>}
         </div>
-        {data.fees.length === 0 ? (
-          <p className="text-muted" style={{ margin: 0, fontSize: 13 }}>
-            Agrega lo que se cobra a las familias: inscripción o camiseta (una sola vez), arbitraje, cancha o pasaje (por partido).
-            Cada cobro aparece en Cobranzas y en la app de la familia.
-          </p>
-        ) : (
-          <div className="table-wrap">
-            <table className="table" style={{ width: '100%', fontSize: 13 }}>
-              <thead>
-                <tr><th>Concepto</th><th>Se cobra</th><th>Monto</th><th>Cargado</th><th>Cobrado</th><th>Por cobrar</th><th>Jugadores</th><th style={{ width: 100 }} /></tr>
-              </thead>
-              <tbody>
-                {data.fees.map(f => (
-                  <tr key={f.id} style={f.isActive ? undefined : { opacity: 0.6 }}>
-                    <td>
-                      <strong>{f.name}</strong>{!f.isActive && <span className="badge badge-muted" style={{ marginLeft: 6 }}>Inactivo</span>}
-                      <div className="text-muted" style={{ fontSize: 11 }}>{f.teamName || 'Todos los equipos'}</div>
-                    </td>
-                    <td>{f.frequency === 1 ? 'Una vez' : 'Por partido'}</td>
-                    <td>{feeAmountText(f)}</td>
-                    <td>{money(f.charged)}</td>
-                    <td>{money(f.collected)}</td>
-                    <td>{money(f.pending)}</td>
-                    <td style={{ fontSize: 12 }}>
-                      {f.chargedCount}
-                      {f.reviewCount > 0 && <span style={{ color: '#f59e0b' }}> · {f.reviewCount} por revisar</span>}
-                      {f.exemptCount > 0 && <span className="text-muted"> · {f.exemptCount} exon.</span>}
-                      {f.waivedCount > 0 && <span className="text-muted"> · {f.waivedCount} sin cobro</span>}
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
-                        <button className="btn-icon" onClick={() => setModal({ kind: 'charges', fee: f })} aria-label="Ver cobros" title="Ver cobros"><Eye size={15} /></button>
-                        {canGenerate && <button className="btn-icon" onClick={() => setModal({ kind: 'fee', fee: f })} aria-label="Editar concepto"><Pencil size={15} /></button>}
-                        {canGenerate && <button className="btn-icon text-danger" onClick={() => setConfirm({ kind: 'fee', item: f })} aria-label="Eliminar concepto"><Trash2 size={15} /></button>}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      )}
+
+      {/* ═══ DEL TORNEO: lo que se cobra y se paga una sola vez ═══ */}
+      <div className="card tfin-block">
+        <div className="tfin-head">
+          <div>
+            <h4 className="m-0">Del torneo</h4>
+            <small className="text-muted">Una sola vez: inscripción, camiseta, seguro… y gastos generales (inscripción a la liga, movilidad).</small>
           </div>
-        )}
+          <div className="tfin-sub">
+            <span>Cobrado <b>{money(data.onceCollected)}</b></span>
+            <span>Por cobrar <b>{money(data.oncePending)}</b></span>
+            <span>Gastos <b>{money(data.generalExpenses)}</b></span>
+          </div>
+        </div>
+        <h5 className="tfin-title">Cobros</h5>
+        <FeeTable fees={data.fees.filter(f => f.frequency === 1)} canGenerate={canGenerate} setModal={setModal} setConfirm={setConfirm}
+          empty="Sin cobros de una sola vez (ej. inscripción o camiseta)." />
+        <div className="tfin-title-row">
+          <h5 className="tfin-title">Gastos generales</h5>
+          {canExpenses && <button className="btn btn-outline btn-sm" onClick={() => setModal({ kind: 'expense', eventId: '' })}><Plus size={14} /> Gasto del torneo</button>}
+        </div>
+        <ExpenseTable items={data.expenseItems.filter(e => !e.eventId)} t={t} canExpenses={canExpenses} setConfirm={setConfirm}
+          empty="Sin gastos generales (ej. inscripción pagada a la liga, movilidad del torneo)." />
       </div>
 
-      <div className="card" style={{ padding: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 10 }}>
-          <h4 style={{ margin: 0 }}>Gastos del torneo</h4>
-          {canExpenses && <button className="btn btn-primary btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setModal({ kind: 'expense' })}><Plus size={14} /> Registrar gasto</button>}
+      {/* ═══ POR ENCUENTRO: arbitraje, cancha… y sus gastos ═══ */}
+      <div className="card tfin-block">
+        <div className="tfin-head">
+          <div>
+            <h4 className="m-0">Por encuentro</h4>
+            <small className="text-muted">Lo que se cobra a quien jugó cada encuentro y lo que costó ese encuentro.</small>
+          </div>
         </div>
-        {data.expenseItems.length === 0 ? (
-          <p className="text-muted" style={{ margin: 0, fontSize: 13 }}>Inscripción pagada al organizador, arbitraje, cancha, movilidad… Se registran también en Finanzas → Gastos.</p>
+        <h5 className="tfin-title">Conceptos por encuentro</h5>
+        <FeeTable fees={data.fees.filter(f => f.frequency === 2)} canGenerate={canGenerate} setModal={setModal} setConfirm={setConfirm}
+          empty="Sin conceptos por encuentro (ej. arbitraje, cancha, pasaje)." />
+        <h5 className="tfin-title">Encuentros</h5>
+        {data.encounters.length === 0 ? (
+          <p className="text-muted" style={{ margin: 0, fontSize: 13 }}>Aún no hay encuentros con hora. Se completan en la pestaña Fechas o en el Calendario.</p>
         ) : (
-          <div className="table-wrap">
-            <table className="table" style={{ width: '100%', fontSize: 13 }}>
-              <thead><tr><th>Fecha</th><th>Detalle</th><th>Partido</th><th>Proveedor</th><th style={{ textAlign: 'right' }}>Monto</th><th style={{ width: 40 }} /></tr></thead>
-              <tbody>
-                {data.expenseItems.map(e => (
-                  <tr key={e.id}>
-                    <td>{fmtDate(e.date)}</td>
-                    <td>{e.description.replace(`${t.name} · `, '')}</td>
-                    <td>{e.matchLabel || <span className="text-muted">—</span>}</td>
-                    <td>{e.supplier || <span className="text-muted">—</span>}</td>
-                    <td style={{ textAlign: 'right' }}>{money(e.amount)}</td>
-                    <td>{canExpenses && <button className="btn-icon text-danger" onClick={() => setConfirm({ kind: 'expense', item: e })} aria-label="Eliminar gasto"><Trash2 size={15} /></button>}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="tfin-encounters">
+            {data.encounters.map(e => (
+              <div key={e.eventId} className="tfin-encounter">
+                <div className="tfin-enc-title">
+                  <b>{fmtDate(e.startTime)}{!e.timePending && ` ${timeOf(e.startTime)}`}</b>
+                  {[e.round, e.category, e.opponent && `vs ${e.opponent}`].filter(Boolean).map(x => <span key={x}> · {x}</span>)}
+                  {e.matchStatus === 3 && <span className="badge badge-warning" style={{ marginLeft: 6 }}>Postergado</span>}
+                  {e.matchStatus === 4 && <span className="badge badge-muted" style={{ marginLeft: 6 }}>Suspendido</span>}
+                </div>
+                <div className="tfin-enc-lines">
+                  {e.lines.length === 0
+                    ? <span className="text-muted">Sin cobros todavía (se generan al tomar la lista){e.notCharged > 0 ? ` · ${e.notCharged} sin cobro` : ''}</span>
+                    : e.lines.map(l => <span key={l.feeName}>{l.feeName}: {l.count} × · cargado {money(l.charged)} · cobrado {money(l.collected)}</span>)}
+                  {e.lines.length > 0 && e.notCharged > 0 && <span className="text-muted">{e.notCharged} sin cobro (faltó o exonerado)</span>}
+                </div>
+                <div className="tfin-enc-stats">
+                  <span>Por cobrar <b>{money(e.pending)}</b></span>
+                  <span>Gastos <b>{money(e.expenses)}</b></span>
+                  <span>Resultado <b style={{ color: e.result < 0 ? 'var(--danger, #ef4444)' : 'var(--success, #10b981)' }}>{money(e.result)}</b></span>
+                </div>
+                <div className="tfin-enc-actions">
+                  <button className="btn btn-ghost btn-sm" onClick={() => setModal({ kind: 'encounter', encounter: e })}><Eye size={14} /> Ver detalle</button>
+                  {canExpenses && <button className="btn btn-outline btn-sm" onClick={() => setModal({ kind: 'expense', eventId: e.eventId })}><Plus size={14} /> Gasto</button>}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
 
       {modal?.kind === 'fee' && <FeeModal t={t} fee={modal.fee} onClose={() => setModal(null)} onSaved={() => { setModal(null); load(); }} />}
       {modal?.kind === 'charges' && <ChargesModal fee={modal.fee} canAdjust={canAdjust} onClose={() => setModal(null)} onChanged={load} />}
-      {modal?.kind === 'expense' && <ExpenseModal t={t} onClose={() => setModal(null)} onSaved={() => { setModal(null); load(); }} />}
+      {modal?.kind === 'expense' && <ExpenseModal t={t} eventId={modal.eventId} onClose={() => setModal(null)} onSaved={() => { setModal(null); load(); }} />}
+      {modal?.kind === 'encounter' && <EncounterModal encounter={modal.encounter} canAdjust={canAdjust} canExpenses={canExpenses} t={t}
+        onClose={() => setModal(null)} onChanged={load} onAddExpense={() => setModal({ kind: 'expense', eventId: modal.encounter.eventId })} />}
 
       <ConfirmDialog
         isOpen={!!confirm}
@@ -219,6 +214,138 @@ export default function TorneoFinanzas({ t, can }) {
         onCancel={() => setConfirm(null)}
       />
     </>
+  );
+}
+
+function FeeTable({ fees, canGenerate, setModal, setConfirm, empty }) {
+  if (fees.length === 0) return <p className="text-muted" style={{ margin: '0 0 8px', fontSize: 13 }}>{empty}</p>;
+  return (
+    <div className="table-wrap">
+      <table className="table" style={{ width: '100%', fontSize: 13 }}>
+        <thead>
+          <tr><th>Concepto</th><th>Monto</th><th>Cargado</th><th>Cobrado</th><th>Por cobrar</th><th>Jugadores</th><th style={{ width: 100 }} /></tr>
+        </thead>
+        <tbody>
+          {fees.map(f => (
+            <tr key={f.id} style={f.isActive ? undefined : { opacity: 0.6 }}>
+              <td>
+                <strong>{f.name}</strong>{!f.isActive && <span className="badge badge-muted" style={{ marginLeft: 6 }}>Inactivo</span>}
+                <div className="text-muted" style={{ fontSize: 11 }}>
+                  {f.teamName || 'Todos los equipos'}{f.exemptScholarship ? ' · becados no pagan' : ''}{f.sameDayDiscountPercent > 0 ? ` · 2.º del día ${f.sameDayDiscountPercent >= 100 ? 'exonerado' : `-${f.sameDayDiscountPercent}%`}` : ''}
+                </div>
+              </td>
+              <td>{feeAmountText(f)}</td>
+              <td>{money(f.charged)}</td>
+              <td>{money(f.collected)}</td>
+              <td>{money(f.pending)}</td>
+              <td style={{ fontSize: 12 }}>
+                {f.chargedCount}
+                {f.reviewCount > 0 && <span style={{ color: '#f59e0b' }}> · {f.reviewCount} por revisar</span>}
+                {f.exemptCount > 0 && <span className="text-muted"> · {f.exemptCount} exon.</span>}
+                {f.waivedCount > 0 && <span className="text-muted"> · {f.waivedCount} sin cobro</span>}
+              </td>
+              <td>
+                <div style={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+                  <button className="btn-icon" onClick={() => setModal({ kind: 'charges', fee: f })} aria-label="Ver cobros" title="Ver cobros"><Eye size={15} /></button>
+                  {canGenerate && <button className="btn-icon" onClick={() => setModal({ kind: 'fee', fee: f })} aria-label="Editar concepto" title="Editar"><Pencil size={15} /></button>}
+                  {canGenerate && !f.systemKey && <button className="btn-icon text-danger" onClick={() => setConfirm({ kind: 'fee', item: f })} aria-label="Eliminar concepto"><Trash2 size={15} /></button>}
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ExpenseTable({ items, t, canExpenses, setConfirm, empty }) {
+  if (items.length === 0) return <p className="text-muted" style={{ margin: 0, fontSize: 13 }}>{empty}</p>;
+  return (
+    <div className="table-wrap">
+      <table className="table" style={{ width: '100%', fontSize: 13 }}>
+        <thead><tr><th>Fecha</th><th>Detalle</th><th>Proveedor</th><th style={{ textAlign: 'right' }}>Monto</th><th style={{ width: 40 }} /></tr></thead>
+        <tbody>
+          {items.map(e => (
+            <tr key={e.id}>
+              <td>{fmtDate(e.date)}</td>
+              <td>{e.description.replace(`${t.name} · `, '')}</td>
+              <td>{e.supplier || <span className="text-muted">—</span>}</td>
+              <td style={{ textAlign: 'right' }}>{money(e.amount)}</td>
+              <td>{canExpenses && <button className="btn-icon text-danger" onClick={() => setConfirm({ kind: 'expense', item: e })} aria-label="Eliminar gasto"><Trash2 size={15} /></button>}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/** Detalle de un encuentro: quién pagó, quién debe, a quién no se cobra, y los gastos de ese encuentro. */
+function EncounterModal({ encounter, canAdjust, canExpenses, t, onClose, onChanged, onAddExpense }) {
+  const [d, setD] = useState(null);
+  const load = useCallback(() => api.get(`/tournaments/matches/${encounter.eventId}/finance`).then(r => setD(r.data)).catch(e => { toast.error(errMsg(e, 'No se pudo cargar el encuentro')); setD({ charges: [], expenseItems: [] }); }), [encounter.eventId]);
+  useEffect(() => { load(); }, [load]);
+  const [waiving, setWaiving] = useState(null);
+  const decide = async (r, charge, note) => {
+    try { await api.post(`/tournaments/charges/${r.id}/decision`, { charge, note }); setWaiving(null); await load(); onChanged(); }
+    catch (e) { toast.error(errMsg(e, 'No se pudo guardar')); }
+  };
+  const title = [fmtDate(encounter.startTime), encounter.round, encounter.category, encounter.opponent && `vs ${encounter.opponent}`].filter(Boolean).join(' · ');
+  return (
+    <Modal title={title} onClose={onClose} maxWidth={820}>
+      {!d ? <p>Cargando…</p> : (
+        <>
+          <div className="tfin-sub" style={{ marginBottom: 12 }}>
+            <span>Cargado <b>{money(d.charged)}</b></span>
+            <span>Cobrado <b>{money(d.collected)}</b></span>
+            <span>Por cobrar <b>{money(d.pending)}</b></span>
+            <span>Gastos <b>{money(d.expenses)}</b></span>
+            <span>Resultado <b>{money(d.result)}</b></span>
+          </div>
+          <h5 className="tfin-title">Cobros</h5>
+          {d.charges.length === 0 ? <p className="text-muted" style={{ fontSize: 13 }}>Aún no hay cobros: se generan al tomar la lista del encuentro.</p> : (
+            <div className="table-wrap" style={{ maxHeight: 340, overflowY: 'auto' }}>
+              <table className="table" style={{ width: '100%', fontSize: 13 }}>
+                <thead><tr><th>Alumno</th><th>Concepto</th><th>Estado</th><th style={{ textAlign: 'right' }}>Monto</th><th style={{ textAlign: 'right' }}>Pagado</th><th /></tr></thead>
+                <tbody>
+                  {d.charges.map(r => {
+                    const st = CHARGE_STATUS[r.status] || CHARGE_STATUS[1];
+                    return (
+                      <tr key={r.id}>
+                        <td>{r.studentName}{r.note && <div className="text-muted" style={{ fontSize: 11 }}>{r.note}</div>}</td>
+                        <td>{r.feeName}</td>
+                        <td><span className={`badge ${st.badge}`}>{st.label}</span>{r.isPaid && <span className="badge badge-success" style={{ marginLeft: 4 }}>Pagado</span>}</td>
+                        <td style={{ textAlign: 'right' }}>{r.status === 1 ? money(r.amount) : '—'}</td>
+                        <td style={{ textAlign: 'right' }}>{r.amountPaid > 0 ? money(r.amountPaid) : '—'}</td>
+                        <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                          {canAdjust && (r.status === 2 || (r.status === 3 && r.note !== 'Deuda anulada en Cobranzas' && !(r.note || '').startsWith('Encuentro exonerado'))) &&
+                            <button className="btn btn-sm btn-ghost" onClick={() => decide(r, true)}>Cobrar</button>}
+                          {canAdjust && r.status === 1 && !(r.amountPaid > 0) && (waiving?.id === r.id ? (
+                            <span style={{ display: 'inline-flex', gap: 4 }}>
+                              <input className="form-control" style={{ width: 150, padding: '2px 6px' }} autoFocus placeholder="Motivo" value={waiving.note}
+                                onChange={e => setWaiving({ id: r.id, note: e.target.value })} />
+                              <button className="btn btn-sm btn-primary" disabled={!waiving.note.trim()} onClick={() => decide(r, false, waiving.note.trim())}>Exonerar</button>
+                              <button className="btn btn-sm btn-ghost" onClick={() => setWaiving(null)}>×</button>
+                            </span>
+                          ) : <button className="btn btn-sm btn-ghost" onClick={() => setWaiving({ id: r.id, note: '' })}>Exonerar</button>)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <div className="tfin-title-row">
+            <h5 className="tfin-title">Gastos del encuentro</h5>
+            {canExpenses && <button className="btn btn-outline btn-sm" onClick={onAddExpense}><Plus size={14} /> Gasto de este encuentro</button>}
+          </div>
+          <ExpenseTable items={d.expenseItems || []} t={t} canExpenses={false} setConfirm={() => {}} empty="Sin gastos registrados para este encuentro (ej. arbitraje pagado, cancha)." />
+          <small className="text-muted" style={{ display: 'block', marginTop: 8 }}>También puedes exonerar al cobrar (Cobranzas → Cobrar → Ajuste → Exonerar) o exonerar todo el arbitraje del encuentro desde Fechas.</small>
+        </>
+      )}
+    </Modal>
   );
 }
 
@@ -237,12 +364,14 @@ function Kpi({ label, value, tone, hint }) {
 function FeeModal({ t, fee, onClose, onSaved }) {
   const [form, setForm] = useState(() => ({
     name: fee?.name || '', teamId: fee?.teamId || '', frequency: fee?.frequency || 2, amountMode: fee?.amountMode || 1,
-    amount: fee?.amount ?? '', dueDate: dateOf(fee?.dueDate) || '', exemptScholarship: fee?.exemptScholarship ?? true,
+    amount: fee?.amount ?? '', dueDate: dateOf(fee?.dueDate) || '', exemptScholarship: fee?.exemptScholarship ?? false,
     isActive: fee?.isActive ?? true, notes: fee?.notes || '', sameDayDiscountPercent: fee?.sameDayDiscountPercent ?? 0,
   }));
   const [saving, setSaving] = useState(false);
   const set = patch => setForm(f => ({ ...f, ...patch }));
   const hasCharges = fee && (fee.chargedCount + fee.reviewCount + fee.waivedCount + fee.exemptCount) > 0;
+  // Inscripción y arbitraje: vienen de la ficha; aquí se cambian monto, becados y la regla del 2.º encuentro.
+  const isSystem = !!fee?.systemKey;
 
   const save = async () => {
     if (!form.name.trim()) return toast.error('Ponle un nombre al concepto');
@@ -272,7 +401,8 @@ function FeeModal({ t, fee, onClose, onSaved }) {
       <div className="form-row-2">
         <div className="form-group" style={{ gridColumn: '1/-1' }}>
           <label>Concepto *</label>
-          <input className="form-control" value={form.name} onChange={e => set({ name: e.target.value })} placeholder="Ej: Arbitraje" />
+          <input className="form-control" value={form.name} disabled={isSystem} onChange={e => set({ name: e.target.value })} placeholder="Ej: Arbitraje" />
+          {isSystem && <small className="text-muted">Concepto de la ficha del torneo: el monto que guardes aquí también se ve en la ficha.</small>}
           {!fee && (
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
               {SUGGESTED.map(s => <button key={s} type="button" className="btn btn-ghost btn-sm" style={{ padding: '2px 8px' }}
@@ -282,7 +412,7 @@ function FeeModal({ t, fee, onClose, onSaved }) {
         </div>
         <div className="form-group">
           <label>¿Cuándo se cobra?</label>
-          <select className="form-control" value={form.frequency} disabled={hasCharges} onChange={e => set({ frequency: Number(e.target.value) })}>
+          <select className="form-control" value={form.frequency} disabled={hasCharges || isSystem} onChange={e => set({ frequency: Number(e.target.value) })}>
             <option value={1}>Una sola vez (al plantel)</option>
             <option value={2}>En cada partido (a quien jugó)</option>
           </select>
@@ -290,7 +420,7 @@ function FeeModal({ t, fee, onClose, onSaved }) {
         </div>
         <div className="form-group">
           <label>Monto</label>
-          <select className="form-control" value={form.amountMode} onChange={e => set({ amountMode: Number(e.target.value) })}>
+          <select className="form-control" value={form.amountMode} disabled={isSystem} onChange={e => set({ amountMode: Number(e.target.value) })}>
             <option value={1}>Por jugador</option>
             <option value={2}>Costo total a repartir</option>
           </select>
@@ -393,28 +523,37 @@ function ChargesModal({ fee, canAdjust, onClose, onChanged }) {
   );
 }
 
-function ExpenseModal({ t, onClose, onSaved }) {
-  const [form, setForm] = useState({ date: todayLima(), amount: '', description: '', supplier: t.organizer || '', eventId: '' });
+function ExpenseModal({ t, eventId = '', onClose, onSaved }) {
+  const [form, setForm] = useState({ date: todayLima(), amount: '', description: '', supplier: t.organizer || '', eventId: eventId || '' });
+  const [scope, setScope] = useState(eventId ? 'encounter' : 'tournament');
   const [saving, setSaving] = useState(false);
   const set = patch => setForm(f => ({ ...f, ...patch }));
   const save = async () => {
     if (!form.description.trim()) return toast.error('Describe el gasto');
     if (!(Number(form.amount) > 0)) return toast.error('Indica el monto');
+    if (scope === 'encounter' && !form.eventId) return toast.error('Elige el encuentro');
     setSaving(true);
     try {
-      await api.post(`/tournaments/${t.id}/expenses`, { ...form, amount: Number(form.amount), eventId: form.eventId || null });
+      await api.post(`/tournaments/${t.id}/expenses`, { ...form, amount: Number(form.amount), eventId: scope === 'encounter' ? form.eventId : null });
       toast.success('Gasto registrado');
       onSaved();
     } catch (e) { toast.error(errMsg(e, 'No se pudo registrar el gasto')); }
     finally { setSaving(false); }
   };
   return (
-    <Modal title="Registrar gasto del torneo" onClose={onClose}
+    <Modal title={scope === 'encounter' ? 'Registrar gasto de un encuentro' : 'Registrar gasto del torneo'} onClose={onClose}
       footer={<>
         <button className="btn btn-secondary" onClick={onClose}>Cancelar</button>
         <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Guardando…' : 'Registrar'}</button>
       </>}>
       <div className="form-row-2">
+        <div className="form-group" style={{ gridColumn: '1/-1' }}>
+          <label>¿De qué es el gasto?</label>
+          <div className="co-seg" role="group" aria-label="Alcance del gasto">
+            <button type="button" className={scope === 'tournament' ? 'active' : ''} onClick={() => setScope('tournament')}>Del torneo (general)</button>
+            <button type="button" className={scope === 'encounter' ? 'active' : ''} onClick={() => setScope('encounter')}>De un encuentro</button>
+          </div>
+        </div>
         <div className="form-group" style={{ gridColumn: '1/-1' }}>
           <label>Detalle *</label>
           <input className="form-control" value={form.description} onChange={e => set({ description: e.target.value })} placeholder="Ej: Inscripción pagada a la liga, arbitraje fecha 3, movilidad" />
@@ -422,13 +561,13 @@ function ExpenseModal({ t, onClose, onSaved }) {
         <div className="form-group"><label>Fecha *</label><input type="date" className="form-control" value={form.date} onChange={e => set({ date: e.target.value })} /></div>
         <div className="form-group"><label>Monto (S/) *</label><input type="number" min={0} step="0.10" className="form-control" value={form.amount} onChange={e => set({ amount: e.target.value })} /></div>
         <div className="form-group"><label>Proveedor</label><input className="form-control" value={form.supplier} onChange={e => set({ supplier: e.target.value })} /></div>
-        <div className="form-group">
-          <label>Partido (opcional)</label>
+        {scope === 'encounter' && <div className="form-group">
+          <label>Encuentro *</label>
           <select className="form-control" value={form.eventId} onChange={e => set({ eventId: e.target.value })}>
-            <option value="">Del torneo en general</option>
-            {t.matches.map(m => <option key={m.id} value={m.id}>{fmtDate(m.startTime)} {timeOf(m.startTime)} · {m.teamName || ''} {m.round || ''}</option>)}
+            <option value="">Elige el encuentro</option>
+            {t.matches.filter(m => !m.timePending || m.id === form.eventId).map(m => <option key={m.id} value={m.id}>{fmtDate(m.startTime)} {timeOf(m.startTime)} · {[m.round, m.referenceCategoryName || m.teamName, m.opponentTeam && `vs ${m.opponentTeam}`].filter(Boolean).join(' · ')}</option>)}
           </select>
-        </div>
+        </div>}
       </div>
     </Modal>
   );

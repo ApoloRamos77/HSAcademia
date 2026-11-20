@@ -151,8 +151,7 @@ export function TournamentFormModal({ tournament, onClose, onSaved }) {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 8 }}>
             {(form.scheduleMode === 3 ? [...SCHEDULE_MODES, LEGACY_SCHEDULE] : SCHEDULE_MODES).map(m => (
               <button key={m.value} type="button" onClick={() => set({ scheduleMode: m.value })}
-                className={`btn ${form.scheduleMode === m.value ? 'btn-primary' : 'btn-secondary'}`}
-                style={{ flexDirection: 'column', alignItems: 'flex-start', textAlign: 'left', height: 'auto', padding: '10px 12px' }}>
+                className={`btn choice-btn ${form.scheduleMode === m.value ? 'btn-primary' : 'btn-secondary'}`}>
                 <strong style={{ fontSize: 13 }}>{m.label}</strong>
                 <span style={{ fontSize: 11, opacity: 0.85, fontWeight: 400 }}>{m.hint}</span>
               </button>

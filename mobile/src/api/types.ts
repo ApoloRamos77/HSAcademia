@@ -230,6 +230,8 @@ export interface MyTournament {
   lastResults: { date: string; round?: string | null; opponent?: string | null; goalsFor: number; goalsAgainst: number }[];
   /** Encuentros a los que fue convocado (servidor desde 1.0.21). */
   encounters?: MyEncounter[];
+  /** Cobros del torneo que no son de un encuentro: inscripción, camiseta… (servidor 1.0.28+). */
+  tournamentChargeLines?: string[];
 }
 
 export interface MyEncounter {
@@ -355,6 +357,21 @@ export interface MedicalRecord {
   bmi?: number | null;
   nutritionPlan?: string | null;
   nextNutritionConsultation?: string | null;
+}
+
+/** Cobros y gastos de un encuentro de torneo (servidor 1.0.28+, permiso de ver cobranzas). */
+export interface EncounterFinance {
+  eventId: string;
+  players: number;
+  notCharged: number;
+  charged: number;
+  collected: number;
+  pending: number;
+  expenses: number;
+  result: number;
+  lines: { feeName: string; count: number; charged: number; collected: number }[];
+  charges?: { id: string; studentName: string; feeName: string; status: number; amount: number; amountPaid: number; isPaid: boolean }[];
+  expenseItems?: { id: string; description: string; amount: number }[];
 }
 
 export interface MatchResult {
