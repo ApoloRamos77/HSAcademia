@@ -453,14 +453,21 @@ public class StudentService
             EmergencyContactPhone  = student.MedicalRecord?.EmergencyContactPhone,
         };
     }
-    /// <summary>Cambia (o quita, con null) la foto del alumno. Devuelve la ruta anterior para borrar el archivo.</summary>
-    public async Task<(bool Found, string? Previous)> SetPhotoAsync(Guid academyId, Guid id, string? photoUrl)
+    /// <summary>
+    /// Cambia (o quita, con null) la foto del alumno. Devuelve la ruta anterior para borrar el archivo.
+    /// Con <paramref name="familyUserId"/> (apoderado o el propio alumno) solo puede tocar a sus hijos o a sí mismo.
+    /// Cada cambio queda en la auditoría con quién lo hizo.
+    /// </summary>
+    public async Task<(bool Found, string? Previous)> SetPhotoAsync(Guid academyId, Guid id, string? photoUrl, Guid? familyUserId = null)
     {
-        var student = await _context.Students.FirstOrDefaultAsync(s => s.Id == id && s.AcademyId == academyId && !s.IsDeleted);
+        var student = await _context.Students.FirstOrDefaultAsync(s => s.Id == id && s.AcademyId == academyId && !s.IsDeleted
+            && (familyUserId == null || s.GuardianId == familyUserId || s.UserId == familyUserId));
         if (student == null) return (false, null);
         var previous = student.PhotoUrl;
         student.PhotoUrl = photoUrl;
         student.UpdatedAt = DateTime.UtcNow;
+        _audit?.Add(academyId, photoUrl == null ? "students.photo.remove" : "students.photo.set", nameof(Student), student.Id,
+            new { by = familyUserId != null ? "familia" : "personal", previous, photoUrl });
         await _context.SaveChangesAsync();
         return (true, previous);
     }

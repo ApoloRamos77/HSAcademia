@@ -1,6 +1,7 @@
 using System;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using HSAcademia.API.Authorization;
 using HSAcademia.Infrastructure.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -32,6 +33,38 @@ public class MobileStudentController : ControllerBase
     {
         var v = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         return Guid.TryParse(v, out var id) ? id : Guid.Empty;
+    }
+
+    /// <summary>
+    /// POST /api/mobile/students/{studentId}/photo — el apoderado sube la foto de su hijo (o el alumno la suya).
+    /// Misma validación que el personal: JPG, PNG o WEBP de hasta 3 MB, nombre aleatorio. Queda en la auditoría.
+    /// </summary>
+    [HttpPost("{studentId:guid}/photo")]
+    [RequestSizeLimit(UploadStorage.MaxPhotoBytes + 64 * 1024)]
+    public async Task<IActionResult> UploadPhoto(Guid studentId, Microsoft.AspNetCore.Http.IFormFile file, [FromServices] UploadStorage storage)
+    {
+        var academyId = GetAcademyId();
+        var userId = GetUserId();
+        if (academyId == Guid.Empty || userId == Guid.Empty) return Unauthorized();
+        var (url, error) = await storage.SaveStudentPhotoAsync(file);
+        if (error != null) return BadRequest(new { message = error });
+        var (found, previous) = await _studentService.SetPhotoAsync(academyId, studentId, url, userId);
+        if (!found) { storage.DeleteStudentPhoto(url); return NotFound(new { message = "Alumno no encontrado." }); }
+        storage.DeleteStudentPhoto(previous);
+        return Ok(new { photoUrl = url });
+    }
+
+    /// <summary>DELETE /api/mobile/students/{studentId}/photo — el apoderado quita la foto de su hijo.</summary>
+    [HttpDelete("{studentId:guid}/photo")]
+    public async Task<IActionResult> DeletePhoto(Guid studentId, [FromServices] UploadStorage storage)
+    {
+        var academyId = GetAcademyId();
+        var userId = GetUserId();
+        if (academyId == Guid.Empty || userId == Guid.Empty) return Unauthorized();
+        var (found, previous) = await _studentService.SetPhotoAsync(academyId, studentId, null, userId);
+        if (!found) return NotFound(new { message = "Alumno no encontrado." });
+        storage.DeleteStudentPhoto(previous);
+        return Ok(new { photoUrl = (string?)null });
     }
 
     /// <summary>GET /api/mobile/students/my-profile — Returns the student's personal + nutrition card.</summary>

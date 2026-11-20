@@ -1083,3 +1083,19 @@ select.form-control { cursor: pointer; }
   .cobranza-filters > select { width: 100% !important; max-width: none !important; }
   .cobranza-filters > select:nth-child(n+3) { grid-column: 1 / -1; } /* categoría y concepto a todo el ancho */
 }
+
+/* "Ver más" de textos largos (comunicados del portal de la familia) */
+.expandable-toggle {
+  background: none; border: 0; padding: 6px 0; margin-top: 2px; min-height: 32px;
+  color: var(--primary-dark, #1d5aa6); font-weight: 600; font-size: 13px; cursor: pointer;
+}
+.expandable-toggle:hover { text-decoration: underline; }
+
+/* Portal de la familia: la foto del hijo es un botón para cambiarla */
+.family-photo-btn { position: relative; padding: 0; border: 0; background: none; cursor: pointer; border-radius: 50%; flex-shrink: 0; }
+.family-photo-btn:disabled { opacity: 0.6; cursor: progress; }
+.family-photo-badge {
+  position: absolute; right: -2px; bottom: -2px; width: 24px; height: 24px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--primary-dark); color: #fff; border: 2px solid var(--bg-card);
+}
