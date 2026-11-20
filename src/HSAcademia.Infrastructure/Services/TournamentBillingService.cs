@@ -64,7 +64,7 @@ public class TournamentBillingService
     {
         var fee = await _db.TournamentFees.FirstOrDefaultAsync(x => x.AcademyId == academyId && x.Id == feeId)
                   ?? throw new KeyNotFoundException("Concepto no encontrado.");
-        if (fee.SystemKey != null) throw new InvalidOperationException("La inscripción y el arbitraje se cambian en la ficha del torneo (Editar).");
+        if (fee.SystemKey != null) return await UpdateSystemFeeAsync(academyId, fee, dto);
         await ValidateFeeAsync(academyId, fee.TournamentId, dto);
         if ((int)fee.Frequency != dto.Frequency && await _db.TournamentCharges.AnyAsync(c => c.FeeId == feeId))
             throw new InvalidOperationException("No se puede cambiar la frecuencia de un concepto que ya generó cobros. Crea otro concepto.");
@@ -73,6 +73,35 @@ public class TournamentBillingService
         fee.UpdatedAt = DateTime.UtcNow;
         _audit?.Add(academyId, "tournaments.fee.update", nameof(TournamentFee), fee.Id,
             new { before, after = new { fee.Name, fee.TeamId, fee.AmountMode, fee.Amount, fee.IsActive, fee.ExemptScholarship } });
+        await _db.SaveChangesAsync();
+        await SyncFeeAsync(fee.Id);
+        return (await FeeStatsAsync(academyId, fee.TournamentId, fee.Id)).Single();
+    }
+
+/// <summary>
+    /// Inscripción y arbitraje (conceptos de la ficha) también se editan desde Cobros y gastos: monto, becados y regla del 2.º
+    /// encuentro. Se guardan en la ficha para que ambos lugares muestren lo mismo. Nombre, frecuencia y equipo no cambian.
+    /// </summary>
+    private async Task<TournamentFeeDto> UpdateSystemFeeAsync(Guid academyId, TournamentFee fee, SaveTournamentFeeDto dto)
+    {
+        var t = await _db.Tournaments.FirstAsync(x => x.Id == fee.TournamentId);
+        if (dto.Amount <= 0) throw new InvalidOperationException("Indica el monto (para dejar de cobrarlo, desactívalo).");
+        var before = new { fee.Amount, fee.IsActive, fee.ExemptScholarship, fee.SameDayDiscountPercent };
+        var amount = Math.Round(dto.Amount, 2);
+        if (fee.SystemKey == "inscription") t.InscriptionFee = dto.IsActive ? amount : null;
+        else
+        {
+            t.RefereeFee = dto.IsActive ? amount : null;
+            if (dto.SameDayDiscountPercent.HasValue)
+                t.RefereeSameDayDiscountPercent = dto.SameDayDiscountPercent > 0 ? Math.Round(Math.Min(dto.SameDayDiscountPercent.Value, 100m), 2) : null;
+            fee.SameDayDiscountPercent = t.RefereeSameDayDiscountPercent;
+        }
+        fee.Amount = amount;
+        fee.IsActive = dto.IsActive;
+        fee.ExemptScholarship = dto.ExemptScholarship;
+        fee.UpdatedAt = t.UpdatedAt = DateTime.UtcNow;
+        _audit?.Add(academyId, "tournaments.fee.update", nameof(TournamentFee), fee.Id,
+            new { before, after = new { fee.Amount, fee.IsActive, fee.ExemptScholarship, fee.SameDayDiscountPercent } });
         await _db.SaveChangesAsync();
         await SyncFeeAsync(fee.Id);
         return (await FeeStatsAsync(academyId, fee.TournamentId, fee.Id)).Single();
@@ -135,7 +164,7 @@ public class TournamentBillingService
                 fee = new TournamentFee
                 {
                     AcademyId = t.AcademyId, TournamentId = t.Id, SystemKey = key, Name = name, Frequency = freq,
-                    AmountMode = TournamentFeeAmountMode.PerPlayer, Amount = amount!.Value, ExemptScholarship = true, IsActive = true,
+                    AmountMode = TournamentFeeAmountMode.PerPlayer, Amount = amount!.Value, ExemptScholarship = false, IsActive = true,
                     SameDayDiscountPercent = sameDay,
                 };
                 _db.TournamentFees.Add(fee);
@@ -645,9 +674,84 @@ public class TournamentBillingService
         }).ToList();
         dto.Expenses = expenses.Sum(e => e.Amount);
         dto.Result = dto.Collected - dto.Expenses;
+        var once = dto.Fees.Where(f => f.Frequency == (int)TournamentFeeFrequency.Once).ToList();
+        dto.OnceCharged = once.Sum(f => f.Charged);
+        dto.OnceCollected = once.Sum(f => f.Collected);
+        dto.OncePending = once.Sum(f => f.Pending);
+        dto.GeneralExpenses = expenses.Where(e => e.TournamentEventId == null).Sum(e => e.Amount);
+        dto.Encounters = await EncounterFinanceAsync(academyId, tournamentId, null);
         dto.Projected = dto.Charged - dto.Expenses;
         if (dto.Reviews.Count > 0) dto.Warnings.Add($"{dto.Reviews.Count} cobro(s) por revisar (anteriores): confirmaron y no asistieron.");
         return dto;
+    }
+
+/// <summary>Detalle de un encuentro: cobros por alumno y gastos (web y app del personal).</summary>
+    public async Task<TournamentEncounterFinanceDto> GetEncounterFinanceAsync(Guid academyId, Guid eventId)
+    {
+        var ev = await _db.Events.AsNoTracking().FirstOrDefaultAsync(e => e.AcademyId == academyId && e.Id == eventId && e.TournamentId != null)
+                 ?? throw new KeyNotFoundException("Encuentro no encontrado.");
+        var dto = (await EncounterFinanceAsync(academyId, ev.TournamentId!.Value, eventId)).FirstOrDefault()
+                  ?? throw new KeyNotFoundException("Encuentro no encontrado.");
+        dto.Charges = (await ChargesQueryAsync(academyId, c => c.EventId == eventId)).OrderBy(c => c.StudentName).ThenBy(c => c.FeeName).ToList();
+        dto.ExpenseItems = (await _db.Expenses.AsNoTracking().Where(e => e.AcademyId == academyId && e.TournamentEventId == eventId)
+                .OrderByDescending(e => e.Date).ToListAsync())
+            .Select(e => new TournamentExpenseDto { Id = e.Id, Date = e.Date, Amount = e.Amount, Description = e.Description, Supplier = e.Supplier, EventId = e.TournamentEventId })
+            .ToList();
+        return dto;
+    }
+
+    /// <summary>
+    /// Cobros (conceptos por partido) y gastos de cada encuentro del torneo. Entran los encuentros con hora o con algún
+    /// cobro o gasto (los días "por definir" vacíos no).
+    /// </summary>
+    private async Task<List<TournamentEncounterFinanceDto>> EncounterFinanceAsync(Guid academyId, Guid tournamentId, Guid? onlyEventId)
+    {
+        var events = await _db.Events.AsNoTracking()
+            .Where(e => e.AcademyId == academyId && e.TournamentId == tournamentId && !e.IsDeleted && (onlyEventId == null || e.Id == onlyEventId))
+            .OrderBy(e => e.StartTime).ToListAsync();
+        var ids = events.Select(e => e.Id).ToList();
+        var charges = await _db.TournamentCharges.AsNoTracking()
+            .Where(c => c.EventId != null && ids.Contains(c.EventId.Value) && !c.Fee.IsDeleted)
+            .Select(c => new
+            {
+                EventId = c.EventId!.Value, c.Status, FeeName = c.Fee.Name,
+                Amount = c.PaymentRecord != null ? c.PaymentRecord.Amount : 0m,
+                Paid = c.PaymentRecord != null ? c.PaymentRecord.AmountPaid : 0m,
+                Excluded = c.PaymentRecord != null && c.PaymentRecord.ExclusionType != ExclusionType.None,
+            }).ToListAsync();
+        var expenses = await _db.Expenses.AsNoTracking()
+            .Where(e => e.AcademyId == academyId && e.TournamentEventId != null && ids.Contains(e.TournamentEventId.Value))
+            .Select(e => new { EventId = e.TournamentEventId!.Value, e.Amount }).ToListAsync();
+        var refIds = events.Where(e => e.ReferenceCategoryId.HasValue).Select(e => e.ReferenceCategoryId!.Value).Distinct().ToList();
+        var refNames = await _db.Categories.AsNoTracking().Where(c => refIds.Contains(c.Id)).ToDictionaryAsync(c => c.Id, c => c.Name);
+        var teamIds = events.Where(e => e.TournamentTeamId.HasValue).Select(e => e.TournamentTeamId!.Value).Distinct().ToList();
+        var teamNames = await _db.TournamentTeams.AsNoTracking().Where(t => teamIds.Contains(t.Id)).ToDictionaryAsync(t => t.Id, t => t.Name);
+        var result = new List<TournamentEncounterFinanceDto>();
+        foreach (var ev in events)
+        {
+            var mine = charges.Where(c => c.EventId == ev.Id).ToList();
+            var exp = expenses.Where(e => e.EventId == ev.Id).Sum(e => e.Amount);
+            if (onlyEventId == null && ev.TimePending && mine.Count == 0 && exp == 0) continue;
+            var charged = mine.Where(c => c.Status == TournamentChargeStatus.Charged && !c.Excluded).ToList();
+            var collected = charged.Sum(c => c.Paid);
+            result.Add(new TournamentEncounterFinanceDto
+            {
+                EventId = ev.Id, StartTime = ev.StartTime, TimePending = ev.TimePending, Round = ev.Round, Opponent = ev.OpponentTeam,
+                Category = ev.ReferenceCategoryId.HasValue ? refNames.GetValueOrDefault(ev.ReferenceCategoryId.Value)
+                    : ev.TournamentTeamId.HasValue ? teamNames.GetValueOrDefault(ev.TournamentTeamId.Value) : null,
+                MatchStatus = (int)(ev.MatchStatus ?? Domain.Enums.MatchStatus.Scheduled),
+                Players = charged.Count,
+                NotCharged = mine.Count - charged.Count,
+                Charged = charged.Sum(c => c.Amount),
+                Collected = collected,
+                Pending = charged.Sum(c => Math.Max(0, c.Amount - c.Paid)),
+                Expenses = exp,
+                Result = collected - exp,
+                Lines = charged.GroupBy(c => c.FeeName).Select(g => new TournamentFeeLineDto
+                    { FeeName = g.Key, Count = g.Count(), Charged = g.Sum(c => c.Amount), Collected = g.Sum(c => c.Paid) }).ToList(),
+            });
+        }
+        return result;
     }
 
     public async Task<List<TournamentChargeDto>> ChargesAsync(Guid academyId, Guid feeId, Guid? onlyId = null) =>

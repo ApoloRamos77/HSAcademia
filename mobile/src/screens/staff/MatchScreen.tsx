@@ -2,7 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Minus, Plus } from 'lucide-react-native';
 import { api, errorMessage } from '../../api/client';
-import type { MatchResult } from '../../api/types';
+import type { EncounterFinance, MatchResult } from '../../api/types';
+import { useAuth } from '../../auth/AuthContext';
+import { money } from '../../utils/format';
 import { Banner, Button, Card, Empty, Loading, Row, Screen, SectionTitle } from '../../components/ui';
 import { colors, font, radius, spacing } from '../../theme';
 
@@ -30,6 +32,14 @@ export default function MatchScreen({ route, navigation }: any) {
   const [players, setPlayers] = useState<Player[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Cobros y gastos del encuentro (solo lectura; se cobra con "Cobrar" de siempre). Solo encuentros de torneo y con permiso.
+  const { can } = useAuth();
+  const [finance, setFinance] = useState<EncounterFinance | null>(null);
+  useEffect(() => {
+    if (!can('collections.view')) return;
+    api.get<EncounterFinance>(`/tournaments/matches/${eventId}/finance`).then(r => setFinance(r.data)).catch(() => setFinance(null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventId]);
 
   useEffect(() => {
     navigation.setOptions({ title: route.params.title ?? 'Partido' });
@@ -78,6 +88,30 @@ export default function MatchScreen({ route, navigation }: any) {
               <Stepper label="En contra" value={ga} onChange={setGa} />
             </Row>
           </Card>
+          {finance && (
+            <Card>
+              <Text style={font.h3}>Cobros del encuentro</Text>
+              {finance.lines.length === 0 ? (
+                <Text style={[font.small, { marginTop: 4 }]}>Aún no hay cobros: se generan al tomar la lista.</Text>
+              ) : finance.lines.map(l => (
+                <Text key={l.feeName} style={[font.body, { marginTop: 4 }]}>{l.feeName}: {l.count} jugador(es) · cargado {money(l.charged)}</Text>
+              ))}
+              <Row style={{ justifyContent: 'space-between', marginTop: spacing.sm, flexWrap: 'wrap', gap: spacing.sm }}>
+                <Text style={font.small}>Cobrado <Text style={{ fontWeight: '700', color: colors.success }}>{money(finance.collected)}</Text></Text>
+                <Text style={font.small}>Por cobrar <Text style={{ fontWeight: '700', color: colors.warning }}>{money(finance.pending)}</Text></Text>
+                <Text style={font.small}>Gastos <Text style={{ fontWeight: '700' }}>{money(finance.expenses)}</Text></Text>
+              </Row>
+              {(finance.charges ?? []).filter(c => c.status === 1 && !c.isPaid).length > 0 && (
+                <Text style={[font.tiny, { marginTop: spacing.sm }]}>
+                  Deben: {(finance.charges ?? []).filter(c => c.status === 1 && !c.isPaid).map(c => `${c.studentName} (${money(c.amount - c.amountPaid)})`).join(', ')}
+                </Text>
+              )}
+              {(finance.expenseItems ?? []).length > 0 && (
+                <Text style={[font.tiny, { marginTop: 4 }]}>Gastos: {finance.expenseItems!.map(e => `${e.description} ${money(e.amount)}`).join(' · ')}</Text>
+              )}
+              <Text style={[font.tiny, { marginTop: 4 }]}>Resultado del encuentro: {money(finance.result)}</Text>
+            </Card>
+          )}
 
           <SectionTitle title="Jugadores" />
           {players.length === 0 ? <Card><Empty text="No hay jugadores convocados." /></Card> : players.map(p => (

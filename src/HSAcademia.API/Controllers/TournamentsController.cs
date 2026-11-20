@@ -122,6 +122,11 @@ public class TournamentsController : ControllerBase
     [RequirePermission(Permissions.CollectionsView, AcademyWide = true)]
     public Task<IActionResult> Finance(Guid id) => Run(async () => Ok(await _billing.GetFinanceAsync(AcademyId, id)));
 
+/// <summary>Cobros por alumno y gastos de un encuentro (web y app del personal).</summary>
+    [HttpGet("matches/{eventId:guid}/finance")]
+    [RequirePermission(Permissions.CollectionsView, AcademyWide = true)]
+    public Task<IActionResult> EncounterFinance(Guid eventId) => Run(async () => Ok(await _billing.GetEncounterFinanceAsync(AcademyId, eventId)));
+
     [HttpPost("{id:guid}/fees")]
     [RequirePermission(Permissions.CollectionsGenerate, AcademyWide = true)]
     public Task<IActionResult> CreateFee(Guid id, [FromBody] SaveTournamentFeeDto dto) =>

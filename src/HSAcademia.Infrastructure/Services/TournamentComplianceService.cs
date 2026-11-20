@@ -338,8 +338,18 @@ public class TournamentComplianceService
             .Where(c => c.EventId != null && evIds.Contains(c.EventId.Value) && studentIds.Contains(c.StudentId))
             .Select(c => new
             {
-                EventId = c.EventId!.Value, c.StudentId, c.Status, FeeName = c.Fee.Name,
+                EventId = c.EventId!.Value, c.StudentId, c.Status, FeeName = c.Fee.Name, c.Note,
                 Amount = c.PaymentRecord != null ? c.PaymentRecord.Amount : c.Amount,
+            }).ToListAsync();
+        // Cobros del torneo que no son de un encuentro (inscripción, camiseta…).
+        var onceCharges = await _db.TournamentCharges.AsNoTracking()
+            .Where(c => c.EventId == null && studentIds.Contains(c.StudentId) && tIds.Contains(c.Fee.TournamentId) && !c.Fee.IsDeleted)
+            .Select(c => new
+            {
+                c.StudentId, c.Fee.TournamentId, c.Status, FeeName = c.Fee.Name, c.Note,
+                Amount = c.PaymentRecord != null ? c.PaymentRecord.Amount : c.Amount,
+                Paid = c.PaymentRecord != null ? c.PaymentRecord.AmountPaid : 0m,
+                IsPaid = c.PaymentRecord != null && c.PaymentRecord.IsPaid,
             }).ToListAsync();
         var auths = await _db.TournamentAuthorizations.AsNoTracking().Where(a => tIds.Contains(a.TournamentId)).ToListAsync();
         var result = new List<MyTournamentDto>();
@@ -361,6 +371,14 @@ public class TournamentComplianceService
                 MissingDocuments = p.Tournament.RequiredDocuments.Where(d => !p.DeliveredDocuments.Contains(d)).ToList(),
                 SuspendedFor = suspensions.GetValueOrDefault(p.StudentId),
                 Record = Record(teamMatches),
+                TournamentChargeLines = onceCharges.Where(c => c.StudentId == p.StudentId && c.TournamentId == p.Tournament.Id)
+                    .Select(c => c.Status switch
+                    {
+                        TournamentChargeStatus.Charged => $"{c.FeeName} S/ {c.Amount:0.00} · {(c.IsPaid ? "pagado" : c.Paid > 0 ? $"pagó S/ {c.Paid:0.00}" : "pendiente")}",
+                        TournamentChargeStatus.Exempt => $"{c.FeeName}: exonerado (beca)",
+                        TournamentChargeStatus.Waived when c.Note != null && c.Note.StartsWith("Exonerado") => $"{c.FeeName}: exonerado",
+                        _ => $"{c.FeeName}: no se cobra",
+                    }).ToList(),
                 NextMatch = next == null ? null : $"{next.StartTime:dd/MM HH:mm}{(string.IsNullOrWhiteSpace(next.OpponentTeam) ? "" : $" vs {next.OpponentTeam}")}",
                 LastResults = teamMatches.Where(m => m.GoalsFor.HasValue && m.GoalsAgainst.HasValue).OrderByDescending(m => m.StartTime).Take(5)
                     .Select(m => new MatchResultLineDto
@@ -388,6 +406,7 @@ public class TournamentComplianceService
                         {
                             TournamentChargeStatus.Charged => $"{c.FeeName} S/ {c.Amount:0.00}",
                             TournamentChargeStatus.Exempt => $"{c.FeeName}: exonerado (beca)",
+                            TournamentChargeStatus.Waived when c.Note != null && c.Note.StartsWith("Exonerado") => $"{c.FeeName}: exonerado",
                             _ => $"{c.FeeName}: no se cobra",
                         }).ToList(),
                     };

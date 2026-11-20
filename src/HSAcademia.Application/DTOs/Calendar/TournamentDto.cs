@@ -384,6 +384,8 @@ public class MyTournamentDto
     public List<MatchResultLineDto> LastResults { get; set; } = new();
     /// <summary>Encuentros a los que fue convocado el alumno (app 1.0.21).</summary>
     public List<MyEncounterDto> Encounters { get; set; } = new();
+    /// <summary>Cobros del torneo que no son de un encuentro (inscripción, camiseta…). Servidor 1.0.28+.</summary>
+    public List<string> TournamentChargeLines { get; set; } = new();
 }
 
 /// <summary>Encuentro del alumno: asistencia, resultado y lo que se le cobró.</summary>
