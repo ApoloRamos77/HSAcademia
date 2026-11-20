@@ -269,7 +269,7 @@ export default function CheckoutModal({ open, onClose, onDone, initialStudentId,
     setSaving(true);
     try {
       const { data } = await api.post('/receipts', { ...body, payments, clientRequestId: requestId });
-      onDone?.(data);
+      // onDone se avisa al cerrar el aviso del recibo: hay pantallas (Asistencia) que cierran el cobro en onDone.
       setIssued(data);
     } catch (err) {
       toast.error(err.response?.data?.message || 'No se pudo registrar el cobro.');
@@ -279,7 +279,7 @@ export default function CheckoutModal({ open, onClose, onDone, initialStudentId,
   if (!open) return null;
 
   if (issued) {
-    return <ReceiptPrompt number={issued.number} onPrint={() => printReceipt(issued)} onClose={() => { setIssued(null); onClose(); }} />;
+    return <ReceiptPrompt number={issued.number} onPrint={() => printReceipt(issued)} onClose={() => { const done = issued; setIssued(null); onDone?.(done); onClose(); }} />;
   }
 
   return (
