@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback, Fragment } from 'react';
+import { Navigate, useParams } from 'react-router-dom';
+import { visibleFinanceSections, canRunMonthActions } from '../../utils/financeSections';
 import api from '../../api/axios';
 import AppLayout from '../../components/AppLayout';
 import {
@@ -15,14 +17,12 @@ import FinanceDashboardTab from '../../components/finances/FinanceDashboardTab';
 import PaymentProofsTab from '../../components/finances/PaymentProofsTab';
 import ReceiptsTab from '../../components/finances/ReceiptsTab';
 import CashTab from '../../components/finances/CashTab';
-import DiscountsTab from '../../components/finances/DiscountsTab';
 import { Wallet, Tag } from 'lucide-react';
 import CheckoutModal from '../../components/finances/CheckoutModal';
 import RegularizeModal from '../../components/finances/RegularizeModal';
 import { Receipt } from 'lucide-react';
 import { Inbox } from 'lucide-react';
 import MyCashPanel from '../../components/finances/MyCashPanel';
-import ReceiptProfileCard from '../../components/finances/ReceiptProfileCard';
 import SessionLiquidationCard from '../../components/finances/SessionLiquidationCard';
 import { useAuth } from '../../context/AuthContext';
 import { conceptOf, conceptRank, prorationLabel } from '../../utils/debtConcepts';
@@ -58,26 +58,18 @@ export default function Finanzas() {
   const canAdjust = can('collections.adjust');
   const canReceiveCash = can('cash.receive') && academyWide;
   // La contabilidad general no se puede acotar a una sede.
-  const tabs = {
-    debts: canSeeDebts,
-    dashboard: can('finances.summary') && academyWide,
-    receipts: canSeeDebts,
-    cash: canReceiveCash || canCollect,
-    discounts: can('finances.config') && academyWide,
-    proofs: can('collections.approve_proofs'),
-    expenses: can('finances.expenses') && academyWide,
-    petty: can('finances.expenses') && academyWide,
-    staff: can('finances.staff_payments') && academyWide,
-    config: can('finances.config', 'collections.generate') && academyWide,
-  };
-  const [activeTab, setActiveTab] = useState(() => Object.keys(tabs).find(t => tabs[t]) || 'debts');
-  const [pendingProofs, setPendingProofs] = useState(0);
-  const canReviewProofs = tabs.proofs;
-  const refreshPendingProofs = useCallback(() => {
-    if (!canReviewProofs) return;
-    api.get('/finances/proofs/pending-count').then(r => setPendingProofs(r.data.count)).catch(() => {});
-  }, [canReviewProofs]);
-  useEffect(() => { refreshPendingProofs(); }, [refreshPendingProofs]);
+  // Cada opción del menú lateral (Finanzas → Cobranzas, Recibos, Caja…) es una sección de esta página.
+  const { section } = useParams();
+  const auth = { can, academyWide, isAdmin };
+  const sections = visibleFinanceSections(auth);
+  const current = sections.find(x => x.key === section);
+  const SECTION_TAB = { resumen: 'dashboard', cobranzas: 'debts', comprobantes: 'proofs', recibos: 'receipts', caja: 'cash', gastos: 'expenses', planilla: 'staff' };
+  const activeTab = current ? SECTION_TAB[current.key] : null;
+  const canMonthActions = canRunMonthActions(auth);
+  const [showMonthActions, setShowMonthActions] = useState(false);
+  const [gastosTab, setGastosTab] = useState('expenses');
+  // El contador de comprobantes por revisar está en el menú lateral: se le avisa cuando cambia.
+  const refreshPendingProofs = useCallback(() => { window.dispatchEvent(new Event('clubio:proofs-changed')); }, []);
   const [showAll, setShowAll] = useState(false);
   const [config, setConfig] = useState({ defaultPaymentDay: 5 });
   const [debts, setDebts] = useState([]);
@@ -113,7 +105,8 @@ export default function Finanzas() {
   const [excludeForm, setExcludeForm] = useState({ exclusionType: 'FreeClass', exclusionNote: '' });
 
   const fetchData = useCallback(async () => {
-    if (!canSeeDebts) { setLoading(false); return; }
+    // Las deudas solo se cargan en Cobranzas (las demás secciones traen sus propios datos).
+    if (!canSeeDebts || activeTab !== 'debts') { setLoading(false); return; }
     try {
       const endpoint = showAll
         ? `/finances/debts/all?year=${filterYear}&month=${filterMonth}`
@@ -123,7 +116,7 @@ export default function Finanzas() {
       setDebts(dRes.data);
     } catch { toast.error('Error al cargar datos financieros.'); }
     finally { setLoading(false); }
-  }, [canSeeDebts, showAll, filterYear, filterMonth]);
+  }, [canSeeDebts, activeTab, showAll, filterYear, filterMonth]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -140,11 +133,6 @@ export default function Finanzas() {
     checkClosed();
   }, [filterYear, filterMonth]);
 
-  const handleConfigSubmit = async (e) => {
-    e.preventDefault();
-    try { await api.put('/finances/config', config); toast.success('Configuración guardada.'); }
-    catch { toast.error('Error al guardar configuración.'); }
-  };
 
   const handleGenerateDebts = async () => {
     setGenerating(true);
@@ -154,6 +142,7 @@ export default function Finanzas() {
       // Sync filter to the motor period so the user sees the result
       setFilterYear(motorYear);
       setFilterMonth(motorMonth);
+      setShowMonthActions(false);
       fetchData();
     }
     catch { toast.error('Error al ejecutar el motor.'); }
@@ -257,49 +246,30 @@ export default function Finanzas() {
   // Solo sumar saldo pendiente de registros no pagados (evita incluir cobros ya cerrados cuando showAll=true)
   const totalPending   = debts.filter(d => !d.isPaid).reduce((s, d) => s + Math.max(0, d.amount - d.amountPaid), 0);
 
-  if (loading) return <AppLayout title="Finanzas"><div className="text-center p-8"><span className="spinner" style={{borderColor:'var(--primary)',borderTopColor:'transparent'}}></span></div></AppLayout>;
+  // /academy/finanzas o una opción sin permiso: a la primera opción permitida.
+  if (!current) {
+    const first = sections.find(x => x.key === 'cobranzas') || sections[0];
+    return <Navigate to={first ? `/academy/finanzas/${first.key}` : '/dashboard'} replace />;
+  }
+
+  if (loading) return <AppLayout title={current.title}><div className="text-center p-8"><span className="spinner" style={{borderColor:'var(--primary)',borderTopColor:'transparent'}}></span></div></AppLayout>;
 
   return (
-    <AppLayout title="Gestión Financiera y Cobranzas">
+    <AppLayout title={current.labelFor ? current.labelFor(auth) : current.title}>
       <div className="fade-in">
 
-        {/* Tabs */}
-        <div className="tabs tabs-scroll" role="tablist">
-          {tabs.dashboard && <button role="tab" aria-selected={activeTab==='dashboard'} className={`tab-pill ${activeTab==='dashboard'?'active':''}`} onClick={()=>setActiveTab('dashboard')}>
-            <BarChart3 size={16}/> Resumen P&amp;L
-          </button>}
-          {tabs.debts && <button role="tab" aria-selected={activeTab==='debts'} className={`tab-pill ${activeTab==='debts'?'active':''}`} onClick={()=>setActiveTab('debts')}>
-            <DollarSign size={16}/> Cobranzas
-          </button>}
-          {tabs.receipts && <button role="tab" aria-selected={activeTab==='receipts'} className={`tab-pill ${activeTab==='receipts'?'active':''}`} onClick={()=>setActiveTab('receipts')}>
-            <Receipt size={16}/> Recibos
-          </button>}
-          {tabs.cash && <button role="tab" aria-selected={activeTab==='cash'} className={`tab-pill ${activeTab==='cash'?'active':''}`} onClick={()=>setActiveTab('cash')}>
-            <Wallet size={16}/> Caja
-          </button>}
-          {tabs.discounts && <button role="tab" aria-selected={activeTab==='discounts'} className={`tab-pill ${activeTab==='discounts'?'active':''}`} onClick={()=>setActiveTab('discounts')}>
-            <Tag size={16}/> Descuentos
-          </button>}
-          {tabs.proofs && <button role="tab" aria-selected={activeTab==='proofs'} className={`tab-pill ${activeTab==='proofs'?'active':''}`} onClick={()=>setActiveTab('proofs')}>
-            <Inbox size={16}/> Comprobantes
-            {pendingProofs > 0 && <span className="badge badge-danger" style={{ marginLeft: 4 }}>{pendingProofs}</span>}
-          </button>}
-          {tabs.expenses && <button role="tab" aria-selected={activeTab==='expenses'} className={`tab-pill ${activeTab==='expenses'?'active':''}`} onClick={()=>setActiveTab('expenses')}>
-            <TrendingDown size={16}/> Egresos
-          </button>}
-          {tabs.petty && <button role="tab" aria-selected={activeTab==='petty'} className={`tab-pill ${activeTab==='petty'?'active':''}`} onClick={()=>setActiveTab('petty')}>
-            <Archive size={16}/> Caja Chica
-          </button>}
-          {tabs.staff && <button role="tab" aria-selected={activeTab==='staff'} className={`tab-pill ${activeTab==='staff'?'active':''}`} onClick={()=>setActiveTab('staff')}>
-            <Users size={16}/> Nómina
-          </button>}
-          {tabs.config && <button role="tab" aria-selected={activeTab==='config'} className={`tab-pill ${activeTab==='config'?'active':''}`} onClick={()=>setActiveTab('config')}>
-            <Settings size={16}/> Configuración
-          </button>}
-        </div>
-
         {/* DEBTS TAB */}
-        {activeTab === 'debts' && (
+        {/* Sin permiso de ver deudas pero sí de generar: solo las acciones del mes */}
+        {activeTab === 'debts' && !canSeeDebts && (
+          <div className="card fade-in flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="card-title m-0">Acciones del mes</h3>
+              <p className="text-sm text-text-muted m-0">Generar las mensualidades y liquidar las sesiones del mes.</p>
+            </div>
+            <button onClick={() => setShowMonthActions(true)} className="btn btn-primary flex items-center gap-2"><Calendar size={16}/> Acciones del mes</button>
+          </div>
+        )}
+        {activeTab === 'debts' && canSeeDebts && (
           <div className="fade-in">
             {/* Banner: mes cerrado */}
             {monthClosed && (
@@ -339,6 +309,11 @@ export default function Finanzas() {
                   <button onClick={()=>setShowAll(p=>!p)} className={`btn btn-sm ${showAll?'btn-primary':'btn-ghost'} whitespace-nowrap`}>
                     {showAll ? 'Ver Pendientes' : 'Ver Todos'}
                   </button>
+                  {canMonthActions && (
+                    <button onClick={() => setShowMonthActions(true)} className="btn btn-sm btn-outline flex items-center gap-1 whitespace-nowrap" title="Generar mensualidades y liquidar sesiones">
+                      <Calendar size={13}/> Acciones del mes
+                    </button>
+                  )}
                   
                   <div className="cobranza-filters flex flex-wrap items-center gap-2 ml-0 md:ml-2 md:border-l border-border/50 md:pl-3">
                     <select
@@ -546,79 +521,54 @@ export default function Finanzas() {
           </div>
         )}
 
-        {/* CONFIG TAB */}
-        {activeTab === 'config' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 fade-in">
-            <div className="card">
-              <div className="card-header border-b border-border/50 pb-4 mb-4"><h3 className="card-title">Configuración del Ciclo</h3></div>
-              <form onSubmit={handleConfigSubmit}>
-                <div className="form-group">
-                  <label className="form-label">Día de Cobro Mensual Estándar</label>
-                  <p className="text-sm text-text-muted mb-2">Las mensualidades vencerán automáticamente este día de cada mes.</p>
-                  <select className="form-control" value={config.defaultPaymentDay} onChange={e=>setConfig({...config,defaultPaymentDay:parseInt(e.target.value)})}>
-                    {[...Array(31).keys()].map(i=><option key={i+1} value={i+1}>Día {i+1}</option>)}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Mora sugerida (S/)</label>
-                  <p className="text-sm text-text-muted mb-2">Pasado el día de vencimiento, la mensualidad queda "por regularizar": la familia debe acercarse a administración, que decide cobrar esta mora (puede cambiar el monto) o exonerarla, siempre con una observación.</p>
-                  <input type="number" step="0.01" min="0" className="form-control" value={config.lateFeeAmount ?? 0} onChange={e=>setConfig({...config,lateFeeAmount:e.target.value === '' ? 0 : parseFloat(e.target.value)})}/>
-                </div>
-                <button type="submit" className="btn btn-primary mt-2">Guardar Configuración</button>
-              </form>
+        {/* ACCIONES DEL MES (antes en Configuración): generar mensualidades y liquidar sesiones */}
+        {showMonthActions && (
+        <div className="modal-overlay" onClick={() => setShowMonthActions(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 980 }} role="dialog" aria-modal="true" aria-labelledby="month-actions-title">
+            <div className="flex justify-between items-center mb-4 border-b border-border pb-3">
+              <h3 id="month-actions-title" className="modal-title m-0 flex items-center gap-2"><Calendar size={18} /> Acciones del mes</h3>
+              <button onClick={() => setShowMonthActions(false)} className="btn btn-ghost btn-sm" aria-label="Cerrar"><X size={16} /></button>
             </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
             <div className="card border-primary/30">
-              <div className="card-header border-b border-primary/20 pb-4 mb-4"><h3 className="card-title text-primary-400">Motor de Generación</h3></div>
-              <p className="text-sm text-text-secondary mb-3">Genera deudas mensuales para todos los alumnos activos. Calcula prorrateo automático si el alumno inició a mitad de mes.</p>
-
-              {/* Selector mes/año para el motor */}
+              <div className="card-header border-b border-primary/20 pb-4 mb-4"><h3 className="card-title text-primary-400">Generar mensualidades</h3></div>
+              <p className="text-sm text-text-secondary mb-3">Genera las mensualidades del mes para todos los alumnos activos. Calcula el prorrateo si el alumno empezó a mitad de mes.</p>
               <div className="mb-4">
                 <label className="form-label flex items-center gap-2 mb-2">
-                  <Calendar size={14} className="text-primary-400"/> Período objetivo
+                  <Calendar size={14} className="text-primary-400"/> Período
                 </label>
                 <div className="flex flex-wrap items-center gap-3">
-                  <select
-                    className="form-control text-sm py-2 w-auto"
-                    value={motorMonth}
-                    onChange={e => setMotorMonth(parseInt(e.target.value))}
-                  >
+                  <select className="form-control text-sm py-2 w-auto" value={motorMonth} onChange={e => setMotorMonth(parseInt(e.target.value))} aria-label="Mes a generar">
                     {['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
                       .map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
                   </select>
-                  <select
-                    className="form-control text-sm py-2 w-auto"
-                    value={motorYear}
-                    onChange={e => setMotorYear(parseInt(e.target.value))}
-                  >
+                  <select className="form-control text-sm py-2 w-auto" value={motorYear} onChange={e => setMotorYear(parseInt(e.target.value))} aria-label="Año a generar">
                     {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
                   </select>
                 </div>
               </div>
-
               <div className="bg-bg-dark p-4 rounded border border-border mb-4">
                 <ul className="text-sm text-text-muted list-disc pl-4 space-y-1">
-                  <li>Respeta exoneraciones (Becados, Invitados).</li>
+                  <li>Respeta exoneraciones (becados, invitados).</li>
                   <li><b className="text-warning">Actualiza</b> el monto de cargos sin pagar si ya existen.</li>
-                  <li><b className="text-success">Nunca sobreescribe</b> un cobro ya pagado (mes cerrado).</li>
-                  <li><b className="text-success">Preserva pagos parciales</b>: si hay abonos registrados, solo ajusta el saldo pendiente.</li>
-                  <li>Aplica montos preferenciales si existen.</li>
-                  <li>Calcula <b>prorrateo automático</b> si el alumno inició después del día 1.</li>
-                  <li>Estado <b>En Curso</b> = antes de vencer · <b>Vencido</b> = superó la fecha.</li>
+                  <li><b className="text-success">Nunca sobreescribe</b> un cobro ya pagado ni un mes cerrado.</li>
+                  <li><b className="text-success">Preserva los abonos</b>: si hay pagos parciales, solo ajusta el saldo.</li>
+                  <li>Aplica montos preferenciales y prorrateo si el alumno empezó después del día 1.</li>
                 </ul>
               </div>
               <button onClick={handleGenerateDebts} disabled={generating} className="btn btn-primary w-full flex justify-center items-center gap-2">
                 {generating ? <span className="spinner w-4 h-4"></span> : <Play size={16}/>}
-                {generating ? 'Generando...' : `Ejecutar Motor — ${['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][motorMonth-1]} ${motorYear}`}
+                {generating ? 'Generando...' : `Generar ${['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][motorMonth-1]} ${motorYear}`}
               </button>
             </div>
-            {can('collections.generate') && <SessionLiquidationCard />}
-            {isAdmin && <ReceiptProfileCard />}
+            <SessionLiquidationCard />
           </div>
+          </div>
+        </div>
         )}
 
         {/* EXPENSES TAB */}
         {activeTab === 'cash' && (canReceiveCash ? <CashTab /> : <MyCashPanel />)}
-        {activeTab === 'discounts' && <DiscountsTab />}
 
         {activeTab === 'receipts' && (
           <ReceiptsTab onChanged={fetchData} />
@@ -628,13 +578,19 @@ export default function Finanzas() {
           <PaymentProofsTab onChanged={() => { refreshPendingProofs(); fetchData(); }} />
         )}
 
+        {/* GASTOS: egresos y caja chica */}
         {activeTab === 'expenses' && (
-          <ExpensesTab />
-        )}
-
-        {/* PETTY CASH TAB */}
-        {activeTab === 'petty' && (
-          <PettyCashTab />
+          <>
+            <div className="tabs" role="tablist" aria-label="Gastos">
+              <button role="tab" aria-selected={gastosTab === 'expenses'} className={`tab-pill ${gastosTab === 'expenses' ? 'active' : ''}`} onClick={() => setGastosTab('expenses')}>
+                <TrendingDown size={16}/> Egresos
+              </button>
+              <button role="tab" aria-selected={gastosTab === 'petty'} className={`tab-pill ${gastosTab === 'petty' ? 'active' : ''}`} onClick={() => setGastosTab('petty')}>
+                <Archive size={16}/> Caja chica
+              </button>
+            </div>
+            {gastosTab === 'expenses' ? <ExpensesTab /> : <PettyCashTab />}
+          </>
         )}
 
         {/* STAFF PAYMENTS TAB */}

@@ -188,7 +188,7 @@ public class ReferralService
         var campaign = await _db.ReferralCampaigns.AsNoTracking()
             .Where(c => c.AcademyId == academyId && c.IsActive && c.ValidFrom <= today && c.ValidTo >= today)
             .FirstOrDefaultAsync()
-            ?? throw new Exception("No hay una campaña de referidos vigente hoy. Créala en Finanzas → Descuentos → Referidos.");
+            ?? throw new Exception("No hay una campaña de referidos vigente hoy. Créala en Configuración → Cobros y descuentos → Referidos.");
         if (campaign.CategoryId.HasValue && campaign.CategoryId != referred.CategoryId)
             throw new Exception($"La campaña \"{campaign.Name}\" es solo para otra categoría.");
 

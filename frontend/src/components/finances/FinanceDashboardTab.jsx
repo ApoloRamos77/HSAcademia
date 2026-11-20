@@ -216,7 +216,7 @@ export default function FinanceDashboardTab() {
             <span className="badge badge-success flex items-center gap-1">🔒 Mes Cerrado</span>
           )}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
           <select className="form-control text-sm py-2 w-auto" value={month} onChange={e => setMonth(+e.target.value)}>
             {MONTHS.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
           </select>
