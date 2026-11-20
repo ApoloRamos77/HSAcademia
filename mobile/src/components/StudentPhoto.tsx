@@ -57,6 +57,15 @@ export async function uploadStudentPhoto(studentId: string, photo: Asset, family
 
 export const removeStudentPhoto = (studentId: string, family = false) => api.delete(photoPath(studentId, family));
 
+/** Foto propia del personal (entrenador, coordinador, administrativo). */
+export async function uploadMyPhoto(photo: Asset): Promise<string> {
+  const form = new FormData();
+  form.append('file', { uri: photo.uri, type: photo.type ?? 'image/jpeg', name: photo.fileName ?? 'foto.jpg' } as any);
+  const res = await api.post<{ avatarUrl: string }>('/auth/me/photo', form, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 60000 });
+  return res.data.avatarUrl;
+}
+export const removeMyPhoto = () => api.delete('/auth/me/photo');
+
 const styles = StyleSheet.create({
   base: { backgroundColor: colors.primaryLight },
   initials: { alignItems: 'center', justifyContent: 'center' },

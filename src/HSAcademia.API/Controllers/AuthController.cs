@@ -74,6 +74,36 @@ public class AuthController : ControllerBase
         return me == null ? Unauthorized() : Ok(me);
     }
 
+    /// <summary>Cada miembro del personal pone o cambia su propia foto (JPG, PNG o WEBP, máx. 3 MB).</summary>
+    [Authorize(Roles = "AcademyAdmin,Staff")]
+    [HttpPost("me/photo")]
+    [RequestSizeLimit(HSAcademia.API.Authorization.UploadStorage.MaxPhotoBytes + 64 * 1024)]
+    public async Task<IActionResult> UploadMyPhoto(Microsoft.AspNetCore.Http.IFormFile file,
+        [FromServices] HSAcademia.API.Authorization.UploadStorage storage, [FromServices] AcademyConfigurationService config)
+    {
+        var userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (!Guid.TryParse(userIdStr, out var userId) || !Guid.TryParse(User.FindFirst("academyId")?.Value, out var academyId)) return Unauthorized();
+        var (url, error) = await storage.SaveStaffPhotoAsync(file);
+        if (error != null) return BadRequest(new { message = error });
+        var (found, previous) = await config.SetStaffPhotoAsync(academyId, userId, url, userId);
+        if (!found) { storage.DeleteStaffPhoto(url); return NotFound(new { message = "Usuario no encontrado." }); }
+        storage.DeleteStaffPhoto(previous);
+        return Ok(new { avatarUrl = url });
+    }
+
+    /// <summary>Cada miembro del personal quita su propia foto.</summary>
+    [Authorize(Roles = "AcademyAdmin,Staff")]
+    [HttpDelete("me/photo")]
+    public async Task<IActionResult> DeleteMyPhoto([FromServices] HSAcademia.API.Authorization.UploadStorage storage, [FromServices] AcademyConfigurationService config)
+    {
+        var userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (!Guid.TryParse(userIdStr, out var userId) || !Guid.TryParse(User.FindFirst("academyId")?.Value, out var academyId)) return Unauthorized();
+        var (found, previous) = await config.SetStaffPhotoAsync(academyId, userId, null, userId);
+        if (!found) return NotFound(new { message = "Usuario no encontrado." });
+        storage.DeleteStaffPhoto(previous);
+        return Ok(new { avatarUrl = (string?)null });
+    }
+
     [Authorize]
     [HttpGet("profile")]
     public async Task<IActionResult> Profile()

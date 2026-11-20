@@ -17,6 +17,23 @@ public class AcademyConfigurationService
     private readonly AuditService _audit;
     private readonly AccessScopeService _scope;
 
+    /// <summary>
+    /// Cambia (o quita, con null) la foto de un miembro del personal de la academia. Devuelve la ruta anterior.
+    /// Solo personal (administrador o staff), nunca familias. Queda en la auditoría.
+    /// </summary>
+    public async Task<(bool Found, string? Previous)> SetStaffPhotoAsync(Guid academyId, Guid userId, string? avatarUrl, Guid actorId)
+    {
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId && u.AcademyId == academyId
+            && (u.Role == UserRole.Staff || u.Role == UserRole.AcademyAdmin));
+        if (user == null) return (false, null);
+        var previous = user.AvatarUrl;
+        user.AvatarUrl = avatarUrl;
+        _audit.Add(academyId, avatarUrl == null ? "users.photo.remove" : "users.photo.set", nameof(User), user.Id,
+            new { by = actorId == userId ? "propio" : "administrador", previous, avatarUrl }, actorId);
+        await _context.SaveChangesAsync();
+        return (true, previous);
+    }
+
     public AcademyConfigurationService(AppDbContext context, AuditService audit, AccessScopeService scope)
     {
         _context = context;
@@ -426,6 +443,7 @@ public class AcademyConfigurationService
                 LastName = u.LastName,
                 Email = StudentService.IsPlaceholderEmail(u.Email) ? "" : u.Email,
                 Phone = u.Phone,
+                AvatarUrl = u.AvatarUrl,
                 SystemRole = u.Role.ToString(),
                 IsOwner = u.IsOwner,
                 AcademyRoleIds = u.AssignedRoles.Select(r => r.Id).ToList(),

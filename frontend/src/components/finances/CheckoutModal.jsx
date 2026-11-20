@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import api from '../../api/axios';
 import { useAuth } from '../../context/AuthContext';
 import { printReceipt } from '../../utils/pdfGenerator';
+import ReceiptPrompt from './ReceiptPrompt';
 import { conceptOf, conceptRank } from '../../utils/debtConcepts';
 
 const METHODS = [
@@ -64,6 +65,8 @@ export default function CheckoutModal({ open, onClose, onDone, initialStudentId,
   const [parts, setParts] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Recibo recién emitido: se pregunta si se imprime ahora (antes se abría el PDF siempre).
+  const [issued, setIssued] = useState(null);
   const [preview, setPreview] = useState(null);
   const [previewError, setPreviewError] = useState(null);
   const [previewing, setPreviewing] = useState(false);
@@ -266,16 +269,18 @@ export default function CheckoutModal({ open, onClose, onDone, initialStudentId,
     setSaving(true);
     try {
       const { data } = await api.post('/receipts', { ...body, payments, clientRequestId: requestId });
-      toast.success(`Recibo N° ${data.number} emitido.`);
-      printReceipt(data);
-      onDone?.(data);
-      onClose();
+      // onDone se avisa al cerrar el aviso del recibo: hay pantallas (Asistencia) que cierran el cobro en onDone.
+      setIssued(data);
     } catch (err) {
       toast.error(err.response?.data?.message || 'No se pudo registrar el cobro.');
     } finally { setSaving(false); }
   };
 
   if (!open) return null;
+
+  if (issued) {
+    return <ReceiptPrompt number={issued.number} onPrint={() => printReceipt(issued)} onClose={() => { const done = issued; setIssued(null); onDone?.(done); onClose(); }} />;
+  }
 
   return (
     <div className="modal-overlay" onClick={onClose}>

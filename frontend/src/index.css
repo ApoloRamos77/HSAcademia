@@ -1099,3 +1099,7 @@ select.form-control { cursor: pointer; }
   display: flex; align-items: center; justify-content: center;
   background: var(--primary-dark); color: #fff; border: 2px solid var(--bg-card);
 }
+
+/* Aviso "¿Imprimir el recibo ahora?" */
+.receipt-prompt-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+@media (max-width: 640px) { .receipt-prompt-actions > .btn { flex: 1 1 0; } }

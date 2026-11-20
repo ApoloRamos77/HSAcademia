@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import { generateReceiptPDF, printReceipt } from '../../utils/pdfGenerator';
 import CheckoutModal from '../../components/finances/CheckoutModal';
 import MyCashPanel from '../../components/finances/MyCashPanel';
+import ReceiptPrompt from '../../components/finances/ReceiptPrompt';
 import { todayISO } from '../../utils/dates';
 
 function SearchableStudentSelect({ students, value, onChange }) {
@@ -81,6 +82,8 @@ export default function Tienda() {
 
   const [showSaleModal, setShowSaleModal] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
+  // Venta registrada: se pregunta si se imprime el recibo ahora.
+  const [pendingReceipt, setPendingReceipt] = useState(null);
   const initialSale = { productId: '', studentId: '', quantity: '1', isGift: false, customDiscount: '', paymentMethod: 'Cash', operationNumber: '', saleDate: todayISO(), paymentRecordId: '', monthlyAmountPaid: '', notes: '' };
   const [saleForm, setSaleForm] = useState(initialSale);
 
@@ -207,7 +210,7 @@ export default function Tienda() {
       
       const combinedTotal = items.reduce((acc, curr) => acc + curr.total, 0);
 
-      generateReceiptPDF({
+      setPendingReceipt({
         receiptNumber: res.data?.receiptNumber,
         date: res.data?.saleDate,
         customerName: student ? `${student.firstName} ${student.lastName}` : 'Público General',
@@ -319,6 +322,10 @@ export default function Tienda() {
 
   return (
     <AppLayout title="Tienda y Ventas">
+      {pendingReceipt && (
+        <ReceiptPrompt title={pendingReceipt.items?.[0]?.total === 0 ? 'Obsequio registrado' : 'Venta registrada'} number={pendingReceipt.receiptNumber}
+          onPrint={() => generateReceiptPDF(pendingReceipt)} onClose={() => setPendingReceipt(null)} />
+      )}
       <div className="fade-in">
         
         {/* Tabs Menu */}

@@ -5,6 +5,7 @@ import api from '../../api/axios';
 import AppLayout from '../../components/AppLayout';
 import { useAuth } from '../../context/AuthContext';
 import { todayISO } from '../../utils/dates';
+import { StudentAvatar } from '../../components/students/StudentPhoto';
 
 const STATUS = [
   { value: 1, label: 'Presente', icon: UserCheck, color: '#10b981' },
@@ -117,7 +118,12 @@ export default function AsistenciaEntrenadores() {
                               {s.blockedReason && <div style={{ fontSize: 12, color: '#f59e0b' }}>{s.blockedReason}</div>}
                             </td>
                             <td>
-                              {s.staffName || (
+                              {s.staffName ? (
+                                <div className="flex items-center gap-2">
+                                  <StudentAvatar photoUrl={s.staffAvatarUrl} firstName={s.staffName.split(" ")[0]} lastName={s.staffName.split(" ").slice(1).join(" ")} size={32} />
+                                  <span>{s.staffName}</span>
+                                </div>
+                              ) : (
                                 <select className="form-control" style={{ fontSize: 13 }} disabled={disabled} value="" aria-label="Quién dictó la sesión"
                                   onChange={e => e.target.value && save(s, { staffId: e.target.value, status: s.status || 1 })}>
                                   <option value="">¿Quién dictó?</option>

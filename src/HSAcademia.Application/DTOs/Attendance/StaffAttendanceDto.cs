@@ -16,6 +16,8 @@ public class StaffSessionDto
     /// <summary>Entrenador de la sesión; null si el calendario no tiene uno y aún no se indicó quién dictó.</summary>
     public Guid? StaffId { get; set; }
     public string? StaffName { get; set; }
+    /// <summary>Foto del entrenador (servidor 1.0.26+).</summary>
+    public string? StaffAvatarUrl { get; set; }
 
     public AttendanceStatus? Status { get; set; }
     public Guid? SubstituteStaffId { get; set; }

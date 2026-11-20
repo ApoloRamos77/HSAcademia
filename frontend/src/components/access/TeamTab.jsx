@@ -5,6 +5,8 @@ import api from '../../api/axios';
 import { useAuth } from '../../context/AuthContext';
 import ConfirmDialog from '../ConfirmDialog';
 import CredentialsDialog from '../CredentialsDialog';
+import PhotoUploader from '../PhotoUploader';
+import { StudentAvatar } from '../students/StudentPhoto';
 
 const EMPTY_FORM = {
   firstName: '', lastName: '', email: '', phone: '', systemRole: 'Staff',
@@ -24,7 +26,7 @@ const lastLogin = value => value
   : 'Nunca';
 
 export default function TeamTab() {
-  const { user: me } = useAuth();
+  const { user: me, refresh } = useAuth();
   const [team, setTeam] = useState([]);
   const [roles, setRoles] = useState([]);
   const [sedes, setSedes] = useState([]);
@@ -221,7 +223,9 @@ export default function TeamTab() {
                 <tr key={u.id}>
                   <td>
                     <div className="flex items-center gap-3">
-                      <div className="avatar shrink-0">{initials(u)}</div>
+                      {u.avatarUrl
+                        ? <StudentAvatar photoUrl={u.avatarUrl} firstName={u.firstName} lastName={u.lastName} size={36} />
+                        : <div className="avatar shrink-0">{initials(u)}</div>}
                       <div style={{ minWidth: 0, maxWidth: 210 }}>
                         <div className="font-bold text-sm truncate" title={fullName(u)}>{fullName(u)}</div>
                         <div className="text-xs text-text-muted truncate" title={u.email || u.phone || ''}>{u.email || u.phone || 'Sin contacto'}</div>
@@ -274,6 +278,15 @@ export default function TeamTab() {
             <h3 className="modal-title">{editing ? `Editar a ${fullName(editing)}` : 'Nueva cuenta'}</h3>
             <form onSubmit={submit}>
               <Section title="Datos de la persona">
+                {editing && (
+                  <PhotoUploader photoUrl={editing.avatarUrl} firstName={editing.firstName} lastName={editing.lastName}
+                    endpoint={`/academy-config/users/${editing.id}/photo`} size={72}
+                    onChanged={url => {
+                      setEditing(e => ({ ...e, avatarUrl: url }));
+                      setTeam(list => list.map(x => (x.id === editing.id ? { ...x, avatarUrl: url } : x)));
+                      if (isSelf) refresh?.();
+                    }} />
+                )}
                 <div className="form-row">
                   <Field label="Nombre *"><input required className="form-control" value={form.firstName} onChange={e => setForm({ ...form, firstName: e.target.value })} /></Field>
                   <Field label="Apellido *"><input required className="form-control" value={form.lastName} onChange={e => setForm({ ...form, lastName: e.target.value })} /></Field>

@@ -23,6 +23,7 @@ import PaymentsScreen from '../screens/family/PaymentsScreen';
 import SendProofScreen from '../screens/family/SendProofScreen';
 import AgendaScreen from '../screens/family/AgendaScreen';
 import ProgressScreen from '../screens/family/ProgressScreen';
+import { AttendanceHistoryScreen, MatchesHistoryScreen } from '../screens/family/HistoryScreens';
 import CardScreen from '../screens/family/CardScreen';
 import CoachTodayScreen from '../screens/staff/CoachTodayScreen';
 import AttendanceScreen from '../screens/staff/AttendanceScreen';
@@ -95,6 +96,8 @@ function FamilyStack() {
         <Stack.Screen name="Tabs" component={FamilyTabs} options={{ headerShown: false }} />
         <Stack.Screen name="SendProof" component={SendProofScreen} options={{ title: 'Enviar comprobante' }} />
         <Stack.Screen name="News" component={NewsScreen} options={{ title: 'Comunicados' }} />
+        <Stack.Screen name="AttendanceHistory" component={AttendanceHistoryScreen} options={{ title: 'Historial de asistencia' }} />
+        <Stack.Screen name="MatchesHistory" component={MatchesHistoryScreen} options={{ title: 'Todos los partidos' }} />
         <Stack.Screen name="Account" component={AccountScreen} options={{ title: 'Mi cuenta' }} />
         <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} options={{ title: 'Cambiar contraseña' }} />
         <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: 'Mi perfil' }} />

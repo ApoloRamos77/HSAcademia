@@ -4,12 +4,14 @@ import toast from 'react-hot-toast';
 import api from '../api/axios';
 import AppLayout from '../components/AppLayout';
 import { useAuth } from '../context/AuthContext';
+import PhotoUploader from '../components/PhotoUploader';
 
 const EMPTY_PASSWORD = { currentPassword: '', newPassword: '', confirmPassword: '' };
 const ROLE_LABEL = { AcademyAdmin: 'Administrador', Staff: 'Personal', Student: 'Alumno', Guardian: 'Apoderado', SuperAdmin: 'Plataforma' };
 
 export default function MiPerfil() {
-  const { refresh } = useAuth();
+  const { refresh, user } = useAuth();
+  const canHavePhoto = user?.role === 'AcademyAdmin' || user?.role === 'Staff';
   const [profile, setProfile] = useState(null);
   const [form, setForm] = useState({ firstName: '', lastName: '', phone: '' });
   const [password, setPassword] = useState(EMPTY_PASSWORD);
@@ -65,6 +67,10 @@ export default function MiPerfil() {
         <div className="flex flex-col gap-5">
           <div className="card">
             <h3 className="card-title flex items-center gap-2 mb-4"><User size={18} className="text-primary" /> Mis datos</h3>
+            {canHavePhoto && (
+              <PhotoUploader photoUrl={user?.avatarUrl} firstName={form.firstName} lastName={form.lastName} endpoint="/auth/me/photo"
+                onChanged={() => refresh()} hint="Se ve en el menú, en el equipo y en la asistencia de entrenadores." />
+            )}
             <form onSubmit={saveData}>
               <div className="form-row">
                 <div className="form-group"><label className="block"><span className="form-label">Nombre *</span><input required className="form-control" value={form.firstName} onChange={e => setForm({ ...form, firstName: e.target.value })} /></label></div>

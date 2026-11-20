@@ -1,17 +1,47 @@
-import React from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Building2, ChevronRight, KeyRound, LogOut, Mail, Megaphone, QrCode, Wallet, CalendarDays, Banknote, UserRound } from 'lucide-react-native';
+import React, { useState } from 'react';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Camera, Building2, ChevronRight, KeyRound, LogOut, Mail, Megaphone, QrCode, Wallet, CalendarDays, Banknote, UserRound } from 'lucide-react-native';
 import { getVersion } from '../../utils/appInfo';
 import { useAuth } from '../../auth/AuthContext';
 import { Card, Row, Screen } from '../../components/ui';
 import { colors, font, radius, spacing } from '../../theme';
 import { initials } from '../../utils/format';
+import { StudentAvatar, pickStudentPhoto, removeMyPhoto, uploadMyPhoto } from '../../components/StudentPhoto';
+import { errorMessage } from '../../api/client';
 
 const ROLE_LABEL: Record<string, string> = { AcademyAdmin: 'Administrador', Staff: 'Personal / Entrenador', Guardian: 'Apoderado', Student: 'Alumno' };
 
 /** Mi cuenta + menú "Más": accesos secundarios según el rol y cierre de sesión. */
 export default function AccountScreen({ navigation }: any) {
-  const { session, logout, role, selectAcademy, can } = useAuth();
+  const { session, logout, role, selectAcademy, can, refreshSession } = useAuth();
+  const isTeam = role === 'AcademyAdmin' || role === 'Staff';
+  const [photoBusy, setPhotoBusy] = useState(false);
+
+  // El personal pone su propia foto: se ve en el equipo, la asistencia de entrenadores y el menú de la web.
+  const run = async (task: () => Promise<unknown>, done: string) => {
+    setPhotoBusy(true);
+    try { await task(); await refreshSession(); Alert.alert('Foto', done); }
+    catch (e) { Alert.alert('Foto', errorMessage(e, 'No se pudo guardar la foto. Inténtalo de nuevo con mejor señal.')); }
+    finally { setPhotoBusy(false); }
+  };
+  const choose = async (source: 'camera' | 'library') => {
+    try {
+      const asset = await pickStudentPhoto(source);
+      if (asset?.uri) await run(() => uploadMyPhoto(asset), 'Foto actualizada.');
+    } catch (e: any) { Alert.alert('Foto', e?.message ?? 'No se pudo obtener la foto.'); }
+  };
+  const changePhoto = () => {
+    if (!isTeam || photoBusy) return;
+    Alert.alert('Tu foto', 'Se verá en el equipo y en la asistencia de entrenadores.', session?.avatarUrl ? [
+      { text: 'Quitar', style: 'destructive', onPress: () => run(removeMyPhoto, 'Foto quitada.') },
+      { text: 'Galería', onPress: () => choose('library') },
+      { text: 'Tomar foto', onPress: () => choose('camera') },
+    ] : [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Galería', onPress: () => choose('library') },
+      { text: 'Tomar foto', onPress: () => choose('camera') },
+    ], { cancelable: true });
+  };
   const isStaff = role === 'Staff' || role === 'AcademyAdmin';
 
   const items = [
@@ -38,7 +68,19 @@ export default function AccountScreen({ navigation }: any) {
     <Screen>
       <Card>
         <Row>
-          <View style={styles.avatar}><Text style={styles.avatarText}>{initials(session?.fullName)}</Text></View>
+          {isTeam ? (
+            <Pressable onPress={changePhoto} disabled={photoBusy} hitSlop={6} accessibilityRole="button"
+              accessibilityLabel={session?.avatarUrl ? 'Cambiar mi foto' : 'Agregar mi foto'}>
+              {session?.avatarUrl
+                ? <StudentAvatar photoUrl={session.avatarUrl} name={session.fullName} size={56} />
+                : <View style={styles.avatar}><Text style={styles.avatarText}>{initials(session?.fullName)}</Text></View>}
+              <View style={styles.photoBadge}>
+                {photoBusy ? <ActivityIndicator size="small" color={colors.white} /> : <Camera color={colors.white} size={13} />}
+              </View>
+            </Pressable>
+          ) : (
+            <View style={styles.avatar}><Text style={styles.avatarText}>{initials(session?.fullName)}</Text></View>
+          )}
           <View style={{ flex: 1 }}>
             <Text style={font.h2}>{session?.fullName}</Text>
             <Text style={font.small}>{session?.isOwner ? 'Propietario' : ROLE_LABEL[role ?? ''] ?? role}</Text>
@@ -79,6 +121,7 @@ export default function AccountScreen({ navigation }: any) {
 
 const styles = StyleSheet.create({
   avatar: { width: 56, height: 56, borderRadius: radius.pill, backgroundColor: colors.primaryDark, alignItems: 'center', justifyContent: 'center' },
+  photoBadge: { position: 'absolute', right: -2, bottom: -2, width: 24, height: 24, borderRadius: radius.pill, backgroundColor: colors.accentDark, borderWidth: 2, borderColor: colors.card, alignItems: 'center', justifyContent: 'center' },
   avatarText: { color: colors.white, fontSize: 20, fontWeight: '700' },
   item: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.lg },
   itemBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
