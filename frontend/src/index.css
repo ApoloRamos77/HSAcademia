@@ -1110,3 +1110,14 @@ select.form-control { cursor: pointer; }
 .co-adjust.is-waive { border-color: rgba(245,158,11,0.5); background: rgba(245,158,11,0.08); }
 .co-adjust-label { font-size: 12px; font-weight: 700; color: var(--text-secondary); }
 .co-adjust .co-concepts { margin: 0; }
+
+/* Avisos automáticos (Comunicados) */
+.notification-settings .ns-block { display: flex; flex-direction: column; gap: 8px; padding: 14px 0; border-top: 1px solid var(--border); }
+.notification-settings .ns-toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; }
+.notification-settings .ns-toggle input { width: 18px; height: 18px; flex-shrink: 0; }
+.notification-settings .ns-preview { margin-top: 8px; padding: 10px 12px; border-radius: 10px; background: var(--bg-surface); font-size: 13px; color: var(--text-secondary); }
+
+/* Portal de la familia: cumpleaños de hoy */
+.birthday-card { display: flex; align-items: center; gap: 14px; background: linear-gradient(135deg, rgba(245,158,11,0.12), rgba(62,177,229,0.10)); }
+.birthday-emoji { font-size: 32px; line-height: 1; }
+.notification-settings.ns-collapsed { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }

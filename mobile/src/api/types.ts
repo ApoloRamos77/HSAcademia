@@ -277,6 +277,9 @@ export interface SportsSummary {
   recentMatches: { eventId: string; date: string; title: string; opponent?: string | null; score?: string | null; minutes: number; goals: number; assists: number; rating?: number | null }[];
 }
 
+/** Compañero de categoría que cumple hoy (servidor 1.0.27+). Solo el nombre. */
+export interface BirthdayToday { studentId: string; name: string; isSelf: boolean; photoUrl?: string | null }
+
 export interface Announcement {
   id: string;
   title: string;

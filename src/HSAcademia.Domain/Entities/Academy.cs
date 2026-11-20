@@ -20,6 +20,22 @@ public class Academy
     // Datos fijos de los comprobantes: no dependen de la sede ni de dónde se cobre.
     public string? ReceiptAddress { get; set; }
     public string? ReceiptPhone { get; set; }
+
+    // Avisos automáticos (push)
+    /// <summary>Recordatorio de encuentros a las familias de los convocados y al responsable.</summary>
+    public bool NotifyMatchEnabled { get; set; } = true;
+    /// <summary>Horas antes del encuentro (1–24).</summary>
+    public int NotifyMatchHoursBefore { get; set; } = 2;
+    /// <summary>Hora del aviso cuando el encuentro de hoy aún no tiene hora confirmada (5–20).</summary>
+    public int NotifyMatchNoTimeHour { get; set; } = 7;
+    /// <summary>Saludo de cumpleaños a la familia del alumno.</summary>
+    public bool NotifyBirthdayEnabled { get; set; } = true;
+    /// <summary>Hora del saludo de cumpleaños (5–20).</summary>
+    public int NotifyBirthdayHour { get; set; } = 8;
+    /// <summary>Aviso de cumpleaños al personal (entrenadores de su categoría, coordinadores y administradores).</summary>
+    public bool NotifyBirthdayStaff { get; set; } = true;
+    /// <summary>Saludo propio; null = el de Clubio. Admite {nombre}, {academia} y {edad}.</summary>
+    public string? BirthdayMessage { get; set; }
     public string? City { get; set; }
     public string? Country { get; set; }
     public string? Website { get; set; }

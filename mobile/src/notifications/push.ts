@@ -29,7 +29,8 @@ export function routeFor(type: string | undefined, isFamily: boolean): { name: s
   if (!isFamily) return null;
   if (type === 'arrival') return familyTab('Inicio');
   if (type === 'proof' || type === 'payment') return familyTab('Pagos');
-  if (type === 'call') return familyTab('Agenda');
+  if (type === 'call' || type === 'match') return familyTab('Agenda');
+  if (type === 'birthday') return familyTab('Inicio');
   return null;
 }
 

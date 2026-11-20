@@ -66,6 +66,21 @@ public class AcademyRoleDto
 }
 
 /// <summary>Encabezado de los recibos: igual en todas las sedes y canales de cobro.</summary>
+/// <summary>Avisos automáticos de la academia (encuentros y cumpleaños).</summary>
+public class NotificationSettingsDto
+{
+    public bool MatchEnabled { get; set; } = true;
+    [System.ComponentModel.DataAnnotations.Range(1, 24)] public int MatchHoursBefore { get; set; } = 2;
+    [System.ComponentModel.DataAnnotations.Range(5, 20)] public int MatchNoTimeHour { get; set; } = 7;
+    public bool BirthdayEnabled { get; set; } = true;
+    [System.ComponentModel.DataAnnotations.Range(5, 20)] public int BirthdayHour { get; set; } = 8;
+    public bool BirthdayStaff { get; set; } = true;
+    /// <summary>Saludo propio (máx. 300). Vacío = el de Clubio. Admite {nombre}, {academia} y {edad}.</summary>
+    [System.ComponentModel.DataAnnotations.MaxLength(300)] public string? BirthdayMessage { get; set; }
+    /// <summary>Solo lectura: el saludo de Clubio, para mostrarlo de ejemplo.</summary>
+    public string DefaultBirthdayMessage { get; set; } = string.Empty;
+}
+
 public class ReceiptProfileDto
 {
     public string Name { get; set; } = string.Empty;

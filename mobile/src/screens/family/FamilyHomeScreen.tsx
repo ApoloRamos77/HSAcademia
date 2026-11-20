@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Camera, Bell, CalendarDays, CheckCircle2, CreditCard, Megaphone, Pin, QrCode, Trophy, ChevronRight, UserCircle2 } from 'lucide-react-native';
 import { api } from '../../api/client';
-import type { Announcement, AttendanceMonth, Debt, FamilyNotice, MyCall, MyEncounter, MyTournament } from '../../api/types';
+import type { Announcement, AttendanceMonth, BirthdayToday, Debt, FamilyNotice, MyCall, MyEncounter, MyTournament } from '../../api/types';
 import { ATT, capitalize } from './HistoryScreens';
 import { longDay } from '../../utils/format';
 import { useAuth } from '../../auth/AuthContext';
@@ -62,7 +62,7 @@ export default function FamilyHomeScreen({ navigation }: any) {
 
   const { data, loading, refreshing, refresh } = useApi(async () => {
     if (!student) return null;
-    const [debts, calls, history, news, next, notices, tournaments] = await Promise.all([
+    const [debts, calls, history, news, next, notices, tournaments, birthdays] = await Promise.all([
       api.get<Debt[]>('/finances/my-debts').then(r => r.data),
       api.get<MyCall[]>('/calendar/mobile/my-calls').then(r => r.data).catch(() => [] as MyCall[]),
       api.get<AttendanceMonth[]>('/attendance/my-history', { params: { studentId: student.id, months: 2 } }).then(r => r.data).catch(() => []),
@@ -70,9 +70,10 @@ export default function FamilyHomeScreen({ navigation }: any) {
       api.get<NextEvent>('/calendar/mobile/next', { params: { categoryId: student.categoryId, studentId: student.id } }).then(r => (r.status === 204 ? null : r.data)).catch(() => null),
       api.get<FamilyNotice[]>('/notices/mine').then(r => r.data).catch(() => [] as FamilyNotice[]),
       api.get<MyTournament[]>('/tournaments/mobile/mine', { params: { studentId: student.id } }).then(r => r.data).catch(() => [] as MyTournament[]),
+      api.get<BirthdayToday[]>(`/mobile/students/${student.id}/birthdays-today`).then(r => r.data).catch(() => [] as BirthdayToday[]),
     ]);
     if (notices.some(n => !n.isRead)) api.post('/notices/mine/read').catch(() => {});
-    return { debts, calls, history, news, next, notices, tournaments };
+    return { debts, calls, history, news, next, notices, tournaments, birthdays };
   }, [student?.id]);
 
   if (loadingFamily || (loading && !data)) return <Loading text="Cargando…" />;
@@ -115,6 +116,27 @@ export default function FamilyHomeScreen({ navigation }: any) {
         </View>
       </Row>
       <StudentPicker />
+
+      {/* Cumpleaños de hoy: el propio (saludo) y los compañeros de su categoría (solo nombres) */}
+      {(data?.birthdays ?? []).length > 0 && (() => {
+        const self = data!.birthdays.find(b => b.isSelf);
+        const mates = data!.birthdays.filter(b => !b.isSelf);
+        return (
+          <Card style={styles.cardBirthday}>
+            <Row style={{ gap: spacing.md, alignItems: 'center' }}>
+              <Text style={{ fontSize: 30 }} accessibilityElementsHidden>🎉</Text>
+              <View style={{ flex: 1 }}>
+                {self && <Text style={font.h3}>¡Feliz cumpleaños, {self.name.split(' ')[0]}! Toda la academia te saluda.</Text>}
+                {mates.length > 0 && (
+                  <Text style={font.body}>
+                    Hoy {mates.length === 1 ? 'cumple' : 'cumplen'} en su categoría: <Text style={{ fontWeight: '700' }}>{mates.map(m => m.name).join(', ')}</Text>. {mates.length === 1 ? '¡Salúdalo' : '¡Salúdalos'} en el entrenamiento!
+                  </Text>
+                )}
+              </View>
+            </Row>
+          </Card>
+        );
+      })()}
 
       {/* Avisos de llegada */}
       {(data?.notices ?? []).slice(0, 3).map(n => (
@@ -243,6 +265,7 @@ function Quick({ icon, label, extra, onPress }: { icon: React.ReactNode; label: 
 }
 
 const styles = StyleSheet.create({
+  cardBirthday: { backgroundColor: '#FFF7E6', borderColor: '#F5C46B' },
   photoBadge: { position: 'absolute', right: -2, bottom: -2, width: 24, height: 24, borderRadius: radius.pill, backgroundColor: colors.primaryDark, borderWidth: 2, borderColor: colors.card, alignItems: 'center', justifyContent: 'center' },
   big: { fontSize: 28, fontWeight: '700', color: colors.text, marginTop: spacing.sm },
   cardDanger: { borderColor: colors.danger, borderLeftWidth: 4 },
