@@ -1,14 +1,59 @@
-import { NavLink, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import api from '../api/axios';
+import { visibleFinanceSections, canConfigureCollections } from '../utils/financeSections';
 import { StudentAvatar } from './students/StudentPhoto';
-import { FINANCE_ACCESS, STORE_ACCESS, REPORTS_ACCESS } from '../utils/permissions';
+import { STORE_ACCESS, REPORTS_ACCESS } from '../utils/permissions';
 import {
   LayoutDashboard, Building2, Users, ClipboardList, LogOut,
-  ShieldCheck, ShoppingCart, DollarSign, CalendarCheck, CalendarDays, Crown, X, Megaphone, FileSpreadsheet
+  ShieldCheck, ShoppingCart, CalendarCheck, CalendarDays, Crown, X, Megaphone, FileSpreadsheet, SlidersHorizontal
 } from 'lucide-react';
 
+/**
+ * Finanzas en el menú: cada opción permitida es su propia página. Comprobantes muestra cuántos esperan revisión
+ * (se actualiza al navegar y cuando la página de comprobantes avisa un cambio).
+ */
+function FinanceNav({ navCls, onClose }) {
+  const { can, academyWide, isAdmin } = useAuth();
+  const location = useLocation();
+  const auth = { can, academyWide, isAdmin };
+  const sections = visibleFinanceSections(auth);
+  const canProofs = sections.some(s => s.key === 'comprobantes');
+  const [pending, setPending] = useState(0);
+  useEffect(() => {
+    if (!canProofs) return undefined;
+    const load = () => api.get('/finances/proofs/pending-count').then(r => setPending(r.data.count || 0)).catch(() => {});
+    load();
+    window.addEventListener('clubio:proofs-changed', load);
+    return () => window.removeEventListener('clubio:proofs-changed', load);
+  }, [canProofs, location.pathname]);
+  const store = can(...STORE_ACCESS);
+  if (sections.length === 0 && !store) return null;
+  return (
+    <div className="nav-section">
+      <div className="nav-label">💰 Finanzas</div>
+      {sections.map(s => {
+        const Icon = s.icon;
+        return (
+          <NavLink key={s.key} to={`/academy/finanzas/${s.key}`} className={navCls} onClick={onClose}>
+            <Icon size={16} /> {s.labelFor ? s.labelFor(auth) : s.label}
+            {s.key === 'comprobantes' && pending > 0 && <span className="nav-badge" aria-label={`${pending} por revisar`}>{pending}</span>}
+          </NavLink>
+        );
+      })}
+      {store && (
+        <NavLink to="/academy/tienda" className={navCls} onClick={onClose}>
+          <ShoppingCart size={16} /> Tienda
+        </NavLink>
+      )}
+    </div>
+  );
+}
+
 export default function Sidebar({ isOpen, onClose }) {
-  const { user, logout, can } = useAuth();
+  const { user, logout, can, academyWide } = useAuth();
+  const canCollectionsConfig = canConfigureCollections({ can, academyWide });
   const navigate = useNavigate();
 
   const handleLogout = () => { logout(); navigate('/login'); };
@@ -96,15 +141,7 @@ export default function Sidebar({ isOpen, onClose }) {
               </NavLink>
             </div>
 
-            <div className="nav-section">
-              <div className="nav-label">💰 Finanzas</div>
-              <NavLink to="/academy/finanzas" className={navCls} onClick={onClose}>
-                <DollarSign size={16} /> Cobranzas
-              </NavLink>
-              <NavLink to="/academy/tienda" className={navCls} onClick={onClose}>
-                <ShoppingCart size={16} /> Tienda
-              </NavLink>
-            </div>
+            <FinanceNav navCls={navCls} onClose={onClose} />
 
             <div className="nav-section">
               <div className="nav-label">🔐 Seguridad</div>
@@ -126,6 +163,9 @@ export default function Sidebar({ isOpen, onClose }) {
               </NavLink>
               <NavLink to="/academy/calendario" className={navCls} onClick={onClose}>
                 <CalendarDays size={16} /> Calendario
+              </NavLink>
+              <NavLink to="/academy/configuracion/cobros" className={navCls} onClick={onClose}>
+                <SlidersHorizontal size={16} /> Cobros y descuentos
               </NavLink>
             </div>
           </>
@@ -176,17 +216,18 @@ export default function Sidebar({ isOpen, onClose }) {
                   <CalendarDays size={16} /> Calendario
                 </NavLink>
               )}
-              {can(...STORE_ACCESS) && (
-                <NavLink to="/academy/tienda" className={navCls} onClick={onClose}>
-                  <ShoppingCart size={16} /> Tienda
-                </NavLink>
-              )}
-              {can(...FINANCE_ACCESS) && (
-                <NavLink to="/academy/finanzas" className={navCls} onClick={onClose}>
-                  <DollarSign size={16} /> Finanzas
-                </NavLink>
-              )}
             </div>
+
+            <FinanceNav navCls={navCls} onClose={onClose} />
+
+            {canCollectionsConfig && (
+              <div className="nav-section">
+                <div className="nav-label">📋 Configuración</div>
+                <NavLink to="/academy/configuracion/cobros" className={navCls} onClick={onClose}>
+                  <SlidersHorizontal size={16} /> Cobros y descuentos
+                </NavLink>
+              </div>
+            )}
           </>
         )}
 

@@ -25,6 +25,7 @@ import AsistenciaEntrenadores from './pages/academy/AsistenciaEntrenadores';
 import Calendario from './pages/academy/Calendario';
 import Tienda from './pages/academy/Tienda';
 import Finanzas from './pages/academy/Finanzas';
+import CobrosConfig from './pages/academy/CobrosConfig';
 import Torneos from './pages/academy/Torneos';
 import Comunicados from './pages/academy/Comunicados';
 import Reportes from './pages/academy/Reportes';
@@ -149,9 +150,20 @@ export default function App() {
               <Comunicados />
             </ProtectedRoute>
           } />
+          {/* Finanzas: cada opción del menú lateral es una sección (/academy/finanzas lleva a la primera permitida) */}
           <Route path="/academy/finanzas" element={
             <ProtectedRoute roles={['AcademyAdmin', 'Staff']} permissions={FINANCE_ACCESS}>
               <Finanzas />
+            </ProtectedRoute>
+          } />
+          <Route path="/academy/finanzas/:section" element={
+            <ProtectedRoute roles={['AcademyAdmin', 'Staff']} permissions={FINANCE_ACCESS}>
+              <Finanzas />
+            </ProtectedRoute>
+          } />
+          <Route path="/academy/configuracion/cobros" element={
+            <ProtectedRoute roles={['AcademyAdmin', 'Staff']} permissions={['finances.config']}>
+              <CobrosConfig />
             </ProtectedRoute>
           } />
 

@@ -307,7 +307,7 @@ export default function Alumnos() {
             await api.post('/referrals', { referredStudentId: res.data.id, referrerStudentId: formData.referredBy });
             toast.success('Referido registrado: el descuento se aplicará cuando pague su primer cobro.');
           } catch (e) {
-            toast.error(`El alumno se registró, pero el referido no: ${e.response?.data?.message || 'error'}. Regístralo en Finanzas → Descuentos.`, { duration: 7000 });
+            toast.error(`El alumno se registró, pero el referido no: ${e.response?.data?.message || 'error'}. Regístralo en Configuración → Cobros y descuentos → Referidos.`, { duration: 7000 });
           }
         }
       }

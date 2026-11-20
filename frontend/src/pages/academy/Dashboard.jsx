@@ -232,7 +232,7 @@ export default function Dashboard() {
           {/* ── Mayores deudas ───────────────────────── */}
           {finance && (
             <Panel title="Mayores deudas vencidas" icon={TrendingDown}
-              action={<Link to="/academy/finanzas" className="dash-link">Ir a cobranza</Link>}>
+              action={<Link to="/academy/finanzas/cobranzas" className="dash-link">Ir a cobranza</Link>}>
               {finance.topOverdue.length === 0 ? (
                 <div className="dash-empty">Ningún alumno con mensualidades vencidas. 🎉</div>
               ) : (
