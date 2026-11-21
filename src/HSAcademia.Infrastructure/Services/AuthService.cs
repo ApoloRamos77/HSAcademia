@@ -34,9 +34,12 @@ public class AuthService
 
         // El teléfono y el DNI no son únicos entre academias: se buscan todos los candidatos
         // y se elige el que coincide con la contraseña (y con la academia, si se indicó).
+        // El celular se guarda solo con dígitos y sin +51: "960 867 830" o "+51960867830" también ingresan.
+        var phone = query.Contains('@') ? null : NormalizePhone(query);
         var candidatesQuery = _db.Users
             .Include(u => u.Academy)
-            .Where(u => u.Email.ToLower() == query || u.Phone == query || u.DocumentNumber == query);
+            .Where(u => u.Email.ToLower() == query || u.DocumentNumber == query ||
+                        (phone != null && (u.Phone == phone || u.Phone == query)));
 
         if (dto.AcademyId.HasValue && dto.AcademyId.Value != Guid.Empty)
         {
@@ -209,7 +212,7 @@ public class AuthService
 
         var firstName = dto.FirstName?.Trim();
         var lastName = dto.LastName?.Trim();
-        var phone = string.IsNullOrWhiteSpace(dto.Phone) ? null : dto.Phone.Trim();
+        var phone = NormalizePhone(dto.Phone);
         if (string.IsNullOrEmpty(firstName) || string.IsNullOrEmpty(lastName))
             return Result<bool>.Failure("El nombre y el apellido son obligatorios.");
         if (firstName.Length > 100 || lastName.Length > 100 || phone is { Length: > 50 })
@@ -264,6 +267,17 @@ public class AuthService
     }
 
     /// <summary>Asigna una contraseña temporal aleatoria y obliga a cambiarla. Devuelve la contraseña en texto plano.</summary>
+    /// <summary>
+    /// Formato único del celular en las cuentas (es también un dato de ingreso): solo dígitos y sin
+    /// el código de Perú. Devuelve null si no hay dígitos.
+    /// </summary>
+    public static string? NormalizePhone(string? value)
+    {
+        var digits = new string((value ?? string.Empty).Where(char.IsDigit).ToArray());
+        if (digits.Length == 11 && digits.StartsWith("51")) digits = digits[2..];
+        return digits.Length == 0 ? null : digits;
+    }
+
     public static string AssignTemporaryPassword(User user)
     {
         var temp = PasswordPolicy.GenerateTemporary();

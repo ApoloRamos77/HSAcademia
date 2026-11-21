@@ -611,7 +611,7 @@ public class AcademyConfigurationService
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(initialPassword),
             // La contraseña la definió el administrador: el usuario debe cambiarla al ingresar.
             MustChangePassword = true,
-            Phone = dto.Phone,
+            Phone = AuthService.NormalizePhone(dto.Phone),
             Role = sysRole,
             AssignedRoles = roles,
             HeadquarterId = requestedHeadquarters.Count == 1 ? requestedHeadquarters[0] : null,
@@ -673,7 +673,7 @@ public class AcademyConfigurationService
             user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password);
             user.MustChangePassword = true;
         }
-        user.Phone = dto.Phone;
+        user.Phone = AuthService.NormalizePhone(dto.Phone);
         user.Role = sysRole;
         user.AssignedRoles.Clear();
         foreach (var role in roles) user.AssignedRoles.Add(role);

@@ -265,7 +265,7 @@ public class StudentService
         if (!hasName || !hasPhone)
             throw new Exception("Para registrar al apoderado indica al menos su nombre y su celular.");
 
-        var phone = Digits(dto.GuardianPhone);
+        var phone = AuthService.NormalizePhone(dto.GuardianPhone) ?? "";
 
         if (hasEmail)
         {
@@ -285,7 +285,7 @@ public class StudentService
                 .Where(u => u.AcademyId == academyId && u.Role == UserRole.Guardian && u.Phone != null)
                 .Select(u => new { u.Id, u.Phone })
                 .ToListAsync();
-            var sibling = sameAcademyGuardians.FirstOrDefault(u => Digits(u.Phone) == phone);
+            var sibling = sameAcademyGuardians.FirstOrDefault(u => AuthService.NormalizePhone(u.Phone) == phone);
             if (sibling != null) return sibling.Id;
         }
 
@@ -353,16 +353,19 @@ public class StudentService
                 throw new Exception("El correo electrónico ya pertenece a otro alumno de la academia.");
 
             student.UserId = existing.Id;
+            var linkedPhone = AuthService.NormalizePhone(phone);
+            if (linkedPhone != null) existing.Phone = linkedPhone; // también ingresa con su celular
             return null;
         }
 
+        var normalizedPhone = AuthService.NormalizePhone(phone);
         var user = new User
         {
             AcademyId = academyId,
             FirstName = student.FirstName,
             LastName = student.LastName,
             Email = email,
-            Phone = phone,
+            Phone = normalizedPhone, // solo dígitos: puede ingresar con el correo o con el celular
             Role = UserRole.Student,
             Status = UserStatus.Active
         };
@@ -374,7 +377,7 @@ public class StudentService
         {
             Role = "Alumno",
             FullName = $"{user.FirstName} {user.LastName}".Trim(),
-            Login = email,
+            Login = normalizedPhone != null ? $"{email} o {normalizedPhone}" : email,
             TemporaryPassword = temp
         };
     }
@@ -548,6 +551,16 @@ public class StudentService
 
         student.Phone = dto.Phone;
 
+        // El celular del alumno es también su dato de ingreso a la app: la cuenta debe tener el mismo.
+        // (Antes solo se guardaba en la ficha y el alumno no podía ingresar con él.)
+        if (student.UserId.HasValue)
+        {
+            var newPhone = AuthService.NormalizePhone(dto.Phone);
+            var stUser = await _context.Users.FindAsync(student.UserId.Value);
+            if (stUser != null && stUser.Role == UserRole.Student && newPhone != null && stUser.Phone != newPhone)
+                stUser.Phone = newPhone;
+        }
+
         // Crear/vincular cuenta del alumno si ahora tiene email y celular
         if (!student.UserId.HasValue && newEmail != null && !string.IsNullOrWhiteSpace(dto.Phone))
         {
@@ -574,7 +587,7 @@ public class StudentService
                     guardian.Email = guardianEmail;
                 }
             }
-            if (!string.IsNullOrWhiteSpace(dto.GuardianPhone)) guardian.Phone = Digits(dto.GuardianPhone); // solo dígitos: login por celular
+            if (!string.IsNullOrWhiteSpace(dto.GuardianPhone)) guardian.Phone = AuthService.NormalizePhone(dto.GuardianPhone); // solo dígitos: login por celular
         }
         else
         {
