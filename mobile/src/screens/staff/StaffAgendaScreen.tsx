@@ -60,6 +60,9 @@ export default function StaffAgendaScreen({ navigation }: any) {
             const isMatch = e.type === 'Tournament';
             const canRecord = isMatch && can('events.manage');
             const hasResult = e.goalsFor != null && e.goalsAgainst != null;
+            // Ya cerrado sin marcador: W.O. a favor/en contra (5/6), postergado (3) o suspendido (4).
+            const closed = hasResult || [3, 4, 5, 6].includes(e.matchStatus ?? 0);
+            const needsResult = day < today && !closed;
             return (
               <Card key={e.id} style={{ padding: spacing.md }} onPress={canRecord ? () => navigation.navigate('Match', { eventId: e.id, title: e.title }) : undefined}>
                 <Row>
@@ -71,7 +74,7 @@ export default function StaffAgendaScreen({ navigation }: any) {
                     {e.location ? <Text style={font.tiny}>{e.location}</Text> : null}
                     {e.matchStatus && MATCH_STATUS[e.matchStatus] ? <Text style={font.tiny}>{matchBadgeText(e.matchStatus, e.goalsFor, e.goalsAgainst)}</Text> : null}
                   </View>
-                  {canRecord && <Badge tone={day < today && !hasResult ? 'warning' : 'info'} text={day < today && !hasResult ? 'Registrar resultado' : 'Resultado'} />}
+                  {canRecord && <Badge tone={needsResult ? 'warning' : 'info'} text={needsResult ? 'Registrar resultado' : 'Resultado'} />}
                   {canRecord && <ChevronRight color={colors.textMuted} />}
                 </Row>
               </Card>
