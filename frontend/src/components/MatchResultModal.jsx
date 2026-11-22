@@ -3,6 +3,9 @@ import { Trophy, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../api/axios';
 
+// Marca de la lista de asistencia del partido (AttendanceStatus del backend).
+const ATTENDANCE_LABEL = { 1: 'Presente', 2: 'Falta', 3: 'Tarde', 4: 'Justificado' };
+
 const num = v => (v === '' || v == null ? 0 : Math.max(0, parseInt(v, 10) || 0));
 
 /**
@@ -92,7 +95,7 @@ export default function MatchResultModal({ eventId, onClose, onSaved }) {
                     {rows.map(r => (
                       <tr key={r.studentId} style={{ opacity: r.played ? 1 : 0.6 }}>
                         <td><input type="checkbox" aria-label={`${r.studentName} jugó`} checked={!!r.played} onChange={e => set(r.studentId, 'played', e.target.checked)} /></td>
-                        <td>{r.studentName}<div className="text-xs text-text-muted">{r.category}{r.called ? ' · convocado' : ''}</div></td>
+                        <td>{r.studentName}<div className="text-xs text-text-muted">{r.category}{r.called ? ' · convocado' : ''}{data.attendanceTaken ? ` · ${ATTENDANCE_LABEL[r.attendanceStatus] ?? 'Sin marcar'}` : ''}</div></td>
                         <td><input type="checkbox" aria-label="Titular" disabled={!r.played} checked={!!r.isStarter} onChange={e => set(r.studentId, 'isStarter', e.target.checked)} /></td>
                         {['minutes', 'goals', 'assists', 'yellowCards', 'redCards'].map(f => (
                           <td key={f}><input type="number" min="0" className="form-control" style={cell} disabled={!r.played} value={r[f]} onChange={e => set(r.studentId, f, e.target.value)} /></td>

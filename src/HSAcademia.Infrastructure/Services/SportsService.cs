@@ -298,12 +298,20 @@ public class SportsService
         var calledIds = await _db.EventCalls.AsNoTracking()
             .Where(c => c.EventId == eventId && c.IsConfirmed != false).Select(c => c.StudentId).ToListAsync();
 
-        // Plantel: convocados + quienes ya tienen estadística; si no hay convocatoria, alumnos activos de las categorías.
+        // Asistencia tomada en la lista del partido (web, app o QR).
+        var attendance = await _db.Attendances.AsNoTracking()
+            .Where(a => a.EventId == eventId && a.AcademyId == academyId)
+            .Select(a => new { a.StudentId, a.Status })
+            .ToListAsync();
+        var attendanceByStudent = attendance.GroupBy(a => a.StudentId).ToDictionary(g => g.Key, g => g.First().Status);
+        var resultSaved = stats.Count > 0;
+
+        // Plantel: convocados + quienes ya tienen estadística o asistencia; si no hay ninguno, alumnos activos de las categorías.
         var categoryIds = new List<Guid>();
         if (ev.CategoryId.HasValue) categoryIds.Add(ev.CategoryId.Value);
         if (ev.CategoryIds != null) categoryIds.AddRange(ev.CategoryIds);
 
-        var ids = calledIds.Concat(stats.Keys).Distinct().ToList();
+        var ids = calledIds.Concat(stats.Keys).Concat(attendanceByStudent.Keys).Distinct().ToList();
         var studentsQuery = _db.Students.AsNoTracking().Where(s => s.AcademyId == academyId);
         studentsQuery = ids.Count > 0
             ? studentsQuery.Where(s => ids.Contains(s.Id))
@@ -323,16 +331,21 @@ public class SportsService
             GoalsFor = ev.GoalsFor,
             GoalsAgainst = ev.GoalsAgainst,
             MatchNotes = ev.MatchNotes,
+            ResultSaved = resultSaved,
+            AttendanceTaken = attendanceByStudent.Count > 0,
             Players = players.Select(p =>
             {
                 stats.TryGetValue(p.Id, out var st);
+                AttendanceStatus? att = attendanceByStudent.TryGetValue(p.Id, out var a) ? a : null;
                 return new PlayerStatDto
                 {
                     StudentId = p.Id,
                     StudentName = p.Name,
                     Category = p.Category,
                     Called = calledIds.Contains(p.Id) || st != null,
-                    Played = st != null,
+                    // Con resultado guardado manda la estadística; si no, se propone "jugó" a quien llegó (Presente/Tarde).
+                    Played = resultSaved ? st != null : att is AttendanceStatus.Present or AttendanceStatus.Late,
+                    AttendanceStatus = att.HasValue ? (int)att.Value : null,
                     IsStarter = st?.IsStarter ?? false,
                     Minutes = st?.Minutes ?? 0,
                     Goals = st?.Goals ?? 0,

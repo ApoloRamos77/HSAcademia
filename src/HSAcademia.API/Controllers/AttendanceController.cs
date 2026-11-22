@@ -379,7 +379,7 @@ public class AttendanceController : ControllerBase
 
     [HttpGet("mobile/my-training-history")]
     [Authorize(Roles = "Staff,AcademyAdmin")]
-    public async Task<IActionResult> GetStaffTrainingHistory([FromQuery] int months = 6)
+    public async Task<IActionResult> GetStaffTrainingHistory([FromQuery] int months = 6, [FromQuery] int ahead = 1)
     {
         var academyId = GetAcademyId();
         if (academyId == Guid.Empty) return Unauthorized();
@@ -387,7 +387,7 @@ public class AttendanceController : ControllerBase
         if (!Guid.TryParse(userIdStr, out var userId)) return Unauthorized();
         try
         {
-            var result = await _attendanceService.GetStaffTrainingHistoryAsync(academyId, userId, months);
+            var result = await _attendanceService.GetStaffTrainingHistoryAsync(academyId, userId, months, aheadMonths: ahead);
             return Ok(result);
         }
         catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
