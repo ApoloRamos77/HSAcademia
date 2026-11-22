@@ -1117,9 +1117,10 @@ public class AttendanceService : IAttendanceService
     }
 
     public async Task<List<StaffTrainingSessionDto>> GetStaffTrainingHistoryAsync(
-        Guid academyId, Guid staffUserId, int months, Guid? headquarterId = null)
+        Guid academyId, Guid staffUserId, int months, Guid? headquarterId = null, int aheadMonths = 1)
     {
         months = Math.Clamp(months, 1, 24);
+        aheadMonths = Math.Clamp(aheadMonths, 1, 3); // meses hacia adelante desde el actual (1 = hasta fin de mes)
 
         // Resolve staff's assigned category IDs
         var user = await _context.Users
@@ -1135,7 +1136,7 @@ public class AttendanceService : IAttendanceService
         var from = new DateTime(AcademyClock.Now.Year, AcademyClock.Now.Month, 1, 0, 0, 0, DateTimeKind.Utc)
                        .AddMonths(-(months - 1));
         var to = new DateTime(AcademyClock.Now.Year, AcademyClock.Now.Month, 1, 0, 0, 0, DateTimeKind.Utc)
-                     .AddMonths(1);
+                     .AddMonths(aheadMonths);
 
         var query = _context.Events
             .Include(e => e.Category)

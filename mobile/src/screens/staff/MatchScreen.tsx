@@ -5,10 +5,18 @@ import { api, errorMessage } from '../../api/client';
 import type { EncounterFinance, MatchResult } from '../../api/types';
 import { useAuth } from '../../auth/AuthContext';
 import { money } from '../../utils/format';
-import { Banner, Button, Card, Empty, Loading, Row, Screen, SectionTitle } from '../../components/ui';
+import { Badge, Banner, Button, Card, Empty, Loading, Row, Screen, SectionTitle } from '../../components/ui';
 import { colors, font, radius, spacing } from '../../theme';
 
 type Player = MatchResult['players'][number];
+
+// Marca de la lista de asistencia del partido (la misma que se ve en la web).
+const ATTENDANCE: Record<number, { text: string; tone: 'success' | 'warning' | 'danger' | 'info' }> = {
+  1: { text: 'Presente', tone: 'success' },
+  3: { text: 'Tarde', tone: 'warning' },
+  2: { text: 'Falta', tone: 'danger' },
+  4: { text: 'Justificado', tone: 'info' },
+};
 
 function Stepper({ value, onChange, min = 0, max = 99, label }: { value: number; onChange: (v: number) => void; min?: number; max?: number; label: string }) {
   return (
@@ -114,6 +122,17 @@ export default function MatchScreen({ route, navigation }: any) {
           )}
 
           <SectionTitle title="Jugadores" />
+          {data.attendanceTaken ? (
+            <Text style={font.small}>
+              Asistencia: {players.filter(p => p.attendanceStatus === 1 || p.attendanceStatus === 3).length} llegaron · {players.filter(p => p.attendanceStatus === 2).length} faltaron
+              {players.some(p => !p.attendanceStatus) ? ` · ${players.filter(p => !p.attendanceStatus).length} sin marcar` : ''}
+            </Text>
+          ) : (
+            <Text style={font.small}>Aún no se tomó la lista de este partido.</Text>
+          )}
+          {!data.resultSaved && data.attendanceTaken && (
+            <Banner tone="info" text='Resultado sin guardar: marcamos "Jugó" a quienes llegaron según la lista. Ajusta y toca "Guardar resultado".' />
+          )}
           {players.length === 0 ? <Card><Empty text="No hay jugadores convocados." /></Card> : players.map(p => (
             <Card key={p.studentId} style={{ padding: spacing.md, opacity: p.played ? 1 : 0.65 }}>
               <Pressable onPress={() => update(p.studentId, { played: !p.played, minutes: !p.played && p.minutes === 0 ? 60 : p.minutes })}>
@@ -121,6 +140,13 @@ export default function MatchScreen({ route, navigation }: any) {
                   <View style={{ flex: 1 }}>
                     <Text style={font.h3}>{p.studentName}</Text>
                     <Text style={font.tiny}>{p.category}{p.called ? ' · convocado' : ''}</Text>
+                    {data.attendanceTaken && (
+                      <View style={{ marginTop: 4, alignSelf: 'flex-start' }}>
+                        {p.attendanceStatus && ATTENDANCE[p.attendanceStatus]
+                          ? <Badge tone={ATTENDANCE[p.attendanceStatus].tone} text={ATTENDANCE[p.attendanceStatus].text} />
+                          : <Badge tone="muted" text="Sin marcar" />}
+                      </View>
+                    )}
                   </View>
                   <View style={[styles.toggle, p.played && { backgroundColor: colors.accentDark, borderColor: colors.accentDark }]}>
                     <Text style={[styles.toggleText, p.played && { color: colors.white }]}>{p.played ? 'Jugó' : 'No jugó'}</Text>

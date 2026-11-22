@@ -78,5 +78,5 @@ public interface IAttendanceService
     Task<int> AutoCloseExpiredAsync();
 
     /// <summary>Returns the training session history for a staff member's assigned categories.</summary>
-    Task<List<StaffTrainingSessionDto>> GetStaffTrainingHistoryAsync(Guid academyId, Guid staffUserId, int months, Guid? headquarterId = null);
+    Task<List<StaffTrainingSessionDto>> GetStaffTrainingHistoryAsync(Guid academyId, Guid staffUserId, int months, Guid? headquarterId = null, int aheadMonths = 1);
 }

@@ -382,8 +382,14 @@ export interface MatchResult {
   goalsFor?: number | null;
   goalsAgainst?: number | null;
   matchNotes?: string | null;
+  /** Ya hay estadísticas guardadas; si es false, "played" se propone según la lista de asistencia. */
+  resultSaved?: boolean;
+  /** La lista de asistencia del partido ya tiene marcas. */
+  attendanceTaken?: boolean;
   players: {
     studentId: string; studentName: string; category: string; called: boolean; played: boolean; isStarter: boolean;
+    /** Marca de la lista: 1 Presente, 2 Falta, 3 Tarde, 4 Justificado; null = sin marcar. */
+    attendanceStatus?: AttendanceCode | null;
     minutes: number; goals: number; assists: number; yellowCards: number; redCards: number; rating?: number | null; notes?: string | null;
   }[];
 }

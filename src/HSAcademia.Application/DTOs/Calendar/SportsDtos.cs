@@ -66,6 +66,10 @@ public class MatchResultDto
     public int? GoalsFor { get; set; }
     public int? GoalsAgainst { get; set; }
     public string? MatchNotes { get; set; }
+    /// <summary>true si ya se guardaron estadísticas de jugadores. Si es false, "Played" sale de la lista de asistencia.</summary>
+    public bool ResultSaved { get; set; }
+    /// <summary>true si la lista de asistencia del partido ya tiene marcas.</summary>
+    public bool AttendanceTaken { get; set; }
     public List<PlayerStatDto> Players { get; set; } = new();
 }
 
@@ -77,6 +81,8 @@ public class PlayerStatDto
     /// <summary>true si fue convocado (EventCall) o ya tiene estadística.</summary>
     public bool Called { get; set; }
     public bool Played { get; set; }
+    /// <summary>Marca de la lista de asistencia del partido: 1 Presente, 2 Falta, 3 Tarde, 4 Justificado; null = sin marcar.</summary>
+    public int? AttendanceStatus { get; set; }
     public bool IsStarter { get; set; }
     public int Minutes { get; set; }
     public int Goals { get; set; }
